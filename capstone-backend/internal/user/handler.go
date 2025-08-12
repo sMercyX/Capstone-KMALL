@@ -4,6 +4,9 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
+
+	apperr "github.com/Perpasit/Capstone-KMALL/internal/apperr"
+	"github.com/Perpasit/Capstone-KMALL/internal/respond"
 )
 
 type Handler struct{ svc Service }
@@ -21,39 +24,43 @@ func (h *Handler) Register(r *gin.RouterGroup) {
 
 func (h *Handler) list(c *gin.Context) {
 	us, err := h.svc.List(c.Request.Context())
-	if err != nil { c.JSON(500, gin.H{"error": err.Error()}); return }
-	c.JSON(200, us)
+	if err != nil { c.Error(err); return }
+	respond.OK(c, us)
 }
 
 func (h *Handler) get(c *gin.Context) {
 	u, err := h.svc.Get(c.Request.Context(), c.Param("id"))
-	if err != nil { c.JSON(404, gin.H{"error": err.Error()}); return }
-	c.JSON(200, u)
+	if err != nil { c.Error(err); return }
+	respond.OK(c, u)
 }
 
 func (h *Handler) create(c *gin.Context) {
 	var in User
-	if err := c.BindJSON(&in); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error":"bad json"}); return
+	if err := c.ShouldBindJSON(&in); err != nil {
+		c.Error(apperr.New(apperr.BadRequest, "bad json"))
+		return
 	}
 	u, err := h.svc.Create(c.Request.Context(), in)
-	if err != nil { c.JSON(400, gin.H{"error": err.Error()}); return }
-	c.JSON(201, u)
+	if err != nil { c.Error(err); return }
+
+	// ถ้าอยากคง 201 จริงๆ อาจเพิ่ม respond.Created() ภายหลังได้
+	c.JSON(http.StatusCreated, gin.H{"success": true, "data": u})
 }
 
 func (h *Handler) update(c *gin.Context) {
 	var in User
-	if err := c.BindJSON(&in); err != nil {
-		c.JSON(400, gin.H{"error":"bad json"}); return
+	if err := c.ShouldBindJSON(&in); err != nil {
+		c.Error(apperr.New(apperr.BadRequest, "bad json"))
+		return
 	}
 	u, err := h.svc.Update(c.Request.Context(), c.Param("id"), in)
-	if err != nil { c.JSON(400, gin.H{"error": err.Error()}); return }
-	c.JSON(200, u)
+	if err != nil { c.Error(err); return }
+	respond.OK(c, u)
 }
 
 func (h *Handler) delete(c *gin.Context) {
 	if err := h.svc.Delete(c.Request.Context(), c.Param("id")); err != nil {
-		c.JSON(400, gin.H{"error": err.Error()}); return
+		c.Error(err); return
 	}
-	c.Status(204)
+	c.Status(http.StatusNoContent)
 }

@@ -16,14 +16,12 @@ func main() {
 	if err := godotenv.Load(); err != nil {
 		log.Println("No .env file found, using environment variables from server")
 	}
-
 	cfg := config.Load()
 
 	pool := db.Open(context.Background(), cfg.DatabaseURL)
 	defer pool.Close()
 
-	r := gin.Default()
-	r.GET("/health", func(c *gin.Context) { c.String(200, "ok") })
+	r := gin.New()
 
 	router.Attach(r, pool, cfg)
 
@@ -32,3 +30,4 @@ func main() {
 		log.Fatal(err)
 	}
 }
+

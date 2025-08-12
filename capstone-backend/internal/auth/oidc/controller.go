@@ -8,7 +8,9 @@ import (
 	"github.com/gin-gonic/gin"
 	"golang.org/x/oauth2"
 
+	apperr "github.com/Perpasit/Capstone-KMALL/internal/apperr"
 	"github.com/Perpasit/Capstone-KMALL/internal/config"
+	"github.com/Perpasit/Capstone-KMALL/internal/respond"
 	"github.com/Perpasit/Capstone-KMALL/internal/user"
 )
 
@@ -35,18 +37,39 @@ func (ctl *Controller) Init(provider *gooidc.Provider) {
 }
 
 func (ctl *Controller) Login(c *gin.Context) {
+	// NOTE: ภายหลังควรใช้ state แบบสุ่มต่อคำขอ (กัน CSRF) แล้วเก็บไว้ใน cookie/session
 	c.Redirect(http.StatusFound, ctl.oauth.AuthCodeURL("devstate"))
 }
 
 func (ctl *Controller) Callback(c *gin.Context) {
-	if c.Query("state") != "devstate" { c.JSON(400, gin.H{"error":"invalid state"}); return }
+	if c.Query("state") != "devstate" {
+		c.Error(apperr.New(apperr.BadRequest, "invalid state"))
+		return
+	}
+
 	code := c.Query("code")
+	if code == "" {
+		c.Error(apperr.New(apperr.BadRequest, "missing code"))
+		return
+	}
+
 	tok, err := ctl.oauth.Exchange(c.Request.Context(), code)
-	if err != nil { c.JSON(400, gin.H{"error":"exchange failed", "detail": err.Error()}); return }
+	if err != nil {
+		c.Error(apperr.Wrap(apperr.BadRequest, err, "exchange auth code failed"))
+		return
+	}
 
 	rawID, _ := tok.Extra("id_token").(string)
+	if rawID == "" {
+		c.Error(apperr.New(apperr.BadRequest, "missing id_token"))
+		return
+	}
+
 	idt, err := ctl.verifier.Verify(c.Request.Context(), rawID)
-	if err != nil { c.JSON(400, gin.H{"error":"verify failed", "detail": err.Error()}); return }
+	if err != nil {
+		c.Error(apperr.Wrap(apperr.Unauthorized, err, "invalid id_token"))
+		return
+	}
 
 	var claims struct {
 		Email             string `json:"email"`
@@ -56,23 +79,33 @@ func (ctl *Controller) Callback(c *gin.Context) {
 		ObjectID          string `json:"oid"`
 	}
 	if err := idt.Claims(&claims); err != nil {
-		c.JSON(400, gin.H{"error":"claims parse failed"}); return
+		c.Error(apperr.Wrap(apperr.BadRequest, err, "claims parse failed"))
+		return
 	}
+
 	if claims.TenantID != ctl.cfg.TenantID {
-		c.JSON(401, gin.H{"error":"wrong tenant"}); return
+		c.Error(apperr.New(apperr.Unauthorized, "wrong tenant"))
+		return
 	}
+
 	email := claims.Email
-	if email == "" { email = claims.PreferredUsername }
-	if !strings.HasSuffix(strings.ToLower(email), "@kmutt.ac.th") {
-		c.JSON(403, gin.H{"error":"invalid domain"}); return
+	if email == "" {
+		email = claims.PreferredUsername
+	}
+	email = strings.ToLower(email)
+	if !strings.HasSuffix(email, "@kmutt.ac.th") {
+		c.Error(apperr.New(apperr.Forbidden, "invalid domain"))
+		return
 	}
 
-	// upsert + role buyer
 	u, err := ctl.userSvc.UpsertAndEnsureBuyer(c.Request.Context(), claims.ObjectID, email, claims.Name)
-	if err != nil { c.JSON(500, gin.H{"error":"db upsert failed", "detail": err.Error()}); return }
+	if err != nil {
+		c.Error(apperr.Wrap(apperr.Internal, err, "db upsert failed"))
+		return
+	}
 
-	// TODO: ออก JWT/Session แล้ว redirect ไปหน้า FE
-	c.JSON(200, gin.H{
+	// success → ใช้ respond.OK (รูปแบบ success กลาง)
+	respond.OK(c, gin.H{
 		"login":  "ok",
 		"id":     u.ID,
 		"ms_oid": u.MSID,
