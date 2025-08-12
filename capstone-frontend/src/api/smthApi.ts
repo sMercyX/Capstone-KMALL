@@ -27,7 +27,7 @@ export function useSmthApi() {
   const httpClient = useCrudApi()
 
   async function getIndex(data: IndexRequest): Promise<IndexResponse[]> {
-    return httpClient.postItem("/Smth/Index", data)
+    return httpClient.postItem("/Smth/Index", data, { auth: "none" })
   }
 
   async function create(params: IndexResponse): Promise<string> {
