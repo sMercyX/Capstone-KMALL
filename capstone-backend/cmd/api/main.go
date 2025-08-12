@@ -13,7 +13,10 @@ import (
 )
 
 func main() {
-	_ = godotenv.Load()
+	if err := godotenv.Load(); err != nil {
+		log.Println("No .env file found, using environment variables from server")
+	}
+
 	cfg := config.Load()
 
 	pool := db.Open(context.Background(), cfg.DatabaseURL)
