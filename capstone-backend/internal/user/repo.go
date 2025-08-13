@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"strings"
+	"fmt"
 
 	"github.com/jackc/pgconn"
 	"github.com/jackc/pgx/v5"
@@ -22,6 +23,9 @@ type Repo interface {
 	UpsertByMS(ctx context.Context, msOID, email, name string) (User, error)
 	EnsureBuyerRole(ctx context.Context) (int64, error)
 	LinkRole(ctx context.Context, userID string, roleID int64) error
+
+	// JWT claims
+	GetRolesByUserID(ctx context.Context, userID string) ([]string, error)
 }
 
 type repo struct{ db *pgxpool.Pool }
@@ -32,7 +36,9 @@ func (r *repo) List(ctx context.Context) ([]User, error) {
 	rows, err := r.db.Query(ctx, `
 		SELECT id, ms_id, email, display_name, profile_url
 		FROM users ORDER BY created_at DESC`)
-	if err != nil { return nil, apperr.Wrap(apperr.Internal, err, "list users failed") }
+	if err != nil {
+		return nil, apperr.Wrap(apperr.Internal, err, "list users failed")
+	}
 	defer rows.Close()
 
 	var out []User
@@ -76,7 +82,6 @@ func (r *repo) Create(ctx context.Context, u User) (User, error) {
 		if pgErr, ok := err.(*pgconn.PgError); ok {
 			switch pgErr.Code {
 			case "23505": // unique_violation
-				// ระบุ field ได้ถ้ามี constraint name
 				return User{}, apperr.New(apperr.Conflict, "duplicate user")
 			case "23514", "23502": // check_violation, not_null_violation
 				return User{}, apperr.Wrap(apperr.BadRequest, err, "invalid user data")
@@ -127,21 +132,93 @@ func (r *repo) Delete(ctx context.Context, id string) error {
 func (r *repo) UpsertByMS(ctx context.Context, msOID, email, name string) (User, error) {
 	email = strings.ToLower(email)
 	var u User
-	err := r.db.QueryRow(ctx, `
+
+	tx, err := r.db.BeginTx(ctx, pgx.TxOptions{})
+	if err != nil {
+		return User{}, apperr.Wrap(apperr.Internal, err, "begin tx failed")
+	}
+	defer func() {
+		if err != nil {
+			_ = tx.Rollback(ctx)
+		} else {
+			_ = tx.Commit(ctx)
+		}
+	}()
+
+	// 1) มี ms_id อยู่แล้ว? → อัปเดตชื่อ+last_login (ไม่แตะ email) แล้ว "return ทันที"
+	err = tx.QueryRow(ctx, `
+		UPDATE users
+		SET display_name=$2, last_login=now()
+		WHERE ms_id=$1
+		RETURNING id, ms_id, email, display_name, profile_url
+	`, msOID, name).Scan(&u.ID, &u.MSID, &u.Email, &u.DisplayName, &u.ProfileURL)
+	if err == nil {
+		return u, nil
+	}
+	if !errors.Is(err, pgx.ErrNoRows) {
+    if pgErr, ok := err.(*pgconn.PgError); ok {
+        return User{}, apperr.WithFields(
+            apperr.Wrap(apperr.Internal, err, "upsert(by ms_id) failed"),
+            map[string]any{
+                "pg_code":    pgErr.Code,
+                "constraint": pgErr.ConstraintName,
+                "detail":     pgErr.Detail,
+            },
+        )
+    }
+    // 👉 ใส่เพิ่มตรงนี้ด้วยเสมอ เพื่อเห็นสาเหตุแม้ไม่ใช่ pg error
+    return User{}, apperr.WithFields(
+        apperr.Wrap(apperr.Internal, err, "upsert(by ms_id) failed"),
+        map[string]any{
+            "cause": err.Error(),
+            "type":  fmt.Sprintf("%T", err),
+        },
+    )
+}
+
+
+	// 2) ยังไม่เคยมี ms_id → ผูก ms_id ให้เรคคอร์ดที่ email ตรง แล้ว "return ทันที"
+	err = tx.QueryRow(ctx, `
+		UPDATE users
+		SET ms_id=$1, display_name=$3, last_login=now()
+		WHERE email=$2
+		RETURNING id, ms_id, email, display_name, profile_url
+	`, msOID, email, name).Scan(&u.ID, &u.MSID, &u.Email, &u.DisplayName, &u.ProfileURL)
+	if err == nil {
+		return u, nil
+	}
+	if !errors.Is(err, pgx.ErrNoRows) {
+		if pgErr, ok := err.(*pgconn.PgError); ok {
+			return User{}, apperr.WithFields(
+				apperr.Wrap(apperr.Internal, err, "upsert(by email attach ms_id) failed"),
+				map[string]any{"pg_code": pgErr.Code, "constraint": pgErr.ConstraintName, "detail": pgErr.Detail},
+			)
+		}
+		return User{}, apperr.Wrap(apperr.Internal, err, "upsert(by email attach ms_id) failed")
+	}
+
+	// 3) ใหม่จริง ๆ → INSERT (อันเดียวที่แตะ email)
+	err = tx.QueryRow(ctx, `
 		INSERT INTO users(ms_id, email, display_name, last_login)
 		VALUES ($1,$2,$3, now())
-		ON CONFLICT (ms_id) DO UPDATE
-		  SET email=EXCLUDED.email,
-		      display_name=EXCLUDED.display_name,
-		      last_login=now()
-		RETURNING id, ms_id, email, display_name, profile_url;
-	`, msOID, email, name).
-		Scan(&u.ID, &u.MSID, &u.Email, &u.DisplayName, &u.ProfileURL)
+		RETURNING id, ms_id, email, display_name, profile_url
+	`, msOID, email, name).Scan(&u.ID, &u.MSID, &u.Email, &u.DisplayName, &u.ProfileURL)
 	if err != nil {
-		return User{}, apperr.Wrap(apperr.Internal, err, "upsert user failed")
+		if pgErr, ok := err.(*pgconn.PgError); ok {
+			return User{}, apperr.WithFields(
+				apperr.Wrap(apperr.Internal, err, "insert user failed"),
+				map[string]any{"pg_code": pgErr.Code, "constraint": pgErr.ConstraintName, "detail": pgErr.Detail},
+			)
+		}
+		return User{}, apperr.Wrap(apperr.Internal, err, "insert user failed")
 	}
+
 	return u, nil
 }
+
+
+
+
 
 func (r *repo) EnsureBuyerRole(ctx context.Context) (int64, error) {
 	var id int64
@@ -157,11 +234,38 @@ func (r *repo) EnsureBuyerRole(ctx context.Context) (int64, error) {
 
 func (r *repo) LinkRole(ctx context.Context, userID string, roleID int64) error {
 	_, err := r.db.Exec(ctx, `
-		INSERT INTO user_roles(user_id, role_id)
-		VALUES ($1,$2)
+		INSERT INTO user_roles(user_id, role_id, created_at)
+		VALUES ($1,$2, now())
 		ON CONFLICT DO NOTHING;`, userID, roleID)
 	if err != nil {
 		return apperr.Wrap(apperr.Internal, err, "link role failed")
 	}
 	return nil
+}
+
+func (r *repo) GetRolesByUserID(ctx context.Context, userID string) ([]string, error) {
+	const q = `
+		SELECT r.role_name
+		FROM user_roles ur
+		JOIN roles r ON r.id = ur.role_id
+		WHERE ur.user_id = $1
+		ORDER BY r.id`
+	rows, err := r.db.Query(ctx, q, userID)
+	if err != nil {
+		return nil, apperr.Wrap(apperr.Internal, err, "get roles failed")
+	}
+	defer rows.Close()
+
+	var roles []string
+	for rows.Next() {
+		var name string
+		if err := rows.Scan(&name); err != nil {
+			return nil, apperr.Wrap(apperr.Internal, err, "scan role failed")
+		}
+		roles = append(roles, name)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, apperr.Wrap(apperr.Internal, err, "rows error")
+	}
+	return roles, nil
 }

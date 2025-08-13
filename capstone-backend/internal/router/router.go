@@ -8,6 +8,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	appjwt "github.com/Perpasit/Capstone-KMALL/internal/auth/jwt"
 	"github.com/Perpasit/Capstone-KMALL/internal/auth/oidc"
 	"github.com/Perpasit/Capstone-KMALL/internal/config"
 	"github.com/Perpasit/Capstone-KMALL/internal/middleware"
@@ -18,7 +19,7 @@ import (
 func Attach(r *gin.Engine, db *pgxpool.Pool, cfg config.Config) {
 	r.Use(
 		middleware.RequestID(),
-		middleware.RequestTimeout(2*time.Second),
+		middleware.RequestTimeout(10*time.Second),
 		middleware.ErrorHandler(),
 		middleware.Recovery(),
 	)
@@ -36,12 +37,29 @@ func Attach(r *gin.Engine, db *pgxpool.Pool, cfg config.Config) {
 	uRepo := user.NewRepo(db)
 	uSvc := user.NewService(uRepo)
 
-	oidcCtl := oidc.NewController(cfg, uSvc)
+	// ---- JWT signer ----
+	signer := appjwt.NewSigner(
+		cfg.JWTIssuer,
+		cfg.JWTAudience,
+		cfg.JWTSecret,
+		cfg.AccessTokenTTL,
+		cfg.RefreshTokenTTL,
+	)
+
+	oidcCtl := oidc.NewController(cfg, uSvc, signer)
 	oidcCtl.Init(provider)
 
+	// OIDC / Auth routes
 	r.GET("/auth/login", oidcCtl.Login)
 	r.GET("/auth/callback", oidcCtl.Callback)
+	r.POST("/auth/refresh", oidcCtl.Refresh)
 
+	// API routes
+	v1 := r.Group("/api")
+	uHdl := user.NewHandler(uSvc)
+	uHdl.Register(v1)
+
+	// not found
 	r.NoRoute(func(c *gin.Context) {
 		respond.Error(c, 404, "NOT_FOUND", "route not found", nil)
 	})

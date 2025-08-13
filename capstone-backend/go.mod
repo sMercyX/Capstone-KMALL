@@ -5,6 +5,7 @@ go 1.24.6
 require (
 	github.com/coreos/go-oidc/v3 v3.15.0
 	github.com/gin-gonic/gin v1.10.1
+	github.com/golang-jwt/jwt/v5 v5.3.0
 	github.com/google/uuid v1.6.0
 	github.com/jackc/pgconn v1.14.3
 	github.com/jackc/pgx/v5 v5.7.5

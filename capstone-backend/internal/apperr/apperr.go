@@ -1,4 +1,5 @@
-package internal
+package apperr
+
 
 import (
 	"context"
