@@ -1,34 +1,32 @@
-import { Link } from "react-router-dom"
+import { BrowserRouter, Routes, Route } from "react-router-dom"
+import { AuthProvider } from "./auth/AuthContext"
+import { ThemeProvider } from "./theme/ThemeContext"
+import ProtectedRoute from "./components/ProtectedRoute/ProtectedRoute"
+import Login from "./modules/Login/Login"
+import LandingPage from "./modules/LandingPage/LandingPage"
+import Dashboard from "./modules/DashBoard/Dashboard"
+import "./i18n"
 import "./App.css"
-import ExampleAuthButton from "./components/Buttons/ExampleAuthButton"
-import { useTranslation } from "react-i18next"
-import ThemeSwitch from "./components/ThemeSwitch/ThemeSwitch"
-import LanguageSwitch from "./components/LanguageSwitch/LanguageSwitch"
 
-function App() {
-  const { t } = useTranslation()
+export default function App() {
   return (
-    <>
-      <h1>{t("title")}</h1>
-
-      <div
-        className="card"
-      >
-        <ThemeSwitch />
-        <LanguageSwitch />
-      </div>
-
-      <p className="read-the-docs" >
-        {t("welcome", { name: "Student" })}
-      </p>
-      <div className="card">
-        <Link to="/dashboard">ไป Dashboard (ต้องล็อกอิน)</Link>
-      </div>
-      <div className="card">
-        <ExampleAuthButton />
-      </div>
-    </>
+    <BrowserRouter>
+      <AuthProvider>
+        <ThemeProvider>
+          <Routes>
+            <Route path="/" element={<LandingPage />} />
+            <Route path="/login" element={<Login />} />
+            <Route
+              path="/dashboard"
+              element={
+                <ProtectedRoute>
+                  <Dashboard />
+                </ProtectedRoute>
+              }
+            />
+          </Routes>
+        </ThemeProvider>
+      </AuthProvider>
+    </BrowserRouter>
   )
 }
-
-export default App
