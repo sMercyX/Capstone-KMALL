@@ -59,7 +59,7 @@ func (ctl *Controller) Callback(c *gin.Context) {
             	apperr.Wrap(apperr.BadRequest, err, "exchange auth code failed"),
             	map[string]any{
                 	"http_status": re.Response.StatusCode,
-                	"body":        string(re.Body), // จะมี AADSTS... ชี้เป้าเลย
+                	"body":        string(re.Body), 
             	},
         	))
         	return
@@ -131,17 +131,22 @@ func (ctl *Controller) Callback(c *gin.Context) {
 		return
 	}
 
+	// respond.OK(c, gin.H{
+	// 	"login":         "ok",
+	// 	"uuid":          u.ID,           
+	// 	"email":         u.Email,
+	// 	"name":          u.DisplayName,
+	// 	"roles":         roles,         
+	// 	"access_token":  access,
+	// 	"refresh_token": refresh,
+	// 	"token_type":    "Bearer",
+	// 	"expires_in":    int(ctl.cfg.AccessTokenTTL.Seconds()),
+	// })
 	respond.OK(c, gin.H{
-		"login":         "ok",
-		"uuid":          u.ID,           // ใช้คีย์ uuid แทน user_id
-		"email":         u.Email,
-		"name":          u.DisplayName,
-		"roles":         roles,          // array ของ role
-		"access_token":  access,
-		"refresh_token": refresh,
-		"token_type":    "Bearer",
-		"expires_in":    int(ctl.cfg.AccessTokenTTL.Seconds()),
-	})
+    "access_token":  access,
+    "refresh_token": refresh,
+    "token_type":    "Bearer",
+})
 }
 
 // POST /auth/refresh  { "refresh_token": "..." }
@@ -178,9 +183,14 @@ func (ctl *Controller) Refresh(c *gin.Context) {
 		c.Error(apperr.Wrap(apperr.Internal, err, "issue access token failed"))
 		return
 	}
+	// respond.OK(c, gin.H{
+	// 	"access_token": access,
+	// 	"token_type":   "Bearer",
+	// 	"expires_in":   int(ctl.cfg.AccessTokenTTL.Seconds()),
+	// })
 	respond.OK(c, gin.H{
-		"access_token": access,
-		"token_type":   "Bearer",
-		"expires_in":   int(ctl.cfg.AccessTokenTTL.Seconds()),
+    "access_token": access,
+    "token_type":   "Bearer",
 	})
+
 }
