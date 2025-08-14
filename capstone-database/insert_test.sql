@@ -5,38 +5,98 @@ INSERT INTO roles (role_name, description) VALUES
 ('admin', 'System administrator with full permissions')
 ON CONFLICT (role_name) DO NOTHING;
 
--- เพิ่ม user ตัวอย่าง
-INSERT INTO users (ms_id, email, display_name, profile_url, last_login)
+-- ===== USERS =====
+INSERT INTO users (ms_id, email, display_name, profile_url)
 VALUES
-('ms_001', 'student1@kmutt.ac.th', 'Student One', 'https://example.com/profile1.jpg', now()),
-('ms_002', 'student2@kmutt.ac.th', 'Student Two', 'https://example.com/profile2.jpg', now()),
-('ms_003', 'student3@kmutt.ac.th', 'Student Three', NULL, now())
-ON CONFLICT (ms_id) DO NOTHING;
-
--- ผูก role ให้ user
--- ตัวอย่าง: student1 = buyer, seller / student2 = buyer / student3 = buyer, admin
-INSERT INTO user_roles (user_id, role_id)
-SELECT u.id, r.id
-FROM users u
-JOIN roles r ON r.role_name = 'buyer'
-WHERE u.ms_id IN ('ms_001', 'ms_002', 'ms_003')
+  ('ms_0001', 'alice@kmutt.ac.th', 'Alice Wong', 'https://example.com/u/alice'),
+  ('ms_0002', 'bob@kmutt.ac.th',   'Bob Chan',   'https://example.com/u/bob'),
+  ('ms_0003', 'cindy@kmutt.ac.th', 'Cindy Lee',  'https://example.com/u/cindy')
 ON CONFLICT DO NOTHING;
 
+-- ===== USER ROLES (mapping) =====
+-- Alice = admin + seller
 INSERT INTO user_roles (user_id, role_id)
 SELECT u.id, r.id
-FROM users u
-JOIN roles r ON r.role_name = 'seller'
-WHERE u.ms_id = 'ms_001'
+FROM users u CROSS JOIN roles r
+WHERE u.email='alice@kmutt.ac.th' AND r.role_name IN ('admin','seller')
 ON CONFLICT DO NOTHING;
 
+-- Bob = seller
 INSERT INTO user_roles (user_id, role_id)
 SELECT u.id, r.id
-FROM users u
-JOIN roles r ON r.role_name = 'admin'
-WHERE u.ms_id = 'ms_003'
+FROM users u JOIN roles r ON r.role_name='seller'
+WHERE u.email='bob@kmutt.ac.th'
 ON CONFLICT DO NOTHING;
 
--- ตรวจสอบข้อมูล
-SELECT * FROM users;
-SELECT * FROM roles;
-SELECT * FROM user_roles;
+-- Cindy = buyer
+INSERT INTO user_roles (user_id, role_id)
+SELECT u.id, r.id
+FROM users u JOIN roles r ON r.role_name='buyer'
+WHERE u.email='cindy@kmutt.ac.th'
+ON CONFLICT DO NOTHING;
+
+-- ===== STORES =====
+INSERT INTO stores (store_name, store_desc, profile_url, user_id)
+VALUES
+  ('Alice Bakery', 'Homemade desserts & ice cream', 'https://example.com/s/alice-bakery',
+    (SELECT id FROM users WHERE email='alice@kmutt.ac.th')),
+  ('Bob Apparel',  'Basics and campus clothing',    'https://example.com/s/bob-apparel',
+    (SELECT id FROM users WHERE email='bob@kmutt.ac.th'))
+ON CONFLICT DO NOTHING;
+
+-- ===== CATEGORIES (hierarchy) =====
+-- Top level
+INSERT INTO categories (name, slug, parent_id, sort_order)
+VALUES
+  ('Food',  'food',  NULL, 0),
+  ('Cloth', 'cloth', NULL, 1)
+ON CONFLICT DO NOTHING;
+
+-- Second level under Food
+INSERT INTO categories (name, slug, parent_id, sort_order)
+SELECT 'Dessert', 'dessert', c.id, 0
+FROM categories c WHERE c.slug='food'
+ON CONFLICT DO NOTHING;
+
+-- Third level under Dessert
+INSERT INTO categories (name, slug, parent_id, sort_order)
+SELECT 'Ice Cream', 'ice-cream', c.id, 0
+FROM categories c WHERE c.slug='dessert'
+ON CONFLICT DO NOTHING;
+
+INSERT INTO categories (name, slug, parent_id, sort_order)
+SELECT 'Mochi', 'mochi', c.id, 1
+FROM categories c WHERE c.slug='dessert'
+ON CONFLICT DO NOTHING;
+
+-- ===== PRODUCTS =====
+-- Alice Bakery products
+INSERT INTO products (name, product_desc, price, stock, image_url, stores_id, categories_id)
+VALUES
+  (
+    'Vanilla Ice Cream',
+    'Classic vanilla, 473ml pint',
+    59.00, 100, 'https://pics.example.com/ice-vanilla.jpg',
+    (SELECT s.id FROM stores s WHERE s.store_name='Alice Bakery'),
+    (SELECT c.id FROM categories c WHERE c.slug='ice-cream')
+  ),
+  (
+    'Matcha Mochi',
+    'Chewy mochi with matcha filling',
+    45.00, 80, 'https://pics.example.com/mochi-matcha.jpg',
+    (SELECT s.id FROM stores s WHERE s.store_name='Alice Bakery'),
+    (SELECT c.id FROM categories c WHERE c.slug='mochi')
+  )
+ON CONFLICT DO NOTHING;
+
+-- Bob Apparel products
+INSERT INTO products (name, product_desc, price, stock, image_url, stores_id, categories_id)
+VALUES
+  (
+    'Basic T-Shirt',
+    'Unisex cotton tee, sizes S-XL',
+    199.00, 50, 'https://pics.example.com/tee-basic.jpg',
+    (SELECT s.id FROM stores s WHERE s.store_name='Bob Apparel'),
+    (SELECT c.id FROM categories c WHERE c.slug='cloth')
+  )
+ON CONFLICT DO NOTHING;
