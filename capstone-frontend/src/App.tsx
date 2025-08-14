@@ -1,33 +1,32 @@
-import { useState } from 'react'
-import reactLogo from './assets/react.svg'
-import viteLogo from '/vite.svg'
-import './App.css'
+import { Link } from "react-router-dom"
+import "./App.css"
+import ExampleAuthButton from "./components/Buttons/ExampleAuthButton"
+import { useTranslation } from "react-i18next"
+import ThemeSwitch from "./components/ThemeSwitch/ThemeSwitch"
+import LanguageSwitch from "./components/LanguageSwitch/LanguageSwitch"
 
 function App() {
-  const [count, setCount] = useState(0)
-
+  const { t } = useTranslation()
   return (
     <>
-      <div>
-        <a href="https://vite.dev" target="_blank">
-          <img src={viteLogo} className="logo" alt="Vite logo" />
-        </a>
-        <a href="https://react.dev" target="_blank">
-          <img src={reactLogo} className="logo react" alt="React logo" />
-        </a>
+      <h1>{t("title")}</h1>
+
+      <div
+        className="card"
+      >
+        <ThemeSwitch />
+        <LanguageSwitch />
       </div>
-      <h1>Vite + React</h1>
-      <div className="card">
-        <button onClick={() => setCount((count) => count + 1)}>
-          count is {count}
-        </button>
-        <p>
-          Edit <code>src/App.tsx</code> and save to test HMR
-        </p>
-      </div>
-      <p className="read-the-docs">
-        Click on the Vite and React logos to learn more
+
+      <p className="read-the-docs" >
+        {t("welcome", { name: "Student" })}
       </p>
+      <div className="card">
+        <Link to="/dashboard">ไป Dashboard (ต้องล็อกอิน)</Link>
+      </div>
+      <div className="card">
+        <ExampleAuthButton />
+      </div>
     </>
   )
 }
