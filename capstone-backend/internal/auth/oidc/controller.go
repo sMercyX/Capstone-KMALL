@@ -1,6 +1,7 @@
 package oidc
 
 import (
+	"encoding/base64"
 	"net/http"
 	"net/url"
 	"strings"
@@ -39,20 +40,91 @@ func (ctl *Controller) Init(provider *gooidc.Provider) {
 	}
 }
 
+// ----- helpers -----
+
+// allow เฉพาะโฮสต์/พอร์ต ที่เรายอมรับเท่านั้น (กัน open redirect)
+// เพิ่มโดเมนโปรดักชันของจริงเข้ามาตรงนี้ได้เลย
+func (ctl *Controller) allowedReturnHosts() map[string]struct{} {
+	// ถ้ามี config ฝั่งคุณ เก็บไว้ใน cfg ก็เอามาเติมตรงนี้ได้
+	// เช่น ctl.cfg.AllowedReturnHosts ([]string)
+	allowed := map[string]struct{}{
+		"localhost:5173": {}, // FE dev
+	}
+	// ตัวอย่าง: ดึงจาก env/config อื่น ๆ (ถ้ามี)
+	// for _, h := range ctl.cfg.AllowedReturnHosts {
+	// 	allowed[strings.ToLower(h)] = struct{}{}
+	// }
+	return allowed
+}
+
+func (ctl *Controller) isAllowedRedirectURI(raw string) bool {
+	u, err := url.Parse(raw)
+	if err != nil {
+		return false
+	}
+	if u.Scheme != "http" && u.Scheme != "https" {
+		return false
+	}
+	host := strings.ToLower(u.Host)
+	_, ok := ctl.allowedReturnHosts()[host]
+	return ok
+}
+
+func (ctl *Controller) buildStateWithRedirect(redirectURI string) string {
+	// state = "devstate.<base64url(redirect_uri)>"
+	if redirectURI == "" || !ctl.isAllowedRedirectURI(redirectURI) {
+		return "devstate"
+	}
+	b64 := base64.RawURLEncoding.EncodeToString([]byte(redirectURI))
+	return "devstate." + b64
+}
+
+func (ctl *Controller) extractRedirectFromState(state string) (string, bool) {
+	// รับเฉพาะรูปแบบที่เรากำหนด: devstate or devstate.<b64>
+	if state == "" {
+		return "", false
+	}
+	parts := strings.SplitN(state, ".", 2)
+	if parts[0] != "devstate" {
+		return "", false
+	}
+	if len(parts) == 1 {
+		return "", false
+	}
+	b, err := base64.RawURLEncoding.DecodeString(parts[1])
+	if err != nil {
+		return "", false
+	}
+	ru := string(b)
+	if !ctl.isAllowedRedirectURI(ru) {
+		return "", false
+	}
+	return ru, true
+}
+
+// ----- handlers -----
+
+// GET /auth/login?redirect_uri=<FE callback URL>
+// ตัวอย่าง FE:  window.location.assign(`${API_BASE}/auth/login?redirect_uri=${encodeURIComponent(FE_BASE + "/auth/callback")}`)
 func (ctl *Controller) Login(c *gin.Context) {
-	c.Redirect(http.StatusFound, ctl.oauth.AuthCodeURL("devstate"))
+	redirectURI := c.Query("redirect_uri")
+	state := ctl.buildStateWithRedirect(redirectURI)
+	c.Redirect(http.StatusFound, ctl.oauth.AuthCodeURL(state))
 }
 
 func (ctl *Controller) Callback(c *gin.Context) {
-	if c.Query("state") != "devstate" {
+	state := c.Query("state")
+	if !strings.HasPrefix(state, "devstate") {
 		c.Error(apperr.New(apperr.BadRequest, "invalid state"))
 		return
 	}
+
 	code := c.Query("code")
 	if code == "" {
 		c.Error(apperr.New(apperr.BadRequest, "missing code"))
 		return
 	}
+
 	tok, err := ctl.oauth.Exchange(c.Request.Context(), code)
 	if err != nil {
 		if re, ok := err.(*oauth2.RetrieveError); ok {
@@ -112,14 +184,12 @@ func (ctl *Controller) Callback(c *gin.Context) {
 		return
 	}
 
-	// roles
 	roles, err := ctl.userSvc.GetRoles(c.Request.Context(), u.ID)
 	if err != nil {
 		c.Error(apperr.Wrap(apperr.Internal, err, "get roles failed"))
 		return
 	}
 
-	// issue tokens
 	access, err := ctl.signer.IssueAccessToken(u.ID, u.Email, u.DisplayName, roles)
 	if err != nil {
 		c.Error(apperr.Wrap(apperr.Internal, err, "issue access token failed"))
@@ -131,21 +201,28 @@ func (ctl *Controller) Callback(c *gin.Context) {
 		return
 	}
 
-	// === ไม่มี popup: เก็บ refresh token เป็น HttpOnly cookie + redirect ไป FE ===
+	// refresh token -> HttpOnly cookie
 	http.SetCookie(c.Writer, &http.Cookie{
 		Name:     "rt",
 		Value:    refresh,
 		Path:     "/",
 		HttpOnly: true,
-		Secure:   false,                // โปรดักชันควร true (ต้องใช้ https)
-		SameSite: http.SameSiteLaxMode, // ไหลไปกับ redirect ได้
+		Secure:   false,                // โปรดักชันควร true (https)
+		SameSite: http.SameSiteLaxMode, // ให้ cookie ไหลมากับ redirect ข้ามไซต์ได้กรณี user action
 		MaxAge:   int(ctl.cfg.RefreshTokenTTL.Seconds()),
 	})
 
-	feOrigin := "http://localhost:5173"
-	// ส่ง access ทาง fragment ให้ FE อ่านจาก window.location.hash ได้
-	redirectURL := feOrigin + "/#access=" + url.QueryEscape(access) + "&token_type=Bearer"
-	c.Redirect(http.StatusFound, redirectURL)
+	// เลือก FE ปลายทางจาก state; ถ้าไม่มี/ไม่ผ่าน allow‑list -> fallback
+	feDefault := "http://localhost:5173/#"
+	if feFromState, ok := ctl.extractRedirectFromState(state); ok {
+		// ส่งกลับไปยัง redirect_uri ตรง ๆ พร้อมแนบ access token ทาง hash
+		// เช่น http://localhost:5173/auth/callback#access=...&token_type=Bearer
+		c.Redirect(http.StatusFound, feFromState+"#access="+url.QueryEscape(access)+"&token_type=Bearer")
+		return
+	}
+
+	// fallback ไป root ของ FE dev
+	c.Redirect(http.StatusFound, feDefault+"access="+url.QueryEscape(access)+"&token_type=Bearer")
 }
 
 // POST /auth/refresh { "refresh_token": "..." }  (รองรับอ่านจาก cookie 'rt')
@@ -155,7 +232,6 @@ func (ctl *Controller) Refresh(c *gin.Context) {
 	}
 	_ = c.ShouldBindJSON(&in)
 
-	// ถ้า body ไม่ส่งมา ให้ลองอ่านจาก cookie
 	if in.RefreshToken == "" {
 		if ck, err := c.Request.Cookie("rt"); err == nil {
 			in.RefreshToken = ck.Value
