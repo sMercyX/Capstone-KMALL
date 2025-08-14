@@ -1,17 +1,20 @@
-import React from "react";
-import { Navigate, useLocation } from "react-router-dom";
-import { useAuth } from "../../auth/AuthContext";
+// src/components/ProtectedRoute/ProtectedRoute.tsx
+import { Navigate } from "react-router-dom"
+import { useAuth } from "../../auth/AuthContext"
+import type { JSX } from "react"
 
+export default function ProtectedRoute({ children }: { children: JSX.Element }) {
+  const { user, token, isExpired, ready } = useAuth()
 
-const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { user, token } = useAuth();
-  const location = useLocation();
-
-  if (!user || !token) {
-    // redirect ไปหน้า login พร้อมจำ path เดิม
-    return <Navigate to="/login" replace state={{ from: location }} />;
+  // ⏳ ยังโหลดไม่เสร็จ อย่าเพิ่ง redirect
+  if (!ready) {
+    return null // หรือใส่ Skeleton/Spinner ก็ได้
   }
-  return <>{children}</>;
-};
 
-export default ProtectedRoute;
+  const authed = !!(user && token) && !isExpired
+  if (!authed) {
+    return <Navigate to="/" replace />
+  }
+
+  return children
+}

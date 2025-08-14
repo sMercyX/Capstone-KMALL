@@ -1,33 +1,30 @@
 // src/auth/useAuthGate.ts
-import { useCallback } from "react";
-import { useLocation, useNavigate } from "react-router-dom";
-import { useAuth } from "./AuthContext"; // ของเดิมที่คุณมีอยู่
+import { useCallback } from "react"
+import { useNavigate } from "react-router-dom"
+import { useAuth } from "./AuthContext"
 
 export function useAuthGate() {
-  const { user, token } = useAuth();
-  const navigate = useNavigate();
-  const location = useLocation();
-  const isAuthed = !!(user && token);
+  const { user, token, isExpired, ready } = useAuth()
+  const navigate = useNavigate()
+  const isAuthed = ready && !!(user && token) && !isExpired  // ✅ รวม ready
 
-  // ใช้เช็คแบบทันทีใน handler (return true = ไปต่อ, false = โดนเด้ง)
   const requireNow = useCallback(() => {
     if (!isAuthed) {
-      navigate("/login", { replace: true, state: { from: location } });
-      return false;
+      navigate("/", { replace: true })
+      return false
     }
-    return true;
-  }, [isAuthed, navigate, location]);
+    return true
+  }, [isAuthed, navigate])
 
-  // ใช้หุ้มฟังก์ชัน เช่น onClick/onSubmit แบบสะดวก ๆ
   const guard = useCallback(<T extends (...args: any[]) => any>(fn: T) => {
     return ((...args: Parameters<T>) => {
       if (!isAuthed) {
-        navigate("/login", { replace: true, state: { from: location } });
-        return;
+        navigate("/", { replace: true })
+        return
       }
-      return fn(...args);
-    }) as T;
-  }, [isAuthed, navigate, location]);
+      return fn(...args)
+    }) as T
+  }, [isAuthed, navigate])
 
-  return { isAuthed, requireNow, guard };
+  return { isAuthed, requireNow, guard }
 }
