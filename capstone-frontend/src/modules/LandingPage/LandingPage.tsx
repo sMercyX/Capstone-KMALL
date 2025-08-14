@@ -1,11 +1,13 @@
 import React, { useState, useEffect } from "react"
 import CircularGallery from "../../components/CircleGallery/CircleGallery"
 import { useNavigate } from "react-router-dom"
+import { useTranslation } from "react-i18next"
+import LanguageSwitch from "../../components/LanguageSwitch/LanguageSwitch"
 // import { ArrowRight, ShoppingBag, Users, Zap, Star, BookOpen, Coffee, Gamepad2 } from 'lucide-react';
 
 const KmallLanding = () => {
   const [isVisible, setIsVisible] = useState(false)
-
+  const { t } = useTranslation()
   const navigate = useNavigate()
   useEffect(() => {
     setIsVisible(true)
@@ -22,14 +24,18 @@ const KmallLanding = () => {
         >
           KMALL
         </div>
-        <button
-          className={`px-6 py-2 text-slate-600 hover:text-slate-900 font-medium transition-all duration-300 hover:scale-105 ${
-            isVisible ? "opacity-100 translate-x-0" : "opacity-0 translate-x-8"
-          }`}
-          onClick={() => navigate("/login")}
-        >
-          Login
-        </button>
+        <>
+          <button
+            className={`px-6 py-2 text-slate-600 hover:text-slate-900 font-medium transition-all duration-300 hover:scale-105 ${
+              isVisible
+                ? "opacity-100 translate-x-0"
+                : "opacity-0 translate-x-8"
+            }`}
+            onClick={() => navigate("/login")}
+          >
+            {t("login:login")}
+          </button>
+        </>
       </header>
 
       {/* Hero Section */}
@@ -67,7 +73,7 @@ const KmallLanding = () => {
               className="group relative px-8 py-4 bg-gradient-to-r from-slate-700 to-slate-900 text-white rounded-full font-medium text-lg shadow-2xl hover:shadow-slate-500/25 transition-all duration-300 hover:scale-105 hover:from-slate-600 hover:to-slate-800"
             >
               <span className="flex items-center gap-3">
-                Login with KMUTT Email
+                 {t("login:loginMicrosoft")}
               </span>
               <div className="absolute inset-0 bg-gradient-to-r from-blue-600/20 to-purple-600/20 rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
             </button>
@@ -76,7 +82,7 @@ const KmallLanding = () => {
 
         {/* Circular Gallery */}
         <div
-          style={{ width: "100vw", height:"40vh", position: "relative" }}
+          style={{ width: "100vw", height: "40vh", position: "relative" }}
           className={`transition-all duration-1000 delay-1200 mt-12 ${
             isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-8"
           }`}
@@ -87,7 +93,7 @@ const KmallLanding = () => {
             borderRadius={0.05}
             scrollEase={0.02}
             autoPlay={true}
-            autoPlaySpeed={0.02}
+            autoPlaySpeed={0.05}
             pauseOnHover={true}
           />
         </div>
@@ -102,8 +108,4 @@ export default KmallLanding
   /* Background Elements */
 }
 {
-  /* <div className="absolute overflow-hidden">
-        <div className="absolute -top-40 -right-40 w-80 h-80 bg-gradient-to-br from-blue-400/20 to-purple-600/20 rounded-full blur-3xl"></div>
-        <div className="absolute -bottom-40 -left-40 w-80 h-80 bg-gradient-to-tr from-pink-400/20 to-orange-600/20 rounded-full blur-3xl"></div>
-      </div> */
 }
