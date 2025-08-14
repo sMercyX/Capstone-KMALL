@@ -3,6 +3,7 @@ import CircularGallery from "../../components/CircleGallery/CircleGallery"
 import { useNavigate } from "react-router-dom"
 import { useTranslation } from "react-i18next"
 import LanguageSwitch from "../../components/LanguageSwitch/LanguageSwitch"
+import { API_BASE, FE_BASE } from "../../config"
 // import { ArrowRight, ShoppingBag, Users, Zap, Star, BookOpen, Coffee, Gamepad2 } from 'lucide-react';
 
 const KmallLanding = () => {
@@ -12,7 +13,13 @@ const KmallLanding = () => {
   useEffect(() => {
     setIsVisible(true)
   }, [])
-
+  const goLogin = () => {
+    const redirect = `${FE_BASE}/dashboard`
+    const url = `${API_BASE}/auth/login?redirect_uri=${encodeURIComponent(
+      redirect
+    )}`
+    window.location.assign(url)
+  }
   return (
     <div className="h-screen w-full flex flex-col justify-center items-center">
       {/* Header */}
@@ -69,11 +76,11 @@ const KmallLanding = () => {
             }`}
           >
             <button
-              onClick={() => navigate("/login")}
+              onClick={goLogin}
               className="group relative px-8 py-4 bg-gradient-to-r from-slate-700 to-slate-900 text-white rounded-full font-medium text-lg shadow-2xl hover:shadow-slate-500/25 transition-all duration-300 hover:scale-105 hover:from-slate-600 hover:to-slate-800"
             >
               <span className="flex items-center gap-3">
-                 {t("login:loginMicrosoft")}
+                {t("login:loginMicrosoft")}
               </span>
               <div className="absolute inset-0 bg-gradient-to-r from-blue-600/20 to-purple-600/20 rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
             </button>
