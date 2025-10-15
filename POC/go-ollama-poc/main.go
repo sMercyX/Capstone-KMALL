@@ -230,7 +230,7 @@ func main() {
 			return
 		}
 
-		// 🔹 เรียก Ollama เพื่อสร้าง embedding ของข้อความที่ผู้ใช้พิมพ์
+		// เรียก Ollama เพื่อสร้าง embedding ของข้อความที่ผู้ใช้พิมพ์
 		payload := OllamaEmbedRequest{
 			Model: "nomic-embed-text",
 			Input: query,
@@ -251,7 +251,7 @@ func main() {
 		}
 		vectorJSON, _ := json.Marshal(embedResp.Embeddings[0])
 
-		// 🔹 ค้นหาสินค้าที่ใกล้เคียงที่สุด (semantic similarity)
+		// ค้นหาสินค้าที่ใกล้เคียงที่สุด (semantic similarity)
 		rows, err := db.Query(`
         SELECT p.product_id, p.name, p.product_desc, 
                1 - (p.embedding <=> $1::vector) AS similarity
@@ -272,7 +272,7 @@ func main() {
 			results = append(results, p)
 		}
 
-		// 🔹 ส่งผลลัพธ์กลับ
+		// ส่งผลลัพธ์กลับ
 		c.JSON(http.StatusOK, gin.H{
 			"query":  query,
 			"result": results,
