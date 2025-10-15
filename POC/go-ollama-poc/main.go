@@ -220,6 +220,66 @@ func main() {
 	})
 
 	// -----------------------------
+	// /search — Realtime Semantic Autocomplete
+	// -----------------------------
+	r.GET("/search", func(c *gin.Context) {
+		// ดึงค่าจาก query parameter q
+		query := c.DefaultQuery("q", "")
+		if query == "" {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "missing query"})
+			return
+		}
+
+		// 🔹 เรียก Ollama เพื่อสร้าง embedding ของข้อความที่ผู้ใช้พิมพ์
+		payload := OllamaEmbedRequest{
+			Model: "nomic-embed-text",
+			Input: query,
+		}
+		payloadBytes, _ := json.Marshal(payload)
+		resp, err := http.Post("http://localhost:11434/api/embed", "application/json", bytes.NewBuffer(payloadBytes))
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "cannot connect to Ollama"})
+			return
+		}
+		defer resp.Body.Close()
+
+		respBytes, _ := io.ReadAll(resp.Body)
+		var embedResp OllamaEmbedResponse
+		if err := json.Unmarshal(respBytes, &embedResp); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "cannot decode embedding response"})
+			return
+		}
+		vectorJSON, _ := json.Marshal(embedResp.Embeddings[0])
+
+		// 🔹 ค้นหาสินค้าที่ใกล้เคียงที่สุด (semantic similarity)
+		rows, err := db.Query(`
+        SELECT p.product_id, p.name, p.product_desc, 
+               1 - (p.embedding <=> $1::vector) AS similarity
+        FROM products p
+        ORDER BY similarity DESC
+        LIMIT 5
+    `, string(vectorJSON))
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
+		defer rows.Close()
+
+		var results []DBProduct
+		for rows.Next() {
+			var p DBProduct
+			rows.Scan(&p.ID, &p.Name, &p.Desc, &p.Similarity)
+			results = append(results, p)
+		}
+
+		// 🔹 ส่งผลลัพธ์กลับ
+		c.JSON(http.StatusOK, gin.H{
+			"query":  query,
+			"result": results,
+		})
+	})
+
+	// -----------------------------
 	// Run Server
 	// -----------------------------
 	r.Run(":8080")
