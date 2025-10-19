@@ -33,6 +33,11 @@ type Product struct {
 	CategoryID  int     `json:"category_id"`
 }
 
+type Category struct {
+	CategoryID int    `json:"category_id"`
+	Name       string `json:"name"`
+}
+
 type DBProduct struct {
 	ID         int
 	Name       string
@@ -76,8 +81,19 @@ func main() {
 			return
 		}
 
-		// call Ollama for create vector
-		payload := OllamaEmbedRequest{Model: "nomic-embed-text", Input: body.Description}
+		// category name
+		var categoryName string
+		err := db.QueryRow(`SELECT name FROM categories WHERE category_id = $1`, body.CategoryID).Scan(&categoryName)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid category_id"})
+			return
+		}
+
+		// embedding
+		textToEmbed := fmt.Sprintf("%s %s %s", body.Name, body.Description, categoryName)
+
+		// call ollama create vector
+		payload := OllamaEmbedRequest{Model: "nomic-embed-text", Input: textToEmbed}
 		payloadBytes, _ := json.Marshal(payload)
 		resp, err := http.Post("http://localhost:11434/api/embed", "application/json", bytes.NewBuffer(payloadBytes))
 		if err != nil {
@@ -96,19 +112,21 @@ func main() {
 
 		vectorJSON, _ := json.Marshal(embedResp.Embeddings[0])
 
-		// Insert to DB
+		// insert db
 		_, err = db.Exec(`
-			INSERT INTO products (name, product_desc, price, category_id, embedding)
-			VALUES ($1, $2, $3, $4, $5::vector)
-		`, body.Name, body.Description, body.Price, body.CategoryID, string(vectorJSON))
+		INSERT INTO products (name, product_desc, price, category_id, embedding)
+		VALUES ($1, $2, $3, $4, $5::vector)
+	`, body.Name, body.Description, body.Price, body.CategoryID, string(vectorJSON))
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 			return
 		}
 
+		// 🔹 ตอบกลับ
 		c.JSON(http.StatusOK, gin.H{
 			"message":     "product inserted successfully",
 			"name":        body.Name,
+			"category":    categoryName,
 			"vector_size": len(embedResp.Embeddings[0]),
 		})
 	})
@@ -253,12 +271,12 @@ func main() {
 
 		// semantic similarity
 		rows, err := db.Query(`
-        SELECT p.product_id, p.name, p.product_desc, 
-               1 - (p.embedding <=> $1::vector) AS similarity
-        FROM products p
-        ORDER BY similarity DESC
-        LIMIT 5
-    `, string(vectorJSON))
+    	SELECT p.product_id, p.name, p.product_desc, p.category_id,
+           	1 - (p.embedding <=> $1::vector) AS similarity
+    	FROM products p
+    	ORDER BY similarity DESC
+    	LIMIT 5
+		`, string(vectorJSON))
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 			return
@@ -268,7 +286,7 @@ func main() {
 		var results []DBProduct
 		for rows.Next() {
 			var p DBProduct
-			rows.Scan(&p.ID, &p.Name, &p.Desc, &p.Similarity)
+			rows.Scan(&p.ID, &p.Name, &p.Desc, &p.CategoryID, &p.Similarity)
 			results = append(results, p)
 		}
 
