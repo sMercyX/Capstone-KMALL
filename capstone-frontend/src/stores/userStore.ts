@@ -1,29 +1,40 @@
 import { create } from 'zustand'
+import { useUserApi } from '../api/userApi'
 
-export type Role = 'Buyer' | 'Seller'
+type Role = 'Buyer' | 'Seller'
 
-export interface UserState {
-  id: string 
-  name: string 
-  email: string 
-  role: Role 
+interface UserState {
+  id: string
+  name: string
+  email: string
+  role: Role
+  isLoading: boolean
   setUser: (user: Partial<UserState>) => void
+  fetchUser: () => Promise<void>
   clearUser: () => void
 }
 
+const userApi = useUserApi()
 
 export const useUserStore = create<UserState>((set) => ({
   id: '',
   name: '',
   email: '',
-  role: 'Buyer', 
+  role: 'Buyer',
+  isLoading: false,
 
   setUser: (user) => set((state) => ({ ...state, ...user })),
-  clearUser: () =>
-    set({
-      id: '',
-      name: '',
-      email: '',
-      role: 'Buyer',
-    }),
+
+  fetchUser: async () => {
+    set({ isLoading: true })
+    try {
+      const data = await userApi.getDetail('test')
+      set({ ...data, isLoading: false })
+    } catch (error) {
+      console.error(error)
+      set({ isLoading: false })
+    }
+  },
+
+  clearUser: () => set({ id: '', name: '', email: '', role: 'Buyer' }),
 }))
