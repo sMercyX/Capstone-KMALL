@@ -1,6 +1,5 @@
 import React from "react";
-import { useAuth } from "../../auth/AuthContext";
-import { Navigate, useLocation } from "react-router-dom";
+
 
 const Dashboard: React.FC = () => {
   // const { user, token, logout } = useAuth();

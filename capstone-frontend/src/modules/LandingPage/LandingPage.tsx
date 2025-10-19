@@ -1,8 +1,7 @@
-import React, { useState, useEffect } from "react"
+import { useState, useEffect } from "react"
 import CircularGallery from "../../components/CircleGallery/CircleGallery"
 import { useNavigate } from "react-router-dom"
 import { useTranslation } from "react-i18next"
-import LanguageSwitch from "../../components/LanguageSwitch/LanguageSwitch"
 import { API_BASE, FE_BASE } from "../../config"
 // import { ArrowRight, ShoppingBag, Users, Zap, Star, BookOpen, Coffee, Gamepad2 } from 'lucide-react';
 
@@ -19,6 +18,8 @@ const KmallLanding = () => {
       redirect
     )}`
     window.location.assign(url)
+
+    console.log(isVisible)
   }
   return (
     <div className="h-screen w-full flex flex-col justify-center items-center">
@@ -95,8 +96,3 @@ const KmallLanding = () => {
 
 export default KmallLanding
 
-{
-  /* Background Elements */
-}
-{
-}
