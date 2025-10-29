@@ -43,3 +43,19 @@ BEGIN
     WHERE email = email_input;
 END;
 $$ LANGUAGE plpgsql;
+
+-- Function to update updated_at when data changes
+CREATE OR REPLACE FUNCTION update_updated_at()
+RETURNS TRIGGER AS $$
+BEGIN
+  NEW.updated_at = CURRENT_TIMESTAMP;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Trigger to update updated_at when data changes
+DROP TRIGGER IF EXISTS trg_update_updated_at ON stores;
+CREATE TRIGGER trg_update_updated_at
+BEFORE UPDATE ON stores
+FOR EACH ROW
+EXECUTE FUNCTION update_updated_at();

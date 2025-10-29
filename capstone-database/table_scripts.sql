@@ -34,3 +34,19 @@ CREATE TABLE IF NOT EXISTS user_roles (
     ON DELETE RESTRICT
     ON UPDATE CASCADE
 );
+
+-- ========= STORES =========
+CREATE TABLE IF NOT EXISTS stores (
+  store_id SERIAL PRIMARY KEY,
+  store_name VARCHAR(100) NOT NULL,
+  store_desc VARCHAR(255) NULL,
+  profile_url VARCHAR(255) NULL,
+  is_active VARCHAR(3) NOT NULL CHECK (is_active IN ('YES', 'NO')),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP, 
+  updated_at TIMESTAMPTZ NOT NULL,
+  user_id UUID NOT NULL,
+  CONSTRAINT fk_stores_users1 FOREIGN KEY (user_id)
+    REFERENCES users (user_id)
+    ON DELETE NO ACTION
+    ON UPDATE NO ACTION
+);
