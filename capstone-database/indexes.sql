@@ -12,3 +12,6 @@ CREATE INDEX fk_users_has_roles_users_idx ON user_roles(user_id);
 
 DROP INDEX IF EXISTS fk_stores_users1_idx;
 CREATE INDEX fk_stores_users1_idx ON stores(user_id);
+
+DROP INDEX IF EXISTS idx_categories_slug;
+CREATE INDEX idx_categories_slug ON categories(slug);

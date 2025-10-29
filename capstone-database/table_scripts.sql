@@ -50,3 +50,19 @@ CREATE TABLE IF NOT EXISTS stores (
     ON DELETE NO ACTION
     ON UPDATE NO ACTION
 );
+
+-- ========= CATEGORIES =========
+CREATE TABLE IF NOT EXISTS categories (
+  category_id SERIAL PRIMARY KEY,
+  name VARCHAR(45) NOT NULL,
+  slug VARCHAR(100) NOT NULL,
+  parent_id INT NULL,
+  sort_order INT NOT NULL,
+  is_active VARCHAR(3) NOT NULL CHECK (is_active IN ('YES', 'NO')),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMPTZ NOT NULL,
+  CONSTRAINT fk_categories_parent FOREIGN KEY (parent_id)
+    REFERENCES categories (category_id)
+    ON DELETE SET NULL
+    ON UPDATE CASCADE
+);

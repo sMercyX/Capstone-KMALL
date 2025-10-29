@@ -53,9 +53,16 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
--- Trigger to update updated_at when data changes
+-- Trigger to update updated_at when data in stores table changes
 DROP TRIGGER IF EXISTS trg_update_updated_at ON stores;
 CREATE TRIGGER trg_update_updated_at
 BEFORE UPDATE ON stores
+FOR EACH ROW
+EXECUTE FUNCTION update_updated_at();
+
+-- Trigger to update updated_at when data in categories table changes
+DROP TRIGGER IF EXISTS trg_update_updated_at ON categories;
+CREATE TRIGGER trg_update_updated_at
+BEFORE UPDATE ON categories
 FOR EACH ROW
 EXECUTE FUNCTION update_updated_at();
