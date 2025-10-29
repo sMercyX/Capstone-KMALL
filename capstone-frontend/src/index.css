@@ -191,3 +191,4 @@ a:hover {
 .bg-accent {
   background: color-mix(in oklab, var(--color-primary), transparent 92%);
 }
+
