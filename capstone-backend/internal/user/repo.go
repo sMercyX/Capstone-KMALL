@@ -3,8 +3,8 @@ package user
 import (
 	"context"
 	"errors"
-	"strings"
 	"fmt"
+	"strings"
 
 	"github.com/jackc/pgconn"
 	"github.com/jackc/pgx/v5"
@@ -34,7 +34,7 @@ func NewRepo(db *pgxpool.Pool) Repo { return &repo{db: db} }
 
 func (r *repo) List(ctx context.Context) ([]User, error) {
 	rows, err := r.db.Query(ctx, `
-		SELECT id, ms_id, email, display_name, profile_url
+		SELECT user_id, kms_id, email, display_name
 		FROM users ORDER BY created_at DESC`)
 	if err != nil {
 		return nil, apperr.Wrap(apperr.Internal, err, "list users failed")
@@ -44,7 +44,7 @@ func (r *repo) List(ctx context.Context) ([]User, error) {
 	var out []User
 	for rows.Next() {
 		var u User
-		if err := rows.Scan(&u.ID, &u.MSID, &u.Email, &u.DisplayName, &u.ProfileURL); err != nil {
+		if err := rows.Scan(&u.ID, &u.MSID, &u.Email, &u.DisplayName); err != nil {
 			return nil, apperr.Wrap(apperr.Internal, err, "scan user failed")
 		}
 		out = append(out, u)
@@ -58,9 +58,9 @@ func (r *repo) List(ctx context.Context) ([]User, error) {
 func (r *repo) Get(ctx context.Context, id string) (User, error) {
 	var u User
 	err := r.db.QueryRow(ctx, `
-		SELECT id, ms_id, email, display_name, profile_url
-		FROM users WHERE id=$1`, id).
-		Scan(&u.ID, &u.MSID, &u.Email, &u.DisplayName, &u.ProfileURL)
+		SELECT user_id, kms_id, email, display_name
+		FROM users WHERE user_id=$1`, id).
+		Scan(&u.ID, &u.MSID, &u.Email, &u.DisplayName)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return User{}, apperr.New(apperr.NotFound, "user not found")
@@ -73,11 +73,11 @@ func (r *repo) Get(ctx context.Context, id string) (User, error) {
 func (r *repo) Create(ctx context.Context, u User) (User, error) {
 	u.Email = strings.ToLower(u.Email)
 	err := r.db.QueryRow(ctx, `
-		INSERT INTO users(ms_id, email, display_name)
+		INSERT INTO users(kms_id, email, display_name)
 		VALUES ($1,$2,$3)
-		RETURNING id, ms_id, email, display_name, profile_url`,
+		RETURNING user_id, kms_id, email, display_name`,
 		u.MSID, u.Email, u.DisplayName,
-	).Scan(&u.ID, &u.MSID, &u.Email, &u.DisplayName, &u.ProfileURL)
+	).Scan(&u.ID, &u.MSID, &u.Email, &u.DisplayName)
 	if err != nil {
 		if pgErr, ok := err.(*pgconn.PgError); ok {
 			switch pgErr.Code {
@@ -96,11 +96,11 @@ func (r *repo) Update(ctx context.Context, id string, u User) (User, error) {
 	u.Email = strings.ToLower(u.Email)
 	err := r.db.QueryRow(ctx, `
 		UPDATE users
-		SET ms_id=$2, email=$3, display_name=$4
-		WHERE id=$1
-		RETURNING id, ms_id, email, display_name, profile_url`,
+		SET kms_id=$2, email=$3, display_name=$4
+		WHERE user_id=$1
+		RETURNING user_id, kms_id, email, display_name`,
 		id, u.MSID, u.Email, u.DisplayName,
-	).Scan(&u.ID, &u.MSID, &u.Email, &u.DisplayName, &u.ProfileURL)
+	).Scan(&u.ID, &u.MSID, &u.Email, &u.DisplayName)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return User{}, apperr.New(apperr.NotFound, "user not found")
@@ -119,7 +119,7 @@ func (r *repo) Update(ctx context.Context, id string, u User) (User, error) {
 }
 
 func (r *repo) Delete(ctx context.Context, id string) error {
-	ct, err := r.db.Exec(ctx, `DELETE FROM users WHERE id=$1`, id)
+	ct, err := r.db.Exec(ctx, `DELETE FROM users WHERE user_id=$1`, id)
 	if err != nil {
 		return apperr.Wrap(apperr.Internal, err, "delete user failed")
 	}
@@ -145,64 +145,63 @@ func (r *repo) UpsertByMS(ctx context.Context, msOID, email, name string) (User,
 		}
 	}()
 
-	// 1) มี ms_id อยู่แล้ว? → อัปเดตชื่อ+last_login (ไม่แตะ email) แล้ว "return ทันที"
+	// 1) มี kms_id อยู่แล้ว? → อัปเดตชื่อ+last_login (ไม่แตะ email) แล้ว "return ทันที"
 	err = tx.QueryRow(ctx, `
 		UPDATE users
 		SET display_name=$2, last_login=now()
-		WHERE ms_id=$1
-		RETURNING id, ms_id, email, display_name, profile_url
-	`, msOID, name).Scan(&u.ID, &u.MSID, &u.Email, &u.DisplayName, &u.ProfileURL)
-	if err == nil {
-		return u, nil
-	}
-	if !errors.Is(err, pgx.ErrNoRows) {
-    if pgErr, ok := err.(*pgconn.PgError); ok {
-        return User{}, apperr.WithFields(
-            apperr.Wrap(apperr.Internal, err, "upsert(by ms_id) failed"),
-            map[string]any{
-                "pg_code":    pgErr.Code,
-                "constraint": pgErr.ConstraintName,
-                "detail":     pgErr.Detail,
-            },
-        )
-    }
-    // 👉 ใส่เพิ่มตรงนี้ด้วยเสมอ เพื่อเห็นสาเหตุแม้ไม่ใช่ pg error
-    return User{}, apperr.WithFields(
-        apperr.Wrap(apperr.Internal, err, "upsert(by ms_id) failed"),
-        map[string]any{
-            "cause": err.Error(),
-            "type":  fmt.Sprintf("%T", err),
-        },
-    )
-}
-
-
-	// 2) ยังไม่เคยมี ms_id → ผูก ms_id ให้เรคคอร์ดที่ email ตรง แล้ว "return ทันที"
-	err = tx.QueryRow(ctx, `
-		UPDATE users
-		SET ms_id=$1, display_name=$3, last_login=now()
-		WHERE email=$2
-		RETURNING id, ms_id, email, display_name, profile_url
-	`, msOID, email, name).Scan(&u.ID, &u.MSID, &u.Email, &u.DisplayName, &u.ProfileURL)
+		WHERE kms_id=$1
+		RETURNING user_id, kms_id, email, display_name
+	`, msOID, name).Scan(&u.ID, &u.MSID, &u.Email, &u.DisplayName)
 	if err == nil {
 		return u, nil
 	}
 	if !errors.Is(err, pgx.ErrNoRows) {
 		if pgErr, ok := err.(*pgconn.PgError); ok {
 			return User{}, apperr.WithFields(
-				apperr.Wrap(apperr.Internal, err, "upsert(by email attach ms_id) failed"),
+				apperr.Wrap(apperr.Internal, err, "upsert(by kms_id) failed"),
+				map[string]any{
+					"pg_code":    pgErr.Code,
+					"constraint": pgErr.ConstraintName,
+					"detail":     pgErr.Detail,
+				},
+			)
+		}
+
+		return User{}, apperr.WithFields(
+			apperr.Wrap(apperr.Internal, err, "upsert(by ms_id) failed"),
+			map[string]any{
+				"cause": err.Error(),
+				"type":  fmt.Sprintf("%T", err),
+			},
+		)
+	}
+
+	// 2) ยังไม่เคยมี kms_id → ผูก kms_id ให้เรคคอร์ดที่ email ตรง แล้ว "return ทันที"
+	err = tx.QueryRow(ctx, `
+		UPDATE users
+		SET kms_id=$1, display_name=$3, last_login=now()
+		WHERE email=$2
+		RETURNING user_id, kms_id, email, display_name
+	`, msOID, email, name).Scan(&u.ID, &u.MSID, &u.Email, &u.DisplayName)
+	if err == nil {
+		return u, nil
+	}
+	if !errors.Is(err, pgx.ErrNoRows) {
+		if pgErr, ok := err.(*pgconn.PgError); ok {
+			return User{}, apperr.WithFields(
+				apperr.Wrap(apperr.Internal, err, "upsert(by email attach kms_id) failed"),
 				map[string]any{"pg_code": pgErr.Code, "constraint": pgErr.ConstraintName, "detail": pgErr.Detail},
 			)
 		}
-		return User{}, apperr.Wrap(apperr.Internal, err, "upsert(by email attach ms_id) failed")
+		return User{}, apperr.Wrap(apperr.Internal, err, "upsert(by email attach kms_id) failed")
 	}
 
 	// 3) ใหม่จริง ๆ → INSERT (อันเดียวที่แตะ email)
 	err = tx.QueryRow(ctx, `
-		INSERT INTO users(ms_id, email, display_name, last_login)
+		INSERT INTO users(kms_id, email, display_name, last_login)
 		VALUES ($1,$2,$3, now())
-		RETURNING id, ms_id, email, display_name, profile_url
-	`, msOID, email, name).Scan(&u.ID, &u.MSID, &u.Email, &u.DisplayName, &u.ProfileURL)
+		RETURNING user_id, kms_id, email, display_name
+	`, msOID, email, name).Scan(&u.ID, &u.MSID, &u.Email, &u.DisplayName)
 	if err != nil {
 		if pgErr, ok := err.(*pgconn.PgError); ok {
 			return User{}, apperr.WithFields(
@@ -216,17 +215,14 @@ func (r *repo) UpsertByMS(ctx context.Context, msOID, email, name string) (User,
 	return u, nil
 }
 
-
-
-
-
 func (r *repo) EnsureBuyerRole(ctx context.Context) (int64, error) {
 	var id int64
 	if err := r.db.QueryRow(ctx, `
-		INSERT INTO roles(role_name, description)
-		VALUES ('buyer', 'Default role for new users')
-		ON CONFLICT (role_name) DO UPDATE SET role_name=EXCLUDED.role_name
-		RETURNING id;`).Scan(&id); err != nil {
+        INSERT INTO roles(role_name, description)
+        VALUES ('buyer', 'Default role for new users')
+        ON CONFLICT (role_name) DO UPDATE SET role_name=EXCLUDED.role_name
+        RETURNING role_id;`).Scan(&id); err != nil {
+		// fmt.Println("Ensure Error: ", err)
 		return 0, apperr.Wrap(apperr.Internal, err, "ensure buyer role failed")
 	}
 	return id, nil
@@ -247,9 +243,9 @@ func (r *repo) GetRolesByUserID(ctx context.Context, userID string) ([]string, e
 	const q = `
 		SELECT r.role_name
 		FROM user_roles ur
-		JOIN roles r ON r.id = ur.role_id
+		JOIN roles r ON r.role_id = ur.role_id
 		WHERE ur.user_id = $1
-		ORDER BY r.id`
+		ORDER BY r.role_id`
 	rows, err := r.db.Query(ctx, q, userID)
 	if err != nil {
 		return nil, apperr.Wrap(apperr.Internal, err, "get roles failed")
