@@ -108,3 +108,24 @@ CREATE TABLE IF NOT EXISTS orders (
     ON DELETE CASCADE
     ON UPDATE CASCADE
 );
+
+-- ========= ORDER_ITEMS =========
+CREATE TABLE IF NOT EXISTS order_items (
+  order_item_id SERIAL PRIMARY KEY,
+  quantity INT NOT NULL,
+  unit_price DECIMAL(10,2) NOT NULL,
+  fulfillment_type VARCHAR(8) NOT NULL CHECK (fulfillment_type IN ('STANDARD', 'EXPRESS')),
+  subtotal DECIMAL(10,2) NOT NULL,
+  deposit_amount DECIMAL(10,2) NULL,
+  promised_ship_date TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  order_id INT NOT NULL,
+  product_id INT NOT NULL,
+  CONSTRAINT fk_order_items_orders1 FOREIGN KEY (order_id)
+    REFERENCES orders (order_id)
+    ON DELETE NO ACTION
+    ON UPDATE NO ACTION,
+  CONSTRAINT fk_order_items_products1 FOREIGN KEY (product_id)
+    REFERENCES products (product_id)
+    ON DELETE NO ACTION
+    ON UPDATE NO ACTION
+);

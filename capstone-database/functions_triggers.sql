@@ -80,3 +80,21 @@ CREATE TRIGGER trg_update_updated_at
 BEFORE UPDATE ON orders
 FOR EACH ROW
 EXECUTE FUNCTION update_updated_at();
+
+-- Function to update update_order_updated_at when data in orders table changes related to order_items
+CREATE OR REPLACE FUNCTION update_order_updated_at()
+RETURNS TRIGGER AS $$
+BEGIN
+  UPDATE orders
+  SET updated_at = CURRENT_TIMESTAMP
+  WHERE order_id = NEW.order_id;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+-- -- Trigger to update updated_at when data in order_items table changes
+DROP TRIGGER IF EXISTS trg_update_order_updated_at ON order_items;
+CREATE TRIGGER trg_update_order_updated_at
+AFTER UPDATE ON order_items
+FOR EACH ROW
+EXECUTE FUNCTION update_order_updated_at();
