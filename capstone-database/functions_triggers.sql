@@ -92,9 +92,17 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
--- -- Trigger to update updated_at when data in order_items table changes
+-- Trigger to update update_order_updated_at when data in order_items table changes
 DROP TRIGGER IF EXISTS trg_update_order_updated_at ON order_items;
 CREATE TRIGGER trg_update_order_updated_at
 AFTER UPDATE ON order_items
 FOR EACH ROW
 EXECUTE FUNCTION update_order_updated_at();
+
+-- Trigger to update updated_at when data in carts table changes
+DROP TRIGGER IF EXISTS trg_update_updated_at ON carts;
+CREATE TRIGGER trg_update_updated_at
+BEFORE UPDATE ON carts
+FOR EACH ROW
+EXECUTE FUNCTION update_updated_at();
+
