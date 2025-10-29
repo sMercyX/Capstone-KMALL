@@ -43,7 +43,7 @@ CREATE TABLE IF NOT EXISTS stores (
   profile_url VARCHAR(255) NULL,
   is_active VARCHAR(3) NOT NULL CHECK (is_active IN ('YES', 'NO')),
   created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP, 
-  updated_at TIMESTAMPTZ NOT NULL,
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
   user_id UUID NOT NULL,
   CONSTRAINT fk_stores_users1 FOREIGN KEY (user_id)
     REFERENCES users (user_id)
@@ -60,9 +60,31 @@ CREATE TABLE IF NOT EXISTS categories (
   sort_order INT NOT NULL,
   is_active VARCHAR(3) NOT NULL CHECK (is_active IN ('YES', 'NO')),
   created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  updated_at TIMESTAMPTZ NOT NULL,
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
   CONSTRAINT fk_categories_parent FOREIGN KEY (parent_id)
     REFERENCES categories (category_id)
     ON DELETE SET NULL
     ON UPDATE CASCADE
+);
+
+-- ========= PRODUCTS =========
+CREATE TABLE IF NOT EXISTS products (
+  product_id SERIAL PRIMARY KEY,
+  name VARCHAR(100) NOT NULL,
+  product_desc VARCHAR(255) NULL,
+  price DECIMAL(10,2) NOT NULL,
+  image_url VARCHAR(255) NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  is_active VARCHAR(3) NOT NULL CHECK (is_active IN ('YES', 'NO')),
+  store_id INT NOT NULL,
+  category_id INT NOT NULL,
+  CONSTRAINT fk_products_stores1 FOREIGN KEY (store_id)
+    REFERENCES stores (store_id)
+    ON DELETE NO ACTION
+    ON UPDATE NO ACTION,
+  CONSTRAINT fk_products_categories1 FOREIGN KEY (category_id)
+    REFERENCES categories (category_id)
+    ON DELETE NO ACTION
+    ON UPDATE NO ACTION
 );
