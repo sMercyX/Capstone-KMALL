@@ -106,3 +106,20 @@ BEFORE UPDATE ON carts
 FOR EACH ROW
 EXECUTE FUNCTION update_updated_at();
 
+-- Function to update update_cart_updated_at when data in orders table changes related to cart_items
+CREATE OR REPLACE FUNCTION update_cart_updated_at()
+RETURNS TRIGGER AS $$
+BEGIN
+  UPDATE carts
+  SET updated_at = CURRENT_TIMESTAMP
+  WHERE cart_id = NEW.cart_id;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Trigger to update update_cart_updated_at when data in cart_items table changes
+DROP TRIGGER IF EXISTS trg_update_cart_updated_at ON cart_items;
+CREATE TRIGGER trg_update_cart_updated_at
+AFTER UPDATE ON cart_items
+FOR EACH ROW
+EXECUTE FUNCTION update_cart_updated_at();

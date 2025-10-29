@@ -134,10 +134,26 @@ CREATE TABLE IF NOT EXISTS order_items (
 CREATE TABLE IF NOT EXISTS carts (
   cart_id SERIAL PRIMARY KEY,
   created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,  -- ใช้ TIMESTAMPTZ สำหรับอัปเดตเวลา
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
   user_id UUID NOT NULL,
   CONSTRAINT fk_carts_users1 FOREIGN KEY (user_id)
     REFERENCES users (user_id)
+    ON DELETE NO ACTION
+    ON UPDATE NO ACTION
+);
+
+-- ========= CART_ITEMS =========
+CREATE TABLE IF NOT EXISTS cart_items (
+  cart_item_id SERIAL PRIMARY KEY,
+  quantity INT NULL,
+  cart_id INT NOT NULL,
+  product_id INT NOT NULL,
+  CONSTRAINT fk_cart_items_carts1 FOREIGN KEY (cart_id)
+    REFERENCES carts (cart_id)
+    ON DELETE NO ACTION
+    ON UPDATE NO ACTION,
+  CONSTRAINT fk_cart_items_products1 FOREIGN KEY (product_id)
+    REFERENCES products (product_id)
     ON DELETE NO ACTION
     ON UPDATE NO ACTION
 );

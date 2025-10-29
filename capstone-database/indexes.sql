@@ -36,3 +36,9 @@ CREATE INDEX fk_order_items_products1_idx ON order_items(product_id);
 
 DROP INDEX IF EXISTS fk_carts_users1_idx;
 CREATE INDEX fk_carts_users1_idx ON carts(user_id);
+
+DROP INDEX IF EXISTS fk_cart_items_carts1_idx;
+CREATE INDEX fk_cart_items_carts1_idx ON cart_items(cart_id);
+
+DROP INDEX IF EXISTS fk_cart_items_products1_idx;
+CREATE INDEX fk_cart_items_products1_idx ON cart_items(product_id);
