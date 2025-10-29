@@ -21,3 +21,9 @@ CREATE INDEX fk_products_stores1_idx ON products(store_id);
 
 DROP INDEX IF EXISTS fk_products_categories1_idx;
 CREATE INDEX fk_products_categories1_idx ON products(category_id);
+
+DROP INDEX IF EXISTS fk_orders_users1_idx;
+CREATE INDEX fk_orders_users1_idx ON orders(user_id);
+
+DROP INDEX IF EXISTS fk_orders_stores1_idx;
+CREATE INDEX fk_orders_stores1_idx ON orders(store_id);

@@ -88,3 +88,23 @@ CREATE TABLE IF NOT EXISTS products (
     ON DELETE NO ACTION
     ON UPDATE NO ACTION
 );
+
+-- ========= ORDERS =========
+CREATE TABLE IF NOT EXISTS orders (
+  order_id SERIAL PRIMARY KEY,
+  status VARCHAR(45) NOT NULL CHECK (status IN ('Pending Seller Confirmation', 'Awaiting Buyer Confirmation', 'Ready for Pickup', 'Ready for Delivery', 'Completed', 'Cancelled')), 
+  total_price DECIMAL(10,2) NOT NULL,
+  order_date TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  cancelled_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  user_id UUID NOT NULL,
+  store_id INT NOT NULL,
+  CONSTRAINT fk_orders_users1 FOREIGN KEY (user_id)
+    REFERENCES users (user_id)
+    ON DELETE CASCADE
+    ON UPDATE CASCADE,
+  CONSTRAINT fk_orders_stores1 FOREIGN KEY (store_id)
+    REFERENCES stores (store_id)
+    ON DELETE CASCADE
+    ON UPDATE CASCADE
+);

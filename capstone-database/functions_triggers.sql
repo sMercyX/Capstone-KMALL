@@ -73,3 +73,10 @@ CREATE TRIGGER trg_update_updated_at
 BEFORE UPDATE ON products
 FOR EACH ROW
 EXECUTE FUNCTION update_updated_at();
+
+-- Trigger to update updated_at when data in orders table changes
+DROP TRIGGER IF EXISTS trg_update_updated_at ON orders;
+CREATE TRIGGER trg_update_updated_at
+BEFORE UPDATE ON orders
+FOR EACH ROW
+EXECUTE FUNCTION update_updated_at();
