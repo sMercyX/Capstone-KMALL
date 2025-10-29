@@ -1,0 +1,45 @@
+-- Function to convert email to lowercase
+CREATE OR REPLACE FUNCTION user_email_to_lower()
+RETURNS trigger LANGUAGE plpgsql AS $$ 
+BEGIN
+    IF NEW.email IS NOT NULL THEN
+        NEW.email := lower(NEW.email);
+    END IF;
+    RETURN NEW;
+END $$;
+
+-- Trigger to convert email to lowercase before insert or update
+DROP TRIGGER IF EXISTS trg_users_email_lower ON users;
+CREATE TRIGGER trg_users_email_lower
+BEFORE INSERT OR UPDATE OF email ON users
+FOR EACH ROW
+EXECUTE FUNCTION user_email_to_lower();
+
+-- Function to update updated_at when email or display_name changes
+CREATE OR REPLACE FUNCTION update_updated_at_on_change()
+RETURNS TRIGGER AS $$
+BEGIN
+    IF NEW.email <> OLD.email OR NEW.display_name <> OLD.display_name THEN
+        NEW.updated_at = CURRENT_TIMESTAMP;
+    END IF;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Trigger to update updated_at when email or display_name changes
+DROP TRIGGER IF EXISTS trg_update_updated_at ON users;
+CREATE TRIGGER trg_update_updated_at
+BEFORE UPDATE ON users
+FOR EACH ROW
+EXECUTE FUNCTION update_updated_at_on_change();
+
+-- Function to retrieve user by email
+CREATE OR REPLACE FUNCTION get_user_by_email(email_input VARCHAR)
+RETURNS TABLE(user_id UUID, kms_id VARCHAR, email VARCHAR, display_name VARCHAR, created_at TIMESTAMPTZ, updated_at TIMESTAMPTZ, last_login TIMESTAMPTZ) AS $$
+BEGIN
+    RETURN QUERY 
+    SELECT user_id, kms_id, email, display_name, created_at, updated_at, last_login
+    FROM users
+    WHERE email = email_input;
+END;
+$$ LANGUAGE plpgsql;
