@@ -1,8 +1,6 @@
 package user
 
 import (
-	"net/http"
-
 	"github.com/gin-gonic/gin"
 
 	"github.com/Perpasit/Capstone-KMALL/internal/respond"
@@ -67,9 +65,10 @@ func (h *Handler) get(c *gin.Context) {
 // }
 
 func (h *Handler) delete(c *gin.Context) {
-	if err := h.svc.Delete(c.Request.Context(), c.Param("id")); err != nil {
+	u, err := h.svc.Get(c.Request.Context(), c.Param("id"))
+	if err != nil {
 		c.Error(err)
 		return
 	}
-	c.Status(http.StatusNoContent)
+	respond.Deleted(c, u)
 }

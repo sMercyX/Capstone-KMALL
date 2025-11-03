@@ -12,7 +12,7 @@ type Service interface {
 	Get(ctx context.Context, id string) (User, error)
 	// Create(ctx context.Context, u User) (User, error)
 	// Update(ctx context.Context, id string, u User) (User, error)
-	Delete(ctx context.Context, id string) error
+	Delete(ctx context.Context, id string) (User, error)
 
 	UpsertAndEnsureBuyer(ctx context.Context, msOID, email, name string) (User, error)
 
@@ -44,7 +44,7 @@ func (s *service) Get(ctx context.Context, id string) (User, error) { return s.r
 // 	return s.repo.Update(ctx, id, u)
 // }
 
-func (s *service) Delete(ctx context.Context, id string) error {
+func (s *service) Delete(ctx context.Context, id string) (User, error) {
 	return s.repo.Delete(ctx, id)
 }
 

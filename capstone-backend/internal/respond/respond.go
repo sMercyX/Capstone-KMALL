@@ -6,10 +6,26 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+// func OK(c *gin.Context, data any) {
+// 	c.JSON(http.StatusOK, gin.H{
+// 		"success": true,
+// 		"data":    data,
+// 	})
+// }
+
 func OK(c *gin.Context, data any) {
 	c.JSON(http.StatusOK, gin.H{
-		"success": true,
-		"data":    data,
+		"status": "success",
+		"code":   http.StatusOK,
+		"data":   data,
+	})
+}
+
+func Deleted(c *gin.Context, data any) {
+	c.JSON(http.StatusOK, gin.H{
+		"status": "deleted",
+		"code":   http.StatusOK,
+		"data":   data,
 	})
 }
 

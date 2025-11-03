@@ -18,7 +18,7 @@ type Repo interface {
 	Get(ctx context.Context, id string) (User, error)
 	// Create(ctx context.Context, u User) (User, error)
 	// Update(ctx context.Context, id string, u User) (User, error)
-	Delete(ctx context.Context, id string) error
+	Delete(ctx context.Context, id string) (User, error)
 
 	UpsertByMS(ctx context.Context, msOID, email, name string) (User, error)
 	EnsureBuyerRole(ctx context.Context) (int64, error)
@@ -118,15 +118,34 @@ func (r *repo) Get(ctx context.Context, id string) (User, error) {
 // 	return u, nil
 // }
 
-func (r *repo) Delete(ctx context.Context, id string) error {
-	ct, err := r.db.Exec(ctx, `DELETE FROM users WHERE user_id=$1`, id)
+// func (r *repo) Delete(ctx context.Context, id string) error {
+// 	ct, err := r.db.Exec(ctx, `DELETE FROM users WHERE user_id=$1`, id)
+// 	if err != nil {
+// 		return apperr.Wrap(apperr.Internal, err, "delete user failed")
+// 	}
+// 	if ct.RowsAffected() == 0 {
+// 		return apperr.New(apperr.NotFound, "user not found")
+// 	}
+// 	return nil
+// }
+
+func (r *repo) Delete(ctx context.Context, id string) (User, error) {
+	var u User
+	err := r.db.QueryRow(ctx, `
+        DELETE FROM users
+        WHERE user_id = $1
+        RETURNING user_id, kms_id, email, display_name,
+                  created_at, updated_at, last_login`,
+		id,
+	).Scan(&u.ID, &u.MSID, &u.Email, &u.DisplayName,
+		&u.CreatedAt, &u.UpdatedAt, &u.LastLogin)
 	if err != nil {
-		return apperr.Wrap(apperr.Internal, err, "delete user failed")
+		if errors.Is(err, pgx.ErrNoRows) {
+			return User{}, apperr.New(apperr.NotFound, "user not found")
+		}
+		return User{}, apperr.Wrap(apperr.Internal, err, "delete user failed")
 	}
-	if ct.RowsAffected() == 0 {
-		return apperr.New(apperr.NotFound, "user not found")
-	}
-	return nil
+	return u, nil
 }
 
 func (r *repo) UpsertByMS(ctx context.Context, msOID, email, name string) (User, error) {
