@@ -34,7 +34,7 @@ func NewRepo(db *pgxpool.Pool) Repo { return &repo{db: db} }
 
 func (r *repo) List(ctx context.Context) ([]User, error) {
 	rows, err := r.db.Query(ctx, `
-		SELECT user_id, kms_id, email, display_name
+		SELECT user_id, kms_id, email, display_name, created_at, updated_at, last_login
 		FROM users ORDER BY created_at DESC`)
 	if err != nil {
 		return nil, apperr.Wrap(apperr.Internal, err, "list users failed")
@@ -44,7 +44,7 @@ func (r *repo) List(ctx context.Context) ([]User, error) {
 	var out []User
 	for rows.Next() {
 		var u User
-		if err := rows.Scan(&u.ID, &u.MSID, &u.Email, &u.DisplayName); err != nil {
+		if err := rows.Scan(&u.ID, &u.MSID, &u.Email, &u.DisplayName, &u.CreatedAt, &u.UpdatedAt, &u.LastLogin); err != nil {
 			return nil, apperr.Wrap(apperr.Internal, err, "scan user failed")
 		}
 		out = append(out, u)
@@ -58,9 +58,9 @@ func (r *repo) List(ctx context.Context) ([]User, error) {
 func (r *repo) Get(ctx context.Context, id string) (User, error) {
 	var u User
 	err := r.db.QueryRow(ctx, `
-		SELECT user_id, kms_id, email, display_name
+		SELECT user_id, kms_id, email, display_name, created_at, updated_at, last_login
 		FROM users WHERE user_id=$1`, id).
-		Scan(&u.ID, &u.MSID, &u.Email, &u.DisplayName)
+		Scan(&u.ID, &u.MSID, &u.Email, &u.DisplayName, &u.CreatedAt, &u.UpdatedAt, &u.LastLogin)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return User{}, apperr.New(apperr.NotFound, "user not found")
