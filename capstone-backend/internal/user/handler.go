@@ -3,6 +3,7 @@ package user
 import (
 	"github.com/gin-gonic/gin"
 
+	"github.com/Perpasit/Capstone-KMALL/internal/apperr"
 	"github.com/Perpasit/Capstone-KMALL/internal/respond"
 )
 
@@ -20,21 +21,36 @@ func (h *Handler) Register(r *gin.RouterGroup) {
 }
 
 func (h *Handler) list(c *gin.Context) {
-	us, err := h.svc.List(c.Request.Context())
+	ctx := c.Request.Context()
+
+	us, err := h.svc.List(ctx)
 	if err != nil {
 		c.Error(err)
 		return
 	}
-	respond.OK(c, us)
+
+	if us == nil {
+		us = []User{}
+	}
+
+	respond.OK(c, apperr.OK, us)
 }
 
 func (h *Handler) get(c *gin.Context) {
-	u, err := h.svc.Get(c.Request.Context(), c.Param("id"))
+	ctx := c.Request.Context()
+	id := c.Param("id")
+	if id == "" {
+		c.Error(apperr.New(apperr.BadRequest, "missing id"))
+		return
+	}
+
+	u, err := h.svc.Get(ctx, id)
 	if err != nil {
 		c.Error(err)
 		return
 	}
-	respond.OK(c, u)
+
+	respond.OK(c, apperr.OK, u)
 }
 
 // func (h *Handler) create(c *gin.Context) {
@@ -65,10 +81,11 @@ func (h *Handler) get(c *gin.Context) {
 // }
 
 func (h *Handler) delete(c *gin.Context) {
-	u, err := h.svc.Get(c.Request.Context(), c.Param("id"))
+	u, err := h.svc.Delete(c.Request.Context(), c.Param("id"))
 	if err != nil {
 		c.Error(err)
 		return
 	}
-	respond.Deleted(c, u)
+
+	respond.Deleted(c, apperr.Deleted, u)
 }

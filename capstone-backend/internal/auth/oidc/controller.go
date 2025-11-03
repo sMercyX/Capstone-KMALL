@@ -267,7 +267,7 @@ func (ctl *Controller) Refresh(c *gin.Context) {
 		return
 	}
 
-	respond.OK(c, gin.H{
+	respond.OK(c, apperr.OK, gin.H{
 		"access_token": access,
 		"token_type":   "Bearer",
 	})
