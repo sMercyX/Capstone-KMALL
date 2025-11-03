@@ -1,9 +1,9 @@
 -- สร้าง role ตัวอย่าง
-INSERT INTO roles (role_name, description) VALUES
+INSERT INTO roles (role_name, role_desc) VALUES
 ('buyer', 'Default role for all users who can purchase products'),
 ('seller', 'Role for users who can sell products'),
 ('admin', 'System administrator with full permissions')
-ON CONFLICT (role_name) DO NOTHING;
+ON CONFLICT (role_name) DO NOTHING; 
 
 -- ===== USERS =====
 INSERT INTO users (ms_id, email, display_name, profile_url)

@@ -16,8 +16,8 @@ import (
 type Repo interface {
 	List(ctx context.Context) ([]User, error)
 	Get(ctx context.Context, id string) (User, error)
-	Create(ctx context.Context, u User) (User, error)
-	Update(ctx context.Context, id string, u User) (User, error)
+	// Create(ctx context.Context, u User) (User, error)
+	// Update(ctx context.Context, id string, u User) (User, error)
 	Delete(ctx context.Context, id string) error
 
 	UpsertByMS(ctx context.Context, msOID, email, name string) (User, error)
@@ -70,53 +70,53 @@ func (r *repo) Get(ctx context.Context, id string) (User, error) {
 	return u, nil
 }
 
-func (r *repo) Create(ctx context.Context, u User) (User, error) {
-	u.Email = strings.ToLower(u.Email)
-	err := r.db.QueryRow(ctx, `
-		INSERT INTO users(kms_id, email, display_name)
-		VALUES ($1,$2,$3)
-		RETURNING user_id, kms_id, email, display_name`,
-		u.MSID, u.Email, u.DisplayName,
-	).Scan(&u.ID, &u.MSID, &u.Email, &u.DisplayName)
-	if err != nil {
-		if pgErr, ok := err.(*pgconn.PgError); ok {
-			switch pgErr.Code {
-			case "23505": // unique_violation
-				return User{}, apperr.New(apperr.Conflict, "duplicate user")
-			case "23514", "23502": // check_violation, not_null_violation
-				return User{}, apperr.Wrap(apperr.BadRequest, err, "invalid user data")
-			}
-		}
-		return User{}, apperr.Wrap(apperr.Internal, err, "create user failed")
-	}
-	return u, nil
-}
+// func (r *repo) Create(ctx context.Context, u User) (User, error) {
+// 	u.Email = strings.ToLower(u.Email)
+// 	err := r.db.QueryRow(ctx, `
+// 		INSERT INTO users(kms_id, email, display_name)
+// 		VALUES ($1,$2,$3)
+// 		RETURNING user_id, kms_id, email, display_name`,
+// 		u.MSID, u.Email, u.DisplayName,
+// 	).Scan(&u.ID, &u.MSID, &u.Email, &u.DisplayName)
+// 	if err != nil {
+// 		if pgErr, ok := err.(*pgconn.PgError); ok {
+// 			switch pgErr.Code {
+// 			case "23505": // unique_violation
+// 				return User{}, apperr.New(apperr.Conflict, "duplicate user")
+// 			case "23514", "23502": // check_violation, not_null_violation
+// 				return User{}, apperr.Wrap(apperr.BadRequest, err, "invalid user data")
+// 			}
+// 		}
+// 		return User{}, apperr.Wrap(apperr.Internal, err, "create user failed")
+// 	}
+// 	return u, nil
+// }
 
-func (r *repo) Update(ctx context.Context, id string, u User) (User, error) {
-	u.Email = strings.ToLower(u.Email)
-	err := r.db.QueryRow(ctx, `
-		UPDATE users
-		SET kms_id=$2, email=$3, display_name=$4
-		WHERE user_id=$1
-		RETURNING user_id, kms_id, email, display_name`,
-		id, u.MSID, u.Email, u.DisplayName,
-	).Scan(&u.ID, &u.MSID, &u.Email, &u.DisplayName)
-	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			return User{}, apperr.New(apperr.NotFound, "user not found")
-		}
-		if pgErr, ok := err.(*pgconn.PgError); ok {
-			switch pgErr.Code {
-			case "23505":
-				return User{}, apperr.New(apperr.Conflict, "duplicate user")
-			case "23514", "23502":
-				return User{}, apperr.Wrap(apperr.BadRequest, err, "invalid user data")
-			}
-		}
-		return User{}, apperr.Wrap(apperr.Internal, err, "update user failed")
-	}
-	return u, nil
-}
+// func (r *repo) Update(ctx context.Context, id string, u User) (User, error) {
+// 	u.Email = strings.ToLower(u.Email)
+// 	err := r.db.QueryRow(ctx, `
+// 		UPDATE users
+// 		SET kms_id=$2, email=$3, display_name=$4
+// 		WHERE user_id=$1
+// 		RETURNING user_id, kms_id, email, display_name`,
+// 		id, u.MSID, u.Email, u.DisplayName,
+// 	).Scan(&u.ID, &u.MSID, &u.Email, &u.DisplayName)
+// 	if err != nil {
+// 		if errors.Is(err, pgx.ErrNoRows) {
+// 			return User{}, apperr.New(apperr.NotFound, "user not found")
+// 		}
+// 		if pgErr, ok := err.(*pgconn.PgError); ok {
+// 			switch pgErr.Code {
+// 			case "23505":
+// 				return User{}, apperr.New(apperr.Conflict, "duplicate user")
+// 			case "23514", "23502":
+// 				return User{}, apperr.Wrap(apperr.BadRequest, err, "invalid user data")
+// 			}
+// 		}
+// 		return User{}, apperr.Wrap(apperr.Internal, err, "update user failed")
+// 	}
+// 	return u, nil
+// }
 
 func (r *repo) Delete(ctx context.Context, id string) error {
 	ct, err := r.db.Exec(ctx, `DELETE FROM users WHERE user_id=$1`, id)
@@ -218,7 +218,7 @@ func (r *repo) UpsertByMS(ctx context.Context, msOID, email, name string) (User,
 func (r *repo) EnsureBuyerRole(ctx context.Context) (int64, error) {
 	var id int64
 	if err := r.db.QueryRow(ctx, `
-        INSERT INTO roles(role_name, description)
+        INSERT INTO roles(role_name, role_desc)
         VALUES ('buyer', 'Default role for new users')
         ON CONFLICT (role_name) DO UPDATE SET role_name=EXCLUDED.role_name
         RETURNING role_id;`).Scan(&id); err != nil {
