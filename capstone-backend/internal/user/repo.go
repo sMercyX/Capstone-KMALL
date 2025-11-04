@@ -3,7 +3,6 @@ package user
 import (
 	"context"
 	"errors"
-	"fmt"
 	"strings"
 
 	"github.com/jackc/pgconn"
@@ -164,13 +163,17 @@ func (r *repo) UpsertByMS(ctx context.Context, msOID, email, name string) (User,
 		}
 	}()
 
-	// 1) มี kms_id อยู่แล้ว? → อัปเดตชื่อ+last_login (ไม่แตะ email) แล้ว "return ทันที"
+	// 1) Update Last Login
 	err = tx.QueryRow(ctx, `
 		UPDATE users
-		SET display_name=$2, last_login=now()
-		WHERE kms_id=$1
-		RETURNING user_id, kms_id, email, display_name
-	`, msOID, name).Scan(&u.ID, &u.MSID, &u.Email, &u.DisplayName)
+		SET display_name = $2,
+		    last_login   = now()
+		WHERE kms_id     = $1
+		RETURNING user_id, kms_id, email, display_name,
+		          created_at, updated_at, last_login
+	`, msOID, name).
+		Scan(&u.ID, &u.MSID, &u.Email, &u.DisplayName,
+			&u.CreatedAt, &u.UpdatedAt, &u.LastLogin)
 	if err == nil {
 		return u, nil
 	}
@@ -178,30 +181,24 @@ func (r *repo) UpsertByMS(ctx context.Context, msOID, email, name string) (User,
 		if pgErr, ok := err.(*pgconn.PgError); ok {
 			return User{}, apperr.WithFields(
 				apperr.Wrap(apperr.Internal, err, "upsert(by kms_id) failed"),
-				map[string]any{
-					"pg_code":    pgErr.Code,
-					"constraint": pgErr.ConstraintName,
-					"detail":     pgErr.Detail,
-				},
+				map[string]any{"pg_code": pgErr.Code, "constraint": pgErr.ConstraintName, "detail": pgErr.Detail},
 			)
 		}
-
-		return User{}, apperr.WithFields(
-			apperr.Wrap(apperr.Internal, err, "upsert(by ms_id) failed"),
-			map[string]any{
-				"cause": err.Error(),
-				"type":  fmt.Sprintf("%T", err),
-			},
-		)
+		return User{}, apperr.Wrap(apperr.Internal, err, "upsert(by kms_id) failed")
 	}
 
-	// 2) ยังไม่เคยมี kms_id → ผูก kms_id ให้เรคคอร์ดที่ email ตรง แล้ว "return ทันที"
+	// 2) Update User
 	err = tx.QueryRow(ctx, `
 		UPDATE users
-		SET kms_id=$1, display_name=$3, last_login=now()
-		WHERE email=$2
-		RETURNING user_id, kms_id, email, display_name
-	`, msOID, email, name).Scan(&u.ID, &u.MSID, &u.Email, &u.DisplayName)
+		SET kms_id       = $1,
+		    display_name = $3,
+		    last_login   = now()
+		WHERE email      = $2
+		RETURNING user_id, kms_id, email, display_name,
+		          created_at, updated_at, last_login
+	`, msOID, email, name).
+		Scan(&u.ID, &u.MSID, &u.Email, &u.DisplayName,
+			&u.CreatedAt, &u.UpdatedAt, &u.LastLogin)
 	if err == nil {
 		return u, nil
 	}
@@ -215,12 +212,15 @@ func (r *repo) UpsertByMS(ctx context.Context, msOID, email, name string) (User,
 		return User{}, apperr.Wrap(apperr.Internal, err, "upsert(by email attach kms_id) failed")
 	}
 
-	// 3) ใหม่จริง ๆ → INSERT (อันเดียวที่แตะ email)
+	// 3) New User
 	err = tx.QueryRow(ctx, `
-		INSERT INTO users(kms_id, email, display_name, last_login)
-		VALUES ($1,$2,$3, now())
-		RETURNING user_id, kms_id, email, display_name
-	`, msOID, email, name).Scan(&u.ID, &u.MSID, &u.Email, &u.DisplayName)
+		INSERT INTO users (kms_id, email, display_name, last_login)
+		VALUES ($1, $2, $3, now())
+		RETURNING user_id, kms_id, email, display_name,
+		          created_at, updated_at, last_login
+	`, msOID, email, name).
+		Scan(&u.ID, &u.MSID, &u.Email, &u.DisplayName,
+			&u.CreatedAt, &u.UpdatedAt, &u.LastLogin)
 	if err != nil {
 		if pgErr, ok := err.(*pgconn.PgError); ok {
 			return User{}, apperr.WithFields(
@@ -230,7 +230,6 @@ func (r *repo) UpsertByMS(ctx context.Context, msOID, email, name string) (User,
 		}
 		return User{}, apperr.Wrap(apperr.Internal, err, "insert user failed")
 	}
-
 	return u, nil
 }
 

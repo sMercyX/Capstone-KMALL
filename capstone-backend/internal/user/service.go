@@ -2,6 +2,7 @@ package user
 
 import (
 	"context"
+	"fmt"
 	"strings"
 
 	apperr "github.com/Perpasit/Capstone-KMALL/internal/apperr"
@@ -16,7 +17,6 @@ type Service interface {
 
 	UpsertAndEnsureBuyer(ctx context.Context, msOID, email, name string) (User, error)
 
-	// เพิ่มสำหรับ JWT / OIDC callback & refresh
 	FindByID(ctx context.Context, id string) (User, error)
 	GetRoles(ctx context.Context, userID string) ([]string, error)
 }
@@ -51,17 +51,21 @@ func (s *service) Delete(ctx context.Context, id string) (User, error) {
 func (s *service) UpsertAndEnsureBuyer(ctx context.Context, msOID, email, name string) (User, error) {
 	u, err := s.repo.UpsertByMS(ctx, msOID, strings.ToLower(email), name)
 	if err != nil {
+		fmt.Printf("[DEBUG] UpsertByMS failed: %+v\n", err)
 		return User{}, err
 	}
 
 	roleID, err := s.repo.EnsureBuyerRole(ctx)
 	if err != nil {
+		fmt.Printf("[DEBUG] EnsureBuyerRole failed: %+v\n", err)
 		return User{}, apperr.Wrap(apperr.Internal, err, "ensure buyer role failed")
 	}
 
 	if err := s.repo.LinkRole(ctx, u.ID, roleID); err != nil {
+		fmt.Printf("[DEBUG] LinkRole failed: %+v\n", err)
 		return User{}, apperr.Wrap(apperr.Internal, err, "link buyer role failed")
 	}
+
 	return u, nil
 }
 

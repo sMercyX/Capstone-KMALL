@@ -1,9 +1,12 @@
 package user
 
 import (
+	"net/http"
+
 	"github.com/gin-gonic/gin"
 
 	"github.com/Perpasit/Capstone-KMALL/internal/apperr"
+	"github.com/Perpasit/Capstone-KMALL/internal/middleware"
 	"github.com/Perpasit/Capstone-KMALL/internal/respond"
 )
 
@@ -18,6 +21,7 @@ func (h *Handler) Register(r *gin.RouterGroup) {
 	// g.POST("", h.create)
 	// g.PUT("/:id", h.update)
 	g.DELETE("/:id", h.delete)
+	g.GET("/me", h.Me)
 }
 
 func (h *Handler) list(c *gin.Context) {
@@ -88,4 +92,22 @@ func (h *Handler) delete(c *gin.Context) {
 	}
 
 	respond.Deleted(c, apperr.Deleted, u)
+}
+
+func (h *Handler) Me(c *gin.Context) {
+	up, ok := c.Get(middleware.CtxUpstreamUser)
+	if !ok || up == nil {
+		respond.Error(c, http.StatusUnauthorized, "UNAUTHORIZED", "missing upstream user", nil)
+		return
+	}
+	uu := up.(*middleware.UpstreamUser)
+
+	u, err := h.svc.UpsertAndEnsureBuyer(c.Request.Context(), uu.UID, uu.Email, uu.Name)
+
+	if err != nil {
+		respond.Error(c, http.StatusInternalServerError, "INTERNAL", err.Error(), nil)
+		return
+	}
+
+	respond.OK(c, apperr.OK, u)
 }
