@@ -1,13 +1,13 @@
 import { Routes, Route } from "react-router-dom"
-import { Suspense } from "react"
-import KmallLanding from "../modules/LandingPage/LandingPage"
-import Welcome from "../modules/Welcome/Welcome"
+import { lazy, Suspense } from "react"
 import ProtectedRoute from "../components/ProtectedRoute/ProtectedRoute"
-import Dashboard from "../modules/DashBoard/Dashboard"
 
 function NotFound() {
   return <div style={{ padding: 24 }}>404 — Page not found</div>
 }
+const Dashboard = lazy(() => import("../modules/DashBoard/Dashboard"))
+const KmallLanding = lazy(() => import("../modules/LandingPage/LandingPage"))
+const Welcome = lazy(() => import("../modules/Welcome/Welcome"))
 
 export default function AppRoutes() {
   return (
@@ -23,9 +23,9 @@ export default function AppRoutes() {
           <Route
             path="/dashboard"
             element={
-              <ProtectedRoute>
+            //   <ProtectedRoute>
                 <Dashboard />
-              </ProtectedRoute>
+            //   </ProtectedRoute>
             }
           />
         </>
