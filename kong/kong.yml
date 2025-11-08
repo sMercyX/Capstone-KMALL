@@ -1,0 +1,48 @@
+_format_version: "3.0"
+_transform: true
+
+services:
+  # ===== OAUTH2-PROXY PUBLIC ENDPOINTS (/oauth2/*) =====
+  - name: oauth2-endpoints
+    url: http://oauth2-proxy:4180
+    routes:
+      - name: oauth2-route
+        paths:
+          - /oauth2
+        strip_path: false
+        preserve_host: true       
+        request_buffering: true
+
+  # ===== API THROUGH OAUTH2-PROXY (/api/*) =====
+  - name: api-through-proxy
+    url: http://oauth2-proxy:4180
+    routes:
+      - name: api-route
+        paths:
+          - /api
+        strip_path: false
+        preserve_host: true     
+        request_buffering: true
+    plugins:
+      - name: cors
+        config:
+          origins:
+            - http://localhost:5173
+            - http://localhost
+          methods:
+            - GET
+            - POST
+            - PUT
+            - PATCH
+            - DELETE
+            - OPTIONS
+          headers:
+            - Authorization
+            - Content-Type
+            - X-Requested-With
+          exposed_headers:
+            - X-Auth-Request-Email
+            - X-Auth-Request-User
+          credentials: true
+          max_age: 3600
+

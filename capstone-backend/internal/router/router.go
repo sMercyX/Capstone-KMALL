@@ -66,9 +66,12 @@ func Attach(r *gin.Engine, db *pgxpool.Pool, cfg config.Config) {
 		respond.Error(c, 404, "NOT_FOUND", "route not found", nil)
 	})
 
-	r.GET("/debug/headers", func(c *gin.Context) {
+	v1.GET("/debug/headers", func(c *gin.Context) {
 		c.JSON(200, gin.H{
-			"Authorization": c.GetHeader("Authorization"),
+			"Authorization":        c.GetHeader("Authorization"),
+			"X-Auth-Request-Email": c.GetHeader("X-Auth-Request-Email"),
+			"X-Auth-Request-User":  c.GetHeader("X-Auth-Request-User"),
+			"X-Forwarded-User":     c.GetHeader("X-Forwarded-User"),
 		})
 	})
 

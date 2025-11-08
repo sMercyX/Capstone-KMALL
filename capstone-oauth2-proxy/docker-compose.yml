@@ -1,40 +1,40 @@
-services:
-  oauth2-proxy:
-    image: quay.io/oauth2-proxy/oauth2-proxy:v7.6.0
-    container_name: capstone-oauth2-proxy
-    restart: unless-stopped
-    ports:
-      - "4180:4180"
-    env_file:
-      - .env
-    command:
-      - --http-address=${OAUTH2_PROXY_HTTP_ADDRESS}
-      # ===== OIDC / Microsoft Entra =====
-      - --provider=${OAUTH2_PROXY_PROVIDER}
-      - --oidc-issuer-url=${OAUTH2_PROXY_OIDC_ISSUER_URL}
-      - --client-id=${OAUTH2_PROXY_CLIENT_ID}
-      - --client-secret=${OAUTH2_PROXY_CLIENT_SECRET}
-      - --redirect-url=${OAUTH2_PROXY_REDIRECT_URL}
-      - --user-id-claim=${OAUTH2_PROXY_USER_ID_CLAIM}
-      - --oidc-email-claim=${OAUTH2_PROXY_OIDC_EMAIL_CLAIM}
-      - --scope=${OAUTH2_PROXY_SCOPE}  
+# services:
+#   oauth2-proxy:
+#     image: quay.io/oauth2-proxy/oauth2-proxy:v7.6.0
+#     container_name: capstone-oauth2-proxy
+#     restart: unless-stopped
+#     ports:
+#       - "4180:4180"
+#     env_file:
+#       - .env
+#     command:
+#       - --http-address=${OAUTH2_PROXY_HTTP_ADDRESS}
+#       # ===== OIDC / Microsoft Entra =====
+#       - --provider=${OAUTH2_PROXY_PROVIDER}
+#       - --oidc-issuer-url=${OAUTH2_PROXY_OIDC_ISSUER_URL}
+#       - --client-id=${OAUTH2_PROXY_CLIENT_ID}
+#       - --client-secret=${OAUTH2_PROXY_CLIENT_SECRET}
+#       - --redirect-url=${OAUTH2_PROXY_REDIRECT_URL}
+#       - --user-id-claim=${OAUTH2_PROXY_USER_ID_CLAIM}
+#       - --oidc-email-claim=${OAUTH2_PROXY_OIDC_EMAIL_CLAIM}
+#       - --scope=${OAUTH2_PROXY_SCOPE}  
 
-      # ===== Upstream =====
-      - --upstream=${OAUTH2_PROXY_UPSTREAMS}
+#       # ===== Upstream =====
+#       - --upstream=${OAUTH2_PROXY_UPSTREAMS}
 
-      # ===== Headers ให้ Backend อ่านผ่าน UpstreamAuth() =====
-      - --set-xauthrequest=${OAUTH2_PROXY_SET_XAUTHREQUEST}
-      - --pass-user-headers=${OAUTH2_PROXY_PASS_USER_HEADERS}
-      - --pass-access-token=${OAUTH2_PROXY_PASS_ACCESS_TOKEN}
-      - --pass-authorization-header=${OAUTH2_PROXY_PASS_AUTHORIZATION_HEADER}
+#       # ===== Headers ให้ Backend อ่านผ่าน UpstreamAuth() =====
+#       - --set-xauthrequest=${OAUTH2_PROXY_SET_XAUTHREQUEST}
+#       - --pass-user-headers=${OAUTH2_PROXY_PASS_USER_HEADERS}
+#       - --pass-access-token=${OAUTH2_PROXY_PASS_ACCESS_TOKEN}
+#       - --pass-authorization-header=${OAUTH2_PROXY_PASS_AUTHORIZATION_HEADER}
 
-      # ===== Security & Cookies =====
-      - --cookie-secret=${OAUTH2_PROXY_COOKIE_SECRET}
-      - --cookie-domain=${OAUTH2_PROXY_COOKIE_DOMAINS}
-      - --cookie-secure=${OAUTH2_PROXY_COOKIE_SECURE}
-      - --cookie-httponly=${OAUTH2_PROXY_COOKIE_HTTPONLY}
-      - --cookie-samesite=${OAUTH2_PROXY_COOKIE_SAMESITE}
-      - --whitelist-domain=${OAUTH2_PROXY_WHITELIST_DOMAINS}
-      - --email-domain=${OAUTH2_PROXY_EMAIL_DOMAINS}
-      - --skip-provider-button=${OAUTH2_PROXY_SKIP_PROVIDER_BUTTON}
+#       # ===== Security & Cookies =====
+#       - --cookie-secret=${OAUTH2_PROXY_COOKIE_SECRET}
+#       - --cookie-domain=${OAUTH2_PROXY_COOKIE_DOMAINS}
+#       - --cookie-secure=${OAUTH2_PROXY_COOKIE_SECURE}
+#       - --cookie-httponly=${OAUTH2_PROXY_COOKIE_HTTPONLY}
+#       - --cookie-samesite=${OAUTH2_PROXY_COOKIE_SAMESITE}
+#       - --whitelist-domain=${OAUTH2_PROXY_WHITELIST_DOMAINS}
+#       - --email-domain=${OAUTH2_PROXY_EMAIL_DOMAINS}
+#       - --skip-provider-button=${OAUTH2_PROXY_SKIP_PROVIDER_BUTTON}
       
