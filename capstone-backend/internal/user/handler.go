@@ -62,7 +62,7 @@ func (h *Handler) adminAddRoles(c *gin.Context) {
 		c.Error(err)
 		return
 	}
-	respond.OK(c, apperr.Updated, gin.H{"updated": true})
+	respond.Updated(c, apperr.Updated, gin.H{"updated": true})
 }
 
 func (h *Handler) adminRemoveRoles(c *gin.Context) {
@@ -82,7 +82,7 @@ func (h *Handler) adminRemoveRoles(c *gin.Context) {
 		c.Error(err)
 		return
 	}
-	respond.OK(c, apperr.Deleted, gin.H{"updated": true})
+	respond.Deleted(c, apperr.Deleted, gin.H{"deleted": true})
 }
 
 func (h *Handler) addMyRoles(c *gin.Context) {
@@ -241,9 +241,8 @@ func (h *Handler) Me(c *gin.Context) {
 		roleNames = []string{}
 	}
 
-	// แนบ roles เข้าไปใน data ตามที่ต้องการ
 	respond.OK(c, apperr.OK, gin.H{
-		"user":  u,         // คงโครงสร้างเดิมไว้
-		"roles": roleNames, // เพิ่ม roles ตรงนี้
+		"user":  u,
+		"roles": roleNames,
 	})
 }
