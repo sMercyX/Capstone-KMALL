@@ -16,6 +16,7 @@ type Repo interface {
 	GetIDByName(ctx context.Context, name string) (int64, error)
 	ListNamesByUserID(ctx context.Context, userID string) ([]string, error)
 	ListByUserID(ctx context.Context, userID string) ([]Role, error)
+	GetUserIDBySubject(ctx context.Context, subject string) (string, error)
 }
 
 type repo struct{ db *pgxpool.Pool }
@@ -119,4 +120,27 @@ func (r *repo) ListByUserID(ctx context.Context, userID string) ([]Role, error) 
 		return nil, apperr.Wrap(apperr.Internal, err, "rows error")
 	}
 	return out, nil
+}
+
+func (r *repo) GetUserIDBySubject(ctx context.Context, subject string) (string, error) {
+	s := strings.TrimSpace(subject)
+	if s == "" {
+		return "", nil
+	}
+
+	const q = `
+        SELECT user_id
+        FROM users
+        WHERE kms_id = $1
+           OR LOWER(email) = LOWER($1)
+        LIMIT 1
+    `
+	var id string
+	if err := r.db.QueryRow(ctx, q, s).Scan(&id); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return "", nil
+		}
+		return "", apperr.Wrap(apperr.Internal, err, "map subject to user_id failed")
+	}
+	return id, nil
 }

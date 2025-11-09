@@ -62,7 +62,7 @@ func (h *Handler) adminAddRoles(c *gin.Context) {
 		c.Error(err)
 		return
 	}
-	respond.OK(c, apperr.OK, gin.H{"updated": true})
+	respond.OK(c, apperr.Updated, gin.H{"updated": true})
 }
 
 func (h *Handler) adminRemoveRoles(c *gin.Context) {
@@ -82,7 +82,7 @@ func (h *Handler) adminRemoveRoles(c *gin.Context) {
 		c.Error(err)
 		return
 	}
-	respond.OK(c, apperr.OK, gin.H{"updated": true})
+	respond.OK(c, apperr.Deleted, gin.H{"updated": true})
 }
 
 func (h *Handler) addMyRoles(c *gin.Context) {

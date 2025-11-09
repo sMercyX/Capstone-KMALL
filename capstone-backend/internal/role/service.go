@@ -42,8 +42,22 @@ func (s *service) GetIDByName(ctx context.Context, name string) (int64, error) {
 	return id, nil
 }
 
-func (s *service) ListNamesByUserID(ctx context.Context, userID string) ([]string, error) {
-	names, err := s.repo.ListNamesByUserID(ctx, userID)
+// role/service.go
+func (s *service) ListNamesByUserID(ctx context.Context, userIDOrSubject string) ([]string, error) {
+	names, err := s.repo.ListNamesByUserID(ctx, userIDOrSubject)
+	if err == nil && len(names) > 0 {
+		return names, nil
+	}
+
+	internalID, err := s.repo.GetUserIDBySubject(ctx, userIDOrSubject)
+	if err != nil {
+		return nil, err
+	}
+	if strings.TrimSpace(internalID) == "" {
+		return []string{}, nil
+	}
+
+	names, err = s.repo.ListNamesByUserID(ctx, internalID)
 	if err != nil {
 		return nil, err
 	}
