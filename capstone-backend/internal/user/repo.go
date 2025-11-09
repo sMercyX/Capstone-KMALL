@@ -20,14 +20,14 @@ type Repo interface {
 	Delete(ctx context.Context, id string) (User, error)
 
 	UpsertByMS(ctx context.Context, msOID, email, name string) (User, error)
-	EnsureBuyerRole(ctx context.Context) (int32, error)
-	LinkRole(ctx context.Context, userID string, roleID int32) error
+	EnsureBuyerRole(ctx context.Context) (int64, error)
+	LinkRole(ctx context.Context, userID string, roleID int64) error
 
 	// JWT claims
 	GetRolesByUserID(ctx context.Context, userID string) ([]string, error)
 
-	AddUserRoles(ctx context.Context, userID string, roleIDs []int32) error
-	RemoveUserRoles(ctx context.Context, userID string, roleIDs []int32) error
+	AddUserRoles(ctx context.Context, userID string, roleIDs []int64) error
+	RemoveUserRoles(ctx context.Context, userID string, roleIDs []int64) error
 }
 
 type repo struct{ db *pgxpool.Pool }
@@ -177,8 +177,8 @@ func (r *repo) UpsertByMS(ctx context.Context, msOID, email, name string) (User,
 	return u, nil
 }
 
-func (r *repo) EnsureBuyerRole(ctx context.Context) (int32, error) {
-	var id int32
+func (r *repo) EnsureBuyerRole(ctx context.Context) (int64, error) {
+	var id int64
 	if err := r.db.QueryRow(ctx, `
         INSERT INTO roles(role_name, role_desc)
         VALUES ('buyer', 'Default role for new users')
@@ -190,7 +190,7 @@ func (r *repo) EnsureBuyerRole(ctx context.Context) (int32, error) {
 	return id, nil
 }
 
-func (r *repo) LinkRole(ctx context.Context, userID string, roleID int32) error {
+func (r *repo) LinkRole(ctx context.Context, userID string, roleID int64) error {
 	_, err := r.db.Exec(ctx, `
 		INSERT INTO user_roles(user_id, role_id, created_at)
 		VALUES ($1,$2, now())
@@ -228,13 +228,13 @@ func (r *repo) GetRolesByUserID(ctx context.Context, userID string) ([]string, e
 	return roles, nil
 }
 
-func (r *repo) AddUserRoles(ctx context.Context, userID string, roleIDs []int32) error {
+func (r *repo) AddUserRoles(ctx context.Context, userID string, roleIDs []int64) error {
 	if len(roleIDs) == 0 {
 		return nil
 	}
 
-	seen := map[int32]struct{}{}
-	uniq := make([]int32, 0, len(roleIDs))
+	seen := map[int64]struct{}{}
+	uniq := make([]int64, 0, len(roleIDs))
 	for _, id := range roleIDs {
 		if _, ok := seen[id]; ok {
 			continue
@@ -268,7 +268,7 @@ func (r *repo) AddUserRoles(ctx context.Context, userID string, roleIDs []int32)
 	return nil
 }
 
-func (r *repo) RemoveUserRoles(ctx context.Context, userID string, roleIDs []int32) error {
+func (r *repo) RemoveUserRoles(ctx context.Context, userID string, roleIDs []int64) error {
 	if len(roleIDs) == 0 {
 		return nil
 	}

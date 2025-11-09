@@ -15,7 +15,7 @@ const (
 )
 
 type roleLookup interface {
-	GetIDByName(ctx context.Context, name string) (int32, error)
+	GetIDByName(ctx context.Context, name string) (int64, error)
 	ListNamesByUserID(ctx context.Context, userID string) ([]string, error)
 }
 
@@ -97,7 +97,7 @@ func (s *service) AddRoles(ctx context.Context, targetID string, roleNames []str
 			if err != nil {
 				return err
 			}
-			if err := s.repo.AddUserRoles(ctx, targetID, []int32{bid}); err != nil {
+			if err := s.repo.AddUserRoles(ctx, targetID, []int64{bid}); err != nil {
 				return err
 			}
 		}
@@ -158,12 +158,12 @@ func (s *service) userHasRole(ctx context.Context, userID, name string) (bool, e
 	return false, nil
 }
 
-func (s *service) resolveRoleIDs(ctx context.Context, names []string) ([]int32, error) {
+func (s *service) resolveRoleIDs(ctx context.Context, names []string) ([]int64, error) {
 	if len(names) == 0 {
 		return nil, nil
 	}
-	seen := map[int32]struct{}{}
-	var out []int32
+	seen := map[int64]struct{}{}
+	var out []int64
 	for _, n := range names {
 		id, err := s.roles.GetIDByName(ctx, n)
 		if err != nil {

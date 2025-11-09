@@ -9,7 +9,7 @@ import (
 
 type Service interface {
 	List(ctx context.Context) ([]Role, error)
-	GetIDByName(ctx context.Context, name string) (int32, error)
+	GetIDByName(ctx context.Context, name string) (int64, error)
 	ListNamesByUserID(ctx context.Context, userID string) ([]string, error)
 	ListByUserID(ctx context.Context, userID string) ([]Role, error)
 	Has(ctx context.Context, userID string, roleName string) (bool, error)
@@ -34,7 +34,7 @@ func (s *service) List(ctx context.Context) ([]Role, error) {
 	return roles, nil
 }
 
-func (s *service) GetIDByName(ctx context.Context, name string) (int32, error) {
+func (s *service) GetIDByName(ctx context.Context, name string) (int64, error) {
 	id, err := s.repo.GetIDByName(ctx, name)
 	if err != nil {
 		return 0, err

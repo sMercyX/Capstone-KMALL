@@ -24,42 +24,47 @@ func UpstreamAuth() gin.HandlerFunc {
 			c.GetHeader("X-Forwarded-Email"),
 		)
 
-		uid := strings.TrimSpace(c.GetHeader("X-Auth-Request-Oid"))
-		if uid == "" {
-			uid = strings.TrimSpace(c.GetHeader("X-Forwarded-User"))
-		}
-		if uid == "" {
-			uid = email
-		}
+		var uid string
+		var name string
 
-		name := strings.TrimSpace(c.GetHeader("X-Auth-Request-Name"))
-		if name == "" {
-			given := strings.TrimSpace(c.GetHeader("X-Auth-Request-Given-Name"))
-			family := strings.TrimSpace(c.GetHeader("X-Auth-Request-Family-Name"))
-			switch {
-			case given != "" && family != "":
-				name = given + " " + family
-			case given != "":
-				name = given
-			case family != "":
-				name = family
-			}
-		}
+		uid = strings.TrimSpace(c.GetHeader("X-Auth-Request-Oid"))
 
-		if name == "" {
+		if uid == "" {
 			if claims, err := jwtutil.DecodePayloadMap(c.GetHeader("Authorization")); err == nil && claims != nil {
-				if v, ok := claims["name"].(string); ok && v != "" {
-					name = v
+				if v, ok := claims["oid"].(string); ok && v != "" {
+					uid = v
 				}
-
-				if uid == "" {
-					if v, ok := claims["oid"].(string); ok && v != "" {
-						uid = v
+				if name == "" {
+					if v, ok := claims["name"].(string); ok && v != "" {
+						name = v
 					}
 				}
 			}
 		}
 
+		if uid == "" {
+			uid = strings.TrimSpace(c.GetHeader("X-Forwarded-User"))
+		}
+
+		if uid == "" {
+			uid = email
+		}
+
+		if name == "" {
+			name = strings.TrimSpace(c.GetHeader("X-Auth-Request-Name"))
+			if name == "" {
+				given := strings.TrimSpace(c.GetHeader("X-Auth-Request-Given-Name"))
+				family := strings.TrimSpace(c.GetHeader("X-Auth-Request-Family-Name"))
+				switch {
+				case given != "" && family != "":
+					name = given + " " + family
+				case given != "":
+					name = given
+				case family != "":
+					name = family
+				}
+			}
+		}
 		if name == "" {
 			name = uid
 		}

@@ -13,7 +13,7 @@ import (
 
 type Repo interface {
 	List(ctx context.Context) ([]Role, error)
-	GetIDByName(ctx context.Context, name string) (int32, error)
+	GetIDByName(ctx context.Context, name string) (int64, error)
 	ListNamesByUserID(ctx context.Context, userID string) ([]string, error)
 	ListByUserID(ctx context.Context, userID string) ([]Role, error)
 }
@@ -48,9 +48,9 @@ func (r *repo) List(ctx context.Context) ([]Role, error) {
 }
 
 // returns the role_id for a given role_name.
-func (r *repo) GetIDByName(ctx context.Context, name string) (int32, error) {
+func (r *repo) GetIDByName(ctx context.Context, name string) (int64, error) {
 	name = strings.ToLower(strings.TrimSpace(name))
-	var id int32
+	var id int64
 	err := r.db.QueryRow(ctx, `
 		SELECT role_id
 		FROM roles
