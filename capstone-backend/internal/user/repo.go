@@ -20,11 +20,14 @@ type Repo interface {
 	Delete(ctx context.Context, id string) (User, error)
 
 	UpsertByMS(ctx context.Context, msOID, email, name string) (User, error)
-	EnsureBuyerRole(ctx context.Context) (int64, error)
-	LinkRole(ctx context.Context, userID string, roleID int64) error
+	EnsureBuyerRole(ctx context.Context) (int32, error)
+	LinkRole(ctx context.Context, userID string, roleID int32) error
 
 	// JWT claims
 	GetRolesByUserID(ctx context.Context, userID string) ([]string, error)
+
+	AddUserRoles(ctx context.Context, userID string, roleIDs []int32) error
+	RemoveUserRoles(ctx context.Context, userID string, roleIDs []int32) error
 }
 
 type repo struct{ db *pgxpool.Pool }
@@ -68,65 +71,6 @@ func (r *repo) Get(ctx context.Context, id string) (User, error) {
 	}
 	return u, nil
 }
-
-// func (r *repo) Create(ctx context.Context, u User) (User, error) {
-// 	u.Email = strings.ToLower(u.Email)
-// 	err := r.db.QueryRow(ctx, `
-// 		INSERT INTO users(kms_id, email, display_name)
-// 		VALUES ($1,$2,$3)
-// 		RETURNING user_id, kms_id, email, display_name`,
-// 		u.MSID, u.Email, u.DisplayName,
-// 	).Scan(&u.ID, &u.MSID, &u.Email, &u.DisplayName)
-// 	if err != nil {
-// 		if pgErr, ok := err.(*pgconn.PgError); ok {
-// 			switch pgErr.Code {
-// 			case "23505": // unique_violation
-// 				return User{}, apperr.New(apperr.Conflict, "duplicate user")
-// 			case "23514", "23502": // check_violation, not_null_violation
-// 				return User{}, apperr.Wrap(apperr.BadRequest, err, "invalid user data")
-// 			}
-// 		}
-// 		return User{}, apperr.Wrap(apperr.Internal, err, "create user failed")
-// 	}
-// 	return u, nil
-// }
-
-// func (r *repo) Update(ctx context.Context, id string, u User) (User, error) {
-// 	u.Email = strings.ToLower(u.Email)
-// 	err := r.db.QueryRow(ctx, `
-// 		UPDATE users
-// 		SET kms_id=$2, email=$3, display_name=$4
-// 		WHERE user_id=$1
-// 		RETURNING user_id, kms_id, email, display_name`,
-// 		id, u.MSID, u.Email, u.DisplayName,
-// 	).Scan(&u.ID, &u.MSID, &u.Email, &u.DisplayName)
-// 	if err != nil {
-// 		if errors.Is(err, pgx.ErrNoRows) {
-// 			return User{}, apperr.New(apperr.NotFound, "user not found")
-// 		}
-// 		if pgErr, ok := err.(*pgconn.PgError); ok {
-// 			switch pgErr.Code {
-// 			case "23505":
-// 				return User{}, apperr.New(apperr.Conflict, "duplicate user")
-// 			case "23514", "23502":
-// 				return User{}, apperr.Wrap(apperr.BadRequest, err, "invalid user data")
-// 			}
-// 		}
-// 		return User{}, apperr.Wrap(apperr.Internal, err, "update user failed")
-// 	}
-// 	return u, nil
-// }
-
-// func (r *repo) Delete(ctx context.Context, id string) error {
-// 	ct, err := r.db.Exec(ctx, `DELETE FROM users WHERE user_id=$1`, id)
-// 	if err != nil {
-// 		return apperr.Wrap(apperr.Internal, err, "delete user failed")
-// 	}
-// 	if ct.RowsAffected() == 0 {
-// 		return apperr.New(apperr.NotFound, "user not found")
-// 	}
-// 	return nil
-// }
 
 func (r *repo) Delete(ctx context.Context, id string) (User, error) {
 	var u User
@@ -233,8 +177,8 @@ func (r *repo) UpsertByMS(ctx context.Context, msOID, email, name string) (User,
 	return u, nil
 }
 
-func (r *repo) EnsureBuyerRole(ctx context.Context) (int64, error) {
-	var id int64
+func (r *repo) EnsureBuyerRole(ctx context.Context) (int32, error) {
+	var id int32
 	if err := r.db.QueryRow(ctx, `
         INSERT INTO roles(role_name, role_desc)
         VALUES ('buyer', 'Default role for new users')
@@ -246,7 +190,7 @@ func (r *repo) EnsureBuyerRole(ctx context.Context) (int64, error) {
 	return id, nil
 }
 
-func (r *repo) LinkRole(ctx context.Context, userID string, roleID int64) error {
+func (r *repo) LinkRole(ctx context.Context, userID string, roleID int32) error {
 	_, err := r.db.Exec(ctx, `
 		INSERT INTO user_roles(user_id, role_id, created_at)
 		VALUES ($1,$2, now())
@@ -282,4 +226,59 @@ func (r *repo) GetRolesByUserID(ctx context.Context, userID string) ([]string, e
 		return nil, apperr.Wrap(apperr.Internal, err, "rows error")
 	}
 	return roles, nil
+}
+
+func (r *repo) AddUserRoles(ctx context.Context, userID string, roleIDs []int32) error {
+	if len(roleIDs) == 0 {
+		return nil
+	}
+
+	seen := map[int32]struct{}{}
+	uniq := make([]int32, 0, len(roleIDs))
+	for _, id := range roleIDs {
+		if _, ok := seen[id]; ok {
+			continue
+		}
+		seen[id] = struct{}{}
+		uniq = append(uniq, id)
+	}
+	if len(uniq) == 0 {
+		return nil
+	}
+
+	batch := &pgx.Batch{}
+	for _, rid := range uniq {
+		batch.Queue(`
+			INSERT INTO user_roles(user_id, role_id, created_at)
+			VALUES ($1, $2, now())
+			ON CONFLICT (user_id, role_id) DO NOTHING
+		`, userID, rid)
+	}
+
+	br := r.db.SendBatch(ctx, batch)
+	for range uniq {
+		if _, err := br.Exec(); err != nil {
+			_ = br.Close()
+			return apperr.Wrap(apperr.Internal, err, "add user roles failed")
+		}
+	}
+	if err := br.Close(); err != nil {
+		return apperr.Wrap(apperr.Internal, err, "batch close failed")
+	}
+	return nil
+}
+
+func (r *repo) RemoveUserRoles(ctx context.Context, userID string, roleIDs []int32) error {
+	if len(roleIDs) == 0 {
+		return nil
+	}
+
+	_, err := r.db.Exec(ctx, `
+		DELETE FROM user_roles
+		WHERE user_id = $1 AND role_id = ANY($2)
+	`, userID, roleIDs)
+	if err != nil {
+		return apperr.Wrap(apperr.Internal, err, "remove user roles failed")
+	}
+	return nil
 }
