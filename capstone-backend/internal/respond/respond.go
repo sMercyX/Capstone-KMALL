@@ -1,6 +1,8 @@
 package respond
 
 import (
+	"net/http"
+
 	"github.com/Perpasit/Capstone-KMALL/internal/apperr"
 
 	"github.com/gin-gonic/gin"
@@ -18,6 +20,29 @@ func OK(c *gin.Context, code apperr.Code, data any) {
 		"status": code,
 		"code":   apperr.HTTPStatus(code),
 		"data":   data,
+	})
+}
+
+func Created(c *gin.Context, code apperr.Code, data any) {
+	status := apperr.HTTPStatus(code)
+	if status == 0 {
+		status = http.StatusCreated
+	}
+	c.JSON(status, gin.H{
+		"status":  code,
+		"code":    status,
+		"created": true,
+		"data":    data,
+	})
+}
+
+func Updated(c *gin.Context, code apperr.Code, data any) {
+	status := apperr.HTTPStatus(code)
+	c.JSON(status, gin.H{
+		"status":  code,
+		"code":    status,
+		"updated": true,
+		"data":    data,
 	})
 }
 

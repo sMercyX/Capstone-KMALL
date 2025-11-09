@@ -91,7 +91,7 @@ func (h *Handler) addMyRoles(c *gin.Context) {
 		respond.Error(c, http.StatusUnauthorized, "UNAUTHORIZED", "missing upstream user", nil)
 		return
 	}
-	selfID := up.(*middleware.UpstreamUser).UID
+	uu := up.(*middleware.UpstreamUser)
 
 	var in rolesReq
 	if err := c.ShouldBindJSON(&in); err != nil {
@@ -99,7 +99,6 @@ func (h *Handler) addMyRoles(c *gin.Context) {
 		return
 	}
 
-	// handler-level permission: self add ได้เฉพาะ Buyer/Seller เท่านั้น
 	for _, r := range in.Roles {
 		l := strings.ToLower(strings.TrimSpace(r))
 		if l != "buyer" && l != "seller" {
@@ -108,11 +107,30 @@ func (h *Handler) addMyRoles(c *gin.Context) {
 		}
 	}
 
-	if err := h.svc.AddRoles(c.Request.Context(), selfID, in.Roles); err != nil {
+	u, err := h.svc.UpsertAndEnsureBuyer(c.Request.Context(), uu.UID, uu.Email, uu.Name)
+	if err != nil {
 		c.Error(err)
 		return
 	}
-	respond.OK(c, apperr.OK, gin.H{"updated": true})
+
+	if err := h.svc.AddRoles(c.Request.Context(), u.ID, in.Roles); err != nil {
+		c.Error(err)
+		return
+	}
+
+	names, err := h.roleSvc.ListNamesByUserID(c.Request.Context(), u.ID)
+	if err != nil {
+		c.Error(err)
+		return
+	}
+	if names == nil {
+		names = []string{}
+	}
+
+	respond.Created(c, apperr.Created, gin.H{
+		"added": in.Roles,
+		"roles": names,
+	})
 }
 
 func (h *Handler) removeMyRoles(c *gin.Context) {
@@ -121,7 +139,7 @@ func (h *Handler) removeMyRoles(c *gin.Context) {
 		respond.Error(c, http.StatusUnauthorized, "UNAUTHORIZED", "missing upstream user", nil)
 		return
 	}
-	selfID := up.(*middleware.UpstreamUser).UID
+	uu := up.(*middleware.UpstreamUser)
 
 	var in rolesReq
 	if err := c.ShouldBindJSON(&in); err != nil {
@@ -129,7 +147,6 @@ func (h *Handler) removeMyRoles(c *gin.Context) {
 		return
 	}
 
-	// handler-level permission: self remove ได้เฉพาะ Seller เท่านั้น
 	for _, r := range in.Roles {
 		l := strings.ToLower(strings.TrimSpace(r))
 		if l != "seller" {
@@ -138,11 +155,30 @@ func (h *Handler) removeMyRoles(c *gin.Context) {
 		}
 	}
 
-	if err := h.svc.RemoveRoles(c.Request.Context(), selfID, in.Roles); err != nil {
+	u, err := h.svc.UpsertAndEnsureBuyer(c.Request.Context(), uu.UID, uu.Email, uu.Name)
+	if err != nil {
 		c.Error(err)
 		return
 	}
-	respond.OK(c, apperr.OK, gin.H{"updated": true})
+
+	if err := h.svc.RemoveRoles(c.Request.Context(), u.ID, in.Roles); err != nil {
+		c.Error(err)
+		return
+	}
+
+	names, err := h.roleSvc.ListNamesByUserID(c.Request.Context(), u.ID)
+	if err != nil {
+		c.Error(err)
+		return
+	}
+	if names == nil {
+		names = []string{}
+	}
+
+	respond.Deleted(c, apperr.Updated, gin.H{
+		"removed": in.Roles,
+		"roles":   names,
+	})
 }
 
 func (h *Handler) list(c *gin.Context) {
@@ -195,5 +231,19 @@ func (h *Handler) Me(c *gin.Context) {
 		respond.Error(c, http.StatusInternalServerError, "INTERNAL", err.Error(), nil)
 		return
 	}
-	respond.OK(c, apperr.OK, u)
+
+	roleNames, err := h.roleSvc.ListNamesByUserID(c.Request.Context(), u.ID)
+	if err != nil {
+		c.Error(err)
+		return
+	}
+	if roleNames == nil {
+		roleNames = []string{}
+	}
+
+	// แนบ roles เข้าไปใน data ตามที่ต้องการ
+	respond.OK(c, apperr.OK, gin.H{
+		"user":  u,         // คงโครงสร้างเดิมไว้
+		"roles": roleNames, // เพิ่ม roles ตรงนี้
+	})
 }
