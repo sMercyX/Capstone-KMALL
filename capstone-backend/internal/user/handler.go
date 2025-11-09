@@ -175,7 +175,7 @@ func (h *Handler) removeMyRoles(c *gin.Context) {
 		names = []string{}
 	}
 
-	respond.Deleted(c, apperr.Updated, gin.H{
+	respond.Deleted(c, apperr.Deleted, gin.H{
 		"removed": in.Roles,
 		"roles":   names,
 	})
