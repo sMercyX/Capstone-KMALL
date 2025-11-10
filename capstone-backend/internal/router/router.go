@@ -1,6 +1,7 @@
 package router
 
 import (
+	"context"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -33,7 +34,16 @@ func Attach(r *gin.Engine, db *pgxpool.Pool, cfg config.Config) {
 	uSvc := user.NewService(uRepo, rSvc)
 
 	// API routes (protected)
-	v1 := r.Group("/api", middleware.UpstreamAuth())
+	v1 := r.Group("/api",
+		middleware.UpstreamAuth(),
+		middleware.EnsureUser(func(ctx context.Context, oid, email, name string) (string, error) {
+			u, err := uSvc.UpsertAndEnsureBuyer(ctx, oid, email, name)
+			if err != nil {
+				return "", err
+			}
+			return u.ID, nil
+		}),
+	)
 
 	// users
 	uHdl := user.NewHandler(uSvc, rSvc)

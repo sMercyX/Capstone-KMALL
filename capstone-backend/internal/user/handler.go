@@ -62,7 +62,7 @@ func (h *Handler) adminAddRoles(c *gin.Context) {
 		c.Error(err)
 		return
 	}
-	respond.Updated(c, apperr.Updated, gin.H{"updated": true})
+	respond.Created(c, apperr.Created, gin.H{"created": true})
 }
 
 func (h *Handler) adminRemoveRoles(c *gin.Context) {

@@ -28,7 +28,7 @@ func (h *Handler) Register(r *gin.RouterGroup) {
 	admin.GET("/user/:userID/names", h.listNamesByUserID)
 
 	// ===== self =====
-	g.GET("/me", h.listMe)
+	// g.GET("/me", h.listMe)
 	g.GET("/me/names", h.listMeNames)
 }
 
@@ -105,24 +105,24 @@ func (h *Handler) listNamesByUserID(c *gin.Context) {
 }
 
 // GET /roles/me
-func (h *Handler) listMe(c *gin.Context) {
-	up, ok := c.Get(middleware.CtxUpstreamUser)
-	if !ok || up == nil {
-		respond.Error(c, http.StatusUnauthorized, "UNAUTHORIZED", "missing upstream user", nil)
-		return
-	}
-	uu := up.(*middleware.UpstreamUser)
+// func (h *Handler) listMe(c *gin.Context) {
+// 	up, ok := c.Get(middleware.CtxUpstreamUser)
+// 	if !ok || up == nil {
+// 		respond.Error(c, http.StatusUnauthorized, "UNAUTHORIZED", "missing upstream user", nil)
+// 		return
+// 	}
+// 	uu := up.(*middleware.UpstreamUser)
 
-	roles, err := h.svc.ListByUserID(c.Request.Context(), uu.UID)
-	if err != nil {
-		c.Error(err)
-		return
-	}
-	if roles == nil {
-		roles = []Role{}
-	}
-	respond.OK(c, apperr.OK, roles)
-}
+// 	roles, err := h.svc.ListByUserID(c.Request.Context(), uu.UID)
+// 	if err != nil {
+// 		c.Error(err)
+// 		return
+// 	}
+// 	if roles == nil {
+// 		roles = []Role{}
+// 	}
+// 	respond.OK(c, apperr.OK, roles)
+// }
 
 // GET /roles/me/names
 func (h *Handler) listMeNames(c *gin.Context) {
