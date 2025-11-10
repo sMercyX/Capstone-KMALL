@@ -18,6 +18,7 @@ type Repo interface {
 	// Create(ctx context.Context, u User) (User, error)
 	// Update(ctx context.Context, id string, u User) (User, error)
 	Delete(ctx context.Context, id string) (User, error)
+	GetByUpstreamID(ctx context.Context, msOID string) (User, error)
 
 	UpsertByMS(ctx context.Context, msOID, email, name string) (User, error)
 	EnsureBuyerRole(ctx context.Context) (int64, error)
@@ -90,6 +91,22 @@ func (r *repo) Delete(ctx context.Context, id string) (User, error) {
 	}
 	return u, nil
 }
+
+// func (r *repo) GetByUpstreamID(ctx context.Context, msOID string) (User, error) {
+// 	var u User
+// 	err := r.db.QueryRow(ctx, `
+//         SELECT user_id, kms_id, email, display_name, created_at, updated_at, last_login
+//         FROM users
+//         WHERE kms_id = $1
+//     `, msOID).Scan(&u.ID, &u.MSID, &u.Email, &u.DisplayName, &u.CreatedAt, &u.UpdatedAt, &u.LastLogin)
+// 	if err != nil {
+// 		if errors.Is(err, pgx.ErrNoRows) {
+// 			return User{}, apperr.New(apperr.NotFound, "user not found")
+// 		}
+// 		return User{}, apperr.Wrap(apperr.Internal, err, "get user by upstream id failed")
+// 	}
+// 	return u, nil
+// }
 
 func (r *repo) UpsertByMS(ctx context.Context, msOID, email, name string) (User, error) {
 	email = strings.ToLower(email)
