@@ -29,6 +29,7 @@ type Service interface {
 	UpsertAndEnsureBuyer(ctx context.Context, msOID, email, name string) (User, error)
 
 	FindByID(ctx context.Context, id string) (User, error)
+	FindByUpstreamID(ctx context.Context, uid string) (User, error)
 	GetRoles(ctx context.Context, userID string) ([]string, error)
 
 	AddRoles(ctx context.Context, targetID string, roleNames []string) error
@@ -126,6 +127,10 @@ func (s *service) RemoveRoles(ctx context.Context, targetID string, roleNames []
 		return err
 	}
 	return s.repo.RemoveUserRoles(ctx, targetID, ids)
+}
+
+func (s *service) FindByUpstreamID(ctx context.Context, uid string) (User, error) {
+	return s.repo.GetByUpstreamID(ctx, uid)
 }
 
 // ——— helpers ———

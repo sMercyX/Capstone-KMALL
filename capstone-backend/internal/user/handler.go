@@ -37,6 +37,7 @@ func (h *Handler) Register(r *gin.RouterGroup) {
 
 	// ===== self =====
 	g.GET("/me", h.Me)
+	g.DELETE("/me", h.deleteMe)
 	g.POST("/me/roles", h.addMyRoles)
 	g.DELETE("/me/roles", h.removeMyRoles)
 }
@@ -244,5 +245,30 @@ func (h *Handler) Me(c *gin.Context) {
 	respond.OK(c, apperr.OK, gin.H{
 		"user":  u,
 		"roles": roleNames,
+	})
+}
+
+func (h *Handler) deleteMe(c *gin.Context) {
+	up, ok := c.Get(middleware.CtxUpstreamUser)
+	if !ok || up == nil {
+		respond.Error(c, http.StatusUnauthorized, "UNAUTHORIZED", "missing upstream user", nil)
+		return
+	}
+	uu := up.(*middleware.UpstreamUser)
+
+	u, err := h.svc.FindByUpstreamID(c.Request.Context(), uu.UID)
+	if err != nil {
+		c.Error(err)
+		return
+	}
+
+	if _, err := h.svc.Delete(c.Request.Context(), u.ID); err != nil {
+		c.Error(err)
+		return
+	}
+
+	respond.Deleted(c, apperr.Deleted, gin.H{
+		"deleted": true,
+		"user_id": u.ID,
 	})
 }
