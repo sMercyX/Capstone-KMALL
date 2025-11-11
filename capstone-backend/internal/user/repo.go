@@ -15,17 +15,12 @@ import (
 type Repo interface {
 	List(ctx context.Context) ([]User, error)
 	Get(ctx context.Context, id string) (User, error)
-	// Create(ctx context.Context, u User) (User, error)
-	// Update(ctx context.Context, id string, u User) (User, error)
 	Delete(ctx context.Context, id string) (User, error)
 	GetByUpstreamID(ctx context.Context, msOID string) (User, error)
 
 	UpsertByMS(ctx context.Context, msOID, email, name string) (User, error)
 	EnsureBuyerRole(ctx context.Context) (int64, error)
 	LinkRole(ctx context.Context, userID string, roleID int64) error
-
-	// JWT claims
-	GetRolesByUserID(ctx context.Context, userID string) ([]string, error)
 
 	AddUserRoles(ctx context.Context, userID string, roleIDs []int64) error
 	RemoveUserRoles(ctx context.Context, userID string, roleIDs []int64) error

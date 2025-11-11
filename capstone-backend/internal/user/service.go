@@ -22,15 +22,12 @@ type roleLookup interface {
 type Service interface {
 	List(ctx context.Context) ([]User, error)
 	Get(ctx context.Context, id string) (User, error)
-	// Create(ctx context.Context, u User) (User, error)
-	// Update(ctx context.Context, id string, u User) (User, error)
 	Delete(ctx context.Context, id string) (User, error)
 
 	UpsertAndEnsureBuyer(ctx context.Context, msOID, email, name string) (User, error)
 
 	FindByID(ctx context.Context, id string) (User, error)
 	FindByUpstreamID(ctx context.Context, uid string) (User, error)
-	GetRoles(ctx context.Context, userID string) ([]string, error)
 
 	AddRoles(ctx context.Context, targetID string, roleNames []string) error
 	RemoveRoles(ctx context.Context, targetID string, roleNames []string) error
@@ -76,10 +73,6 @@ func (s *service) UpsertAndEnsureBuyer(ctx context.Context, msOID, email, name s
 // ===== JWT/Refresh =====
 func (s *service) FindByID(ctx context.Context, id string) (User, error) {
 	return s.repo.Get(ctx, id)
-}
-
-func (s *service) GetRoles(ctx context.Context, userID string) ([]string, error) {
-	return s.repo.GetRolesByUserID(ctx, userID)
 }
 
 func (s *service) AddRoles(ctx context.Context, targetID string, roleNames []string) error {

@@ -8,13 +8,6 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// func OK(c *gin.Context, data any) {
-// 	c.JSON(http.StatusOK, gin.H{
-// 		"success": true,
-// 		"data":    data,
-// 	})
-// }
-
 func OK(c *gin.Context, code apperr.Code, data any) {
 	c.JSON(apperr.HTTPStatus(code), gin.H{
 		"status": code,
