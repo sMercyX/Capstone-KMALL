@@ -6,8 +6,8 @@ export default function Navbar() {
   const [isOpen, setIsOpen] = useState(false)
 
   return (
-    <header className="sticky top-4 z-50 w-full ">
-      <nav className="max-w-[calc(100%-110px)] mx-auto flex items-center justify-between px-6 py-3 shadow-sm shadow-blue-50">
+    <header className="sticky top-4 z-50 w-full bg-[--color-primary]">
+      <nav className="max-w-[calc(100%-110px)] mx-auto flex items-center justify-between px-6 py-3 shadow-lg shadow-blue-50 bg-[var(--color-bg)] rounded-full ">
         {/* ==== LEFT: Logo ==== */}
         <div className="flex items-center gap-3">
           <Link to="/" className="text-2xl font-bold text-orange-600">
@@ -21,14 +21,13 @@ export default function Navbar() {
         </div>
 
         {/* ==== CENTER: Search bar ==== */}
-        <div className="flex-1 mx-8">
+        <div className="flex justify-center w-[50%]">
           <div className="relative w-full">
             <input
               type="text"
               placeholder="Search for anything..."
               className="w-full rounded-full border border-gray-300 pl-4 pr-10 py-2 focus:outline-none focus:ring-2 focus:ring-orange-500"
             />
-            <Search className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 h-4 w-4" />
           </div>
         </div>
 

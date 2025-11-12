@@ -2,6 +2,7 @@ import { Routes, Route } from "react-router-dom"
 import { lazy, Suspense } from "react"
 import ProtectedRoute from "../components/ProtectedRoute/ProtectedRoute"
 import MainLayout from "../components/Layout/MainLayout"
+import LoadingSpinner from "../components/LoaingSpinner/LoadingSpinner"
 
 function NotFound() {
   return <div style={{ padding: 24 }}>404 — Page not found</div>
@@ -12,11 +13,12 @@ const Welcome = lazy(() => import("../modules/Welcome/Welcome"))
 
 export default function AppRoutes() {
   return (
-    <Suspense fallback={<div style={{ padding: 24 }}>Loading…</div>}>
+    <Suspense fallback={<LoadingSpinner />}>
       <Routes>
         <>
           <Route path="/" element={<KmallLanding />} />
           <Route path="/welcome" element={<Welcome />} />
+          
         </>
 
         <Route element={<MainLayout />}>
