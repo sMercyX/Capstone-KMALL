@@ -10,6 +10,7 @@ function NotFound() {
 const Dashboard = lazy(() => import("../modules/DashBoard/Dashboard"))
 const KmallLanding = lazy(() => import("../modules/LandingPage/LandingPage"))
 const Welcome = lazy(() => import("../modules/Welcome/Welcome"))
+const CategoryPage = lazy(() => import("../modules/CategoryPage/CategoryPage"))
 
 export default function AppRoutes() {
   return (
@@ -26,6 +27,7 @@ export default function AppRoutes() {
           <>
             <Route path="/" element={<KmallLanding />} />
             <Route path="/welcome" element={<Welcome />} />
+            <Route path="/category/:category" element={<CategoryPage />} />
           </>
           {/* privateRoutes */}
           <>
