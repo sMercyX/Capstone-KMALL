@@ -60,7 +60,7 @@ services:
       POSTGRES_PASSWORD: postgres/25
       POSTGRES_DB: kmall_db
     ports:
-      - "5433:5432"
+      - "5555:5432"
     volumes:
       - db_data:/var/lib/postgresql/data
       - ./capstone-database/init:/docker-entrypoint-initdb.d

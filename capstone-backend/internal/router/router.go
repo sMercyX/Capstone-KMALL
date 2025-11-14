@@ -11,6 +11,7 @@ import (
 	"github.com/Perpasit/Capstone-KMALL/internal/middleware"
 	"github.com/Perpasit/Capstone-KMALL/internal/respond"
 	"github.com/Perpasit/Capstone-KMALL/internal/role"
+	"github.com/Perpasit/Capstone-KMALL/internal/store"
 	"github.com/Perpasit/Capstone-KMALL/internal/user"
 )
 
@@ -33,6 +34,9 @@ func Attach(r *gin.Engine, db *pgxpool.Pool, cfg config.Config) {
 	rSvc := role.NewService(rRepo)
 	uSvc := user.NewService(uRepo, rSvc)
 
+	sRepo := store.NewRepo(db)
+	sSvc := store.NewService(sRepo)
+
 	// API routes (protected)
 	v1 := r.Group("/api",
 		middleware.UpstreamAuth(),
@@ -52,6 +56,10 @@ func Attach(r *gin.Engine, db *pgxpool.Pool, cfg config.Config) {
 	// roles
 	rHdl := role.NewHandler(rSvc)
 	rHdl.Register(v1)
+
+	// stores
+	sHdl := store.NewHandler(sSvc, rSvc, uSvc)
+	sHdl.Register(v1)
 
 	// debug
 	v1.GET("/debug/headers", func(c *gin.Context) {
