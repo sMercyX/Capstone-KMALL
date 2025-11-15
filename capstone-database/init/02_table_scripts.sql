@@ -61,6 +61,7 @@ CREATE TABLE IF NOT EXISTS categories (
   is_active VARCHAR(3) NOT NULL CHECK (is_active IN ('YES', 'NO')),
   created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT uq_categories_slug UNIQUE (slug),
   CONSTRAINT fk_categories_parent FOREIGN KEY (parent_id)
     REFERENCES categories (category_id)
     ON DELETE SET NULL
