@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
-import { Filter, ChevronDown, ChevronLeft, ChevronRight, Star, StarHalf } from "lucide-react";
-import { useParams } from "react-router-dom";
+import { Filter, ChevronDown, ChevronLeft, ChevronRight, Star, StarHalf, ShoppingCart, Heart, Eye } from "lucide-react";
+import { Link, useParams } from "react-router-dom";
 
 // ===== Types =====
 type Product = {
@@ -156,21 +156,54 @@ function Badge({ children }: { children: string }) {
 
 function ProductCard({ product }: { product: Product }) {
   return (
-    <div className="group overflow-hidden rounded-2xl border bg-white shadow-sm transition hover:shadow-md">
+    <div className="group relative overflow-hidden rounded-2xl border bg-white shadow-sm hover:shadow-xl transition">
+      {/* IMAGE */}
       <div className="relative aspect-[4/3] w-full overflow-hidden">
-        <img src={product.image} alt={product.name} className="h-full w-full object-cover transition duration-300 group-hover:scale-[1.03]" />
-        {product.badge && <Badge>{product.badge}</Badge>}
+        <img
+          src={product.image}
+          alt={product.name}
+          className="h-full w-full object-cover transition duration-300 group-hover:scale-[1.04]"
+        />
+
+        {/* Dark overlay */}
+        <div className="absolute inset-0 bg-black/40 opacity-0 transition-opacity duration-300 group-hover:opacity-100" />
+
+        {/* Action Buttons */}
+        <div className="absolute inset-0 flex items-center justify-center opacity-0 translate-y-4 transition-all duration-300 group-hover:opacity-100 group-hover:translate-y-0 gap-3">
+          {/* Favorite */}
+          <button className="h-12 w-12 rounded-full bg-white shadow-md flex items-center justify-center hover:scale-110 transition">
+            <Heart className="h-5 w-5 text-gray-700" />
+          </button>
+
+          {/* Add to cart */}
+          <button className="h-12 w-12 rounded-full bg-white shadow-md flex items-center justify-center hover:scale-110 transition">
+            <ShoppingCart className="h-5 w-5 text-gray-700" />
+          </button>
+
+          {/* View (link to product) */}
+          <Link
+            to={`/product/${product.id}`}
+            className="h-12 w-12 rounded-full bg-orange-500 shadow-md flex items-center justify-center hover:scale-110 transition"
+          >
+            <Eye className="h-5 w-5 text-white" />
+          </Link>
+        </div>
       </div>
+
+      {/* PRODUCT INFO */}
       <div className="space-y-2 px-3 pb-3 pt-2">
         <div className="flex items-center gap-2">
           <RatingStars rating={product.rating} />
-          <span className="text-xs text-gray-500">({product.ratingCount.toLocaleString()})</span>
+          <span className="text-xs text-gray-500">
+            ({product.ratingCount.toLocaleString()})
+          </span>
         </div>
-        <div className="space-y-1">
-          <h3 className="line-clamp-1 text-sm font-semibold">{product.name}</h3>
-          <p className="text-xs text-gray-500 line-clamp-1">{product.shop}</p>
-        </div>
-        <p className="pt-1 font-semibold text-rose-600">{baht(product.price)}</p>
+
+        <h3 className="line-clamp-1 text-sm font-semibold">{product.name}</h3>
+        <p className="text-xs text-gray-500 line-clamp-1">{product.shop}</p>
+        <p className="pt-1 font-semibold text-rose-600">
+          {product.price} บาท
+        </p>
       </div>
     </div>
   );
