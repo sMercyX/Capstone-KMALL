@@ -1,37 +1,17 @@
-# ===== Stage 1: Build =====
-FROM golang:1.24-alpine AS builder
-
-# ตั้ง working directory
+FROM golang:1.24.6 AS builder
 WORKDIR /app
 
-# ติดตั้ง git เพื่อดึง dependency
-RUN apk add --no-cache git
-
-# คัดลอก go.mod และ go.sum ก่อน เพื่อใช้ cache
 COPY go.mod go.sum ./
 RUN go mod download
 
-# คัดลอก source ทั้งหมด
 COPY . .
 
-# ✅ build จาก cmd/api ที่มี main.go
-RUN go build -o server ./cmd/api
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o server ./cmd/api
 
-# ===== Stage 2: Run =====
-FROM alpine:latest
+FROM gcr.io/distroless/base-debian12
 WORKDIR /app
-
-# ติดตั้ง CA certificates สำหรับ HTTPS call
-RUN apk --no-cache add ca-certificates
-
-# คัดลอก binary จาก stage build
-COPY --from=builder /app/server .
-
-# คัดลอก .env (optional, ถ้าใช้ env_file ใน compose แล้วไม่จำเป็น)
-COPY .env .env
-
-# เปิด port 8080
+COPY --from=builder /app/server /app/server
+ENV PORT=8080
 EXPOSE 8080
-
-# คำสั่งเริ่มต้น
-CMD ["./server"]
+USER nonroot:nonroot
+ENTRYPOINT ["/app/server"]
