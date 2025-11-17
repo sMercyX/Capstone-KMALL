@@ -1,0 +1,94 @@
+networks:
+  capstone_net:
+    driver: bridge
+
+volumes:
+  db_data:
+
+services:
+  kong:
+    image: kong:3.6
+    container_name: capstone-kong
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+      - "8001:8001"
+    environment:
+      KONG_DATABASE: "off"
+      KONG_DECLARATIVE_CONFIG: "/kong/declarative/kong.yml"
+      KONG_PROXY_LISTEN: "0.0.0.0:8000"
+      KONG_ADMIN_LISTEN: "0.0.0.0:8001"
+      KONG_NGINX_PROXY_PROXY_BUFFER_SIZE: "128k"
+      KONG_NGINX_PROXY_PROXY_BUFFERS: "16 128k"
+      KONG_NGINX_PROXY_PROXY_BUSY_BUFFERS_SIZE: "256k"
+      KONG_LOG_LEVEL: "info"
+      KONG_PLUGINS: "bundled"
+    volumes:
+      - ./kong/kong.yml:/kong/declarative/kong.yml:ro
+    depends_on:
+      - oauth2-proxy   
+      - backend 
+    networks: [capstone_net]
+
+  redis:
+    image: redis:7-alpine
+    container_name: capstone-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379" 
+    networks: [capstone_net]
+
+  oauth2-proxy:
+    image: quay.io/oauth2-proxy/oauth2-proxy:v7.6.0
+    container_name: capstone-oauth2-proxy
+    restart: unless-stopped
+    ports:
+      - "4180:4180"
+    env_file:
+      - ./capstone-oauth2-proxy/.env   
+    environment:
+      - OAUTH2_PROXY_REVERSE_PROXY=true 
+    networks: [capstone_net]
+
+
+  database:
+    image: postgres:15
+    container_name: capstone-database
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres/25
+      POSTGRES_DB: kmall_db
+    ports:
+      - "5555:5432"
+    volumes:
+      - db_data:/var/lib/postgresql/data
+      - ./capstone-database/init:/docker-entrypoint-initdb.d
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d kmall_db || exit 1"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 10s
+    networks:
+      - capstone_net
+
+  backend:
+    build: ./capstone-backend
+    container_name: capstone-backend
+    restart: unless-stopped
+    env_file:
+      - ./capstone-backend/.env              
+    environment:
+      - DATABASE_URL=postgres://postgres:postgres%2F25@database:5432/kmall_db?sslmode=disable
+      - DB_URL=postgres://postgres:postgres%2F25@database:5432/kmall_db?sslmode=disable
+      - POSTGRES_DSN=postgres://postgres:postgres%2F25@database:5432/kmall_db?sslmode=disable
+    expose:
+    - "8080"
+    ports:
+    - "8080:8080" 
+    depends_on:
+      database:
+        condition: service_started
+    networks: [capstone_net]
+
