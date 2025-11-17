@@ -87,7 +87,7 @@ const PRODUCTS: Product[] = [
 ];
 
 // ===== Utilities =====
-const baht = (n: number) => `${n.toLocaleString()} บาท`;
+// const baht = (n: number) => `${n.toLocaleString()} บาท`;
 
 type SortKey = "popular" | "price-asc" | "price-desc" | "rating";
 
@@ -150,9 +150,9 @@ function RatingStars({ rating }: { rating: number }) {
   );
 }
 
-function Badge({ children }: { children: string }) {
-  return <span className="absolute left-2 top-2 rounded-md bg-white/90 px-2 py-0.5 text-[10px] font-medium shadow-sm ring-1 ring-black/5">{children}</span>;
-}
+// function Badge({ children }: { children: string }) {
+//   return <span className="absolute left-2 top-2 rounded-md bg-white/90 px-2 py-0.5 text-[10px] font-medium shadow-sm ring-1 ring-black/5">{children}</span>;
+// }
 
 function ProductCard({ product }: { product: Product }) {
   return (

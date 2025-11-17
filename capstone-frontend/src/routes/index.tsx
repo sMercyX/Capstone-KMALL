@@ -1,13 +1,13 @@
 import { Routes, Route } from "react-router-dom"
 import { lazy, Suspense } from "react"
-import ProtectedRoute from "../components/ProtectedRoute/ProtectedRoute"
+// import ProtectedRoute from "../components/ProtectedRoute/ProtectedRoute"
 import MainLayout from "../components/Layout/MainLayout"
 import LoadingSpinner from "../components/LoaingSpinner/LoadingSpinner"
 import ProductPage from "../modules/ProductPage/ProductPage"
 
-function NotFound() {
-  return <div style={{ padding: 24 }}>404 — Page not found</div>
-}
+// function NotFound() {
+//   return <div style={{ padding: 24 }}>404 — Page not found</div>
+// }
 const Dashboard = lazy(() => import("../modules/DashBoard/Dashboard"))
 const KmallLanding = lazy(() => import("../modules/LandingPage/LandingPage"))
 const Welcome = lazy(() => import("../modules/Welcome/Welcome"))
