@@ -1,6 +1,8 @@
 import React from 'react';
 import { Star, ShoppingCart, MessageCircle, Store } from 'lucide-react';
 
+
+
 const StoreView: React.FC = () => {
   // Mock data for the store and products
   const storeData = {
