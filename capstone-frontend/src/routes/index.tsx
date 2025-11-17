@@ -12,7 +12,7 @@ const Dashboard = lazy(() => import("../modules/DashBoard/Dashboard"))
 const KmallLanding = lazy(() => import("../modules/LandingPage/LandingPage"))
 const Welcome = lazy(() => import("../modules/Welcome/Welcome"))
 const CategoryPage = lazy(() => import("../modules/CategoryPage/CategoryPage"))
-const StoreView = lazy(() => import("../modules/StoreView/StoreView"))
+const StoreView = lazy(() => import("../modules/StoreView/StorePage"))
 
 
 export default function AppRoutes() {
