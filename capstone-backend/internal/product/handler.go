@@ -321,12 +321,13 @@ func (h *Handler) delete(c *gin.Context) {
 func (h *Handler) listPublic(c *gin.Context) {
 	q := strings.TrimSpace(c.Query("q"))
 	categoryID := parseInt64Query(c, "category_id")
+	parentCategoryID := parseInt64Query(c, "parent_category_id")
 	storeID := parseInt64Query(c, "store_id")
 
 	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "20"))
 	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
 
-	ps, err := h.svc.ListPublic(c.Request.Context(), q, categoryID, storeID, limit, page)
+	ps, total, err := h.svc.ListPublic(c.Request.Context(), q, categoryID, parentCategoryID, storeID, limit, page)
 	if err != nil {
 		c.Error(err)
 		return
@@ -334,7 +335,15 @@ func (h *Handler) listPublic(c *gin.Context) {
 	if ps == nil {
 		ps = []Product{}
 	}
-	respond.OK(c, apperr.OK, ps)
+
+	resp := gin.H{
+		"pageSize":  limit,
+		"pageIndex": page,
+		"total":     total,
+		"items":     ps,
+	}
+
+	respond.OK(c, apperr.OK, resp)
 }
 
 // 3.2 GET /api/products/:id/public
