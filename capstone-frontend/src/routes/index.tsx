@@ -4,6 +4,7 @@ import MainLayout from "../components/Layout/MainLayout"
 import LoadingSpinner from "../components/LoaingSpinner/LoadingSpinner"
 import ProductPage from "../modules/ProductPage/ProductPage"
 import ProtectedRoute from "../components/ProtectedRoute/ProtectedRoute"
+import AllowedCategoryRoute from "../modules/CategoryPage/AllowedCategoryRoute"
 
 // function NotFound() {
 //   return <div style={{ padding: 24 }}>404 — Page not found</div>
@@ -39,7 +40,9 @@ export default function AppRoutes() {
               path="/category/:category"
               element={
                 <ProtectedRoute>
-                  <CategoryPage />
+                  <AllowedCategoryRoute>
+                    <CategoryPage />
+                  </AllowedCategoryRoute>
                 </ProtectedRoute>
               }
             />

@@ -41,7 +41,7 @@ const PRODUCTS: Product[] = [
     category: "food",
   },
 
-  // --- Clothes ---
+  // --- clothe ---
   {
     id: "c1",
     name: "เสื้อยืดลายมอเตอร์ไซค์",
@@ -50,7 +50,7 @@ const PRODUCTS: Product[] = [
     rating: 4.5,
     ratingCount: 912,
     image: "https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?q=80&w=1200&auto=format&fit=crop",
-    category: "clothes",
+    category: "clothe",
   },
   {
     id: "c2",
@@ -60,7 +60,7 @@ const PRODUCTS: Product[] = [
     rating: 4.3,
     ratingCount: 221,
     image: "https://images.unsplash.com/photo-1593032465171-cf66f818d9d3?q=80&w=1200&auto=format&fit=crop",
-    category: "clothes",
+    category: "clothe",
   },
 
   // --- Handmade ---
@@ -95,7 +95,7 @@ type SortKey = "popular" | "price-asc" | "price-desc" | "rating";
 function PageHeader({ category }: { category: string }) {
   const titleMap: Record<string, string> = {
     food: "อาหารและเครื่องดื่ม (Food & Drinks)",
-    clothes: "เสื้อผ้า (Clothes)",
+    clothe: "เสื้อผ้า (clothe)",
     handmade: "สินค้าแฮนด์เมด (Handmade Products)",
   };
   return (
