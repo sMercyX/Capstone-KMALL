@@ -1,5 +1,5 @@
 import { useMemo } from "react"
-import { ChevronRight, Star } from "lucide-react"
+import { ChevronRight } from "lucide-react"
 import { Link } from "react-router-dom"
 import SectionCard from "../../components/Card/SectionCard"
 

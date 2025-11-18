@@ -41,7 +41,7 @@ const PRODUCTS: Product[] = [
     category: "food",
   },
 
-  // --- Clothes ---
+  // --- clothe ---
   {
     id: "c1",
     name: "เสื้อยืดลายมอเตอร์ไซค์",
@@ -50,7 +50,7 @@ const PRODUCTS: Product[] = [
     rating: 4.5,
     ratingCount: 912,
     image: "https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?q=80&w=1200&auto=format&fit=crop",
-    category: "clothes",
+    category: "clothe",
   },
   {
     id: "c2",
@@ -60,7 +60,7 @@ const PRODUCTS: Product[] = [
     rating: 4.3,
     ratingCount: 221,
     image: "https://images.unsplash.com/photo-1593032465171-cf66f818d9d3?q=80&w=1200&auto=format&fit=crop",
-    category: "clothes",
+    category: "clothe",
   },
 
   // --- Handmade ---
@@ -87,7 +87,7 @@ const PRODUCTS: Product[] = [
 ];
 
 // ===== Utilities =====
-const baht = (n: number) => `${n.toLocaleString()} บาท`;
+// const baht = (n: number) => `${n.toLocaleString()} บาท`;
 
 type SortKey = "popular" | "price-asc" | "price-desc" | "rating";
 
@@ -95,7 +95,7 @@ type SortKey = "popular" | "price-asc" | "price-desc" | "rating";
 function PageHeader({ category }: { category: string }) {
   const titleMap: Record<string, string> = {
     food: "อาหารและเครื่องดื่ม (Food & Drinks)",
-    clothes: "เสื้อผ้า (Clothes)",
+    clothe: "เสื้อผ้า (clothe)",
     handmade: "สินค้าแฮนด์เมด (Handmade Products)",
   };
   return (
@@ -150,9 +150,9 @@ function RatingStars({ rating }: { rating: number }) {
   );
 }
 
-function Badge({ children }: { children: string }) {
-  return <span className="absolute left-2 top-2 rounded-md bg-white/90 px-2 py-0.5 text-[10px] font-medium shadow-sm ring-1 ring-black/5">{children}</span>;
-}
+// function Badge({ children }: { children: string }) {
+//   return <span className="absolute left-2 top-2 rounded-md bg-white/90 px-2 py-0.5 text-[10px] font-medium shadow-sm ring-1 ring-black/5">{children}</span>;
+// }
 
 function ProductCard({ product }: { product: Product }) {
   return (

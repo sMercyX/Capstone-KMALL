@@ -1,6 +1,6 @@
 import { useState } from "react"
 import { Link } from "react-router-dom"
-import { ShoppingCart, User, ChevronDown, Search } from "lucide-react"
+import { ShoppingCart, User, ChevronDown } from "lucide-react"
 
 export default function Navbar() {
   const [isOpen, setIsOpen] = useState(false)

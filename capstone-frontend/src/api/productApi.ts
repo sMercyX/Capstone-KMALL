@@ -1,51 +1,34 @@
-// api/smthApi.ts
-import { useCrudApi } from "../utils/fetch"
+// api/productApi.ts
+import { useCrudApi } from "../utils/fetch";
+import type { ApiResponse } from "./responseType";
 
-export interface IndexRequest {
-  teamId?: string
-  positionId?: string
-  text?: string
+export type CategoryType = "food" | "clothing" | "handmade-products";
+
+export interface ProductCategory {
+  id: number;
+  name: string;
+  slug: string;
+  sort_order: number;
+  is_active: "YES" | "NO";
+  created_at: string;
+  updated_at: string;
 }
 
-export interface Phone {
-  phoneId: string
-  phoneNumber: string
-}
+// backend ส่ง array กลับมา
+export type ProductCategoriesResponse = ApiResponse<ProductCategory[]>;
 
-export interface IndexResponse {
-  id: string
-  dateOfBirth: string
-  email: string
-  firstname: string
-  lastname: string
-  phones: Phone[]
-  positionId: string
-  teamId: string
-}
+export function useProductApi() {
+  const http = useCrudApi();
 
-export function useSmthApi() {
-  const httpClient = useCrudApi()
-
-  async function getIndex(data: IndexRequest): Promise<IndexResponse[]> {
-    return httpClient.postItem("/Smth/Index", data, { auth: "none" })
+  async function getProductCategories(
+    type: CategoryType,
+    pageIndex: number,
+    limit: number
+  ): Promise<ProductCategoriesResponse> {
+    return http.getItems(
+      `/api/categories?q=${type}&page=${pageIndex}&limit=${limit}`
+    );
   }
 
-  async function create(params: IndexResponse): Promise<string> {
-    return httpClient.postItem("/Smth/Create", params)
-  }
-
-  async function update(params: IndexResponse): Promise<string> {
-    return httpClient.postItem("/Smth/Update", params)
-  }
-
-  async function getDetail(param: string): Promise<IndexResponse> {
-    // ทำให้โค้ดง่ายขึ้นโดยใช้ template literal
-    return httpClient.getItems(`/Smth/GetDetail?id=${param}`)
-  }
-
-  async function deleteSmth(id: string): Promise<string> {
-    return httpClient.postItem("/Smth/Delete", { id })
-  }
-
-  return { getIndex, create, update, getDetail, deleteSmth }
+  return { getProductCategories };
 }

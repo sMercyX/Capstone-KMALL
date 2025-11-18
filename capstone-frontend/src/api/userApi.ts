@@ -1,51 +1,64 @@
-// api/smthApi.ts
+// src/api/userApi.ts
 import { useCrudApi } from "../utils/fetch"
+import type { ApiResponse } from "./responseType";
 
-export interface IndexRequest {
-  teamId?: string
-  positionId?: string
-  text?: string
+export interface UserResponse {
+  ID: string;
+  MSID: string;
+  Email: string;
+  DisplayName: string;
+  CreatedAt: string;
+  UpdatedAt: string;
+  LastLogin: string;
 }
 
-export interface Phone {
-  phoneId: string
-  phoneNumber: string
+// data เฉพาะของ /api/users/me
+export interface MeData {
+  roles: string[];
+  user: UserResponse;
 }
 
-export interface IndexResponse {
-  id: string
-  dateOfBirth: string
-  email: string
-  firstname: string
-  lastname: string
-  phones: Phone[]
-  positionId: string
-  teamId: string
+// response ของ /api/users/me = wrapper + MeData
+export type GetUserResponse = ApiResponse<MeData>;
+
+// ------------- FE-friendly User -------------
+export interface User {
+  id: string;
+  msid: string;
+  email: string;
+  name: string;
+  roles: string[];
+  createdAt: string;
+  updatedAt: string;
+  lastLogin: string;
+}
+
+// map จาก MeResponse (BE) → User (FE)
+export function mapUser(response: GetUserResponse): User {
+  const u = response.data.user;
+
+  return {
+    id: u.ID,
+    msid: u.MSID,
+    email: u.Email,
+    name: u.DisplayName,
+    roles: response.data.roles,
+    createdAt: u.CreatedAt,
+    updatedAt: u.UpdatedAt,
+    lastLogin: u.LastLogin,
+  };
 }
 
 export function useUserApi() {
-  const httpClient = useCrudApi()
+  const http = useCrudApi();
 
-  async function getIndex(data: IndexRequest): Promise<IndexResponse[]> {
-    return httpClient.postItem("/Smth/Index", data, { auth: "none" })
+  async function getMe(): Promise<User> {
+    const resp = await http.getItems(`/api/users/me`, {
+      auth: "required",
+    });
+
+    return mapUser(resp as GetUserResponse);
   }
 
-  async function create(params: IndexResponse): Promise<string> {
-    return httpClient.postItem("/Smth/Create", params)
-  }
-
-  async function update(params: IndexResponse): Promise<string> {
-    return httpClient.postItem("/Smth/Update", params)
-  }
-
-  async function getDetail(param: string): Promise<IndexResponse> {
-    // ทำให้โค้ดง่ายขึ้นโดยใช้ template literal
-    return httpClient.getItems(`/Smth/GetDetail?id=${param}`)
-  }
-
-  async function deleteSmth(id: string): Promise<string> {
-    return httpClient.postItem("/Smth/Delete", { id })
-  }
-
-  return { getIndex, create, update, getDetail, deleteSmth }
+  return { getMe };
 }
