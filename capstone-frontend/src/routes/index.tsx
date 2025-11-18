@@ -12,6 +12,7 @@ import AllowedCategoryRoute from "../modules/CategoryPage/AllowedCategoryRoute"
 const Dashboard = lazy(() => import("../modules/DashBoard/Dashboard"))
 const LandingPage = lazy(() => import("../modules/LandingPage/LandingPage"))
 const CategoryPage = lazy(() => import("../modules/CategoryPage/CategoryPage"))
+const StoreView = lazy(() => import("../modules/StoreView/StorePage"))
 
 export default function AppRoutes() {
   return (
@@ -25,6 +26,7 @@ export default function AppRoutes() {
           {/* publicRoutes */}
           <>
             <Route path="/dashboard2" element={<Dashboard />} />
+            <Route path="/store/:id" element={<StoreView />} />
           </>
           {/* privateRoutes */}
           <>
