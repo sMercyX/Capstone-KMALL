@@ -10,6 +10,7 @@ import (
 	"github.com/Perpasit/Capstone-KMALL/internal/category"
 	"github.com/Perpasit/Capstone-KMALL/internal/config"
 	"github.com/Perpasit/Capstone-KMALL/internal/middleware"
+	"github.com/Perpasit/Capstone-KMALL/internal/product"
 	"github.com/Perpasit/Capstone-KMALL/internal/respond"
 	"github.com/Perpasit/Capstone-KMALL/internal/role"
 	"github.com/Perpasit/Capstone-KMALL/internal/store"
@@ -41,6 +42,9 @@ func Attach(r *gin.Engine, db *pgxpool.Pool, cfg config.Config) {
 	cRepo := category.NewRepo(db)
 	cSvc := category.NewService(cRepo)
 
+	pRepo := product.NewRepo(db)
+	pSvc := product.NewService(pRepo)
+
 	// API routes (protected)
 	v1 := r.Group("/api",
 		middleware.UpstreamAuth(),
@@ -68,6 +72,10 @@ func Attach(r *gin.Engine, db *pgxpool.Pool, cfg config.Config) {
 	// categories
 	cHdl := category.NewHandler(cSvc, rSvc)
 	cHdl.Register(v1)
+
+	// products
+	pHdl := product.NewHandler(pSvc, sSvc, rSvc, uSvc)
+	pHdl.Register(v1)
 
 	// debug
 	v1.GET("/debug/headers", func(c *gin.Context) {
