@@ -9,6 +9,7 @@ import (
 
 	"github.com/Perpasit/Capstone-KMALL/internal/category"
 	"github.com/Perpasit/Capstone-KMALL/internal/config"
+	images "github.com/Perpasit/Capstone-KMALL/internal/image"
 	"github.com/Perpasit/Capstone-KMALL/internal/middleware"
 	"github.com/Perpasit/Capstone-KMALL/internal/product"
 	"github.com/Perpasit/Capstone-KMALL/internal/respond"
@@ -28,6 +29,8 @@ func Attach(r *gin.Engine, db *pgxpool.Pool, cfg config.Config) {
 
 	// health
 	r.GET("/health", func(c *gin.Context) { c.String(200, "ok") })
+
+	r.Static("/static", "./uploads")
 
 	// wiring repos & services
 	uRepo := user.NewRepo(db)
@@ -76,6 +79,12 @@ func Attach(r *gin.Engine, db *pgxpool.Pool, cfg config.Config) {
 	// products
 	pHdl := product.NewHandler(pSvc, sSvc, rSvc, uSvc)
 	pHdl.Register(v1)
+
+	// images
+	imgRepo := images.NewRepo(db)
+	imgSvc := images.NewService(imgRepo)
+	imgHdl := images.NewHandler(imgSvc, sSvc, pSvc, rSvc, uSvc)
+	imgHdl.Register(v1)
 
 	// debug
 	v1.GET("/debug/headers", func(c *gin.Context) {

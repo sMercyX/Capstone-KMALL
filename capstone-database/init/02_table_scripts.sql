@@ -158,3 +158,35 @@ CREATE TABLE IF NOT EXISTS cart_items (
     ON DELETE NO ACTION
     ON UPDATE NO ACTION
 );
+
+-- ========= STORE_IMAGES =========
+CREATE TABLE IF NOT EXISTS store_images (
+  store_image_id SERIAL PRIMARY KEY,
+  store_id INT NOT NULL,
+  image_url VARCHAR(255) NOT NULL,
+  sort_order INT NOT NULL DEFAULT 1,
+  is_primary BOOLEAN NOT NULL DEFAULT FALSE,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT fk_store_images_store FOREIGN KEY (store_id)
+    REFERENCES stores (store_id)
+    ON DELETE CASCADE
+    ON UPDATE CASCADE,
+  CONSTRAINT uq_store_images_store_sort UNIQUE (store_id, sort_order)
+);
+
+-- ========= PRODUCT_IMAGES =========
+CREATE TABLE IF NOT EXISTS product_images (
+  product_image_id SERIAL PRIMARY KEY,
+  product_id INT NOT NULL,
+  image_url VARCHAR(255) NOT NULL,
+  sort_order INT NOT NULL DEFAULT 1,
+  is_primary BOOLEAN NOT NULL DEFAULT FALSE,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT fk_product_images_product FOREIGN KEY (product_id)
+    REFERENCES products (product_id)
+    ON DELETE CASCADE
+    ON UPDATE CASCADE,
+  CONSTRAINT uq_product_images_product_sort UNIQUE (product_id, sort_order)
+);

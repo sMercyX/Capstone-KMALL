@@ -1,3 +1,5 @@
+-- NOTE: This is mockup dev data for testing only. Not for production use.
+
 -- DEV USERS
 INSERT INTO users (user_id, kms_id, email, display_name)
 VALUES
@@ -80,6 +82,61 @@ SELECT
   (SELECT category_id FROM categories WHERE slug = 'snacks-bakery' LIMIT 1);
 
 
+-- ========= DEV PRODUCT IMAGES (Snacks & Bakery) =========
+INSERT INTO product_images (product_id, image_url, sort_order, is_primary)
+SELECT p.product_id,
+       '/static/dev/products/snacks/chocolate-brownie-1.jpg',
+       1,
+       TRUE
+FROM products p
+JOIN stores s ON s.store_id = p.store_id
+JOIN categories c ON c.category_id = p.category_id
+WHERE s.store_name = 'Dev Seller Store'
+  AND c.slug = 'snacks-bakery'
+  AND p.name = 'Chocolate Brownie'
+ON CONFLICT (product_id, sort_order) DO NOTHING;
+
+INSERT INTO product_images (product_id, image_url, sort_order, is_primary)
+SELECT p.product_id,
+       '/static/dev/products/snacks/butter-croissant-1.jpg',
+       1,
+       TRUE
+FROM products p
+JOIN stores s ON s.store_id = p.store_id
+JOIN categories c ON c.category_id = p.category_id
+WHERE s.store_name = 'Dev Seller Store'
+  AND c.slug = 'snacks-bakery'
+  AND p.name = 'Butter Croissant'
+ON CONFLICT (product_id, sort_order) DO NOTHING;
+
+INSERT INTO product_images (product_id, image_url, sort_order, is_primary)
+SELECT p.product_id,
+       '/static/dev/products/snacks/choc-chip-cookies-1.jpg',
+       1,
+       TRUE
+FROM products p
+JOIN stores s ON s.store_id = p.store_id
+JOIN categories c ON c.category_id = p.category_id
+WHERE s.store_name = 'Dev Seller Store'
+  AND c.slug = 'snacks-bakery'
+  AND p.name = 'Chocolate Chip Cookies'
+ON CONFLICT (product_id, sort_order) DO NOTHING;
+
+INSERT INTO product_images (product_id, image_url, sort_order, is_primary)
+SELECT p.product_id,
+       '/static/dev/products/snacks/mini-cupcakes-set-1.jpg',
+       1,
+       TRUE
+FROM products p
+JOIN stores s ON s.store_id = p.store_id
+JOIN categories c ON c.category_id = p.category_id
+WHERE s.store_name = 'Dev Seller Store'
+  AND c.slug = 'snacks-bakery'
+  AND p.name = 'Mini Cupcakes Set'
+ON CONFLICT (product_id, sort_order) DO NOTHING;
+
+
+
 -- ========= DEV PRODUCTS (T-Shirt) =========
 INSERT INTO products (name, product_desc, price, image_url, is_active, store_id, category_id)
 SELECT
@@ -119,6 +176,61 @@ SELECT
   (SELECT category_id FROM categories WHERE slug = 't-shirt' LIMIT 1);
 
 
+-- ========= DEV PRODUCT IMAGES (T-Shirt) =========
+INSERT INTO product_images (product_id, image_url, sort_order, is_primary)
+SELECT p.product_id,
+       '/static/dev/products/tshirt/kmall-white-1.jpg',
+       1,
+       TRUE
+FROM products p
+JOIN stores s ON s.store_id = p.store_id
+JOIN categories c ON c.category_id = p.category_id
+WHERE s.store_name = 'Dev Seller Store'
+  AND c.slug = 't-shirt'
+  AND p.name = 'KMALL White T-Shirt'
+ON CONFLICT (product_id, sort_order) DO NOTHING;
+
+INSERT INTO product_images (product_id, image_url, sort_order, is_primary)
+SELECT p.product_id,
+       '/static/dev/products/tshirt/black-oversized-1.jpg',
+       1,
+       TRUE
+FROM products p
+JOIN stores s ON s.store_id = p.store_id
+JOIN categories c ON c.category_id = p.category_id
+WHERE s.store_name = 'Dev Seller Store'
+  AND c.slug = 't-shirt'
+  AND p.name = 'Black Oversized T-Shirt'
+ON CONFLICT (product_id, sort_order) DO NOTHING;
+
+INSERT INTO product_images (product_id, image_url, sort_order, is_primary)
+SELECT p.product_id,
+       '/static/dev/products/tshirt/coding-life-1.jpg',
+       1,
+       TRUE
+FROM products p
+JOIN stores s ON s.store_id = p.store_id
+JOIN categories c ON c.category_id = p.category_id
+WHERE s.store_name = 'Dev Seller Store'
+  AND c.slug = 't-shirt'
+  AND p.name = 'Graphic T-Shirt – Coding Life'
+ON CONFLICT (product_id, sort_order) DO NOTHING;
+
+INSERT INTO product_images (product_id, image_url, sort_order, is_primary)
+SELECT p.product_id,
+       '/static/dev/products/tshirt/kmutto-orange-1.jpg',
+       1,
+       TRUE
+FROM products p
+JOIN stores s ON s.store_id = p.store_id
+JOIN categories c ON c.category_id = p.category_id
+WHERE s.store_name = 'Dev Seller Store'
+  AND c.slug = 't-shirt'
+  AND p.name = 'KMUTT Orange T-Shirt'
+ON CONFLICT (product_id, sort_order) DO NOTHING;
+
+
+
 -- ========= DEV PRODUCTS (Keychain) =========
 INSERT INTO products (name, product_desc, price, image_url, is_active, store_id, category_id)
 SELECT
@@ -156,3 +268,57 @@ SELECT
   'YES',
   (SELECT store_id FROM stores WHERE store_name = 'Dev Seller Store' LIMIT 1),
   (SELECT category_id FROM categories WHERE slug = 'keychain' LIMIT 1);
+
+
+-- ========= DEV PRODUCT IMAGES (Keychain) =========
+INSERT INTO product_images (product_id, image_url, sort_order, is_primary)
+SELECT p.product_id,
+       '/static/dev/products/keychain/kmall-logo-1.jpg',
+       1,
+       TRUE
+FROM products p
+JOIN stores s ON s.store_id = p.store_id
+JOIN categories c ON c.category_id = p.category_id
+WHERE s.store_name = 'Dev Seller Store'
+  AND c.slug = 'keychain'
+  AND p.name = 'Acrylic Keychain – KMALL Logo'
+ON CONFLICT (product_id, sort_order) DO NOTHING;
+
+INSERT INTO product_images (product_id, image_url, sort_order, is_primary)
+SELECT p.product_id,
+       '/static/dev/products/keychain/wooden-local-craft-1.jpg',
+       1,
+       TRUE
+FROM products p
+JOIN stores s ON s.store_id = p.store_id
+JOIN categories c ON c.category_id = p.category_id
+WHERE s.store_name = 'Dev Seller Store'
+  AND c.slug = 'keychain'
+  AND p.name = 'Wooden Keychain – Local Craft'
+ON CONFLICT (product_id, sort_order) DO NOTHING;
+
+INSERT INTO product_images (product_id, image_url, sort_order, is_primary)
+SELECT p.product_id,
+       '/static/dev/products/keychain/cute-cat-1.jpg',
+       1,
+       TRUE
+FROM products p
+JOIN stores s ON s.store_id = p.store_id
+JOIN categories c ON c.category_id = p.category_id
+WHERE s.store_name = 'Dev Seller Store'
+  AND c.slug = 'keychain'
+  AND p.name = 'Character Keychain – Cute Cat'
+ON CONFLICT (product_id, sort_order) DO NOTHING;
+
+INSERT INTO product_images (product_id, image_url, sort_order, is_primary)
+SELECT p.product_id,
+       '/static/dev/products/keychain/name-tag-custom-1.jpg',
+       1,
+       TRUE
+FROM products p
+JOIN stores s ON s.store_id = p.store_id
+JOIN categories c ON c.category_id = p.category_id
+WHERE s.store_name = 'Dev Seller Store'
+  AND c.slug = 'keychain'
+  AND p.name = 'Name Tag Keychain – Custom Text'
+ON CONFLICT (product_id, sort_order) DO NOTHING;

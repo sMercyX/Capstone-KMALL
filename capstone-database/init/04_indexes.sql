@@ -42,3 +42,27 @@ CREATE INDEX fk_cart_items_carts1_idx ON cart_items(cart_id);
 
 DROP INDEX IF EXISTS fk_cart_items_products1_idx;
 CREATE INDEX fk_cart_items_products1_idx ON cart_items(product_id);
+
+DROP INDEX IF EXISTS idx_products_category_active;
+CREATE INDEX IF NOT EXISTS idx_products_category_active
+  ON products(category_id, is_active);
+
+DROP INDEX IF EXISTS idx_products_store_active;
+CREATE INDEX IF NOT EXISTS idx_products_store_active
+  ON products(store_id, is_active);
+
+DROP INDEX IF EXISTS idx_products_category_active_created_at;
+CREATE INDEX IF NOT EXISTS idx_products_category_active_created_at
+  ON products(category_id, is_active, created_at DESC);
+
+DROP INDEX IF EXISTS idx_product_images_product;
+CREATE INDEX IF NOT EXISTS idx_product_images_product
+  ON product_images(product_id);
+
+DROP INDEX IF EXISTS idx_store_images_store;
+CREATE INDEX IF NOT EXISTS idx_store_images_store
+  ON store_images(store_id);
+
+DROP INDEX IF EXISTS idx_categories_parent;
+CREATE INDEX IF NOT EXISTS idx_categories_parent
+  ON categories(parent_id);
