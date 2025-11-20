@@ -288,6 +288,7 @@ func (h *Handler) uploadStoreImage(c *gin.Context) {
 	filename := fmt.Sprintf("%d_%d%s", storeID, time.Now().UnixNano(), ext)
 	dir := filepath.Join("uploads", "stores", strconv.FormatInt(storeID, 10))
 	if err := os.MkdirAll(dir, 0o755); err != nil {
+		// fmt.Printf("[upload] mkdirAll error: dir=%s err=%v\n", dir, err)
 		c.Error(apperr.Wrap(apperr.Internal, err, "create upload dir failed"))
 		return
 	}

@@ -23,6 +23,12 @@ services:
         strip_path: false
         preserve_host: true     
         request_buffering: true
+      - name: static-route
+        paths:
+          - /static
+        strip_path: false
+        preserve_host: true
+        request_buffering: true
     plugins:
       - name: cors
         config:
