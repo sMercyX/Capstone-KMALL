@@ -155,6 +155,7 @@ func (r *repo) ListStoreImagesByStoreID(ctx context.Context, storeID int64) ([]S
 // UpdateStoreImage updates fields for a store image.
 func (r *repo) UpdateStoreImage(ctx context.Context, id int64, in StoreImageUpdateParams) (StoreImage, error) {
 	var img StoreImage
+
 	err := r.db.QueryRow(ctx, `
 		UPDATE store_images
 		SET image_url  = COALESCE($2, image_url),

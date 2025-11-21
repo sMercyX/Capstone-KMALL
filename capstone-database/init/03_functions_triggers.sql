@@ -244,3 +244,61 @@ CREATE TRIGGER trg_store_image_delete
 AFTER DELETE ON store_images
 FOR EACH ROW
 EXECUTE FUNCTION sync_store_primary_image();
+
+-- ========= STORE IMAGES: PRIMARY & SORT LOGIC =========
+CREATE OR REPLACE FUNCTION store_image_primary_before()
+RETURNS TRIGGER AS $$
+DECLARE
+    cnt INT;
+BEGIN
+    -- ถ้าเป็น INSERT รูปใหม่ และยังไม่เคยมีรูปใน store นี้เลย
+    -- → ให้รูปแรกเป็น primary + sort_order = 1
+    IF TG_OP = 'INSERT' THEN
+        SELECT COUNT(*) INTO cnt
+        FROM store_images
+        WHERE store_id = NEW.store_id;
+
+        IF cnt = 0 THEN
+            NEW.is_primary := TRUE;
+            NEW.sort_order := 1;
+        END IF;
+    END IF;
+
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS trg_store_image_primary_before ON store_images;
+CREATE TRIGGER trg_store_image_primary_before
+BEFORE INSERT ON store_images
+FOR EACH ROW
+EXECUTE FUNCTION store_image_primary_before();
+
+
+-- ========= PRODUCT IMAGES: PRIMARY & SORT LOGIC =========
+CREATE OR REPLACE FUNCTION product_image_primary_before()
+RETURNS TRIGGER AS $$
+DECLARE
+    cnt INT;
+BEGIN
+    -- รูปแรกของ product → primary + sort_order = 1
+    IF TG_OP = 'INSERT' THEN
+        SELECT COUNT(*) INTO cnt
+        FROM product_images
+        WHERE product_id = NEW.product_id;
+
+        IF cnt = 0 THEN
+            NEW.is_primary := TRUE;
+            NEW.sort_order := 1;
+        END IF;
+    END IF;
+
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS trg_product_image_primary_before ON product_images;
+CREATE TRIGGER trg_product_image_primary_before
+BEFORE INSERT ON product_images
+FOR EACH ROW
+EXECUTE FUNCTION product_image_primary_before();

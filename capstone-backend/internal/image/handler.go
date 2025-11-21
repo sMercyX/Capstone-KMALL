@@ -255,6 +255,7 @@ func (h *Handler) createStoreImage(c *gin.Context) {
 }
 
 // POST /api/stores/:id/images/upload  (multipart/form-data, field: file)
+// POST /api/stores/:id/images/upload  (multipart/form-data, field: files หรือ file)
 func (h *Handler) uploadStoreImage(c *gin.Context) {
 	userID, ok := h.resolveCurrentUserID(c, false)
 	if !ok {
@@ -274,59 +275,114 @@ func (h *Handler) uploadStoreImage(c *gin.Context) {
 		return
 	}
 
-	fileHeader, err := c.FormFile("file")
-	if err != nil {
-		c.Error(apperr.New(apperr.BadRequest, "file is required"))
-		return
-	}
-
-	ext := strings.ToLower(filepath.Ext(fileHeader.Filename))
-	if ext == "" {
-		ext = ".jpg"
-	}
-
-	filename := fmt.Sprintf("%d_%d%s", storeID, time.Now().UnixNano(), ext)
-	dir := filepath.Join("uploads", "stores", strconv.FormatInt(storeID, 10))
-	if err := os.MkdirAll(dir, 0o755); err != nil {
-		// fmt.Printf("[upload] mkdirAll error: dir=%s err=%v\n", dir, err)
-		c.Error(apperr.Wrap(apperr.Internal, err, "create upload dir failed"))
-		return
-	}
-
-	dstPath := filepath.Join(dir, filename)
-
-	if err := c.SaveUploadedFile(fileHeader, dstPath); err != nil {
-		c.Error(apperr.Wrap(apperr.Internal, err, "save file failed"))
-		return
-	}
-
-	relPath := filepath.ToSlash(filepath.Join("stores", strconv.FormatInt(storeID, 10), filename))
-	imageURL := "/static/" + relPath
-
-	sortOrder := 1
-	isPrimary := false
-
-	if v := c.PostForm("sort_order"); v != "" {
-		if n, err := strconv.Atoi(v); err == nil && n > 0 {
-			sortOrder = n
-		}
-	}
-	if v := c.PostForm("is_primary"); v != "" {
-		isPrimary = strings.EqualFold(v, "true") || v == "1"
-	}
-
-	img, err := h.svc.CreateStoreImage(c.Request.Context(), StoreImageCreateInput{
-		StoreID:   int(storeID),
-		ImageURL:  imageURL,
-		SortOrder: sortOrder,
-		IsPrimary: isPrimary,
-	})
+	// 1) อ่านรูปเดิมของ store เพื่อหา max sort และดูว่ามี primary หรือยัง
+	existing, err := h.svc.ListStoreImagesByStoreID(c.Request.Context(), storeID)
 	if err != nil {
 		c.Error(err)
 		return
 	}
 
-	respond.Created(c, apperr.Created, img)
+	hasPrimary := false
+	maxSort := 0
+	for _, img := range existing {
+		if img.IsPrimary {
+			hasPrimary = true
+		}
+		if img.SortOrder > maxSort {
+			maxSort = img.SortOrder
+		}
+	}
+
+	// 2) อ่าน multipart form (รองรับหลายไฟล์)
+	if err := c.Request.ParseMultipartForm(32 << 20); err != nil { // 32MB
+		c.Error(apperr.New(apperr.BadRequest, "invalid multipart form"))
+		return
+	}
+
+	form := c.Request.MultipartForm
+
+	// รองรับทั้ง files (หลายไฟล์/ไฟล์เดียว) และ file (fallback)
+	files := form.File["files"]
+	if len(files) == 0 {
+		files = form.File["file"]
+	}
+
+	if len(files) == 0 {
+		c.Error(apperr.New(apperr.BadRequest, "file is required"))
+		return
+	}
+
+	// baseSort: default ต่อจาก maxSort เดิม
+	baseSort := maxSort
+	if v, ok := form.Value["sort_order"]; ok && len(v) > 0 {
+		if n, err := strconv.Atoi(v[0]); err == nil && n > 0 {
+			baseSort = n - 1 // เดี๋ยวตอน loop จะ +1
+		}
+	}
+
+	// ถ้า form ส่ง is_primary=true → ให้ไฟล์แรกของ batch นี้เป็น primary
+	wantPrimary := false
+	if v, ok := form.Value["is_primary"]; ok && len(v) > 0 {
+		wantPrimary = strings.EqualFold(v[0], "true") || v[0] == "1"
+	}
+
+	created := make([]StoreImage, 0, len(files))
+
+	for i, fileHeader := range files {
+		// ตั้งชื่อไฟล์ให้ไม่ซ้ำ: ใช้ storeID + timestamp + index
+		ext := strings.ToLower(filepath.Ext(fileHeader.Filename))
+		if ext == "" {
+			ext = ".jpg"
+		}
+
+		filename := fmt.Sprintf("%d_%d_%d%s", storeID, time.Now().UnixNano(), i, ext)
+		dir := filepath.Join("uploads", "stores", strconv.FormatInt(storeID, 10))
+
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			c.Error(apperr.Wrap(apperr.Internal, err, "create upload dir failed"))
+			return
+		}
+
+		dstPath := filepath.Join(dir, filename)
+		if err := c.SaveUploadedFile(fileHeader, dstPath); err != nil {
+			c.Error(apperr.Wrap(apperr.Internal, err, "save file failed"))
+			return
+		}
+
+		// URL ให้ FE เรียกผ่าน /static/*
+		relPath := filepath.ToSlash(filepath.Join("stores", strconv.FormatInt(storeID, 10), filename))
+		imageURL := "/static/" + relPath
+
+		// sort_order: ต่อจาก baseSort
+		sortOrder := baseSort + i + 1
+
+		// is_primary:
+		// - ถ้าไม่มี primary เดิมเลย → รูปแรกของ batch นี้เป็น true
+		// - หรือถ้า form ส่ง is_primary=true → รูปแรกเป็น true
+		// - ที่เหลือเป็น false
+		isPrimary := false
+		if i == 0 {
+			if !hasPrimary || wantPrimary {
+				isPrimary = true
+			}
+		}
+
+		img, err := h.svc.CreateStoreImage(c.Request.Context(), StoreImageCreateInput{
+			StoreID:   int(storeID),
+			ImageURL:  imageURL,
+			SortOrder: sortOrder,
+			IsPrimary: isPrimary,
+		})
+		if err != nil {
+			c.Error(err)
+			return
+		}
+
+		created = append(created, img)
+	}
+
+	// ตอบกลับ array ของรูปที่สร้างทั้งหมด
+	respond.Created(c, apperr.Created, created)
 }
 
 // PUT /api/store-images/:imageID (Seller/Admin + owner)
@@ -394,10 +450,20 @@ func (h *Handler) deleteStoreImage(c *gin.Context) {
 		return
 	}
 
+	if img.ImageURL != "" {
+		relPath := strings.TrimPrefix(img.ImageURL, "/static/")
+		if relPath != "" {
+			fsPath := filepath.Join("uploads", relPath)
+			if err := os.Remove(fsPath); err != nil && !os.IsNotExist(err) {
+			}
+		}
+	}
+
 	if err := h.svc.DeleteStoreImage(c.Request.Context(), imageID); err != nil {
 		c.Error(err)
 		return
 	}
+
 	respond.Deleted(c, apperr.Deleted, gin.H{"deleted": true})
 }
 
@@ -481,62 +547,107 @@ func (h *Handler) uploadProductImage(c *gin.Context) {
 		return
 	}
 
-	// รับไฟล์จาก form-data: file
-	fileHeader, err := c.FormFile("file")
-	if err != nil {
-		c.Error(apperr.New(apperr.BadRequest, "file is required"))
-		return
-	}
-
-	// สร้าง path เก็บไฟล์ในเครื่อง: ./uploads/products/<productID>/timestamp.ext
-	ext := strings.ToLower(filepath.Ext(fileHeader.Filename))
-	if ext == "" {
-		ext = ".jpg"
-	}
-
-	filename := fmt.Sprintf("%d_%d%s", productID, time.Now().UnixNano(), ext)
-	dir := filepath.Join("uploads", "products", strconv.FormatInt(productID, 10))
-	if err := os.MkdirAll(dir, 0o755); err != nil {
-		c.Error(apperr.Wrap(apperr.Internal, err, "create upload dir failed"))
-		return
-	}
-
-	dstPath := filepath.Join(dir, filename)
-
-	if err := c.SaveUploadedFile(fileHeader, dstPath); err != nil {
-		c.Error(apperr.Wrap(apperr.Internal, err, "save file failed"))
-		return
-	}
-
-	// สร้าง URL สำหรับ FE (อิงจาก r.Static("/static", "./uploads"))
-	relPath := filepath.ToSlash(filepath.Join("products", strconv.FormatInt(productID, 10), filename))
-	imageURL := "/static/" + relPath
-
-	// optional: อ่าน sort_order / is_primary จาก form ถ้าอยากให้ตั้งค่าเอง
-	sortOrder := 1
-	isPrimary := false
-
-	if v := c.PostForm("sort_order"); v != "" {
-		if n, err := strconv.Atoi(v); err == nil && n > 0 {
-			sortOrder = n
-		}
-	}
-	if v := c.PostForm("is_primary"); v != "" {
-		isPrimary = strings.EqualFold(v, "true") || v == "1"
-	}
-
-	img, err := h.svc.CreateProductImage(c.Request.Context(), ProductImageCreateInput{
-		ProductID: int(productID),
-		ImageURL:  imageURL,
-		SortOrder: sortOrder,
-		IsPrimary: isPrimary,
-	})
+	// 1) อ่านรูปเดิมของ product เพื่อหา max sort และดูว่ามี primary หรือยัง
+	existing, err := h.svc.ListProductImagesByProductID(c.Request.Context(), productID)
 	if err != nil {
 		c.Error(err)
 		return
 	}
 
-	respond.Created(c, apperr.Created, img)
+	hasPrimary := false
+	maxSort := 0
+	for _, img := range existing {
+		if img.IsPrimary {
+			hasPrimary = true
+		}
+		if img.SortOrder > maxSort {
+			maxSort = img.SortOrder
+		}
+	}
+
+	// 2) อ่าน multipart form (รองรับหลายไฟล์)
+	if err := c.Request.ParseMultipartForm(32 << 20); err != nil { // 32MB buffer
+		c.Error(apperr.New(apperr.BadRequest, "invalid multipart form"))
+		return
+	}
+
+	form := c.Request.MultipartForm
+	files := form.File["file"]
+	if len(files) == 0 {
+		c.Error(apperr.New(apperr.BadRequest, "file is required"))
+		return
+	}
+
+	// baseSort: ถ้าอยากให้กำหนดเริ่มจาก form ก็ได้
+	baseSort := maxSort
+	if v, ok := form.Value["sort_order"]; ok && len(v) > 0 {
+		if n, err := strconv.Atoi(v[0]); err == nil && n > 0 {
+			baseSort = n - 1 // เดี๋ยวตอน loop จะ +1 อีกที
+		}
+	}
+
+	// flag จาก form: ถ้าตั้ง is_primary=true → ให้ไฟล์แรกของ batch นี้เป็น primary
+	wantPrimary := false
+	if v, ok := form.Value["is_primary"]; ok && len(v) > 0 {
+		wantPrimary = strings.EqualFold(v[0], "true") || v[0] == "1"
+	}
+
+	created := make([]ProductImage, 0, len(files))
+
+	for i, fileHeader := range files {
+		// ตั้งชื่อไฟล์ ไม่ให้ชน (timestamp + index)
+		ext := strings.ToLower(filepath.Ext(fileHeader.Filename))
+		if ext == "" {
+			ext = ".jpg"
+		}
+
+		filename := fmt.Sprintf("%d_%d_%d%s", productID, time.Now().UnixNano(), i, ext)
+		dir := filepath.Join("uploads", "products", strconv.FormatInt(productID, 10))
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			c.Error(apperr.Wrap(apperr.Internal, err, "create upload dir failed"))
+			return
+		}
+
+		dstPath := filepath.Join(dir, filename)
+		if err := c.SaveUploadedFile(fileHeader, dstPath); err != nil {
+			c.Error(apperr.Wrap(apperr.Internal, err, "save file failed"))
+			return
+		}
+
+		// URL สำหรับ FE
+		relPath := filepath.ToSlash(filepath.Join("products", strconv.FormatInt(productID, 10), filename))
+		imageURL := "/static/" + relPath
+
+		// sort_order: ต่อจาก baseSort / maxSort
+		sortOrder := baseSort + i + 1
+
+		// is_primary logic:
+		// - ถ้ายังไม่มี primary เดิมเลย และไฟล์นี้คือไฟล์แรกของ batch → true
+		// - หรือถ้า form ส่ง is_primary=true และไฟล์นี้คือไฟล์แรก → true
+		// - ที่เหลือ false
+		isPrimary := false
+		if i == 0 {
+			if !hasPrimary || wantPrimary {
+				isPrimary = true
+			}
+		}
+
+		img, err := h.svc.CreateProductImage(c.Request.Context(), ProductImageCreateInput{
+			ProductID: int(productID),
+			ImageURL:  imageURL,
+			SortOrder: sortOrder,
+			IsPrimary: isPrimary,
+		})
+		if err != nil {
+			c.Error(err)
+			return
+		}
+
+		created = append(created, img)
+	}
+
+	// ตอบกลับเป็น array ของรูปที่สร้าง
+	respond.Created(c, apperr.Created, created)
 }
 
 // PUT /api/product-images/:imageID (Seller/Admin + owner)
@@ -601,6 +712,16 @@ func (h *Handler) deleteProductImage(c *gin.Context) {
 			respond.Error(c, http.StatusForbidden, "FORBIDDEN", "only owner or admin can delete this product image", nil)
 		}
 		return
+	}
+
+	if img.ImageURL != "" {
+		relPath := strings.TrimPrefix(img.ImageURL, "/static/")
+		if relPath != "" {
+			fsPath := filepath.Join("uploads", relPath)
+			if err := os.Remove(fsPath); err != nil && !os.IsNotExist(err) {
+
+			}
+		}
 	}
 
 	if err := h.svc.DeleteProductImage(c.Request.Context(), imageID); err != nil {
