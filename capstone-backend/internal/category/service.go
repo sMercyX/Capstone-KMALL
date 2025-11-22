@@ -26,7 +26,7 @@ type UpdateInput struct {
 type Service interface {
 	Create(ctx context.Context, in CreateInput) (Category, error)
 	Get(ctx context.Context, id int64) (Category, error)
-	List(ctx context.Context, q string, parentID *int64, activeOnly bool) ([]Category, error)
+	List(ctx context.Context, q string, parentID *int64, activeOnly bool, limit, page int) ([]Category, error)
 	Update(ctx context.Context, id int64, in UpdateInput) (Category, error)
 	Delete(ctx context.Context, id int64) error
 }
@@ -185,9 +185,9 @@ func (s *service) Get(ctx context.Context, id int64) (Category, error) {
 	return s.repo.Get(ctx, id)
 }
 
-func (s *service) List(ctx context.Context, q string, parentID *int64, activeOnly bool) ([]Category, error) {
+func (s *service) List(ctx context.Context, q string, parentID *int64, activeOnly bool, limit, page int) ([]Category, error) {
 	q = strings.TrimSpace(q)
-	return s.repo.List(ctx, q, parentID, activeOnly)
+	return s.repo.List(ctx, q, parentID, activeOnly, limit, page)
 }
 
 func (s *service) Update(ctx context.Context, id int64, in UpdateInput) (Category, error) {

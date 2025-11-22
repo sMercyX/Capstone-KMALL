@@ -78,14 +78,9 @@ func parseParentIDQuery(c *gin.Context) *int64 {
 	if v == "" {
 		return nil
 	}
-
-	if strings.EqualFold(v, "null") {
-		z := int64(0)
-		return &z
-	}
-
 	id, err := strconv.ParseInt(v, 10, 64)
 	if err != nil || id <= 0 {
+		// ถ้า parse ไม่ได้ จะถือว่าไม่ใช้ filter parent (ไม่ error ทั้ง request)
 		return nil
 	}
 	return &id
@@ -182,9 +177,13 @@ func (h *Handler) listPublic(c *gin.Context) {
 	q := strings.TrimSpace(c.Query("q"))
 	parentID := parseParentIDQuery(c)
 
+	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "50"))
+	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
+
+	// public: activeOnly = true เป็น default
 	activeOnly := parseBoolQuery(c.Query("active_only"), true)
 
-	cats, err := h.svc.List(c.Request.Context(), q, parentID, activeOnly)
+	cats, err := h.svc.List(c.Request.Context(), q, parentID, activeOnly, limit, page)
 	if err != nil {
 		c.Error(err)
 		return

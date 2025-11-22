@@ -15,7 +15,7 @@ import (
 type Repo interface {
 	Create(ctx context.Context, in CreateParams) (Category, error)
 	Get(ctx context.Context, id int64) (Category, error)
-	List(ctx context.Context, q string, parentID *int64, activeOnly bool) ([]Category, error)
+	List(ctx context.Context, q string, parentID *int64, activeOnly bool, limit, page int) ([]Category, error)
 	Update(ctx context.Context, id int64, in UpdateParams) (Category, error)
 	Delete(ctx context.Context, id int64) error
 }
@@ -88,45 +88,47 @@ func (r *repo) Get(ctx context.Context, id int64) (Category, error) {
 	return c, nil
 }
 
-func (r *repo) List(ctx context.Context, q string, parentID *int64, activeOnly bool) ([]Category, error) {
+// List categories (optional search + parent filter + activeOnly)
+func (r *repo) List(ctx context.Context, q string, parentID *int64, activeOnly bool, limit, page int) ([]Category, error) {
+	if limit <= 0 {
+		limit = 20
+	}
+	if page <= 0 {
+		page = 1
+	}
+	offset := (page - 1) * limit
 	q = strings.TrimSpace(q)
 
+	// สร้าง where clause แบบง่าย ๆ
 	where := []string{"1=1"}
 	args := []any{}
 	argPos := 1
 
-	// ----- Search by name (optional) -----
 	if q != "" {
 		where = append(where, `LOWER(name) LIKE LOWER('%' || $`+strconv.Itoa(argPos)+` || '%')`)
 		args = append(args, q)
 		argPos++
 	}
 
-	// ----- Parent filter -----
-	// parentID == nil      -> ไม่ filter (เอาทุกอัน)
-	// *parentID == 0       -> parent_id IS NULL   (parent categories)
-	// *parentID > 0        -> parent_id = <id>    (sub categories)
 	if parentID != nil {
-		if *parentID == 0 {
-			where = append(where, `parent_id IS NULL`)
-		} else {
-			where = append(where, `parent_id = $`+strconv.Itoa(argPos))
-			args = append(args, *parentID)
-			argPos++
-		}
+		where = append(where, `parent_id = $`+strconv.Itoa(argPos))
+		args = append(args, *parentID)
+		argPos++
 	}
 
-	// ----- Active only -----
 	if activeOnly {
 		where = append(where, `is_active = 'YES'`)
 	}
 
+	args = append(args, limit, offset)
+
 	sql := `
-        SELECT category_id, name, slug, parent_id, sort_order, is_active,
-               created_at, updated_at
-        FROM categories
-        WHERE ` + strings.Join(where, " AND ") + `
-        ORDER BY sort_order ASC, name ASC`
+		SELECT category_id, name, slug, parent_id, sort_order, is_active,
+		       created_at, updated_at
+		FROM categories
+		WHERE ` + strings.Join(where, " AND ") + `
+		ORDER BY sort_order ASC, name ASC
+		LIMIT $` + strconv.Itoa(argPos) + ` OFFSET $` + strconv.Itoa(argPos+1)
 
 	rows, err := r.db.Query(ctx, sql, args...)
 	if err != nil {
@@ -148,7 +150,6 @@ func (r *repo) List(ctx context.Context, q string, parentID *int64, activeOnly b
 	if err := rows.Err(); err != nil {
 		return nil, apperr.Wrap(apperr.Internal, err, "rows error")
 	}
-
 	return out, nil
 }
 
