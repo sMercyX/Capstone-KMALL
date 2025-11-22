@@ -320,13 +320,15 @@ func (h *Handler) delete(c *gin.Context) {
 // 3.1 GET /api/products/public (Buyer/Public)
 func (h *Handler) listPublic(c *gin.Context) {
 	q := strings.TrimSpace(c.Query("q"))
-	categoryID := parseInt64Query(c, "category_id")
+	categoryIDs := parseInt64ListQuery(c, "category_id")
 	storeID := parseInt64Query(c, "store_id")
 
 	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "20"))
 	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
 
-	ps, err := h.svc.ListPublic(c.Request.Context(), q, categoryID, storeID, limit, page)
+	priceSort := strings.ToLower(strings.TrimSpace(c.Query("price")))
+
+	ps, err := h.svc.ListPublic(c.Request.Context(), q, categoryIDs, storeID, limit, page, priceSort)
 	if err != nil {
 		c.Error(err)
 		return
@@ -350,4 +352,28 @@ func (h *Handler) getPublic(c *gin.Context) {
 		return
 	}
 	respond.OK(c, apperr.OK, p)
+}
+
+func parseInt64ListQuery(c *gin.Context, key string) []int64 {
+	vals := c.QueryArray(key) // รองรับ ?category_id=4&category_id=5
+	if len(vals) == 0 {
+		return nil
+	}
+
+	res := make([]int64, 0, len(vals))
+	for _, v := range vals {
+		v = strings.TrimSpace(v)
+		if v == "" {
+			continue
+		}
+		id, err := strconv.ParseInt(v, 10, 64)
+		if err != nil || id <= 0 {
+			continue
+		}
+		res = append(res, id)
+	}
+	if len(res) == 0 {
+		return nil
+	}
+	return res
 }
