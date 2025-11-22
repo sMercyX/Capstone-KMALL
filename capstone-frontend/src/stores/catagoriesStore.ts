@@ -1,66 +1,63 @@
-// src/stores/categoriesStore.ts
 import { create } from "zustand";
-import { useProductApi } from "../api/productApi";
-import type { ProductCategory } from "../api/productApi";
+import type { PaginatedData } from "../api/responseType";
+import type { Product } from "../api/productApi";
 
-interface CategoriesState {
-  categories: ProductCategory[];
+interface ProductListState {
+  items: Product[];
+  pageIndex: number;
+  pageSize: number;
+  total: number;
+
   isLoading: boolean;
   error: string | null;
-  selectedCategory: string | null; // เช่น "food", "clothing"
 
-  setSelectedCategory: (slug: string | null) => void;
-  fetchCategories: (type: string, pageIndex?: number, limit?: number) => Promise<void>;
-  clear: () => void;
+  setPageIndex: (page: number) => void;
+  startLoading: () => void;
+  setPageData: (data: PaginatedData<Product>) => void;
+  setError: (msg: string | null) => void;
+  reset: () => void;
 }
 
-export const useCategoriesStore = create<CategoriesState>((set) => {
-  // ❗ ใช้ useProductApi() ข้างใน store ไม่ได้ ต้องประกาศภายนอก
-  const productApi = useProductApi();
+export const useProductListStore = create<ProductListState>((set) => ({
+  items: [],
+  pageIndex: 1,
+  pageSize: 12,
+  total: 0,
 
-  return {
-    categories: [],
-    isLoading: false,
-    error: null,
-    selectedCategory: null,
+  isLoading: false,
+  error: null,
 
-    setSelectedCategory: (slug) => set({ selectedCategory: slug }),
+  setPageIndex: (page) => set({ pageIndex: page }),
 
-    fetchCategories: async (
-      type: string,
-      pageIndex = 1,
-      limit = 20
-    ) => {
-      set({ isLoading: true, error: null });
+  startLoading: () =>
+    set({
+      isLoading: true,
+      error: null,
+    }),
 
-      try {
-        const resp = await productApi.getProductCategories(
-          type as any,
-          pageIndex,
-          limit
-        );
+  setPageData: (data) =>
+    set({
+      items: data.items,
+      pageIndex: data.pageIndex,
+      pageSize: data.pageSize,
+      total: data.total,
+      isLoading: false,
+      error: null,
+    }),
 
-        set({
-          categories: resp.data,
-          isLoading: false,
-          error: null,
-        });
-      } catch (err: any) {
-        console.error("fetchCategories error:", err);
+  setError: (msg) =>
+    set({
+      isLoading: false,
+      error: msg,
+    }),
 
-        set({
-          isLoading: false,
-          error: err?.message ?? "Failed to load categories",
-        });
-      }
-    },
-
-    clear: () =>
-      set({
-        categories: [],
-        selectedCategory: null,
-        isLoading: false,
-        error: null,
-      }),
-  };
-});
+  reset: () =>
+    set({
+      items: [],
+      pageIndex: 1,
+      pageSize: 12,
+      total: 0,
+      isLoading: false,
+      error: null,
+    }),
+}));
