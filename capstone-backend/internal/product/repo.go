@@ -20,7 +20,7 @@ type Repo interface {
 	Update(ctx context.Context, id int64, in UpdateParams) (Product, error)
 	Delete(ctx context.Context, id int64) error
 
-	ListPublic(ctx context.Context, q string, categoryIDs []int64, storeID *int64, limit, page int, priceSort string) ([]Product, error)
+	ListPublic(ctx context.Context, q string, categoryIDs []int64, parentCategoryID *int64, storeID *int64, limit, page int, priceSort string) ([]Product, error)
 	GetPublic(ctx context.Context, id int64) (Product, error)
 }
 
@@ -171,7 +171,15 @@ func (r *repo) Delete(ctx context.Context, id int64) error {
 	return nil
 }
 
-func (r *repo) ListPublic(ctx context.Context, q string, categoryIDs []int64, storeID *int64, limit, page int, priceSort string) ([]Product, error) {
+func (r *repo) ListPublic(
+	ctx context.Context,
+	q string,
+	categoryIDs []int64,
+	parentCategoryID *int64,
+	storeID *int64,
+	limit, page int,
+	priceSort string,
+) ([]Product, error) {
 	offset := (page - 1) * limit
 	q = strings.TrimSpace(strings.ToLower(q))
 
@@ -196,10 +204,20 @@ func (r *repo) ListPublic(ctx context.Context, q string, categoryIDs []int64, st
 			placeholders[i] = "$" + strconv.Itoa(len(args)+1+i)
 		}
 		query += " AND p.category_id IN (" + strings.Join(placeholders, ",") + ")"
-
 		for _, id := range categoryIDs {
 			args = append(args, id)
 		}
+	}
+
+	if parentCategoryID != nil {
+		query += `
+            AND p.category_id IN (
+                SELECT c.category_id
+                FROM categories c
+                WHERE c.parent_id = $` + strconv.Itoa(len(args)+1) + `
+            )
+        `
+		args = append(args, *parentCategoryID)
 	}
 
 	if storeID != nil {
@@ -208,7 +226,6 @@ func (r *repo) ListPublic(ctx context.Context, q string, categoryIDs []int64, st
 	}
 
 	orderBy := "p.created_at DESC, p.product_id ASC"
-
 	switch priceSort {
 	case "asc":
 		orderBy = "p.price ASC, p.product_id ASC"

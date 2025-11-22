@@ -111,9 +111,13 @@ func (r *repo) List(ctx context.Context, q string, parentID *int64, activeOnly b
 	}
 
 	if parentID != nil {
-		where = append(where, `parent_id = $`+strconv.Itoa(argPos))
-		args = append(args, *parentID)
-		argPos++
+		if *parentID == 0 {
+			where = append(where, `parent_id IS NULL`)
+		} else {
+			where = append(where, `parent_id = $`+strconv.Itoa(argPos))
+			args = append(args, *parentID)
+			argPos++
+		}
 	}
 
 	if activeOnly {

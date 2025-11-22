@@ -322,13 +322,14 @@ func (h *Handler) listPublic(c *gin.Context) {
 	q := strings.TrimSpace(c.Query("q"))
 	categoryIDs := parseInt64ListQuery(c, "category_id")
 	storeID := parseInt64Query(c, "store_id")
+	parentCategoryID := parseInt64Query(c, "parent_category_id")
 
 	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "20"))
 	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
 
 	priceSort := strings.ToLower(strings.TrimSpace(c.Query("price")))
 
-	ps, err := h.svc.ListPublic(c.Request.Context(), q, categoryIDs, storeID, limit, page, priceSort)
+	ps, err := h.svc.ListPublic(c.Request.Context(), q, categoryIDs, parentCategoryID, storeID, limit, page, priceSort)
 	if err != nil {
 		c.Error(err)
 		return
