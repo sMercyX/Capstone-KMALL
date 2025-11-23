@@ -22,6 +22,10 @@ type Repo interface {
 	CreateItem(ctx context.Context, in CartItemCreateParams) (CartItem, error)
 	UpdateItem(ctx context.Context, id int64, in CartItemUpdateParams) (CartItem, error)
 	DeleteItem(ctx context.Context, id int64) error
+
+	ClearItemsByCartID(ctx context.Context, cartID int64) error
+	GetCartStoreID(ctx context.Context, cartID int64) (*int, error)
+	GetProductStoreID(ctx context.Context, productID int) (int, error)
 }
 
 type repo struct {
@@ -221,6 +225,54 @@ func (r *repo) DeleteItem(ctx context.Context, id int64) error {
 	}
 	if cmd.RowsAffected() == 0 {
 		return apperr.New(apperr.NotFound, "cart item not found")
+	}
+	return nil
+}
+
+func (r *repo) GetCartStoreID(ctx context.Context, cartID int64) (*int, error) {
+	var storeID int
+	err := r.db.QueryRow(ctx, `
+        SELECT p.store_id
+        FROM cart_items ci
+        JOIN products p ON ci.product_id = p.product_id
+        WHERE ci.cart_id = $1
+        ORDER BY ci.cart_item_id ASC
+        LIMIT 1;
+    `, cartID).Scan(&storeID)
+
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, nil
+		}
+		return nil, apperr.Wrap(apperr.Internal, err, "get cart store_id failed")
+	}
+	return &storeID, nil
+}
+
+func (r *repo) GetProductStoreID(ctx context.Context, productID int) (int, error) {
+	var storeID int
+	err := r.db.QueryRow(ctx, `
+        SELECT store_id
+        FROM products
+        WHERE product_id = $1;
+    `, productID).Scan(&storeID)
+
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return 0, apperr.New(apperr.NotFound, "product not found")
+		}
+		return 0, apperr.Wrap(apperr.Internal, err, "get product store_id failed")
+	}
+	return storeID, nil
+}
+
+func (r *repo) ClearItemsByCartID(ctx context.Context, cartID int64) error {
+	_, err := r.db.Exec(ctx, `
+        DELETE FROM cart_items
+        WHERE cart_id = $1;
+    `, cartID)
+	if err != nil {
+		return apperr.Wrap(apperr.Internal, err, "clear cart items failed")
 	}
 	return nil
 }

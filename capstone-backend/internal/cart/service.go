@@ -110,6 +110,22 @@ func (s *service) AddItem(ctx context.Context, userID string, in CartItemCreateI
 		return CartItem{}, err
 	}
 
+	existingStoreID, err := s.repo.GetCartStoreID(ctx, int64(cart.ID))
+	if err != nil {
+		return CartItem{}, err
+	}
+
+	newStoreID, err := s.repo.GetProductStoreID(ctx, in.ProductID)
+	if err != nil {
+		return CartItem{}, err
+	}
+
+	if existingStoreID != nil && *existingStoreID != newStoreID {
+		if err := s.repo.ClearItemsByCartID(ctx, int64(cart.ID)); err != nil {
+			return CartItem{}, err
+		}
+	}
+
 	params := CartItemCreateParams{
 		CartID:    cart.ID,
 		ProductID: in.ProductID,
@@ -124,7 +140,6 @@ func (s *service) AddItem(ctx context.Context, userID string, in CartItemCreateI
 	return item, nil
 }
 
-// UpdateItem อัปเดตจำนวนสินค้าใน cart ของ user
 func (s *service) UpdateItem(ctx context.Context, userID string, itemID int64, in CartItemUpdateInput) (CartItem, error) {
 	if userID == "" {
 		return CartItem{}, apperr.New(apperr.BadRequest, "invalid user_id")
