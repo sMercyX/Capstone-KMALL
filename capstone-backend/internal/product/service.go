@@ -34,7 +34,14 @@ type Service interface {
 	Update(ctx context.Context, id int64, in UpdateInput) (Product, error)
 	Delete(ctx context.Context, id int64) error
 
-	ListPublic(ctx context.Context, q string, categoryIDs []int64, parentCategoryID *int64, storeID *int64, limit, page int, priceSort string) ([]Product, error)
+	ListPublic(ctx context.Context,
+		q string,
+		categoryIDs []int64,
+		parentCategoryID *int64,
+		storeID *int64,
+		limit, page int,
+		priceSort string,
+	) ([]Product, int64, error)
 	GetPublic(ctx context.Context, id int64) (Product, error)
 }
 
@@ -214,15 +221,23 @@ func (s *service) Delete(ctx context.Context, id int64) error {
 	return s.repo.Delete(ctx, id)
 }
 
-func (s *service) ListPublic(ctx context.Context, q string, categoryIDs []int64, parentCategoryID *int64, storeID *int64, limit, page int, priceSort string) ([]Product, error) {
+func (s *service) ListPublic(
+	ctx context.Context,
+	q string,
+	categoryIDs []int64,
+	parentCategoryID *int64,
+	storeID *int64,
+	limit, page int,
+	priceSort string,
+) ([]Product, int64, error) {
 	if limit <= 0 {
 		limit = 20
 	}
 	if page <= 0 {
 		page = 1
 	}
-	q = strings.TrimSpace(q)
 
+	q = strings.TrimSpace(q)
 	priceSort = normalizePriceSort(priceSort)
 
 	return s.repo.ListPublic(ctx, q, categoryIDs, parentCategoryID, storeID, limit, page, priceSort)

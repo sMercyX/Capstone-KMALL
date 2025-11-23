@@ -20,7 +20,14 @@ type Repo interface {
 	Update(ctx context.Context, id int64, in UpdateParams) (Product, error)
 	Delete(ctx context.Context, id int64) error
 
-	ListPublic(ctx context.Context, q string, categoryIDs []int64, parentCategoryID *int64, storeID *int64, limit, page int, priceSort string) ([]Product, error)
+	ListPublic(ctx context.Context,
+		q string,
+		categoryIDs []int64,
+		parentCategoryID *int64,
+		storeID *int64,
+		limit, page int,
+		priceSort string,
+	) ([]Product, int64, error)
 	GetPublic(ctx context.Context, id int64) (Product, error)
 }
 
@@ -179,22 +186,31 @@ func (r *repo) ListPublic(
 	storeID *int64,
 	limit, page int,
 	priceSort string,
-) ([]Product, error) {
+) ([]Product, int64, error) {
 	offset := (page - 1) * limit
 	q = strings.TrimSpace(strings.ToLower(q))
 
-	query := `
-        SELECT p.product_id, p.name, p.product_desc, p.price, p.image_url,
-               p.created_at, p.updated_at, p.is_active, p.store_id, p.category_id
+	base := `
         FROM products p
         JOIN stores s ON p.store_id = s.store_id
         WHERE p.is_active = 'YES' AND s.is_active = 'YES'
     `
 
+	selectQuery := `
+        SELECT p.product_id, p.name, p.product_desc, p.price, p.image_url,
+               p.created_at, p.updated_at, p.is_active, p.store_id, p.category_id
+    ` + base
+
+	countQuery := `SELECT COUNT(*) ` + base
+
 	args := []any{}
 
+	// ----- Filters (ใช้กับทั้ง select และ count) -----
+
 	if q != "" {
-		query += " AND LOWER(p.name) LIKE '%' || $" + strconv.Itoa(len(args)+1) + " || '%' "
+		cond := " AND LOWER(p.name) LIKE '%' || $" + strconv.Itoa(len(args)+1) + " || '%' "
+		selectQuery += cond
+		countQuery += cond
 		args = append(args, q)
 	}
 
@@ -203,28 +219,35 @@ func (r *repo) ListPublic(
 		for i := range categoryIDs {
 			placeholders[i] = "$" + strconv.Itoa(len(args)+1+i)
 		}
-		query += " AND p.category_id IN (" + strings.Join(placeholders, ",") + ")"
+		cond := " AND p.category_id IN (" + strings.Join(placeholders, ",") + ")"
+		selectQuery += cond
+		countQuery += cond
 		for _, id := range categoryIDs {
 			args = append(args, id)
 		}
 	}
 
 	if parentCategoryID != nil {
-		query += `
+		cond := `
             AND p.category_id IN (
                 SELECT c.category_id
                 FROM categories c
                 WHERE c.parent_id = $` + strconv.Itoa(len(args)+1) + `
             )
         `
+		selectQuery += cond
+		countQuery += cond
 		args = append(args, *parentCategoryID)
 	}
 
 	if storeID != nil {
-		query += " AND p.store_id = $" + strconv.Itoa(len(args)+1)
+		cond := " AND p.store_id = $" + strconv.Itoa(len(args)+1)
+		selectQuery += cond
+		countQuery += cond
 		args = append(args, *storeID)
 	}
 
+	// ----- orderBy / limit / offset สำหรับ select เท่านั้น -----
 	orderBy := "p.created_at DESC, p.product_id ASC"
 	switch priceSort {
 	case "asc":
@@ -233,15 +256,22 @@ func (r *repo) ListPublic(
 		orderBy = "p.price DESC, p.product_id ASC"
 	}
 
-	query += " ORDER BY " + orderBy +
+	selectQuery += " ORDER BY " + orderBy +
 		" LIMIT $" + strconv.Itoa(len(args)+1) +
 		" OFFSET $" + strconv.Itoa(len(args)+2)
 
-	args = append(args, limit, offset)
+	argsWithPage := append(append([]any{}, args...), limit, offset)
 
-	rows, err := r.db.Query(ctx, query, args...)
+	// ----- ดึง total count -----
+	var total int64
+	if err := r.db.QueryRow(ctx, countQuery, args...).Scan(&total); err != nil {
+		return nil, 0, apperr.Wrap(apperr.Internal, err, "count public products failed")
+	}
+
+	// ----- ดึง data ตามหน้า -----
+	rows, err := r.db.Query(ctx, selectQuery, argsWithPage...)
 	if err != nil {
-		return nil, apperr.Wrap(apperr.Internal, err, "public list failed")
+		return nil, 0, apperr.Wrap(apperr.Internal, err, "public list failed")
 	}
 	defer rows.Close()
 
@@ -252,12 +282,12 @@ func (r *repo) ListPublic(
 			&p.ID, &p.Name, &p.Description, &p.Price, &p.ImageURL,
 			&p.CreatedAt, &p.UpdatedAt, &p.IsActive, &p.StoreID, &p.CategoryID,
 		); err != nil {
-			return nil, apperr.Wrap(apperr.Internal, err, "scan product failed")
+			return nil, 0, apperr.Wrap(apperr.Internal, err, "scan product failed")
 		}
 		out = append(out, p)
 	}
 
-	return out, nil
+	return out, total, nil
 }
 
 func (r *repo) GetPublic(ctx context.Context, id int64) (Product, error) {
