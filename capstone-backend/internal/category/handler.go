@@ -73,18 +73,18 @@ func parseID(c *gin.Context) (int64, bool) {
 	return id, true
 }
 
-func parseParentIDQuery(c *gin.Context) *int64 {
-	v := strings.TrimSpace(c.Query("parent_id"))
-	if v == "" {
-		return nil
-	}
-	id, err := strconv.ParseInt(v, 10, 64)
-	if err != nil || id <= 0 {
-		// ถ้า parse ไม่ได้ จะถือว่าไม่ใช้ filter parent (ไม่ error ทั้ง request)
-		return nil
-	}
-	return &id
-}
+// func parseParentIDQuery(c *gin.Context) *int64 {
+// 	v := strings.TrimSpace(c.Query("parent_id"))
+// 	if v == "" {
+// 		return nil
+// 	}
+// 	id, err := strconv.ParseInt(v, 10, 64)
+// 	if err != nil || id <= 0 {
+// 		// ถ้า parse ไม่ได้ จะถือว่าไม่ใช้ filter parent (ไม่ error ทั้ง request)
+// 		return nil
+// 	}
+// 	return &id
+// }
 
 func parseBoolQuery(value string, def bool) bool {
 	if value == "" {
@@ -99,6 +99,22 @@ func parseBoolQuery(value string, def bool) bool {
 	default:
 		return def
 	}
+}
+
+func parseParentIDQuery(c *gin.Context) *int64 {
+	val := strings.TrimSpace(c.Query("parent_id"))
+	if val == "" {
+		return nil
+	}
+	if val == "null" {
+		x := int64(0)
+		return &x
+	}
+	id, err := strconv.ParseInt(val, 10, 64)
+	if err != nil {
+		return nil
+	}
+	return &id
 }
 
 // ===== Handlers =====

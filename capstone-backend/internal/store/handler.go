@@ -31,11 +31,11 @@ func (h *Handler) Register(r *gin.RouterGroup) {
 	// ----- Public -----
 	g.GET("", h.listPublic)           // ?q=&page=&limit=
 	g.GET("/:id/public", h.getPublic) // is_active = true
+	g.POST("", h.create)
 
 	// ----- Seller-only -----
 	seller := g.Group("", middleware.RequireRolesAny(h.roleSvc, "Seller"))
 	{
-		seller.POST("", h.create)
 		seller.GET("/me", h.me)
 	}
 

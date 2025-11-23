@@ -34,7 +34,7 @@ type Service interface {
 	Update(ctx context.Context, id int64, in UpdateInput) (Product, error)
 	Delete(ctx context.Context, id int64) error
 
-	ListPublic(ctx context.Context, q string, categoryID *int64, storeID *int64, limit, page int) ([]Product, error)
+	ListPublic(ctx context.Context, q string, categoryIDs []int64, parentCategoryID *int64, storeID *int64, limit, page int, priceSort string) ([]Product, error)
 	GetPublic(ctx context.Context, id int64) (Product, error)
 }
 
@@ -162,6 +162,16 @@ func validateUpdate(in *UpdateInput) error {
 	return nil
 }
 
+func normalizePriceSort(s string) string {
+	s = strings.TrimSpace(strings.ToLower(s))
+	switch s {
+	case "asc", "desc":
+		return s
+	default:
+		return ""
+	}
+}
+
 func (s *service) Create(ctx context.Context, in CreateInput) (Product, error) {
 	if err := validateCreate(&in); err != nil {
 		return Product{}, err
@@ -204,7 +214,7 @@ func (s *service) Delete(ctx context.Context, id int64) error {
 	return s.repo.Delete(ctx, id)
 }
 
-func (s *service) ListPublic(ctx context.Context, q string, categoryID *int64, storeID *int64, limit, page int) ([]Product, error) {
+func (s *service) ListPublic(ctx context.Context, q string, categoryIDs []int64, parentCategoryID *int64, storeID *int64, limit, page int, priceSort string) ([]Product, error) {
 	if limit <= 0 {
 		limit = 20
 	}
@@ -212,7 +222,10 @@ func (s *service) ListPublic(ctx context.Context, q string, categoryID *int64, s
 		page = 1
 	}
 	q = strings.TrimSpace(q)
-	return s.repo.ListPublic(ctx, q, categoryID, storeID, limit, page)
+
+	priceSort = normalizePriceSort(priceSort)
+
+	return s.repo.ListPublic(ctx, q, categoryIDs, parentCategoryID, storeID, limit, page, priceSort)
 }
 
 func (s *service) GetPublic(ctx context.Context, id int64) (Product, error) {
