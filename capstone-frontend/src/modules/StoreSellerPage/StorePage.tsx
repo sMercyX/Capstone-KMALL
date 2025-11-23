@@ -4,10 +4,10 @@ import SwitchTabs, {
   type SwitchTabItem,
 } from "../../components/SwitchTabs/SwitchTabs"
 import StoreInfoTab from "./StoreInfoTab"
-import StoreProductsTab from "./StoreProductsTab"
-import StoreAddProductTab from "./StoreAddProductTab"
 import StoreOrdersTab from "./StoreOrdersTab"
 import StoreSettingsTab from "./StoreSettingTab"
+import { StoreProductsTab } from "./StoreProductsTab"
+import { StoreAddTab } from "./StoreAddTab"
 
 
 type StoreTabKey = "store" | "products" | "add" | "orders" | "settings";
@@ -32,19 +32,22 @@ export default function StorePage() {
   else if (pathname.startsWith("/store/settings")) activeKey = "settings";
   // ถ้าไม่ตรงอะไรเลย (เช่น /store) ก็เป็น "store"
 
+  const activeLabel =
+    tabs.find((t) => t.key === activeKey)?.label || "ร้านค้าของฉัน";
+
   return (
     <div className="max-w-6xl mx-auto py-10">
       
 
       <Card className="space-y-5">
         <SwitchTabs tabs={tabs} />
-        <h1 className="text-center text-3xl font-bold mb-10 text-black">
-          ร้านค้าของฉัน
+        <h1 className="text-center text-3xl font-bold  text-black">
+          {activeLabel}
         </h1>
 
         {activeKey === "store" && <StoreInfoTab />}
         {activeKey === "products" && <StoreProductsTab />}
-        {activeKey === "add" && <StoreAddProductTab />}
+        {activeKey === "add" && <StoreAddTab />}
         {activeKey === "orders" && <StoreOrdersTab />}
         {activeKey === "settings" && <StoreSettingsTab />}
       </Card>
