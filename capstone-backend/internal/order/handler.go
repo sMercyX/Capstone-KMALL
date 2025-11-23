@@ -44,7 +44,6 @@ func (h *Handler) Register(r *gin.RouterGroup) {
 	g := r.Group("/orders")
 
 	{
-		g.POST("", h.createFromCart)
 		g.GET("/:id", h.getOrder)
 		sellerAdmin := g.Group("", middleware.RequireRolesAny(h.roleSvc, "Seller", "Admin"))
 		{
@@ -61,7 +60,7 @@ func (h *Handler) Register(r *gin.RouterGroup) {
 }
 
 // ============================================================================
-// Request DTOs (สำหรับ Handler)
+// Request DTOs
 // ============================================================================
 
 type checkoutConfirmReq struct {
@@ -75,7 +74,7 @@ type statusUpdateReq struct {
 }
 
 // ============================================================================
-// Helper ฟังก์ชัน
+// Helper
 // ============================================================================
 
 func parsePathID(c *gin.Context, name string) (int64, bool) {

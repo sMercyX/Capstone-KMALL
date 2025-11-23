@@ -97,7 +97,7 @@ func (r *repo) CreateOrderWithItems(
 	if err != nil {
 		return OrderWithItems{}, apperr.Wrap(apperr.Internal, err, "begin tx failed")
 	}
-	// ถ้า return ก่อน commit → rollback
+
 	defer func() {
 		if tx != nil {
 			_ = tx.Rollback(ctx)
@@ -139,15 +139,15 @@ func (r *repo) CreateOrderWithItems(
 
 		var oi OrderItem
 		err = scanOrderItem(tx.QueryRow(ctx, `
-			INSERT INTO order_items
-				(quantity, unit_price, fulfillment_type, subtotal,
-				 deposit_amount, promised_ship_date, order_id, product_id)
-			VALUES ($1, $2, $3, $4, $5,
-			        COALESCE($6, DEFAULT),
-			        $7, $8)
-			RETURNING order_item_id, quantity, unit_price, fulfillment_type,
-			          subtotal, deposit_amount, promised_ship_date,
-			          order_id, product_id;
+    	INSERT INTO order_items
+        	(quantity, unit_price, fulfillment_type, subtotal,
+         	deposit_amount, promised_ship_date, order_id, product_id)
+    	VALUES ($1, $2, $3, $4, $5,
+            COALESCE($6, CURRENT_TIMESTAMP),
+            $7, $8)
+    	RETURNING order_item_id, quantity, unit_price, fulfillment_type,
+              subtotal, deposit_amount, promised_ship_date,
+              order_id, product_id;
 		`,
 			it.Quantity,
 			it.UnitPrice,
