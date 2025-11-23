@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react"
 import {
   Filter,
   ChevronDown,
@@ -9,42 +9,41 @@ import {
   ShoppingCart,
   Heart,
   Eye,
-} from "lucide-react";
-import { Link, useParams } from "react-router-dom";
-import { useProductApi, type Product } from "../../api/productApi";
-import { useProductListStore } from "../../stores/catagoriesStore";
-
+} from "lucide-react"
+import { Link, useParams } from "react-router-dom"
+import { useProductApi, type Product } from "../../api/productApi"
+import { useProductListStore } from "../../stores/catagoriesStore"
 
 // ====================== UTIL MAPPING ======================
-type SortKey = "popular" | "price-asc" | "price-desc" | "rating";
+type SortKey = "popular" | "price-asc" | "price-desc" | "rating"
 
 function mapCategory(category?: string) {
-  if (!category) return "food";
+  if (!category) return "food"
   switch (category) {
     case "food":
-      return "food";
+      return "food"
     case "clothe":
     case "clothes":
-      return "clothing";
+      return "clothing"
     case "handmade":
-      return "handmade-products";
+      return "handmade-products"
     default:
-      return "food";
+      return "food"
   }
 }
 
 function mapCategoryId(category?: string) {
   switch (category) {
     case "food":
-      return 1;
+      return 1
     case "clothe":
     case "clothes":
     case "clothing":
-      return 2;
+      return 2
     case "handmade":
-      return 3;
+      return 3
     default:
-      return 1;
+      return 1
   }
 }
 
@@ -55,7 +54,7 @@ function PageHeader({ category }: { category: string }) {
     clothe: "เสื้อผ้า (Clothes)",
     clothes: "เสื้อผ้า (Clothes)",
     handmade: "สินค้าแฮนด์เมด (Handmade Products)",
-  };
+  }
 
   return (
     <header className="text-center space-y-1">
@@ -63,7 +62,7 @@ function PageHeader({ category }: { category: string }) {
         {titleMap[category] || "หมวดหมู่สินค้า"}
       </h1>
     </header>
-  );
+  )
 }
 
 // ====================== TOOLBAR ======================
@@ -72,9 +71,9 @@ function Toolbar({
   sort,
   onChangeSort,
 }: {
-  total: number;
-  sort: SortKey;
-  onChangeSort: (s: SortKey) => void;
+  total: number
+  sort: SortKey
+  onChangeSort: (s: SortKey) => void
 }) {
   return (
     <div className="flex items-center justify-between gap-3">
@@ -101,14 +100,14 @@ function Toolbar({
         </div>
       </div>
     </div>
-  );
+  )
 }
 
 // ====================== RATING STARS ======================
 function RatingStars({ rating }: { rating: number }) {
-  const full = Math.floor(rating);
-  const half = rating - full >= 0.5;
-  const empty = 5 - full - (half ? 1 : 0);
+  const full = Math.floor(rating)
+  const half = rating - full >= 0.5
+  const empty = 5 - full - (half ? 1 : 0)
 
   return (
     <div className="flex items-center gap-0.5 text-amber-500">
@@ -120,7 +119,7 @@ function RatingStars({ rating }: { rating: number }) {
         <Star key={`e-${i}`} className="h-4 w-4" />
       ))}
     </div>
-  );
+  )
 }
 
 // ====================== PRODUCT CARD ======================
@@ -171,25 +170,27 @@ function ProductCard({ product }: { product: Product }) {
         </p>
       </div>
     </div>
-  );
+  )
 }
 
 // ====================== PRODUCT GRID ======================
 function ProductGrid({ items }: { items: Product[] }) {
-  if (!items.length)
+  const safeItems = Array.isArray(items) ? items : [];  // กันพัง
+
+  if (!safeItems.length)
     return (
       <div className="py-10 text-center text-gray-500">
         ยังไม่มีสินค้าในหมวดนี้
       </div>
-    );
+    )
 
   return (
     <div className="grid grid-cols-2 gap-4 md:grid-cols-3 xl:grid-cols-4">
-      {items.map((item) => (
+      {safeItems.map((item) => (
         <ProductCard key={item.id} product={item} />
       ))}
     </div>
-  );
+  )
 }
 
 // ====================== PAGINATION ======================
@@ -198,11 +199,11 @@ function Pagination({
   totalPages,
   onPage,
 }: {
-  page: number;
-  totalPages: number;
-  onPage: (p: number) => void;
+  page: number
+  totalPages: number
+  onPage: (p: number) => void
 }) {
-  const pages = Array.from({ length: totalPages }, (_, i) => i + 1);
+  const pages = Array.from({ length: totalPages }, (_, i) => i + 1)
 
   return (
     <nav className="mt-6 flex items-center justify-center gap-2">
@@ -236,17 +237,17 @@ function Pagination({
         <ChevronRight className="h-4 w-4" />
       </button>
     </nav>
-  );
+  )
 }
 
 // ====================== MAIN PAGE ======================
 export default function CategoryPage() {
-  const { category: routeCategory } = useParams();
+  const { category: routeCategory } = useParams()
 
-  const apiCategory = mapCategory(routeCategory);
-  const apiCategoryId = mapCategoryId(routeCategory);
+  const apiCategory = mapCategory(routeCategory)
+  const apiCategoryId = mapCategoryId(routeCategory)
 
-  const [sort, setSort] = useState<SortKey>("popular");
+  const [sort, setSort] = useState<SortKey>("popular")
 
   const {
     items,
@@ -260,18 +261,17 @@ export default function CategoryPage() {
     setPageData,
     setError,
     reset,
-  } = useProductListStore();
+  } = useProductListStore()
 
-  const { getProductsByCategory } = useProductApi();
+  const { getProductsByCategory } = useProductApi()
 
   // reset เมื่อเปลี่ยนหมวด
   useEffect(() => {
     reset();
     setPageIndex(1);
   }, [apiCategory]);
-
   // fetch BE
-  useEffect(() => {
+   useEffect(() => {
     let cancelled = false;
 
     async function load() {
@@ -298,20 +298,24 @@ export default function CategoryPage() {
 
   // sort FE
   const sortedItems = useMemo(() => {
-    const copy = [...items];
+    const copy = Array.isArray(items) ? [...items] : [] // ✅ กันอีกชั้น
+
     switch (sort) {
       case "price-asc":
-        return copy.sort((a, b) => (a.price ?? 0) - (b.price ?? 0));
+        return copy.sort((a, b) => (a.price ?? 0) - (b.price ?? 0))
       case "price-desc":
-        return copy.sort((a, b) => (b.price ?? 0) - (a.price ?? 0));
+        return copy.sort((a, b) => (b.price ?? 0) - (a.price ?? 0))
       case "rating":
-        return copy; // rating = 4 fixed
+        return copy
       default:
-        return copy; // backend order
+        return copy
     }
-  }, [items, sort]);
+  }, [items, sort])
 
-  const totalPages = Math.max(1, Math.ceil(total / pageSize));
+  const safeTotal = typeof total === "number" ? total : 0
+  const safeSize = typeof pageSize === "number" ? pageSize : 1
+
+  const totalPages = Math.max(1, Math.ceil(safeTotal / safeSize))
 
   return (
     <main className="mx-auto max-w-6xl px-4 py-6 md:py-10">
@@ -343,5 +347,5 @@ export default function CategoryPage() {
         onPage={setPageIndex}
       />
     </main>
-  );
+  )
 }
