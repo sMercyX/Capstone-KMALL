@@ -329,15 +329,38 @@ func (h *Handler) listPublic(c *gin.Context) {
 
 	priceSort := strings.ToLower(strings.TrimSpace(c.Query("price")))
 
-	ps, err := h.svc.ListPublic(c.Request.Context(), q, categoryIDs, parentCategoryID, storeID, limit, page, priceSort)
+	items, total, err := h.svc.ListPublic(
+		c.Request.Context(),
+		q,
+		categoryIDs,
+		parentCategoryID,
+		storeID,
+		limit,
+		page,
+		priceSort,
+	)
 	if err != nil {
 		c.Error(err)
 		return
 	}
-	if ps == nil {
-		ps = []Product{}
+
+	if items == nil {
+		items = []Product{}
 	}
-	respond.OK(c, apperr.OK, ps)
+
+	resp := struct {
+		PageSize  int       `json:"pageSize"`
+		PageIndex int       `json:"pageIndex"`
+		Total     int64     `json:"total"`
+		Items     []Product `json:"items"`
+	}{
+		PageSize:  limit,
+		PageIndex: page,
+		Total:     total,
+		Items:     items,
+	}
+
+	respond.OK(c, apperr.OK, resp)
 }
 
 // 3.2 GET /api/products/:id/public
