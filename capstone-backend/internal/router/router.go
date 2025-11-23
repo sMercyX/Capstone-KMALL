@@ -7,6 +7,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"github.com/Perpasit/Capstone-KMALL/internal/cart"
 	"github.com/Perpasit/Capstone-KMALL/internal/category"
 	"github.com/Perpasit/Capstone-KMALL/internal/config"
 	images "github.com/Perpasit/Capstone-KMALL/internal/image"
@@ -48,6 +49,9 @@ func Attach(r *gin.Engine, db *pgxpool.Pool, cfg config.Config) {
 	pRepo := product.NewRepo(db)
 	pSvc := product.NewService(pRepo)
 
+	cartRepo := cart.NewRepo(db)
+	cartSvc := cart.NewService(cartRepo)
+
 	// API routes (protected)
 	v1 := r.Group("/api",
 		middleware.UpstreamAuth(),
@@ -85,6 +89,10 @@ func Attach(r *gin.Engine, db *pgxpool.Pool, cfg config.Config) {
 	imgSvc := images.NewService(imgRepo)
 	imgHdl := images.NewHandler(imgSvc, sSvc, pSvc, rSvc, uSvc)
 	imgHdl.Register(v1)
+
+	// carts
+	cartHdl := cart.NewHandler(cartSvc, rSvc, uSvc)
+	cartHdl.Register(v1)
 
 	// debug
 	v1.GET("/debug/headers", func(c *gin.Context) {

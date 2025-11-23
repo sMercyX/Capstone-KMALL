@@ -162,34 +162,22 @@ func (r *repo) GetItem(ctx context.Context, id int64) (CartItem, error) {
 }
 
 func (r *repo) CreateItem(ctx context.Context, in CartItemCreateParams) (CartItem, error) {
-	var it CartItem
+	var item CartItem
 	err := r.db.QueryRow(ctx, `
-		INSERT INTO cart_items (cart_id, product_id, quantity)
-		VALUES ($1, $2, $3)
-		RETURNING cart_item_id, cart_id, product_id, quantity;
-	`,
+        INSERT INTO cart_items (cart_id, product_id, quantity)
+        VALUES ($1, $2, $3)
+        ON CONFLICT (cart_id, product_id)
+        DO UPDATE SET
+            quantity = cart_items.quantity + EXCLUDED.quantity
+        RETURNING cart_item_id, cart_id, product_id, quantity;
+    `,
 		in.CartID, in.ProductID, in.Quantity,
-	).Scan(&it.ID, &it.CartID, &it.ProductID, &it.Quantity)
+	).Scan(&item.ID, &item.CartID, &item.ProductID, &item.Quantity)
 
 	if err != nil {
-		if pgErr, ok := err.(*pgconn.PgError); ok {
-			// 23503 = FK violation
-			if pgErr.Code == "23503" {
-				return CartItem{}, apperr.New(apperr.BadRequest, "invalid cart_id or product_id")
-			}
-			return CartItem{}, apperr.WithFields(
-				apperr.Wrap(apperr.Internal, err, "create cart item failed"),
-				map[string]any{
-					"pg_code":    pgErr.Code,
-					"constraint": pgErr.ConstraintName,
-					"detail":     pgErr.Detail,
-				},
-			)
-		}
-		return CartItem{}, apperr.Wrap(apperr.Internal, err, "create cart item failed")
+		return CartItem{}, apperr.Wrap(apperr.Internal, err, "create or update cart item failed")
 	}
-
-	return it, nil
+	return item, nil
 }
 
 func (r *repo) UpdateItem(ctx context.Context, id int64, in CartItemUpdateParams) (CartItem, error) {
