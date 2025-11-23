@@ -54,7 +54,7 @@ func Attach(r *gin.Engine, db *pgxpool.Pool, cfg config.Config) {
 	cartSvc := cart.NewService(cartRepo)
 
 	oRepo := order.NewRepo(db)
-	oSvc := order.NewService(oRepo)
+	oSvc := order.NewService(oRepo, cartSvc, pSvc)
 
 	// API routes (protected)
 	v1 := r.Group("/api",
@@ -99,7 +99,7 @@ func Attach(r *gin.Engine, db *pgxpool.Pool, cfg config.Config) {
 	cartHdl.Register(v1)
 
 	// orders
-	oHdl := order.NewHandler(oSvc, sSvc, pSvc, rSvc, uSvc)
+	oHdl := order.NewHandler(oSvc, rSvc, uSvc, sSvc)
 	oHdl.Register(v1)
 
 	// debug

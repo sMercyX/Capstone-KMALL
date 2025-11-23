@@ -49,3 +49,9 @@ type UpdateOrderStatusInput struct {
 type CancelOrderInput struct {
 	Reason string `json:"reason"`
 }
+
+type CheckoutConfirmInput struct {
+	FulfillmentType  string     `json:"fulfillment_type"` // "STANDARD" / "EXPRESS"
+	PromisedShipDate *time.Time `json:"promised_ship_date,omitempty"`
+	DepositAmount    *float64   `json:"deposit_amount,omitempty"`
+}

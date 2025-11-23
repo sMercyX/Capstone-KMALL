@@ -6,36 +6,15 @@ import (
 	"time"
 
 	apperr "github.com/Perpasit/Capstone-KMALL/internal/apperr"
+	"github.com/Perpasit/Capstone-KMALL/internal/cart"
+	"github.com/Perpasit/Capstone-KMALL/internal/product"
 )
 
 // ============================================================================
-// Domain / Input Types
+// DTO / Input Types
 // ============================================================================
-
-type OrderStatus string
-
-const (
-	StatusPendingSellerConfirmation OrderStatus = "Pending Seller Confirmation"
-	StatusAwaitingBuyerConfirmation OrderStatus = "Awaiting Buyer Confirmation"
-	StatusReadyForPickup            OrderStatus = "Ready for Pickup"
-	StatusReadyForDelivery          OrderStatus = "Ready for Delivery"
-	StatusCompleted                 OrderStatus = "Completed"
-	StatusCancelled                 OrderStatus = "Cancelled"
-)
-
-// ใช้ตอนสร้าง order (มาจาก FE หรือจาก cart ก็ได้)
-type OrderItemCreateInput struct {
-	ProductID        int        `json:"product_id"`
-	Quantity         int        `json:"quantity"`
-	UnitPrice        float64    `json:"unit_price"`
-	FulfillmentType  string     `json:"fulfillment_type"` // STANDARD / EXPRESS
-	DepositAmount    *float64   `json:"deposit_amount"`
-	PromisedShipDate *time.Time `json:"promised_ship_date"`
-}
-
-type OrderCreateInput struct {
-	StoreID int                    `json:"store_id"`
-	Items   []OrderItemCreateInput `json:"items"`
+type OrderStatusUpdateInput struct {
+	Status string `json:"status"`
 }
 
 // ============================================================================
@@ -43,72 +22,57 @@ type OrderCreateInput struct {
 // ============================================================================
 
 type Service interface {
-	Create(ctx context.Context, userID string, in OrderCreateInput) (OrderWithItems, error)
-	GetWithItems(ctx context.Context, id int64) (OrderWithItems, error)
-	UpdateStatus(ctx context.Context, id int64, status OrderStatus) (Order, error)
+	CreateFromCart(ctx context.Context, userID string, in CheckoutConfirmInput) (OrderWithItems, error)
+	GetOrderWithItems(ctx context.Context, id int64) (OrderWithItems, error)
+	UpdateStatus(ctx context.Context, id int64, in OrderStatusUpdateInput) (Order, error)
 	Cancel(ctx context.Context, id int64) (Order, error)
 }
 
 type service struct {
-	repo Repo
+	repo       Repo
+	cartSvc    cart.Service
+	productSvc product.Service
 }
 
-func NewService(r Repo) Service {
-	return &service{repo: r}
+func NewService(r Repo, c cart.Service, p product.Service) Service {
+	return &service{
+		repo:       r,
+		cartSvc:    c,
+		productSvc: p,
+	}
 }
 
 // ============================================================================
 // Validators
 // ============================================================================
 
-func isValidStatus(s OrderStatus) bool {
-	switch s {
-	case StatusPendingSellerConfirmation,
-		StatusAwaitingBuyerConfirmation,
-		StatusReadyForPickup,
-		StatusReadyForDelivery,
-		StatusCompleted,
-		StatusCancelled:
-		return true
-	default:
-		return false
-	}
+var allowedStatuses = map[string]struct{}{
+	"Pending Seller Confirmation": {},
+	"Awaiting Buyer Confirmation": {},
+	"Ready for Pickup":            {},
+	"Ready for Delivery":          {},
+	"Completed":                   {},
+	"Cancelled":                   {},
 }
 
-func validateItemInput(it *OrderItemCreateInput) error {
-	if it.ProductID <= 0 {
-		return apperr.New(apperr.BadRequest, "product_id must be positive")
+func validateStatus(status string) error {
+	status = strings.TrimSpace(status)
+	if status == "" {
+		return apperr.New(apperr.BadRequest, "status is required")
 	}
-	if it.Quantity <= 0 {
-		return apperr.New(apperr.BadRequest, "quantity must be positive")
+	if _, ok := allowedStatuses[status]; !ok {
+		return apperr.New(apperr.BadRequest, "invalid order status")
 	}
-	if it.UnitPrice < 0 {
-		return apperr.New(apperr.BadRequest, "unit_price must be non-negative")
-	}
-
-	ft := strings.ToUpper(strings.TrimSpace(it.FulfillmentType))
-	if ft == "" {
-		ft = "STANDARD"
-	}
-	if ft != "STANDARD" && ft != "EXPRESS" {
-		return apperr.New(apperr.BadRequest, "fulfillment_type must be STANDARD or EXPRESS")
-	}
-	it.FulfillmentType = ft
-
 	return nil
 }
 
-func validateCreateInput(in *OrderCreateInput) error {
-	if in.StoreID <= 0 {
-		return apperr.New(apperr.BadRequest, "store_id must be positive")
+func validateCheckoutInput(in *CheckoutConfirmInput) error {
+	in.FulfillmentType = strings.ToUpper(strings.TrimSpace(in.FulfillmentType))
+	if in.FulfillmentType == "" {
+		in.FulfillmentType = "STANDARD"
 	}
-	if len(in.Items) == 0 {
-		return apperr.New(apperr.BadRequest, "items must not be empty")
-	}
-	for i := range in.Items {
-		if err := validateItemInput(&in.Items[i]); err != nil {
-			return err
-		}
+	if in.FulfillmentType != "STANDARD" && in.FulfillmentType != "EXPRESS" {
+		return apperr.New(apperr.BadRequest, "fulfillment_type must be STANDARD or EXPRESS")
 	}
 	return nil
 }
@@ -117,53 +81,86 @@ func validateCreateInput(in *OrderCreateInput) error {
 // Service Methods
 // ============================================================================
 
-func (s *service) Create(ctx context.Context, userID string, in OrderCreateInput) (OrderWithItems, error) {
-	if strings.TrimSpace(userID) == "" {
+// CreateFromCart แปลง cart ของ user → order + order_items
+func (s *service) CreateFromCart(ctx context.Context, userID string, in CheckoutConfirmInput) (OrderWithItems, error) {
+	if userID == "" {
 		return OrderWithItems{}, apperr.New(apperr.BadRequest, "invalid user_id")
 	}
-	if err := validateCreateInput(&in); err != nil {
+	if err := validateCheckoutInput(&in); err != nil {
 		return OrderWithItems{}, err
 	}
-
-	// คำนวณ subtotal/total_price
-	var total float64
-	paramsItems := make([]OrderItemCreateParams, 0, len(in.Items))
-
-	for _, it := range in.Items {
-		subtotal := it.UnitPrice * float64(it.Quantity)
-		total += subtotal
-
-		var promised time.Time
-		if it.PromisedShipDate != nil {
-			promised = *it.PromisedShipDate
-		}
-
-		paramsItems = append(paramsItems, OrderItemCreateParams{
-			Quantity:         it.Quantity,
-			UnitPrice:        it.UnitPrice,
-			FulfillmentType:  it.FulfillmentType,
-			Subtotal:         subtotal,
-			DepositAmount:    it.DepositAmount,
-			PromisedShipDate: promised,
-			ProductID:        it.ProductID,
-		})
-	}
-
-	orderParams := OrderCreateParams{
-		Status:     string(StatusPendingSellerConfirmation),
-		TotalPrice: total,
-		UserID:     userID,
-		StoreID:    in.StoreID,
-	}
-
-	ow, err := s.repo.CreateOrderWithItems(ctx, orderParams, paramsItems)
+	cw, err := s.cartSvc.GetCart(ctx, userID)
 	if err != nil {
 		return OrderWithItems{}, err
 	}
+	if len(cw.Items) == 0 {
+		return OrderWithItems{}, apperr.New(apperr.BadRequest, "cart is empty")
+	}
+
+	var (
+		storeID    int
+		totalPrice float64
+		items      []OrderItemCreateParams
+	)
+
+	for i, ci := range cw.Items {
+		if ci.Quantity <= 0 {
+			return OrderWithItems{}, apperr.New(apperr.BadRequest, "cart item quantity must be positive")
+		}
+
+		p, err := s.productSvc.Get(ctx, int64(ci.ProductID))
+		if err != nil {
+			return OrderWithItems{}, err
+		}
+
+		if i == 0 {
+			storeID = p.StoreID
+		} else if p.StoreID != storeID {
+			return OrderWithItems{}, apperr.New(apperr.BadRequest, "cart contains items from multiple stores")
+		}
+
+		unit := p.Price
+		sub := unit * float64(ci.Quantity)
+		totalPrice += sub
+
+		promised := time.Time{}
+		if in.PromisedShipDate != nil {
+			promised = *in.PromisedShipDate
+		}
+
+		items = append(items, OrderItemCreateParams{
+			Quantity:         ci.Quantity,
+			UnitPrice:        unit,
+			FulfillmentType:  in.FulfillmentType,
+			Subtotal:         sub,
+			DepositAmount:    in.DepositAmount,
+			PromisedShipDate: promised,
+			ProductID:        ci.ProductID,
+		})
+	}
+
+	params := OrderCreateParams{
+		Status:     "Pending Seller Confirmation",
+		TotalPrice: totalPrice,
+		UserID:     userID,
+		StoreID:    storeID,
+	}
+
+	ow, err := s.repo.CreateOrderWithItems(ctx, params, items)
+	if err != nil {
+		return OrderWithItems{}, err
+	}
+
+	for _, ci := range cw.Items {
+		if err := s.cartSvc.DeleteItem(ctx, userID, int64(ci.ID)); err != nil {
+			return ow, apperr.Wrap(apperr.Internal, err, "order created but failed to clear cart")
+		}
+	}
+
 	return ow, nil
 }
 
-func (s *service) GetWithItems(ctx context.Context, id int64) (OrderWithItems, error) {
+func (s *service) GetOrderWithItems(ctx context.Context, id int64) (OrderWithItems, error) {
 	if id <= 0 {
 		return OrderWithItems{}, apperr.New(apperr.BadRequest, "invalid order_id")
 	}
@@ -184,15 +181,15 @@ func (s *service) GetWithItems(ctx context.Context, id int64) (OrderWithItems, e
 	}, nil
 }
 
-func (s *service) UpdateStatus(ctx context.Context, id int64, status OrderStatus) (Order, error) {
+func (s *service) UpdateStatus(ctx context.Context, id int64, in OrderStatusUpdateInput) (Order, error) {
 	if id <= 0 {
 		return Order{}, apperr.New(apperr.BadRequest, "invalid order_id")
 	}
-	if !isValidStatus(status) {
-		return Order{}, apperr.New(apperr.BadRequest, "invalid status")
+	if err := validateStatus(in.Status); err != nil {
+		return Order{}, err
 	}
 
-	ord, err := s.repo.UpdateOrderStatus(ctx, id, string(status))
+	ord, err := s.repo.UpdateOrderStatus(ctx, id, in.Status)
 	if err != nil {
 		return Order{}, err
 	}
@@ -203,6 +200,7 @@ func (s *service) Cancel(ctx context.Context, id int64) (Order, error) {
 	if id <= 0 {
 		return Order{}, apperr.New(apperr.BadRequest, "invalid order_id")
 	}
+
 	ord, err := s.repo.CancelOrder(ctx, id)
 	if err != nil {
 		return Order{}, err
