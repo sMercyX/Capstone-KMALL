@@ -12,6 +12,7 @@ import (
 	"github.com/Perpasit/Capstone-KMALL/internal/config"
 	images "github.com/Perpasit/Capstone-KMALL/internal/image"
 	"github.com/Perpasit/Capstone-KMALL/internal/middleware"
+	"github.com/Perpasit/Capstone-KMALL/internal/order"
 	"github.com/Perpasit/Capstone-KMALL/internal/product"
 	"github.com/Perpasit/Capstone-KMALL/internal/respond"
 	"github.com/Perpasit/Capstone-KMALL/internal/role"
@@ -51,6 +52,9 @@ func Attach(r *gin.Engine, db *pgxpool.Pool, cfg config.Config) {
 
 	cartRepo := cart.NewRepo(db)
 	cartSvc := cart.NewService(cartRepo)
+
+	oRepo := order.NewRepo(db)
+	oSvc := order.NewService(oRepo)
 
 	// API routes (protected)
 	v1 := r.Group("/api",
@@ -93,6 +97,10 @@ func Attach(r *gin.Engine, db *pgxpool.Pool, cfg config.Config) {
 	// carts
 	cartHdl := cart.NewHandler(cartSvc, rSvc, uSvc)
 	cartHdl.Register(v1)
+
+	// orders
+	oHdl := order.NewHandler(oSvc, sSvc, pSvc, rSvc, uSvc)
+	oHdl.Register(v1)
 
 	// debug
 	v1.GET("/debug/headers", func(c *gin.Context) {
