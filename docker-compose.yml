@@ -12,6 +12,7 @@ services:
     restart: unless-stopped
     ports:
       - "8000:8000"
+      - "8080:8000"   
       - "8001:8001"
     environment:
       KONG_DATABASE: "off"
@@ -26,9 +27,10 @@ services:
     volumes:
       - ./kong/kong.yml:/kong/declarative/kong.yml:ro
     depends_on:
-      - oauth2-proxy   
-      - backend 
+      - oauth2-proxy
+      - backend
     networks: [capstone_net]
+
 
   redis:
     image: redis:7-alpine
@@ -85,8 +87,6 @@ services:
       - POSTGRES_DSN=postgres://postgres:postgres%2F25@database:5432/kmall_db?sslmode=disable
     expose:
     - "8080"
-    ports:
-    - "8080:8080" 
     depends_on:
       database:
         condition: service_started
@@ -100,7 +100,8 @@ services:
       - ./capstone-frontend/.env
 
     ports:
-      - "5173:80"
+      - "80:80"
+      - "5173:80" 
 
     volumes:
       - ./capstone-frontend:/app    # sync code ระหว่าง host <-> container

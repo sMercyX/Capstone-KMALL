@@ -1,4 +1,4 @@
-import { useParams } from "react-router-dom";
+// import { useParams } from "react-router-dom";
 import { Star, Share2, UserPlus } from "lucide-react";
 
 // ===== Types =====
@@ -213,7 +213,7 @@ function StoreProductGrid({ products }: { products: StoreProduct[] }) {
 
 // ===== Main Page =====
 export default function StorePage() {
-  const { storeId } = useParams(); // เอาไปใช้เรียก API จริงได้ภายหลัง
+  // const { storeId } = useParams(); // เอาไปใช้เรียก API จริงได้ภายหลัง
 
   const store = MOCK_STORE; // TODO: เรียกจาก backend ด้วย storeId
   const products = MOCK_PRODUCTS;

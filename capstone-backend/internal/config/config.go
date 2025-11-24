@@ -62,7 +62,7 @@ func Load() Config {
 		port = "8080"
 	}
 
-	trustUpstream := getBool("TRUST_UPSTREAM_AUTH", false) // true = prod, false = dev
+	trustUpstream := getBool("TRUST_UPSTREAM_AUTH", true) // true = prod, false = dev
 
 	cfg := Config{
 		Port:              port,

@@ -35,6 +35,8 @@ services:
           origins:
             - http://localhost:5173
             - http://localhost
+            - http://cp25ssa2.sit.kmutt.ac.th
+            - https://bscit.sit.kmutt.ac.th
           methods:
             - GET
             - POST
