@@ -14,7 +14,7 @@ const LandingPage = lazy(() => import("../modules/LandingPage/LandingPage"))
 const CategoryPage = lazy(() => import("../modules/CategoryPage/CategoryPage"))
 const StoreView = lazy(() => import("../modules/StoreView/StorePage"))
 const CartPage = lazy(() => import("../modules/CartPage/CartPage"))
-
+const CheckoutPage = lazy(() => import("../modules/CheckoutPage/CheckoutPage"))
 
 export default function AppRoutes() {
   return (
@@ -30,6 +30,8 @@ export default function AppRoutes() {
             <Route path="/dashboard2" element={<Dashboard />} />
             <Route path="/store/:id" element={<StoreView />} />
             <Route path="/cart" element={<CartPage />} />
+            <Route path="/checkout" element={<CheckoutPage />} />
+
           </>
           {/* privateRoutes */}
           <>
