@@ -293,6 +293,7 @@ export function StoreAddTab() {
               <option value={1}>อาหารและเครื่องดื่ม</option>
               <option value={2}>เสื้อผ้า</option>
               <option value={3}>สินค้าแฮนด์เมด</option>
+              <option value={4}>สินค้าแฮนด์เมด</option>
             </select>
           </div>
 

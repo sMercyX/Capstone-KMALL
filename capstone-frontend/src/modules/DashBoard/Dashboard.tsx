@@ -2,7 +2,7 @@ import { useMemo } from "react"
 import { ChevronRight } from "lucide-react"
 import { Link } from "react-router-dom"
 import SectionCard from "../../components/Card/SectionCard"
-
+import CategoriesCard from "../../components/Card/CatagoriesCard"
 
 // import { ReactComponent as HamburgerIcon } from "../../assets/hamburger.svg"
 type Product = {
@@ -11,18 +11,6 @@ type Product = {
   image: string
   badge?: number
 }
-
-type Category = {
-  id: string
-  name: string
-  image: string
-}
-
-const categories: Category[] = [
-  { id: "food", name: "อาหาร", image: "/assets/cat-food.png" },
-  { id: "shirt", name: "เสื้อผ้า", image: "/assets/cat-shirt.png" },
-  { id: "gadget", name: "สินค้านวัตกรรม", image: "/assets/cat-gadget.png" },
-]
 
 const bestSellers: Product[] = [
   { id: "p1", name: "นมชมพูสตรอว์เบอร์รี", image: "/assets/p1.png", badge: 1 },
@@ -44,20 +32,20 @@ const recommended: Product[] = [
 
 // —————————— UI atoms ——————————
 
-function CategoryCard({ item }: { item: Category }) {
-  return (
-    <button className="group w-full max-w-[160px] rounded-2xl border border-orange-200 bg-white shadow-[0_8px_20px_rgba(255,102,0,0.15)] px-5 py-4 text-center hover:-translate-y-0.5 transition">
-      <div className="mx-auto h-16 w-16 rounded-full bg-orange-50 grid place-items-center overflow-hidden">
-        <img
-          src={item.image}
-          alt={item.name}
-          className="h-12 w-12 object-contain"
-        />
-      </div>
-      <div className="mt-3 font-medium text-gray-800">{item.name}</div>
-    </button>
-  )
-}
+// function CategoryCard({ item }: { item: Category }) {
+//   return (
+//     <button className="group w-full max-w-[160px] rounded-2xl border border-orange-200 bg-white shadow-[0_8px_20px_rgba(255,102,0,0.15)] px-5 py-4 text-center hover:-translate-y-0.5 transition">
+//       <div className="mx-auto h-16 w-16 rounded-full bg-orange-50 grid place-items-center overflow-hidden">
+//         <img
+//           src={item.image}
+//           alt={item.name}
+//           className="h-12 w-12 object-contain"
+//         />
+//       </div>
+//       <div className="mt-3 font-medium text-gray-800">{item.name}</div>
+//     </button>
+//   )
+// }
 
 function ProductCard({ item }: { item: Product }) {
   return (
@@ -90,6 +78,7 @@ function ProductCard({ item }: { item: Product }) {
 export default function Dashboard() {
   // แทนด้วยค่าจาก AuthContext ได้ เช่น const { user } = useAuth()
   const userName = useMemo(() => "NITCHAN", [])
+
   return (
     <div className="space-y-8">
       {/* Banner */}
@@ -125,11 +114,7 @@ export default function Dashboard() {
           KMALL - <span className="text-orange-600">KMUTT Marketplace</span>
         </h2>
 
-        <div className="mt-5 flex flex-wrap items-stretch justify-center gap-4">
-          {categories.map((c) => (
-            <CategoryCard key={c.id} item={c} />
-          ))}
-        </div>
+        <CategoriesCard />
       </div>
 
       {/* Best sellers */}

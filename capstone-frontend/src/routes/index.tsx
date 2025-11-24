@@ -39,7 +39,7 @@ export default function AppRoutes() {
               }
             />
             <Route
-              path="/category/:category"
+              path="/categories/:category"
               element={
                 <ProtectedRoute>
                   {/* <AllowedCategoryRoute> */}
