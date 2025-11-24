@@ -61,8 +61,8 @@ func (h *Handler) Register(r *gin.RouterGroup) {
 	}
 
 	// ===== Seller Order Management (ตามร้าน) =====
-	// /api/stores/:storeID/orders
-	sg := r.Group("/stores/:storeID", middleware.RequireRolesAny(h.roleSvc, "Seller", "Admin"))
+	// /api/stores/:id/orders
+	sg := r.Group("/stores/:id", middleware.RequireRolesAny(h.roleSvc, "Seller", "Admin"))
 	{
 		sg.GET("/orders", h.listStoreOrders)
 	}
@@ -361,7 +361,7 @@ func (h *Handler) listStoreOrders(c *gin.Context) {
 		return
 	}
 
-	storeID, ok := parsePathID(c, "storeID")
+	storeID, ok := parsePathID(c, "id")
 	if !ok {
 		return
 	}

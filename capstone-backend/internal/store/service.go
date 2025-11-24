@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	apperr "github.com/Perpasit/Capstone-KMALL/internal/apperr"
+	"github.com/Perpasit/Capstone-KMALL/internal/user"
 )
 
 // ===== Service DTO =====
@@ -14,8 +15,7 @@ type CreateInput struct {
 	Name        string  `json:"name"`
 	Description *string `json:"description,omitempty"`
 	ProfileURL  *string `json:"profile_url,omitempty"`
-	// ว่าง/ไม่ได้ส่ง -> default "YES"
-	IsActive string `json:"is_active,omitempty"` // "YES" | "NO"
+	IsActive    string  `json:"is_active,omitempty"` // "YES" | "NO"
 }
 
 type UpdateInput struct {
@@ -37,10 +37,16 @@ type Service interface {
 }
 
 type service struct {
-	repo Repo
+	repo    Repo
+	userSvc user.Service
 }
 
-func NewService(r Repo) Service { return &service{repo: r} }
+func NewService(r Repo, us user.Service) Service {
+	return &service{
+		repo:    r,
+		userSvc: us,
+	}
+}
 
 // ===== Helpers =====
 
@@ -142,14 +148,23 @@ func (s *service) Create(ctx context.Context, userID string, in CreateInput) (St
 		return Store{}, err
 	}
 
-	// กันซ้ำเชิงแอป (ซ้ำกับ UNIQUE/เช็คใน repo เพื่อ error message ที่ชัดเจน)
+	// ตรวจสอบซ้ำว่ามีร้านแล้วหรือไม่
 	if _, err := s.repo.GetByUserID(ctx, userID); err == nil {
 		return Store{}, apperr.New(apperr.Conflict, "user already owns a store")
 	} else if apperr.From(err).Code != apperr.NotFound {
 		return Store{}, apperr.Wrap(apperr.Internal, err, "check existing store failed")
 	}
 
-	return s.repo.Create(ctx, userID, CreateParams(in))
+	st, err := s.repo.Create(ctx, userID, CreateParams(in))
+	if err != nil {
+		return Store{}, err
+	}
+
+	if err := s.userSvc.AddRoles(ctx, userID, []string{"Seller"}); err != nil {
+		return Store{}, apperr.Wrap(apperr.Internal, err, "store created but failed to assign Seller role")
+	}
+
+	return st, nil
 }
 
 func (s *service) Get(ctx context.Context, id int64) (Store, error) {
