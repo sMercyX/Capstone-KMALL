@@ -1,9 +1,23 @@
 import { useState } from "react"
-import { Link } from "react-router-dom"
-import { ShoppingCart, User, ChevronDown } from "lucide-react"
+import { Link, useLocation } from "react-router-dom"
+import { ShoppingCart, User, ChevronDown, Image, Check } from "lucide-react"
+import { useUserStore } from "../../stores/userStore"
 
 export default function Navbar() {
   const [isOpen, setIsOpen] = useState(false)
+  const [theme, setTheme] = useState<"dark" | "light">("dark")
+
+  const location = useLocation()
+  const isStoreActive = location.pathname.startsWith("/store")
+  const isCartActive = location.pathname.startsWith("/orders")
+
+  const { name, email, roles } = useUserStore()
+
+  // เช็คว่ามี role seller ไหม (case-insensitive)
+  const hasSellerRole = roles?.some((r) => r.toLowerCase() === "seller")
+
+  // ถ้ามี seller → ไป /store/me, ถ้าไม่มี → ไป /store/register
+  const storeLink = hasSellerRole ? "/store/me" : "/store/register"
 
   return (
     <header className="sticky top-4 z-50 w-full bg-[--color-primary]">
@@ -13,11 +27,7 @@ export default function Navbar() {
           <Link to="/" className="text-2xl font-bold text-orange-600">
             KMALL
           </Link>
-          <img
-            src="/kmutt-logo.png" // ✅ ใส่โลโก้ KMUTT ของคุณใน public/
-            alt="KMUTT"
-            className="h-8 w-8"
-          />
+          <img src="/kmutt-logo.png" alt="KMUTT" className="h-8 w-8" />
         </div>
 
         {/* ==== CENTER: Search bar ==== */}
@@ -45,35 +55,116 @@ export default function Navbar() {
           <div className="relative">
             <button
               className="flex items-center gap-1 rounded-full border border-gray-300 px-3 py-1 hover:bg-gray-100"
-              onClick={() => setIsOpen(!isOpen)}
+              onClick={() => setIsOpen((prev) => !prev)}
             >
               <User className="h-5 w-5 text-gray-700" />
               <ChevronDown className="h-4 w-4 text-gray-500" />
             </button>
 
             {isOpen && (
-              <div className="absolute right-0 mt-2 w-40 bg-white border border-gray-200 rounded-md shadow-md z-10">
-                <Link
-                  to="/profile"
-                  className="block px-4 py-2 text-sm hover:bg-gray-50"
-                  onClick={() => setIsOpen(false)}
-                >
-                  Profile
-                </Link>
-                <Link
-                  to="/orders"
-                  className="block px-4 py-2 text-sm hover:bg-gray-50"
-                  onClick={() => setIsOpen(false)}
-                >
-                  My Orders
-                </Link>
-                <hr />
-                <button
-                  onClick={() => setIsOpen(false)}
-                  className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-gray-50"
-                >
-                  Logout
-                </button>
+              <div className="absolute right-0 mt-3 w-80 rounded-3xl bg-white shadow-xl border border-violet-200 p-5 z-50">
+                {/* Profile Header */}
+                <div className="flex gap-4">
+                  <div className="h-16 w-16 rounded-full bg-gray-200" />
+                  <div className="flex-1">
+                    <p className="text-sm font-semibold text-gray-900">
+                      {name}
+                    </p>
+                    <p className="text-xs text-gray-500">{email}</p>
+
+                    {/* Theme Toggle */}
+                    <div className="mt-3 inline-flex rounded-full bg-gray-100 p-1 text-xs">
+                      <button
+                        className={`px-3 py-1 rounded-full ${
+                          theme === "dark"
+                            ? "bg-gray-900 text-white shadow"
+                            : "text-gray-600"
+                        }`}
+                        onClick={() => setTheme("dark")}
+                      >
+                        Dark
+                      </button>
+                      <button
+                        className={`px-3 py-1 rounded-full ${
+                          theme === "light"
+                            ? "bg-white text-gray-800 shadow"
+                            : "text-gray-500"
+                        }`}
+                        onClick={() => setTheme("light")}
+                      >
+                        Light
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Menu Card */}
+                <div className="mt-4 rounded-2xl border border-gray-200 bg-gray-50 px-3 py-2 space-y-1">
+                  {/* ร้านค้าของฉัน / เปิดร้าน (ตาม role) */}
+                  <Link
+                    to={storeLink}
+                    className={`flex w-full items-center justify-between gap-2 rounded-xl px-2 py-2 text-sm
+                    ${
+                      isStoreActive
+                        ? "bg-white text-black font-medium"
+                        : "text-gray-500 hover:bg-white"
+                    }
+                  `}
+                    onClick={() => setIsOpen(false)}
+                  >
+                    <div className="flex items-center gap-2 ">
+                      <span className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-gray-100">
+                        <Image className="h-4 w-4 text-gray-400" />
+                      </span>
+                      {/* ถ้าอยากเปลี่ยนข้อความตาม role ก็ทำแบบนี้ได้ */}
+                      <span>
+                        {hasSellerRole ? "ร้านค้าของฉัน" : "เปิดร้านค้าของฉัน"}
+                      </span>
+                    </div>
+
+                    {isStoreActive && (
+                      <Check className="h-4 w-4 text-orange-500" />
+                    )}
+                  </Link>
+
+                  {/* การซื้อของฉัน */}
+                  <Link
+                    to="/orders"
+                    className={`flex w-full items-center justify-between gap-2 rounded-xl px-2 py-2 text-sm
+                    ${
+                      isCartActive
+                        ? "bg-white text-black font-medium"
+                        : "text-gray-500 hover:bg-white"
+                    }
+                  `}
+                    onClick={() => setIsOpen(false)}
+                  >
+                    <div className="flex items-center gap-2 ">
+                      <span className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-gray-100">
+                        <Image className="h-4 w-4 text-gray-400" />
+                      </span>
+                      การซื้อของฉัน
+                    </div>
+
+                    {isCartActive && (
+                      <Check className="h-4 w-4 text-orange-500" />
+                    )}
+                  </Link>
+
+                  {/* ออกจากระบบ */}
+                  <button
+                    className="flex w-full items-center gap-2 rounded-xl px-2 py-2 text-sm text-gray-500 hover:bg-white"
+                    onClick={() => {
+                      setIsOpen(false)
+                      // TODO: ใส่ logic logout จริง เช่น useAuth().logout()
+                    }}
+                  >
+                    <span className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-gray-100">
+                      <Image className="h-4 w-4 text-gray-400" />
+                    </span>
+                    <span>ออกจากระบบ</span>
+                  </button>
+                </div>
               </div>
             )}
           </div>

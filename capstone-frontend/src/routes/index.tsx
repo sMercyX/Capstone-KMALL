@@ -4,7 +4,7 @@ import MainLayout from "../components/Layout/MainLayout"
 import LoadingSpinner from "../components/LoaingSpinner/LoadingSpinner"
 import ProductPage from "../modules/ProductPage/ProductPage"
 import ProtectedRoute from "../components/ProtectedRoute/ProtectedRoute"
-import AllowedCategoryRoute from "../modules/CategoryPage/AllowedCategoryRoute"
+// import AllowedCategoryRoute from "../modules/CategoryPage/AllowedCategoryRoute"
 
 // function NotFound() {
 //   return <div style={{ padding: 24 }}>404 — Page not found</div>
@@ -12,7 +12,8 @@ import AllowedCategoryRoute from "../modules/CategoryPage/AllowedCategoryRoute"
 const Dashboard = lazy(() => import("../modules/DashBoard/Dashboard"))
 const LandingPage = lazy(() => import("../modules/LandingPage/LandingPage"))
 const CategoryPage = lazy(() => import("../modules/CategoryPage/CategoryPage"))
-const StoreView = lazy(() => import("../modules/StoreView/StorePage"))
+const StorePage = lazy(() => import("../modules/StoreSellerPage/StorePage"))
+const StoreRegisterPage = lazy(() => import("../modules/StoreRegisterPage/StoreRegisterPage"))
 
 export default function AppRoutes() {
   return (
@@ -26,7 +27,6 @@ export default function AppRoutes() {
           {/* publicRoutes */}
           <>
             <Route path="/dashboard2" element={<Dashboard />} />
-            <Route path="/store/:id" element={<StoreView />} />
           </>
           {/* privateRoutes */}
           <>
@@ -42,9 +42,9 @@ export default function AppRoutes() {
               path="/category/:category"
               element={
                 <ProtectedRoute>
-                  <AllowedCategoryRoute>
-                    <CategoryPage />
-                  </AllowedCategoryRoute>
+                  {/* <AllowedCategoryRoute> */}
+                  <CategoryPage />
+                  {/* </AllowedCategoryRoute> */}
                 </ProtectedRoute>
               }
             />
@@ -53,6 +53,55 @@ export default function AppRoutes() {
               element={
                 <ProtectedRoute>
                   <ProductPage />
+                </ProtectedRoute>
+              }
+            />
+
+            <Route
+              path="/store/register"
+              element={
+                <ProtectedRoute>
+                  <StoreRegisterPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/store/me"
+              element={
+                <ProtectedRoute>
+                  <StorePage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/store/products"
+              element={
+                <ProtectedRoute>
+                  <StorePage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/store/add"
+              element={
+                <ProtectedRoute>
+                  <StorePage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/store/orders"
+              element={
+                <ProtectedRoute>
+                  <StorePage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/store/settings"
+              element={
+                <ProtectedRoute>
+                  <StorePage />
                 </ProtectedRoute>
               }
             />

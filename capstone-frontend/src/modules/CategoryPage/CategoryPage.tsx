@@ -1,142 +1,114 @@
-import { useMemo, useState } from "react";
-import { Filter, ChevronDown, ChevronLeft, ChevronRight, Star, StarHalf, ShoppingCart, Heart, Eye } from "lucide-react";
-import { Link, useParams } from "react-router-dom";
+import { useEffect, useMemo, useState } from "react"
+import {
+  Filter,
+  ChevronDown,
+  ChevronLeft,
+  ChevronRight,
+  Star,
+  StarHalf,
+  ShoppingCart,
+  Heart,
+  Eye,
+} from "lucide-react"
+import { Link, useParams } from "react-router-dom"
+import { useProductApi, type Product } from "../../api/productApi"
+import { useProductListStore } from "../../stores/catagoriesStore"
 
-// ===== Types =====
-type Product = {
-  id: string;
-  name: string;
-  shop: string;
-  price: number;
-  rating: number;
-  ratingCount: number;
-  image: string;
-  badge?: string;
-  category: string;
-};
+// ====================== UTIL MAPPING ======================
+type SortKey = "popular" | "price-asc" | "price-desc" | "rating"
 
-// ===== Mock Data =====
-const PRODUCTS: Product[] = [
-  // --- Food & Drinks ---
-  {
-    id: "p1",
-    name: "ข้าวคลุกน้ำพริกกะปิ",
-    shop: "Twenty Yum",
-    price: 50,
-    rating: 4.2,
-    ratingCount: 4231,
-    image: "https://images.unsplash.com/photo-1544025162-d76694265947?q=80&w=1200&auto=format&fit=crop",
-    badge: "โปรโมชั่น",
-    category: "food",
-  },
-  {
-    id: "p2",
-    name: "ชาเขียวปั่น",
-    shop: "Kami",
-    price: 65,
-    rating: 4.1,
-    ratingCount: 751,
-    image: "https://images.unsplash.com/photo-1541167760496-1628856ab772?q=80&w=1200&auto=format&fit=crop",
-    badge: "สินค้ามาใหม่",
-    category: "food",
-  },
+function mapCategory(category?: string) {
+  if (!category) return "food"
+  switch (category) {
+    case "food":
+      return "food"
+    case "clothe":
+    case "clothes":
+      return "clothing"
+    case "handmade":
+      return "handmade-products"
+    default:
+      return "food"
+  }
+}
 
-  // --- clothe ---
-  {
-    id: "c1",
-    name: "เสื้อยืดลายมอเตอร์ไซค์",
-    shop: "StreetStyle",
-    price: 199,
-    rating: 4.5,
-    ratingCount: 912,
-    image: "https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?q=80&w=1200&auto=format&fit=crop",
-    category: "clothe",
-  },
-  {
-    id: "c2",
-    name: "กางเกงยีนส์",
-    shop: "UrbanDenim",
-    price: 499,
-    rating: 4.3,
-    ratingCount: 221,
-    image: "https://images.unsplash.com/photo-1593032465171-cf66f818d9d3?q=80&w=1200&auto=format&fit=crop",
-    category: "clothe",
-  },
+function mapCategoryId(category?: string) {
+  switch (category) {
+    case "food":
+      return 1
+    case "clothe":
+    case "clothes":
+    case "clothing":
+      return 2
+    case "handmade":
+      return 3
+    default:
+      return 1
+  }
+}
 
-  // --- Handmade ---
-  {
-    id: "h1",
-    name: "กระเป๋าสานแฮนด์เมด",
-    shop: "Craft Studio",
-    price: 350,
-    rating: 4.8,
-    ratingCount: 84,
-    image: "https://images.unsplash.com/photo-1582738412294-d4e6d2b1a2d6?q=80&w=1200&auto=format&fit=crop",
-    category: "handmade",
-  },
-  {
-    id: "h2",
-    name: "พวงกุญแจไม้แกะสลัก",
-    shop: "Local Art",
-    price: 129,
-    rating: 4.6,
-    ratingCount: 40,
-    image: "https://images.unsplash.com/photo-1609521318535-678e9c5a6c9f?q=80&w=1200&auto=format&fit=crop",
-    category: "handmade",
-  },
-];
-
-// ===== Utilities =====
-// const baht = (n: number) => `${n.toLocaleString()} บาท`;
-
-type SortKey = "popular" | "price-asc" | "price-desc" | "rating";
-
-// ===== Components =====
+// ====================== HEADER ======================
 function PageHeader({ category }: { category: string }) {
   const titleMap: Record<string, string> = {
     food: "อาหารและเครื่องดื่ม (Food & Drinks)",
-    clothe: "เสื้อผ้า (clothe)",
+    clothe: "เสื้อผ้า (Clothes)",
+    clothes: "เสื้อผ้า (Clothes)",
     handmade: "สินค้าแฮนด์เมด (Handmade Products)",
-  };
+  }
+
   return (
     <header className="text-center space-y-1">
       <h1 className="text-3xl md:text-4xl font-extrabold tracking-tight">
         {titleMap[category] || "หมวดหมู่สินค้า"}
       </h1>
     </header>
-  );
+  )
 }
 
-function Toolbar({ total, sort, onChangeSort }: { total: number; sort: SortKey; onChangeSort: (s: SortKey) => void }) {
+// ====================== TOOLBAR ======================
+function Toolbar({
+  total,
+  sort,
+  onChangeSort,
+}: {
+  total: number
+  sort: SortKey
+  onChangeSort: (s: SortKey) => void
+}) {
   return (
     <div className="flex items-center justify-between gap-3">
       <p className="text-sm text-gray-600">Showing all {total} results</p>
+
       <div className="flex items-center gap-2">
         <button className="inline-flex items-center gap-2 rounded-xl border px-3 py-2 text-sm hover:bg-gray-50">
           <Filter className="h-4 w-4" /> Filter
         </button>
+
         <div className="relative">
           <select
             value={sort}
             onChange={(e) => onChangeSort(e.target.value as SortKey)}
-            className="appearance-none rounded-xl border bg-white px-3 py-2 text-sm pr-8 hover:bg-gray-50"
+            className="appearance-none rounded-xl border bg-white px-3 py-2 pr-8 text-sm hover:bg-gray-50"
           >
             <option value="popular">Sort by: Popular</option>
-            <option value="price-asc">Price: Low to High</option>
-            <option value="price-desc">Price: High to Low</option>
+            <option value="price-asc">Price: Low → High</option>
+            <option value="price-desc">Price: High → Low</option>
             <option value="rating">Rating</option>
           </select>
+
           <ChevronDown className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-500" />
         </div>
       </div>
     </div>
-  );
+  )
 }
 
+// ====================== RATING STARS ======================
 function RatingStars({ rating }: { rating: number }) {
-  const full = Math.floor(rating);
-  const half = rating - full >= 0.5;
-  const empty = 5 - full - (half ? 1 : 0);
+  const full = Math.floor(rating)
+  const half = rating - full >= 0.5
+  const empty = 5 - full - (half ? 1 : 0)
+
   return (
     <div className="flex items-center gap-0.5 text-amber-500">
       {Array.from({ length: full }).map((_, i) => (
@@ -147,142 +119,244 @@ function RatingStars({ rating }: { rating: number }) {
         <Star key={`e-${i}`} className="h-4 w-4" />
       ))}
     </div>
-  );
+  )
 }
 
-// function Badge({ children }: { children: string }) {
-//   return <span className="absolute left-2 top-2 rounded-md bg-white/90 px-2 py-0.5 text-[10px] font-medium shadow-sm ring-1 ring-black/5">{children}</span>;
-// }
-
+// ====================== PRODUCT CARD ======================
 function ProductCard({ product }: { product: Product }) {
+  const imageSrc =
+    product.image_url || "https://via.placeholder.com/300?text=KMALL+Product"
+
   return (
     <div className="group relative overflow-hidden rounded-2xl border bg-white shadow-sm hover:shadow-xl transition">
-      {/* IMAGE */}
-      <div className="relative aspect-[4/3] w-full overflow-hidden">
+      <div className="relative aspect-[4/3] overflow-hidden">
         <img
-          src={product.image}
+          src={imageSrc}
           alt={product.name}
           className="h-full w-full object-cover transition duration-300 group-hover:scale-[1.04]"
         />
 
-        {/* Dark overlay */}
-        <div className="absolute inset-0 bg-black/40 opacity-0 transition-opacity duration-300 group-hover:opacity-100" />
+        <div className="absolute inset-0 bg-black/40 opacity-0 transition duration-300 group-hover:opacity-100" />
 
-        {/* Action Buttons */}
-        <div className="absolute inset-0 flex items-center justify-center opacity-0 translate-y-4 transition-all duration-300 group-hover:opacity-100 group-hover:translate-y-0 gap-3">
-          {/* Favorite */}
-          <button className="h-12 w-12 rounded-full bg-white shadow-md flex items-center justify-center hover:scale-110 transition">
+        <div className="absolute inset-0 flex items-center justify-center gap-3 opacity-0 translate-y-4 transition duration-300 group-hover:opacity-100 group-hover:translate-y-0">
+          <button className="h-12 w-12 rounded-full bg-white shadow flex items-center justify-center hover:scale-110 transition">
             <Heart className="h-5 w-5 text-gray-700" />
           </button>
 
-          {/* Add to cart */}
-          <button className="h-12 w-12 rounded-full bg-white shadow-md flex items-center justify-center hover:scale-110 transition">
+          <button className="h-12 w-12 rounded-full bg-white shadow flex items-center justify-center hover:scale-110 transition">
             <ShoppingCart className="h-5 w-5 text-gray-700" />
           </button>
 
-          {/* View (link to product) */}
+          {/* ตอนนี้ BE ยังไม่มี slug ใช้ id ไปก่อน */}
           <Link
             to={`/product/${product.id}`}
-            className="h-12 w-12 rounded-full bg-orange-500 shadow-md flex items-center justify-center hover:scale-110 transition"
+            className="h-12 w-12 rounded-full bg-orange-500 shadow flex items-center justify-center hover:scale-110 transition"
           >
             <Eye className="h-5 w-5 text-white" />
           </Link>
         </div>
       </div>
 
-      {/* PRODUCT INFO */}
-      <div className="space-y-2 px-3 pb-3 pt-2">
+      <div className="px-3 pb-3 pt-2 space-y-2">
         <div className="flex items-center gap-2">
-          <RatingStars rating={product.rating} />
-          <span className="text-xs text-gray-500">
-            ({product.ratingCount.toLocaleString()})
-          </span>
+          {/* ⭐ fixed rating ไว้ก่อน */}
+          <RatingStars rating={4} />
+          <span className="text-xs text-gray-500">(120)</span>
         </div>
 
-        <h3 className="line-clamp-1 text-sm font-semibold">{product.name}</h3>
-        <p className="text-xs text-gray-500 line-clamp-1">{product.shop}</p>
+        <h3 className="text-sm font-semibold line-clamp-1">{product.name}</h3>
+
+        {/* BE ยังไม่มีชื่อร้าน ใช้ข้อความ fix */}
+        <p className="text-xs text-gray-500 line-clamp-1">ร้านค้าทั่วไป</p>
+
         <p className="pt-1 font-semibold text-rose-600">
-          {product.price} บาท
+          {product.price ? `${product.price} บาท` : "—"}
         </p>
       </div>
     </div>
-  );
+  )
 }
 
-function ProductGrid({ products }: { products: Product[] }) {
+// ====================== PRODUCT GRID ======================
+function ProductGrid({ items }: { items: Product[] }) {
+  const safeItems = Array.isArray(items) ? items : []
+
+  if (!safeItems.length)
+    return (
+      <div className="py-10 text-center text-gray-500">
+        ยังไม่มีสินค้าในหมวดนี้
+      </div>
+    )
+
   return (
     <div className="grid grid-cols-2 gap-4 md:grid-cols-3 xl:grid-cols-4">
-      {products.map((p) => (
-        <ProductCard key={p.id} product={p} />
+      {safeItems.map((item) => (
+        <ProductCard key={item.id} product={item} />
       ))}
     </div>
-  );
+  )
 }
 
-function Pagination({ page, totalPages, onPage }: { page: number; totalPages: number; onPage: (p: number) => void }) {
-  const pages = Array.from({ length: totalPages }, (_, i) => i + 1);
+// ====================== PAGINATION ======================
+function Pagination({
+  page,
+  totalPages,
+  onPage,
+}: {
+  page: number
+  totalPages: number
+  onPage: (p: number) => void
+}) {
+  const pages = Array.from({ length: totalPages }, (_, i) => i + 1)
+
   return (
     <nav className="mt-6 flex items-center justify-center gap-2">
-      <button onClick={() => onPage(Math.max(1, page - 1))} className="inline-flex h-9 w-9 items-center justify-center rounded-full border hover:bg-gray-50 disabled:opacity-50" disabled={page === 1}>
+      <button
+        disabled={page === 1}
+        onClick={() => onPage(page - 1)}
+        className="h-9 w-9 rounded-full border flex items-center justify-center hover:bg-gray-50 disabled:opacity-50"
+      >
         <ChevronLeft className="h-4 w-4" />
       </button>
+
       {pages.map((p) => (
         <button
           key={p}
           onClick={() => onPage(p)}
-          className={`h-9 w-9 rounded-full text-sm font-medium transition ${p === page ? "bg-gray-900 text-white shadow" : "border hover:bg-gray-50"}`}
+          className={`h-9 w-9 rounded-full text-sm ${
+            p === page
+              ? "bg-gray-900 text-white shadow"
+              : "border hover:bg-gray-50"
+          }`}
         >
           {p}
         </button>
       ))}
-      <button onClick={() => onPage(Math.min(totalPages, page + 1))} className="inline-flex h-9 w-9 items-center justify-center rounded-full border hover:bg-gray-50 disabled:opacity-50" disabled={page === totalPages}>
+
+      <button
+        disabled={page === totalPages}
+        onClick={() => onPage(page + 1)}
+        className="h-9 w-9 rounded-full border flex items-center justify-center hover:bg-gray-50 disabled:opacity-50"
+      >
         <ChevronRight className="h-4 w-4" />
       </button>
     </nav>
-  );
+  )
 }
 
-// ===== Default Export =====
+// ====================== MAIN PAGE ======================
 export default function CategoryPage() {
-  const { category } = useParams(); // path: /category/:category
-  const [page, setPage] = useState(1);
-  const [sort, setSort] = useState<SortKey>("popular");
+  const { category: routeCategory } = useParams()
 
-  const filtered = PRODUCTS.filter((p) => p.category === category);
-  const pageSize = 12;
+  const apiCategory = mapCategory(routeCategory)
+  const apiCategoryId = mapCategoryId(routeCategory)
 
-  const sorted = useMemo(() => {
-    const copy = [...filtered];
+  const [sort, setSort] = useState<SortKey>("popular")
+  const [hasRequested, setHasRequested] = useState(false)
+
+  const {
+    items,
+    pageIndex,
+    pageSize,
+    total,
+    isLoading,
+    error,
+    setPageIndex,
+    startLoading,
+    setPageData,
+    setError,
+    reset,
+  } = useProductListStore()
+
+  // ใช้ getProductsByParentId แล้ว
+  const { getProductsByParentId } = useProductApi()
+
+  // reset เมื่อเปลี่ยนหมวด + reset flag ปุ่ม
+  useEffect(() => {
+    reset()
+    setPageIndex(1)
+    setHasRequested(false)
+  }, [apiCategory, reset, setPageIndex])
+
+  // ดึงข้อมูลเมื่อกดปุ่ม
+  async function handleFetch() {
+    try {
+      setHasRequested(true)
+      startLoading()
+
+      const res = await getProductsByParentId(apiCategoryId, pageSize, pageIndex)
+      setPageData(res.data)
+    } catch (err) {
+      setError("โหลดสินค้าล้มเหลว")
+    }
+  }
+
+  // sort ฝั่ง FE
+  const sortedItems = useMemo(() => {
+    const copy = Array.isArray(items) ? [...items] : []
+
     switch (sort) {
       case "price-asc":
-        copy.sort((a, b) => a.price - b.price);
-        break;
+        return copy.sort((a, b) => (a.price ?? 0) - (b.price ?? 0))
       case "price-desc":
-        copy.sort((a, b) => b.price - a.price);
-        break;
+        return copy.sort((a, b) => (b.price ?? 0) - (a.price ?? 0))
       case "rating":
-        copy.sort((a, b) => b.rating - a.rating);
-        break;
+        // ตอนนี้ rating fix ไว้ ยังไม่มี field จาก BE
+        return copy
       default:
-        copy.sort((a, b) => b.ratingCount - a.ratingCount);
+        return copy
     }
-    return copy;
-  }, [filtered, sort]);
+  }, [items, sort])
 
-  const totalPages = Math.max(1, Math.ceil(sorted.length / pageSize));
-  const start = (page - 1) * pageSize;
-  const visible = sorted.slice(start, start + pageSize);
+  const safeTotal = typeof total === "number" ? total : 0
+  const safeSize = typeof pageSize === "number" ? pageSize : 1
+  const totalPages = Math.max(1, Math.ceil(safeTotal / safeSize))
 
   return (
     <main className="mx-auto max-w-6xl px-4 py-6 md:py-10">
-      <PageHeader category={category || "food"} />
+      <PageHeader category={routeCategory || "food"} />
+
       <div className="mt-6">
-        <Toolbar total={filtered.length} sort={sort} onChangeSort={setSort} />
+        <Toolbar
+          total={safeTotal || sortedItems.length}
+          sort={sort}
+          onChangeSort={setSort}
+        />
       </div>
-      <div className="mt-4 md:mt-6">
-        <ProductGrid products={visible} />
+
+      <div className="mt-6">
+        {/* ถ้ายังไม่เคยกดโหลดเลย */}
+        {!hasRequested ? (
+          <div className="py-10 text-center">
+            <p className="mb-4 text-gray-500">
+              ยังไม่ได้โหลดสินค้าในหมวดนี้
+            </p>
+            <button
+              onClick={handleFetch}
+              className="inline-flex items-center gap-2 rounded-xl bg-gray-900 px-5 py-2.5 text-sm font-medium text-white hover:bg-gray-800"
+            >
+              โหลดสินค้าจากหมวดนี้
+            </button>
+          </div>
+        ) : isLoading ? (
+          <div className="py-10 text-center text-gray-500">
+            กำลังโหลดสินค้า...
+          </div>
+        ) : error ? (
+          <div className="py-10 text-center text-red-500">{error}</div>
+        ) : (
+          <ProductGrid items={sortedItems} />
+        )}
       </div>
-      <Pagination page={page} totalPages={totalPages} onPage={setPage} />
+
+      {/* แสดง pagination เฉพาะตอนโหลดแล้วและมีของ */}
+      {hasRequested && sortedItems.length > 0 && (
+        <Pagination
+          page={pageIndex}
+          totalPages={totalPages}
+          onPage={setPageIndex}
+        />
+      )}
     </main>
-  );
+  )
 }
