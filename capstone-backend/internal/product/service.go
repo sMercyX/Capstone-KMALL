@@ -30,7 +30,7 @@ type UpdateInput struct {
 type Service interface {
 	Create(ctx context.Context, in CreateInput) (Product, error)
 	Get(ctx context.Context, id int64) (Product, error)
-	ListByStoreID(ctx context.Context, storeID int64) ([]Product, error)
+	ListByStoreID(ctx context.Context, storeID int64, limit, page int) ([]Product, int64, error)
 	Update(ctx context.Context, id int64, in UpdateInput) (Product, error)
 	Delete(ctx context.Context, id int64) error
 
@@ -195,11 +195,23 @@ func (s *service) Get(ctx context.Context, id int64) (Product, error) {
 	return s.repo.Get(ctx, id)
 }
 
-func (s *service) ListByStoreID(ctx context.Context, storeID int64) ([]Product, error) {
+func (s *service) ListByStoreID(
+	ctx context.Context,
+	storeID int64,
+	limit, page int,
+) ([]Product, int64, error) {
 	if storeID <= 0 {
-		return nil, apperr.New(apperr.BadRequest, "invalid store_id")
+		return nil, 0, apperr.New(apperr.BadRequest, "invalid store_id")
 	}
-	return s.repo.ListByStoreID(ctx, storeID)
+
+	if limit <= 0 {
+		limit = 20
+	}
+	if page <= 0 {
+		page = 1
+	}
+
+	return s.repo.ListByStoreID(ctx, storeID, limit, page)
 }
 
 func (s *service) Update(ctx context.Context, id int64, in UpdateInput) (Product, error) {

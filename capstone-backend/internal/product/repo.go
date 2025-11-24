@@ -16,7 +16,7 @@ import (
 type Repo interface {
 	Create(ctx context.Context, in CreateParams) (Product, error)
 	Get(ctx context.Context, id int64) (Product, error)
-	ListByStoreID(ctx context.Context, storeID int64) ([]Product, error)
+	ListByStoreID(ctx context.Context, storeID int64, limit, page int) ([]Product, int64, error)
 	Update(ctx context.Context, id int64, in UpdateParams) (Product, error)
 	Delete(ctx context.Context, id int64) error
 
@@ -106,17 +106,41 @@ func (r *repo) Get(ctx context.Context, id int64) (Product, error) {
 	return p, nil
 }
 
-func (r *repo) ListByStoreID(ctx context.Context, storeID int64) ([]Product, error) {
+func (r *repo) ListByStoreID(
+	ctx context.Context,
+	storeID int64,
+	limit, page int,
+) ([]Product, int64, error) {
+	if limit <= 0 {
+		limit = 20
+	}
+	if page <= 0 {
+		page = 1
+	}
+	offset := (page - 1) * limit
+
+	// ===== ดึง total count ก่อน =====
+	var total int64
+	if err := r.db.QueryRow(ctx, `
+        SELECT COUNT(*)
+        FROM products
+        WHERE store_id = $1
+    `, storeID).Scan(&total); err != nil {
+		return nil, 0, apperr.Wrap(apperr.Internal, err, "count products by store failed")
+	}
+
+	// ===== ดึงรายการตาม page =====
 	rows, err := r.db.Query(ctx, `
-		SELECT product_id, name, product_desc, price, image_url,
-		       created_at, updated_at, is_active, store_id, category_id
-		FROM products
-		WHERE store_id = $1
-		ORDER BY created_at DESC;
-	`, storeID)
+        SELECT product_id, name, product_desc, price, image_url,
+               created_at, updated_at, is_active, store_id, category_id
+        FROM products
+        WHERE store_id = $1
+        ORDER BY created_at DESC
+        LIMIT $2 OFFSET $3;
+    `, storeID, limit, offset)
 
 	if err != nil {
-		return nil, apperr.Wrap(apperr.Internal, err, "list products by store failed")
+		return nil, 0, apperr.Wrap(apperr.Internal, err, "list products by store failed")
 	}
 	defer rows.Close()
 
@@ -127,11 +151,12 @@ func (r *repo) ListByStoreID(ctx context.Context, storeID int64) ([]Product, err
 			&p.ID, &p.Name, &p.Description, &p.Price, &p.ImageURL,
 			&p.CreatedAt, &p.UpdatedAt, &p.IsActive, &p.StoreID, &p.CategoryID,
 		); err != nil {
-			return nil, apperr.Wrap(apperr.Internal, err, "scan product failed")
+			return nil, 0, apperr.Wrap(apperr.Internal, err, "scan product failed")
 		}
 		out = append(out, p)
 	}
-	return out, nil
+
+	return out, total, nil
 }
 
 func (r *repo) Update(ctx context.Context, id int64, in UpdateParams) (Product, error) {
