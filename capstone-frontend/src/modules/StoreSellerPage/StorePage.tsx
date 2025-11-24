@@ -6,7 +6,7 @@ import SwitchTabs, {
 import StoreInfoTab from "./StoreInfoTab/StoreInfoTab"
 import StoreOrdersTab from "./StoreOrdersTab"
 import StoreSettingsTab from "./StoreSettingTab"
-import { StoreAddTab } from "./StoreAddTab"
+import { StoreAddTab } from "./StoreAddTab/StoreAddTab"
 import StoreProductsTab from "./StoreProductsTab/StoreProductsTab"
 
 type StoreTabKey = "store" | "products" | "add" | "orders" | "settings"

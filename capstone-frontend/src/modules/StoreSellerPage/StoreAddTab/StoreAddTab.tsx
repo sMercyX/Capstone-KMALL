@@ -1,94 +1,151 @@
-import { useRef, useState } from "react";
+// src/pages/Store/StoreAddTab/StoreAddTab.tsx
+import { useRef, useState } from "react"
 import {
   ImagePlus,
   ChevronLeft,
   ChevronRight,
   Trash2,
-} from "lucide-react";
+} from "lucide-react"
 
-type ImageSlot = string;
+import { useProductApi, type AddProductRequest } from "../../../api/productApi"
+import { useStoreStore } from "../../../stores/storeStore"
+
+type ImageSlot = string
 
 export function StoreAddTab() {
-  const [images, setImages] = useState<ImageSlot[]>([]);
-  const [mainIndex, setMainIndex] = useState(0);
-  const fileInputRef = useRef<HTMLInputElement | null>(null);
-  const thumbsRef = useRef<HTMLDivElement | null>(null);
+  const [images, setImages] = useState<ImageSlot[]>([])
+  const [mainIndex, setMainIndex] = useState(0)
+  const fileInputRef = useRef<HTMLInputElement | null>(null)
+  const thumbsRef = useRef<HTMLDivElement | null>(null)
 
+  const [name, setName] = useState("")
+  const [description, setDescription] = useState("")
+  const [price, setPrice] = useState<string>("")
+  const [categoryId, setCategoryId] = useState<number>(1) // 1=food
+
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  const { addProduct } = useProductApi()
+  const { store } = useStoreStore() // ต้องมี store.id จาก /api/stores/me
+
+  // ---------- image handlers (เหมือนเดิม) ----------
   const handleClickAddImages = () => {
-    fileInputRef.current?.click();
-  };
+    fileInputRef.current?.click()
+  }
 
   const handleFilesChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files;
-    if (!files || files.length === 0) return;
+    const files = e.target.files
+    if (!files || files.length === 0) return
 
     const newUrls = Array.from(files).map((file) =>
       URL.createObjectURL(file)
-    );
+    )
 
     setImages((prev) => {
-      const next = [...prev, ...newUrls];
-      // ถ้าเพิ่งมีรูปครั้งแรก ให้ index 0 เป็นรูปใหญ่
+      const next = [...prev, ...newUrls]
       if (prev.length === 0 && next.length > 0) {
-        setMainIndex(0);
+        setMainIndex(0)
       }
-      return next;
-    });
+      return next
+    })
 
-    e.target.value = "";
-  };
+    e.target.value = ""
+  }
 
-  // คลิกที่รูปเล็ก (ตรงกลาง) เพื่อขอเปลี่ยนเป็นรูปใหญ่
   const handleSelectMain = (index: number) => {
-    if (index === mainIndex) return;
+    if (index === mainIndex) return
+    const ok = window.confirm("คุณต้องการนำภาพนี้เป็นรูปใหญ่ใช่หรือไม่?")
+    if (!ok) return
+    setMainIndex(index)
+  }
 
-    const ok = window.confirm(
-      "คุณต้องการนำภาพนี้เป็นรูปใหญ่ใช่หรือไม่?"
-    );
-    if (!ok) return;
-
-    setMainIndex(index);
-  };
-
-  // ลบรูป (มีปุ่มถังขยะ)
   const handleDeleteImage = (index: number) => {
-    const ok = window.confirm("คุณต้องการลบรูปภาพนี้ใช่หรือไม่?");
-    if (!ok) return;
+    const ok = window.confirm("คุณต้องการลบรูปภาพนี้ใช่หรือไม่?")
+    if (!ok) return
 
     setImages((prev) => {
-      const next = prev.filter((_, i) => i !== index);
+      const next = prev.filter((_, i) => i !== index)
 
       if (next.length === 0) {
-        setMainIndex(0);
-        return next;
+        setMainIndex(0)
+        return next
       }
 
       if (index === mainIndex) {
-        // ถ้าลบรูปใหญ่ ให้ตั้งรูปแรกที่เหลือเป็นรูปใหญ่
-        setMainIndex(0);
+        setMainIndex(0)
       } else if (index < mainIndex) {
-        // ถ้าลบรูปทางซ้ายของรูปใหญ่ ลด mainIndex ลง 1
-        setMainIndex((prevMain) => prevMain - 1);
+        setMainIndex((prevMain) => prevMain - 1)
       }
 
-      return next;
-    });
-  };
+      return next
+    })
+  }
 
   const scrollThumbs = (direction: "left" | "right") => {
-    const el = thumbsRef.current;
-    if (!el) return;
-    const amount = direction === "left" ? -120 : 120;
-    el.scrollBy({ left: amount, behavior: "smooth" });
-  };
+    const el = thumbsRef.current
+    if (!el) return
+    const amount = direction === "left" ? -120 : 120
+    el.scrollBy({ left: amount, behavior: "smooth" })
+  }
 
-  const mainImage = images[mainIndex];
+  const mainImage = images[mainIndex]
+
+  // ---------- submit product ----------
+  const handleSave = async () => {
+    setError(null)
+
+    if (!store?.id) {
+      setError("ไม่พบร้านของคุณ กรุณารีเฟรชหน้า")
+      return
+    }
+
+    if (!name.trim()) {
+      setError("กรุณากรอกชื่อสินค้า")
+      return
+    }
+
+    const priceNumber = Number(price)
+    if (Number.isNaN(priceNumber) || priceNumber <= 0) {
+      setError("กรุณากรอกราคาให้ถูกต้อง")
+      return
+    }
+
+    try {
+      setIsSubmitting(true)
+
+      const payload: AddProductRequest = {
+        name,
+        description,
+        price: priceNumber,
+        image_url: "", // ✅ ตอนนี้ยังไม่ทำอัปโหลดรูป ส่งค่าว่างไปก่อน
+        is_active: "YES",
+        store_id: store.id,
+        category_id: categoryId,
+      }
+
+      const res = await addProduct(payload)
+      console.log("PRODUCT CREATED:", res)
+
+      // reset ฟอร์มง่าย ๆ
+      setName("")
+      setDescription("")
+      setPrice("")
+      setImages([])
+      setMainIndex(0)
+      alert("เพิ่มสินค้าเรียบร้อยแล้ว")
+    } catch (err) {
+      console.error(err)
+      setError("เพิ่มสินค้าไม่สำเร็จ กรุณาลองใหม่อีกครั้ง")
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
 
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
       {/* ===== LEFT: IMAGES ===== */}
       <div>
-        {/* รูปใหญ่ */}
         <div className="w-full aspect-square rounded-2xl bg-[#f8f8f8] border border-gray-200 flex items-center justify-center overflow-hidden">
           {mainImage ? (
             <img
@@ -103,7 +160,6 @@ export function StoreAddTab() {
           )}
         </div>
 
-        {/* รูปเล็ก + arrows */}
         <div className="mt-5 flex items-center gap-3">
           <button
             type="button"
@@ -117,7 +173,6 @@ export function StoreAddTab() {
             ref={thumbsRef}
             className="flex gap-4 overflow-x-auto scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-transparent"
           >
-            {/* ถ้ายังไม่มีรูปเลย แสดง placeholder 3 ช่อง */}
             {images.length === 0 &&
               [0, 1, 2].map((i) => (
                 <div
@@ -129,11 +184,7 @@ export function StoreAddTab() {
               ))}
 
             {images.map((img, index) => {
-              // ✅ ไม่แสดงรูปที่เป็น main ใน thumbnail
-              if (index === mainIndex) return null;
-
-              const isMain = index === mainIndex;
-
+              if (index === mainIndex) return null
               return (
                 <div
                   key={index}
@@ -146,24 +197,18 @@ export function StoreAddTab() {
                     className="w-full h-full object-cover"
                   />
 
-                  {/* ปุ่มถังขยะมุมขวาบน */}
                   <button
                     type="button"
                     onClick={(e) => {
-                      e.stopPropagation();
-                      handleDeleteImage(index);
+                      e.stopPropagation()
+                      handleDeleteImage(index)
                     }}
                     className="absolute -top-2 -right-2 w-7 h-7 rounded-full bg-white border border-gray-300 flex items-center justify-center shadow-sm hover:bg-red-50"
                   >
                     <Trash2 className="w-3.5 h-3.5 text-gray-600" />
                   </button>
-
-                  {/* กรอบบาง ๆ ถ้าเป็นรูปใหญ่ (จริง ๆ จะไม่เห็นเพราะเราไม่โชว์ main อยู่แล้ว แต่เผื่อปรับดีไซน์ทีหลัง) */}
-                  {isMain && (
-                    <div className="absolute inset-0 border-2 border-orange-500 pointer-events-none" />
-                  )}
                 </div>
-              );
+              )
             })}
           </div>
 
@@ -176,7 +221,6 @@ export function StoreAddTab() {
           </button>
         </div>
 
-        {/* ปุ่มเพิ่มรูป */}
         <button
           type="button"
           onClick={handleClickAddImages}
@@ -196,7 +240,7 @@ export function StoreAddTab() {
         />
       </div>
 
-      {/* ===== RIGHT: FORM (เหมือนเดิม) ===== */}
+      {/* ===== RIGHT: FORM ===== */}
       <div className="flex flex-col justify-between">
         <div className="space-y-5">
           <div>
@@ -206,6 +250,8 @@ export function StoreAddTab() {
             <input
               type="text"
               placeholder="Product Name"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
               className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400"
             />
           </div>
@@ -216,6 +262,8 @@ export function StoreAddTab() {
             </label>
             <textarea
               placeholder="Product Description"
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
               className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm h-28 resize-none focus:outline-none focus:ring-2 focus:ring-orange-400"
             />
           </div>
@@ -227,20 +275,43 @@ export function StoreAddTab() {
             <input
               type="number"
               placeholder="Price"
+              value={price}
+              onChange={(e) => setPrice(e.target.value)}
               className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400"
             />
           </div>
+
+          <div>
+            <label className="block mb-1 text-sm font-semibold text-gray-800">
+              หมวดหมู่
+            </label>
+            <select
+              value={categoryId}
+              onChange={(e) => setCategoryId(Number(e.target.value))}
+              className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400"
+            >
+              <option value={1}>อาหารและเครื่องดื่ม</option>
+              <option value={2}>เสื้อผ้า</option>
+              <option value={3}>สินค้าแฮนด์เมด</option>
+            </select>
+          </div>
+
+          {error && (
+            <p className="text-sm text-red-500 pt-1">{error}</p>
+          )}
         </div>
 
         <div className="mt-8 flex justify-end">
           <button
             type="button"
-            className="px-8 py-3 rounded-xl bg-orange-500 text-white text-sm font-semibold shadow-md hover:bg-orange-600"
+            onClick={handleSave}
+            disabled={isSubmitting}
+            className="px-8 py-3 rounded-xl bg-orange-500 text-white text-sm font-semibold shadow-md hover:bg-orange-600 disabled:opacity-60"
           >
-            บันทึก
+            {isSubmitting ? "กำลังบันทึก..." : "บันทึก"}
           </button>
         </div>
       </div>
     </div>
-  );
+  )
 }
