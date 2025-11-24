@@ -81,13 +81,51 @@ func (h *Handler) getCart(c *gin.Context) {
 		return
 	}
 
-	cart, err := h.svc.GetCart(c.Request.Context(), userID)
+	cw, err := h.svc.GetCart(c.Request.Context(), userID)
 	if err != nil {
 		c.Error(err)
 		return
 	}
 
-	respond.OK(c, apperr.OK, cart)
+	// ===== อ่าน query สำหรับ pagination =====
+	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "20"))
+	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
+
+	if limit <= 0 {
+		limit = 20
+	}
+	if page <= 0 {
+		page = 1
+	}
+
+	total := len(cw.Items)
+	offset := (page - 1) * limit
+	if offset > total {
+		offset = total
+	}
+	end := offset + limit
+	if end > total {
+		end = total
+	}
+
+	itemsPage := cw.Items[offset:end]
+
+	// ===== รูปแบบ response ให้เหมือน listPublic =====
+	resp := struct {
+		Cart      Cart       `json:"cart"`
+		PageSize  int        `json:"pageSize"`
+		PageIndex int        `json:"pageIndex"`
+		Total     int64      `json:"total"`
+		Items     []CartItem `json:"items"`
+	}{
+		Cart:      cw.Cart,
+		PageSize:  limit,
+		PageIndex: page,
+		Total:     int64(total),
+		Items:     itemsPage,
+	}
+
+	respond.OK(c, apperr.OK, resp)
 }
 
 // ============================================================================
