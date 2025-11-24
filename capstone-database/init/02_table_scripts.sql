@@ -156,7 +156,8 @@ CREATE TABLE IF NOT EXISTS cart_items (
   CONSTRAINT fk_cart_items_products1 FOREIGN KEY (product_id)
     REFERENCES products (product_id)
     ON DELETE NO ACTION
-    ON UPDATE NO ACTION
+    ON UPDATE NO ACTION,
+    CONSTRAINT uq_cart_items_cart_product UNIQUE (cart_id, product_id)
 );
 
 -- ========= STORE_IMAGES =========

@@ -22,6 +22,10 @@ type Repo interface {
 	CreateItem(ctx context.Context, in CartItemCreateParams) (CartItem, error)
 	UpdateItem(ctx context.Context, id int64, in CartItemUpdateParams) (CartItem, error)
 	DeleteItem(ctx context.Context, id int64) error
+
+	ClearItemsByCartID(ctx context.Context, cartID int64) error
+	GetCartStoreID(ctx context.Context, cartID int64) (*int, error)
+	GetProductStoreID(ctx context.Context, productID int) (int, error)
 }
 
 type repo struct {
@@ -162,34 +166,22 @@ func (r *repo) GetItem(ctx context.Context, id int64) (CartItem, error) {
 }
 
 func (r *repo) CreateItem(ctx context.Context, in CartItemCreateParams) (CartItem, error) {
-	var it CartItem
+	var item CartItem
 	err := r.db.QueryRow(ctx, `
-		INSERT INTO cart_items (cart_id, product_id, quantity)
-		VALUES ($1, $2, $3)
-		RETURNING cart_item_id, cart_id, product_id, quantity;
-	`,
+        INSERT INTO cart_items (cart_id, product_id, quantity)
+        VALUES ($1, $2, $3)
+        ON CONFLICT (cart_id, product_id)
+        DO UPDATE SET
+            quantity = cart_items.quantity + EXCLUDED.quantity
+        RETURNING cart_item_id, cart_id, product_id, quantity;
+    `,
 		in.CartID, in.ProductID, in.Quantity,
-	).Scan(&it.ID, &it.CartID, &it.ProductID, &it.Quantity)
+	).Scan(&item.ID, &item.CartID, &item.ProductID, &item.Quantity)
 
 	if err != nil {
-		if pgErr, ok := err.(*pgconn.PgError); ok {
-			// 23503 = FK violation
-			if pgErr.Code == "23503" {
-				return CartItem{}, apperr.New(apperr.BadRequest, "invalid cart_id or product_id")
-			}
-			return CartItem{}, apperr.WithFields(
-				apperr.Wrap(apperr.Internal, err, "create cart item failed"),
-				map[string]any{
-					"pg_code":    pgErr.Code,
-					"constraint": pgErr.ConstraintName,
-					"detail":     pgErr.Detail,
-				},
-			)
-		}
-		return CartItem{}, apperr.Wrap(apperr.Internal, err, "create cart item failed")
+		return CartItem{}, apperr.Wrap(apperr.Internal, err, "create or update cart item failed")
 	}
-
-	return it, nil
+	return item, nil
 }
 
 func (r *repo) UpdateItem(ctx context.Context, id int64, in CartItemUpdateParams) (CartItem, error) {
@@ -233,6 +225,54 @@ func (r *repo) DeleteItem(ctx context.Context, id int64) error {
 	}
 	if cmd.RowsAffected() == 0 {
 		return apperr.New(apperr.NotFound, "cart item not found")
+	}
+	return nil
+}
+
+func (r *repo) GetCartStoreID(ctx context.Context, cartID int64) (*int, error) {
+	var storeID int
+	err := r.db.QueryRow(ctx, `
+        SELECT p.store_id
+        FROM cart_items ci
+        JOIN products p ON ci.product_id = p.product_id
+        WHERE ci.cart_id = $1
+        ORDER BY ci.cart_item_id ASC
+        LIMIT 1;
+    `, cartID).Scan(&storeID)
+
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, nil
+		}
+		return nil, apperr.Wrap(apperr.Internal, err, "get cart store_id failed")
+	}
+	return &storeID, nil
+}
+
+func (r *repo) GetProductStoreID(ctx context.Context, productID int) (int, error) {
+	var storeID int
+	err := r.db.QueryRow(ctx, `
+        SELECT store_id
+        FROM products
+        WHERE product_id = $1;
+    `, productID).Scan(&storeID)
+
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return 0, apperr.New(apperr.NotFound, "product not found")
+		}
+		return 0, apperr.Wrap(apperr.Internal, err, "get product store_id failed")
+	}
+	return storeID, nil
+}
+
+func (r *repo) ClearItemsByCartID(ctx context.Context, cartID int64) error {
+	_, err := r.db.Exec(ctx, `
+        DELETE FROM cart_items
+        WHERE cart_id = $1;
+    `, cartID)
+	if err != nil {
+		return apperr.Wrap(apperr.Internal, err, "clear cart items failed")
 	}
 	return nil
 }
