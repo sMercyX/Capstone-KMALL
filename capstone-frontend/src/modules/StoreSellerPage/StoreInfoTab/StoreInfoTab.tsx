@@ -1,16 +1,14 @@
 // src/pages/Store/StoreInfoTab.tsx
 import { useEffect, useState } from "react"
 import { useStoreApi } from "../../../api/storeApi"
-import { useStoreStore } from "./storeStore"
+import { useStoreStore } from "../../../stores/storeStore"
 import type { StoreEditForm } from "./StoreEditModal/StoreEditModal"
 import StoreEditModal from "./StoreEditModal/StoreEditModal"
-
 
 export default function StoreInfoTab() {
   const { updateStore } = useStoreApi()
 
-  const { store, loading, error, fetchStore, updateStoreData } =
-    useStoreStore()
+  const { store, loading, error, fetchStore, updateStoreData } = useStoreStore()
 
   const [isModalOpen, setIsModalOpen] = useState(false)
 

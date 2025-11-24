@@ -1,24 +1,11 @@
-// src/api/userApi.ts
+// src/api/storeApi.ts
 import { useCrudApi } from "../utils/fetch"
 import type {
   ApiCreateResponse,
   ApiResponse,
   ApiUpdatedResponse,
+  PaginatedResponse,
 } from "./responseType"
-
-// ------------- FE-friendly User -------------
-// export interface storeData {
-//   id: string;
-//   msid: string;
-//   email: string;
-//   name: string;
-//   roles: string[];
-//   createdAt: string;
-//   updatedAt: string;
-//   lastLogin: string;
-// }
-
-// export type GetUserResponse = ApiResponse<storeData>;
 
 export interface AddResponse {
   id: number
@@ -37,13 +24,15 @@ export interface addStoreData {
   profile_url: string
   is_active: "YES" | "NO"
 }
+
 export interface updatedStoreData {
   name?: string
   description?: string
   profile_url?: string
   is_active?: "YES" | "NO"
 }
-export interface getStoreProductData {
+
+export interface storeProductDataRequset {
   id: number
   name: string
   description: string
@@ -77,9 +66,13 @@ export function useStoreApi() {
   }
 
   async function getStoreProducts(
-    store_id: number
-  ): Promise<ApiResponse<getStoreProductData>> {
-    return http.getItems(`/api/stores/${store_id}/products`)
+    store_id: number,
+    pageIndex: number,
+    pageSize: number
+  ): Promise<PaginatedResponse<storeProductDataRequset>> {
+    return http.getItems(
+      `/api/stores/${store_id}/products?page=${pageIndex}&limit=${pageSize}`
+    )
   }
 
   return { addStore, getStore, updateStore, getStoreProducts }

@@ -1,6 +1,6 @@
 // src/stores/storeStore.ts
 import { create } from "zustand"
-import { useStoreApi } from "../../../api/storeApi"
+import { useStoreApi } from "../api/storeApi"
 
 export interface StoreData {
   id: number
