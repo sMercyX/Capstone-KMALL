@@ -96,7 +96,7 @@ export default function Dashboard() {
       <div className="rounded-2xl bg-gradient-to-r from-orange-400 to-orange-600 p-[2px] shadow-[0_10px_30px_rgba(255,102,0,0.25)]">
         <div className="rounded-2xl bg-white">
           <div
-            className="relative h-40 w-full overflow-hidden rounded-2xl bg-[url('/assets/banner-sushi.jpg')] bg-cover bg-center"
+            className="relative h-40 w-full overflow-hidden rounded-2xl bg-cover bg-center"
             role="img"
             aria-label="สินค้าเด่นประจำเดือน"
           >

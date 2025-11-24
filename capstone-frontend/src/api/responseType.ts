@@ -12,6 +12,12 @@ export interface ApiCreateResponse<T> {
   status: string;
   data: T;
 }
+export interface ApiUpdatedResponse<T> {
+  code: number;
+  updated: boolean;
+  status: string;
+  data: T;
+}
 
 // generic สำหรับ pagination
 export interface PaginatedData<T> {
