@@ -40,19 +40,34 @@ func NewHandler(
 }
 
 func (h *Handler) Register(r *gin.RouterGroup) {
+	// ===== Buyer Order (History + Detail + Cancel) =====
 	// /api/orders
 	g := r.Group("/orders")
-
 	{
+		// Buyer history
+		g.GET("", h.listBuyerOrders) // GET /api/orders?status_group=active|completed|cancelled
+
+		// ดูรายละเอียด order
 		g.GET("/:id", h.getOrder)
+
+		// เปลี่ยนสถานะ (Seller/Admin)
 		sellerAdmin := g.Group("", middleware.RequireRolesAny(h.roleSvc, "Seller", "Admin"))
 		{
 			sellerAdmin.PUT("/:id/status", h.updateStatus)
 		}
 
+		// ยกเลิกออเดอร์ (Buyer/Admin)
 		g.POST("/:id/cancel", h.cancelOrder)
 	}
 
+	// ===== Seller Order Management (ตามร้าน) =====
+	// /api/stores/:storeID/orders
+	sg := r.Group("/stores/:storeID", middleware.RequireRolesAny(h.roleSvc, "Seller", "Admin"))
+	{
+		sg.GET("/orders", h.listStoreOrders)
+	}
+
+	// ===== Checkout =====
 	cg := r.Group("/checkout")
 	{
 		cg.POST("/confirm", h.createFromCart)
@@ -133,6 +148,28 @@ func (h *Handler) isStoreOwnerOrAdmin(c *gin.Context, storeID int64, userID stri
 		return true
 	}
 	return false
+}
+
+func canBuyerCancel(status string) bool {
+	switch status {
+	case "Pending Seller Confirmation",
+		"Awaiting Buyer Confirmation":
+		return true
+	default:
+		return false
+	}
+}
+
+func canSellerCancel(status string) bool {
+	switch status {
+	case "Pending Seller Confirmation",
+		"Awaiting Buyer Confirmation",
+		"Ready for Pickup",
+		"Ready for Delivery":
+		return true
+	default:
+		return false
+	}
 }
 
 // ============================================================================
@@ -248,13 +285,51 @@ func (h *Handler) cancelOrder(c *gin.Context) {
 		return
 	}
 
-	if ordWithItems.Order.UserID != userID && !h.isAdmin(c, userID) {
+	order := ordWithItems.Order
+
+	isBuyer := order.UserID == userID
+	isSeller := h.isStoreOwnerOrAdmin(c, int64(order.StoreID), userID)
+	isAdmin := h.isAdmin(c, userID)
+
+	// ----- สิทธิ์ว่าใครยกเลิกได้บ้าง -----
+	if !isBuyer && !isSeller && !isAdmin {
 		if len(c.Errors) == 0 {
-			respond.Error(c, http.StatusForbidden, "FORBIDDEN", "only buyer or admin can cancel this order", nil)
+			respond.Error(c, http.StatusForbidden, "FORBIDDEN", "only buyer, store owner or admin can cancel this order", nil)
 		}
 		return
 	}
 
+	status := order.Status
+
+	// ----- เช็คตามบทบาทแต่ละฝั่ง -----
+	switch {
+	case isAdmin:
+		// admin ห้ามยกเลิกถ้า complete หรือ cancel แล้ว
+		if status == "Completed" || status == "Cancelled" {
+			if len(c.Errors) == 0 {
+				respond.Error(c, http.StatusBadRequest, "INVALID_STATUS", "cannot cancel completed or already cancelled order", nil)
+			}
+			return
+		}
+
+	case isBuyer:
+		if !canBuyerCancel(status) {
+			if len(c.Errors) == 0 {
+				respond.Error(c, http.StatusBadRequest, "INVALID_STATUS", "buyer cannot cancel at this stage", nil)
+			}
+			return
+		}
+
+	case isSeller:
+		if !canSellerCancel(status) {
+			if len(c.Errors) == 0 {
+				respond.Error(c, http.StatusBadRequest, "INVALID_STATUS", "seller cannot cancel at this stage", nil)
+			}
+			return
+		}
+	}
+
+	// ----- cancel จริง -----
 	cancelled, err := h.svc.Cancel(c.Request.Context(), id)
 	if err != nil {
 		c.Error(err)
@@ -262,4 +337,49 @@ func (h *Handler) cancelOrder(c *gin.Context) {
 	}
 
 	respond.OK(c, apperr.OK, cancelled)
+}
+
+func (h *Handler) listBuyerOrders(c *gin.Context) {
+	userID, ok := h.resolveCurrentUserID(c)
+	if !ok {
+		return
+	}
+
+	statusGroup := strings.ToLower(strings.TrimSpace(c.Query("status_group")))
+	orders, err := h.svc.ListBuyerOrders(c.Request.Context(), userID, statusGroup)
+	if err != nil {
+		c.Error(err)
+		return
+	}
+
+	respond.OK(c, apperr.OK, orders)
+}
+
+func (h *Handler) listStoreOrders(c *gin.Context) {
+	userID, ok := h.resolveCurrentUserID(c)
+	if !ok {
+		return
+	}
+
+	storeID, ok := parsePathID(c, "storeID")
+	if !ok {
+		return
+	}
+
+	if !h.isStoreOwnerOrAdmin(c, storeID, userID) {
+		if len(c.Errors) == 0 {
+			respond.Error(c, http.StatusForbidden, "FORBIDDEN", "only store owner or admin can view store orders", nil)
+		}
+		return
+	}
+
+	statusGroup := strings.ToLower(strings.TrimSpace(c.Query("status_group")))
+
+	orders, err := h.svc.ListStoreOrders(c.Request.Context(), storeID, statusGroup)
+	if err != nil {
+		c.Error(err)
+		return
+	}
+
+	respond.OK(c, apperr.OK, orders)
 }

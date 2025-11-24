@@ -22,6 +22,9 @@ type Repo interface {
 	ListItemsByOrderID(ctx context.Context, orderID int64) ([]OrderItem, error)
 	UpdateOrderStatus(ctx context.Context, id int64, status string) (Order, error)
 	CancelOrder(ctx context.Context, id int64) (Order, error)
+
+	ListByUserID(ctx context.Context, userID string, statuses []string) ([]Order, error)
+	ListByStoreID(ctx context.Context, storeID int64, statuses []string) ([]Order, error)
 }
 
 type repo struct {
@@ -282,4 +285,76 @@ func (r *repo) CancelOrder(ctx context.Context, id int64) (Order, error) {
 		return Order{}, apperr.Wrap(apperr.Internal, err, "cancel order failed")
 	}
 	return ord, nil
+}
+
+func (r *repo) ListByUserID(ctx context.Context, userID string, statuses []string) ([]Order, error) {
+	query := `
+		SELECT order_id, status, total_price, order_date, updated_at,
+		       cancelled_at, user_id, store_id
+		FROM orders
+		WHERE user_id = $1
+	`
+	args := []any{userID}
+
+	if len(statuses) > 0 {
+		query += " AND status = ANY($2)"
+		args = append(args, statuses)
+	}
+
+	query += " ORDER BY order_date DESC;"
+
+	rows, err := r.db.Query(ctx, query, args...)
+	if err != nil {
+		return nil, apperr.Wrap(apperr.Internal, err, "list orders by user_id failed")
+	}
+	defer rows.Close()
+
+	var out []Order
+	for rows.Next() {
+		var o Order
+		if err := scanOrder(rows, &o); err != nil {
+			return nil, apperr.Wrap(apperr.Internal, err, "scan order failed")
+		}
+		out = append(out, o)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, apperr.Wrap(apperr.Internal, err, "rows error")
+	}
+	return out, nil
+}
+
+func (r *repo) ListByStoreID(ctx context.Context, storeID int64, statuses []string) ([]Order, error) {
+	query := `
+		SELECT order_id, status, total_price, order_date, updated_at,
+		       cancelled_at, user_id, store_id
+		FROM orders
+		WHERE store_id = $1
+	`
+	args := []any{storeID}
+
+	if len(statuses) > 0 {
+		query += " AND status = ANY($2)"
+		args = append(args, statuses)
+	}
+
+	query += " ORDER BY order_date DESC;"
+
+	rows, err := r.db.Query(ctx, query, args...)
+	if err != nil {
+		return nil, apperr.Wrap(apperr.Internal, err, "list orders by store_id failed")
+	}
+	defer rows.Close()
+
+	var out []Order
+	for rows.Next() {
+		var o Order
+		if err := scanOrder(rows, &o); err != nil {
+			return nil, apperr.Wrap(apperr.Internal, err, "scan order failed")
+		}
+		out = append(out, o)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, apperr.Wrap(apperr.Internal, err, "rows error")
+	}
+	return out, nil
 }

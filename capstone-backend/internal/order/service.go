@@ -26,6 +26,9 @@ type Service interface {
 	GetOrderWithItems(ctx context.Context, id int64) (OrderWithItems, error)
 	UpdateStatus(ctx context.Context, id int64, in OrderStatusUpdateInput) (Order, error)
 	Cancel(ctx context.Context, id int64) (Order, error)
+
+	ListBuyerOrders(ctx context.Context, userID string, statusGroup string) ([]Order, error)
+	ListStoreOrders(ctx context.Context, storeID int64, statusGroup string) ([]Order, error)
 }
 
 type service struct {
@@ -55,6 +58,17 @@ var allowedStatuses = map[string]struct{}{
 	"Cancelled":                   {},
 }
 
+var statusGroups = map[string][]string{
+	"active": {
+		"Pending Seller Confirmation",
+		"Awaiting Buyer Confirmation",
+		"Ready for Pickup",
+		"Ready for Delivery",
+	},
+	"completed": {"Completed"},
+	"cancelled": {"Cancelled"},
+}
+
 func validateStatus(status string) error {
 	status = strings.TrimSpace(status)
 	if status == "" {
@@ -75,6 +89,19 @@ func validateCheckoutInput(in *CheckoutConfirmInput) error {
 		return apperr.New(apperr.BadRequest, "fulfillment_type must be STANDARD or EXPRESS")
 	}
 	return nil
+}
+
+func mapStatusGroup(group string) ([]string, error) {
+	g := strings.ToLower(strings.TrimSpace(group))
+	if g == "" || g == "all" {
+		return nil, nil // คือไม่ filter ตาม group
+	}
+
+	statuses, ok := statusGroups[g]
+	if !ok {
+		return nil, apperr.New(apperr.BadRequest, "invalid status_group")
+	}
+	return statuses, nil
 }
 
 // ============================================================================
@@ -206,4 +233,38 @@ func (s *service) Cancel(ctx context.Context, id int64) (Order, error) {
 		return Order{}, err
 	}
 	return ord, nil
+}
+
+func (s *service) ListBuyerOrders(ctx context.Context, userID string, statusGroup string) ([]Order, error) {
+	if userID == "" {
+		return nil, apperr.New(apperr.BadRequest, "invalid user_id")
+	}
+
+	statuses, err := mapStatusGroup(statusGroup)
+	if err != nil {
+		return nil, err
+	}
+
+	orders, err := s.repo.ListByUserID(ctx, userID, statuses)
+	if err != nil {
+		return nil, err
+	}
+	return orders, nil
+}
+
+func (s *service) ListStoreOrders(ctx context.Context, storeID int64, statusGroup string) ([]Order, error) {
+	if storeID <= 0 {
+		return nil, apperr.New(apperr.BadRequest, "invalid store_id")
+	}
+
+	statuses, err := mapStatusGroup(statusGroup)
+	if err != nil {
+		return nil, err
+	}
+
+	orders, err := s.repo.ListByStoreID(ctx, storeID, statuses)
+	if err != nil {
+		return nil, err
+	}
+	return orders, nil
 }
