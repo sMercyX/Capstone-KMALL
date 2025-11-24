@@ -1,14 +1,17 @@
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Info, Upload } from "lucide-react"
 import Card from "../../components/Card/Card"
-import { useUserApi } from "../../api/storeApi" // 👈 ปรับ path ให้ตรงโปรเจกต์จริง
+import { useUserApi } from "../../api/storeApi"
 import { useNavigate } from "react-router-dom"
 import { useUserStore } from "../../stores/userStore"
 
 export default function StoreRegisterPage() {
   const { addStore } = useUserApi()
   const navigate = useNavigate()
-  const setRole = useUserStore((s) => s.setRole)
+
+  const roles = useUserStore((s) => s.roles)
+  const addRole = useUserStore((s) => s.addRole)
+
   const [name, setName] = useState("")
   const [description, setDescription] = useState("")
   const [profileUrl, setProfileUrl] = useState("") // ส่งเข้า profile_url
@@ -20,6 +23,15 @@ export default function StoreRegisterPage() {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState(false)
+
+  // 🔒 ถ้ามี role seller อยู่แล้ว ห้ามเข้าหน้านี้ → เด้งไป /store/me
+  const hasSellerRole = roles?.some((r) => r.toLowerCase() === "seller")
+
+  useEffect(() => {
+    if (hasSellerRole) {
+      navigate("/store/me", { replace: true })
+    }
+  }, [hasSellerRole, navigate])
 
   function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
@@ -62,8 +74,9 @@ export default function StoreRegisterPage() {
 
       // ✅ ตรวจสอบเงื่อนไข response
       if (res.code === 201 && res.created === true) {
-        setRole("Seller")
-        navigate("/store/me") // <-- redirect ไปหน้าร้านของฉัน
+        // เพิ่ม role seller ใน FE
+        addRole("seller")
+        navigate("/store/me") // redirect ไปหน้าร้านของฉัน
         return
       }
 
@@ -74,6 +87,11 @@ export default function StoreRegisterPage() {
     } finally {
       setIsSubmitting(false)
     }
+  }
+
+  // กันเฟรมวิ่งแวบ ๆ ตอน redirect
+  if (hasSellerRole) {
+    return null
   }
 
   return (

@@ -11,7 +11,13 @@ export default function Navbar() {
   const isStoreActive = location.pathname.startsWith("/store")
   const isCartActive = location.pathname.startsWith("/orders")
 
-  const { name, email, role } = useUserStore()
+  const { name, email, roles } = useUserStore()
+
+  // เช็คว่ามี role seller ไหม (case-insensitive)
+  const hasSellerRole = roles?.some((r) => r.toLowerCase() === "seller")
+
+  // ถ้ามี seller → ไป /store/me, ถ้าไม่มี → ไป /store/register
+  const storeLink = hasSellerRole ? "/store/me" : "/store/register"
 
   return (
     <header className="sticky top-4 z-50 w-full bg-[--color-primary]">
@@ -65,7 +71,7 @@ export default function Navbar() {
                       {name}
                     </p>
                     <p className="text-xs text-gray-500">{email}</p>
-                    <p className="text-xs text-gray-500">{role}</p>
+
                     {/* Theme Toggle */}
                     <div className="mt-3 inline-flex rounded-full bg-gray-100 p-1 text-xs">
                       <button
@@ -94,9 +100,9 @@ export default function Navbar() {
 
                 {/* Menu Card */}
                 <div className="mt-4 rounded-2xl border border-gray-200 bg-gray-50 px-3 py-2 space-y-1">
-                  {/* ร้านค้าของฉัน (active) */}
+                  {/* ร้านค้าของฉัน / เปิดร้าน (ตาม role) */}
                   <Link
-                    to="/store/me"
+                    to={storeLink}
                     className={`flex w-full items-center justify-between gap-2 rounded-xl px-2 py-2 text-sm
                     ${
                       isStoreActive
@@ -110,7 +116,10 @@ export default function Navbar() {
                       <span className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-gray-100">
                         <Image className="h-4 w-4 text-gray-400" />
                       </span>
-                      ร้านค้าของฉัน
+                      {/* ถ้าอยากเปลี่ยนข้อความตาม role ก็ทำแบบนี้ได้ */}
+                      <span>
+                        {hasSellerRole ? "ร้านค้าของฉัน" : "เปิดร้านค้าของฉัน"}
+                      </span>
                     </div>
 
                     {isStoreActive && (
@@ -147,7 +156,7 @@ export default function Navbar() {
                     className="flex w-full items-center gap-2 rounded-xl px-2 py-2 text-sm text-gray-500 hover:bg-white"
                     onClick={() => {
                       setIsOpen(false)
-                      // TODO: ใส่ logic logout จริง
+                      // TODO: ใส่ logic logout จริง เช่น useAuth().logout()
                     }}
                   >
                     <span className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-gray-100">
