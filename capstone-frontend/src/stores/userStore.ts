@@ -1,34 +1,36 @@
-import { create } from "zustand";
-import { useUserApi, type User } from "../api/userApi";
+// src/stores/userStore.ts
+import { create } from "zustand"
+import { useUserApi, type User } from "../api/userApi"
 
-type Role = "Buyer" | "Seller" | "Admin";
+type Role = "Buyer" | "Seller" | "Admin"
 
 interface UserState {
-  id: string;
-  name: string;
-  email: string;
-  role: Role;
-  isLoading: boolean;
-  setUser: (user: Partial<UserState>) => void;
-  fetchUser: () => Promise<void>;
-  clearUser: () => void;
+  id: string
+  name: string
+  email: string
+  role: Role
+  isLoading: boolean
+  setUser: (user: Partial<UserState>) => void
+  setRole: (role: Role) => void
+  fetchUser: () => Promise<void>
+  clearUser: () => void
 }
 
-const { getMe } = useUserApi();
+const { getMe } = useUserApi()
 
 function normalizeRoleFromUser(u: User | null): Role {
-  if (!u || !u.roles || u.roles.length === 0) return "Buyer";
+  if (!u || !u.roles || u.roles.length === 0) return "Buyer"
 
-  const raw = u.roles[0].toLowerCase();
+  const raw = u.roles[0].toLowerCase()
   switch (raw) {
     case "buyer":
-      return "Buyer";
+      return "Buyer"
     case "seller":
-      return "Seller";
+      return "Seller"
     case "admin":
-      return "Admin";
+      return "Admin"
     default:
-      return "Buyer";
+      return "Buyer"
   }
 }
 
@@ -40,11 +42,11 @@ export const useUserStore = create<UserState>((set) => ({
   isLoading: false,
 
   setUser: (user) => set((state) => ({ ...state, ...user })),
-
+  setRole: (role) => set({ role }),
   fetchUser: async () => {
-    set({ isLoading: true });
+    set({ isLoading: true })
     try {
-      const data = await getMe();
+      const data = await getMe()
 
       set({
         id: data.id,
@@ -52,10 +54,10 @@ export const useUserStore = create<UserState>((set) => ({
         email: data.email,
         role: normalizeRoleFromUser(data),
         isLoading: false,
-      });
+      })
     } catch (error) {
-      console.error(error);
-      set({ isLoading: false });
+      console.error(error)
+      set({ isLoading: false })
     }
   },
 
@@ -67,4 +69,4 @@ export const useUserStore = create<UserState>((set) => ({
       role: "Buyer",
       isLoading: false,
     }),
-}));
+}))

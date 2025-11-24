@@ -17,7 +17,7 @@ export default function StorePage() {
   const pathname = location.pathname;
 
   const tabs: SwitchTabItem[] = [
-    { key: "store",    label: "ร้านค้าของฉัน",   href: "/store" },
+    { key: "store",    label: "ร้านค้าของฉัน",   href: "/store/me" },
     { key: "products", label: "สินค้า",          href: "/store/products" },
     { key: "add",      label: "เพิ่มผลิตภัณฑ์ใหม่", href: "/store/add" },
     { key: "orders",   label: "คำสั่งซื้อ",       href: "/store/orders" },
@@ -26,7 +26,8 @@ export default function StorePage() {
 
   // ✅ ตรงนี้คือจุดสำคัญ — ดูจาก URL แล้วแมปเป็น key
   let activeKey: StoreTabKey = "store";
-  if (pathname.startsWith("/store/products")) activeKey = "products";
+  if (pathname.startsWith("/store/me")) activeKey = "store";
+  else if (pathname.startsWith("/store/products")) activeKey = "products";
   else if (pathname.startsWith("/store/add")) activeKey = "add";
   else if (pathname.startsWith("/store/orders")) activeKey = "orders";
   else if (pathname.startsWith("/store/settings")) activeKey = "settings";

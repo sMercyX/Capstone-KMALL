@@ -6,6 +6,12 @@ export interface ApiResponse<T> {
   status: string;
   data: T;
 }
+export interface ApiCreateResponse<T> {
+  code: number;
+  created: boolean;
+  status: string;
+  data: T;
+}
 
 // generic สำหรับ pagination
 export interface PaginatedData<T> {

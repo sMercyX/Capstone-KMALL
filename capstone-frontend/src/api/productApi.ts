@@ -4,25 +4,40 @@ import type { PaginatedResponse } from "./responseType"
 
 export type CategoryType = "food" | "clothing" | "handmade-products"
 
+// export interface Product {
+//   id: number
+//   name: string
+//   slug: string
+//   is_active: "YES" | "NO"
+//   created_at: string
+//   updated_at: string
+
+//   // FE-only fields
+//   image?: string
+//   price?: number
+//   rating?: number
+//   ratingCount?: number
+//   shop?: string
+//   badge?: string
+//   category?: string
+// }
+
 export interface Product {
   id: number
   name: string
-  slug: string
-  is_active: "YES" | "NO"
+  description: string
+  price: number
+  image_url: string
   created_at: string
   updated_at: string
-
-  // FE-only fields
-  image?: string
-  price?: number
-  rating?: number
-  ratingCount?: number
-  shop?: string
-  badge?: string
-  category?: string
+  is_active: "YES" | "NO"
+  store_id: number
+  category_id: number
 }
 
 export type ProductListResponse = PaginatedResponse<Product>
+
+export type CategoryListResponse = PaginatedResponse<Product>
 
 export function useProductApi() {
   const http = useCrudApi()
@@ -48,5 +63,20 @@ export function useProductApi() {
     return http.getItems(`/api/products/public?store_id=${storeId}`)
   }
 
-  return { getProductsByCategory, getProductBySlug, getProductsByStore }
+  async function getProductsByParentId(
+    categoryId: number,
+    limit: number,
+    pageIndex: number
+  ): Promise<CategoryListResponse> {
+    return http.getItems(
+      `/api/products/public?parent_category_id=${categoryId}&limit=${limit}&page=${pageIndex}`
+    )
+  }
+
+  return {
+    getProductsByCategory,
+    getProductBySlug,
+    getProductsByStore,
+    getProductsByParentId,
+  }
 }

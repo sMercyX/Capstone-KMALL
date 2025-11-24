@@ -12,6 +12,8 @@ import ProtectedRoute from "../components/ProtectedRoute/ProtectedRoute"
 const Dashboard = lazy(() => import("../modules/DashBoard/Dashboard"))
 const LandingPage = lazy(() => import("../modules/LandingPage/LandingPage"))
 const CategoryPage = lazy(() => import("../modules/CategoryPage/CategoryPage"))
+const StorePage = lazy(() => import("../modules/StoreSellerPage/StorePage"))
+const StoreRegisterPage = lazy(() => import("../modules/StoreRegisterPage/StoreRegisterPage"))
 
 export default function AppRoutes() {
   return (
@@ -41,7 +43,7 @@ export default function AppRoutes() {
               element={
                 <ProtectedRoute>
                   {/* <AllowedCategoryRoute> */}
-                    <CategoryPage />
+                  <CategoryPage />
                   {/* </AllowedCategoryRoute> */}
                 </ProtectedRoute>
               }
@@ -51,6 +53,55 @@ export default function AppRoutes() {
               element={
                 <ProtectedRoute>
                   <ProductPage />
+                </ProtectedRoute>
+              }
+            />
+
+            <Route
+              path="/store/register"
+              element={
+                <ProtectedRoute>
+                  <StoreRegisterPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/store/me"
+              element={
+                <ProtectedRoute>
+                  <StorePage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/store/products"
+              element={
+                <ProtectedRoute>
+                  <StorePage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/store/add"
+              element={
+                <ProtectedRoute>
+                  <StorePage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/store/orders"
+              element={
+                <ProtectedRoute>
+                  <StorePage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/store/settings"
+              element={
+                <ProtectedRoute>
+                  <StorePage />
                 </ProtectedRoute>
               }
             />

@@ -108,7 +108,7 @@ export default function ProductPage() {
         <section className="rounded-3xl border bg-white p-4 md:p-6">
           <div className="aspect-square w-full overflow-hidden rounded-2xl bg-gray-50">
             <img
-              src={product.image || "https://via.placeholder.com/800"}
+              src={product.image_url || "https://via.placeholder.com/800"}
               alt={product.name}
               className="h-full w-full object-cover"
             />
@@ -156,7 +156,7 @@ export default function ProductPage() {
           <p className="pt-3 text-sm text-gray-600">
             ร้าน:{" "}
             <span className="font-semibold">
-              {product.shop || "ร้านค้าทั่วไป"}
+              {product.store_id || "ร้านค้าทั่วไป"}
             </span>
           </p>
         </section>

@@ -1,3 +1,4 @@
+// src/contexts/AuthContext.tsx
 import {
   createContext,
   useContext,
@@ -9,6 +10,7 @@ import type { ReactNode } from "react";
 import { API_BASE } from "../config";
 
 import { useUserApi, type User } from "../api/userApi";
+import { useUserStore } from "../stores/userStore";
 
 type AuthContextType = {
   user: User | null;
@@ -28,16 +30,41 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   const { getMe } = useUserApi();
 
+  // ฟังก์ชันจาก userStore (ไว้ sync user เข้า global store)
+  const setUserStore = useUserStore((s) => s.setUser);
+  const clearUserStore = useUserStore((s) => s.clearUser);
+
   useEffect(() => {
     (async () => {
       try {
         setError(null);
+
+        // 🔹 ยิง /api/users/me แค่ครั้งเดียวที่นี่
         const u = await getMe();
         setUser(u);
+
+        // 🔹 sync เข้า userStore ให้ component อื่นใช้
+        const raw = u.roles?.[0]?.toLowerCase() ?? "buyer";
+        const normalizedRole =
+          raw === "seller"
+            ? "Seller"
+            : raw === "admin"
+            ? "Admin"
+            : "Buyer";
+
+        setUserStore({
+          id: u.id,
+          name: u.name,
+          email: u.email,
+          role: normalizedRole,
+        });
       } catch (err: any) {
         console.error("load /api/users/me failed", err);
-        // 401 = ยังไม่ล็อกอิน → ไม่ต้องถือว่า error
+
         setUser(null);
+        clearUserStore(); // เคลียร์ global store ด้วย
+
+        // 401 = ยังไม่ล็อกอิน → ไม่ถือว่าเป็น error ที่ต้องโชว์
         setError(null);
       } finally {
         setReady(true);

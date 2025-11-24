@@ -124,11 +124,14 @@ function RatingStars({ rating }: { rating: number }) {
 
 // ====================== PRODUCT CARD ======================
 function ProductCard({ product }: { product: Product }) {
+  const imageSrc =
+    product.image_url || "https://via.placeholder.com/300?text=KMALL+Product"
+
   return (
     <div className="group relative overflow-hidden rounded-2xl border bg-white shadow-sm hover:shadow-xl transition">
       <div className="relative aspect-[4/3] overflow-hidden">
         <img
-          src={product.image || "https://via.placeholder.com/300"}
+          src={imageSrc}
           alt={product.name}
           className="h-full w-full object-cover transition duration-300 group-hover:scale-[1.04]"
         />
@@ -144,8 +147,9 @@ function ProductCard({ product }: { product: Product }) {
             <ShoppingCart className="h-5 w-5 text-gray-700" />
           </button>
 
+          {/* ตอนนี้ BE ยังไม่มี slug ใช้ id ไปก่อน */}
           <Link
-            to={`/product/${product.slug}`}
+            to={`/product/${product.id}`}
             className="h-12 w-12 rounded-full bg-orange-500 shadow flex items-center justify-center hover:scale-110 transition"
           >
             <Eye className="h-5 w-5 text-white" />
@@ -155,15 +159,15 @@ function ProductCard({ product }: { product: Product }) {
 
       <div className="px-3 pb-3 pt-2 space-y-2">
         <div className="flex items-center gap-2">
+          {/* ⭐ fixed rating ไว้ก่อน */}
           <RatingStars rating={4} />
           <span className="text-xs text-gray-500">(120)</span>
         </div>
 
         <h3 className="text-sm font-semibold line-clamp-1">{product.name}</h3>
 
-        <p className="text-xs text-gray-500 line-clamp-1">
-          {product.shop || "ร้านค้าทั่วไป"}
-        </p>
+        {/* BE ยังไม่มีชื่อร้าน ใช้ข้อความ fix */}
+        <p className="text-xs text-gray-500 line-clamp-1">ร้านค้าทั่วไป</p>
 
         <p className="pt-1 font-semibold text-rose-600">
           {product.price ? `${product.price} บาท` : "—"}
@@ -175,7 +179,7 @@ function ProductCard({ product }: { product: Product }) {
 
 // ====================== PRODUCT GRID ======================
 function ProductGrid({ items }: { items: Product[] }) {
-  const safeItems = Array.isArray(items) ? items : [];  // กันพัง
+  const safeItems = Array.isArray(items) ? items : []
 
   if (!safeItems.length)
     return (
@@ -248,6 +252,7 @@ export default function CategoryPage() {
   const apiCategoryId = mapCategoryId(routeCategory)
 
   const [sort, setSort] = useState<SortKey>("popular")
+  const [hasRequested, setHasRequested] = useState(false)
 
   const {
     items,
@@ -263,42 +268,32 @@ export default function CategoryPage() {
     reset,
   } = useProductListStore()
 
-  const { getProductsByCategory } = useProductApi()
+  // ใช้ getProductsByParentId แล้ว
+  const { getProductsByParentId } = useProductApi()
 
-  // reset เมื่อเปลี่ยนหมวด
+  // reset เมื่อเปลี่ยนหมวด + reset flag ปุ่ม
   useEffect(() => {
-    reset();
-    setPageIndex(1);
-  }, [apiCategory]);
-  // fetch BE
-   useEffect(() => {
-    let cancelled = false;
+    reset()
+    setPageIndex(1)
+    setHasRequested(false)
+  }, [apiCategory, reset, setPageIndex])
 
-    async function load() {
-      try {
-        startLoading();
-        const res = await getProductsByCategory(
-          apiCategory,
-          pageIndex,
-          pageSize,
-          apiCategoryId
-        );
+  // ดึงข้อมูลเมื่อกดปุ่ม
+  async function handleFetch() {
+    try {
+      setHasRequested(true)
+      startLoading()
 
-        if (!cancelled) setPageData(res.data);
-      } catch (err) {
-        if (!cancelled) setError("โหลดสินค้าล้มเหลว");
-      }
+      const res = await getProductsByParentId(apiCategoryId, pageSize, pageIndex)
+      setPageData(res.data)
+    } catch (err) {
+      setError("โหลดสินค้าล้มเหลว")
     }
+  }
 
-    load();
-    return () => {
-      cancelled = true;
-    };
-  }, [apiCategory, apiCategoryId, pageIndex, pageSize]);
-
-  // sort FE
+  // sort ฝั่ง FE
   const sortedItems = useMemo(() => {
-    const copy = Array.isArray(items) ? [...items] : [] // ✅ กันอีกชั้น
+    const copy = Array.isArray(items) ? [...items] : []
 
     switch (sort) {
       case "price-asc":
@@ -306,6 +301,7 @@ export default function CategoryPage() {
       case "price-desc":
         return copy.sort((a, b) => (b.price ?? 0) - (a.price ?? 0))
       case "rating":
+        // ตอนนี้ rating fix ไว้ ยังไม่มี field จาก BE
         return copy
       default:
         return copy
@@ -314,7 +310,6 @@ export default function CategoryPage() {
 
   const safeTotal = typeof total === "number" ? total : 0
   const safeSize = typeof pageSize === "number" ? pageSize : 1
-
   const totalPages = Math.max(1, Math.ceil(safeTotal / safeSize))
 
   return (
@@ -323,14 +318,27 @@ export default function CategoryPage() {
 
       <div className="mt-6">
         <Toolbar
-          total={total || sortedItems.length}
+          total={safeTotal || sortedItems.length}
           sort={sort}
           onChangeSort={setSort}
         />
       </div>
 
       <div className="mt-6">
-        {isLoading && !items.length ? (
+        {/* ถ้ายังไม่เคยกดโหลดเลย */}
+        {!hasRequested ? (
+          <div className="py-10 text-center">
+            <p className="mb-4 text-gray-500">
+              ยังไม่ได้โหลดสินค้าในหมวดนี้
+            </p>
+            <button
+              onClick={handleFetch}
+              className="inline-flex items-center gap-2 rounded-xl bg-gray-900 px-5 py-2.5 text-sm font-medium text-white hover:bg-gray-800"
+            >
+              โหลดสินค้าจากหมวดนี้
+            </button>
+          </div>
+        ) : isLoading ? (
           <div className="py-10 text-center text-gray-500">
             กำลังโหลดสินค้า...
           </div>
@@ -341,11 +349,14 @@ export default function CategoryPage() {
         )}
       </div>
 
-      <Pagination
-        page={pageIndex}
-        totalPages={totalPages}
-        onPage={setPageIndex}
-      />
+      {/* แสดง pagination เฉพาะตอนโหลดแล้วและมีของ */}
+      {hasRequested && sortedItems.length > 0 && (
+        <Pagination
+          page={pageIndex}
+          totalPages={totalPages}
+          onPage={setPageIndex}
+        />
+      )}
     </main>
   )
 }
