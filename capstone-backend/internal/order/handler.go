@@ -88,6 +88,18 @@ type statusUpdateReq struct {
 	Status string `json:"status"`
 }
 
+type orderBuyerDTO struct {
+	ID          string `json:"id"`
+	DisplayName string `json:"display_name"`
+	Email       string `json:"email"`
+}
+
+type orderDetailResp struct {
+	Order Order          `json:"order"`
+	Items []OrderItem    `json:"items"`
+	Buyer *orderBuyerDTO `json:"buyer,omitempty"` // null / ไม่ส่ง ถ้าไม่ใช่ seller/admin
+}
+
 // ============================================================================
 // Helper
 // ============================================================================
@@ -219,14 +231,47 @@ func (h *Handler) getOrder(c *gin.Context) {
 		return
 	}
 
-	if result.Order.UserID != userID && !h.isAdmin(c, userID) {
-		if len(c.Errors) == 0 {
-			respond.Error(c, http.StatusForbidden, "FORBIDDEN", "not allowed to view this order", nil)
-		}
+	order := result.Order
+
+	isBuyer := order.UserID == userID
+	isAdmin := h.isAdmin(c, userID)
+
+	isStoreOwner := false
+	if !isBuyer && !isAdmin {
+		isStoreOwner = h.isStoreOwnerOrAdmin(c, int64(order.StoreID), userID)
+	}
+
+	if !isBuyer && !isAdmin && !isStoreOwner {
+		c.Error(apperr.New(
+			apperr.Forbidden,
+			"only buyer, store owner or admin can view this order",
+		))
 		return
 	}
 
-	respond.OK(c, apperr.OK, result)
+	var buyerDTO *orderBuyerDTO
+
+	if isStoreOwner || isAdmin {
+		u, err := h.userSvc.Get(c.Request.Context(), order.UserID)
+		if err != nil {
+			c.Error(err)
+			return
+		}
+
+		buyerDTO = &orderBuyerDTO{
+			ID:          u.ID,
+			DisplayName: u.DisplayName,
+			Email:       u.Email,
+		}
+	}
+
+	resp := orderDetailResp{
+		Order: result.Order,
+		Items: result.Items,
+		Buyer: buyerDTO,
+	}
+
+	respond.OK(c, apperr.OK, resp)
 }
 
 func (h *Handler) updateStatus(c *gin.Context) {
