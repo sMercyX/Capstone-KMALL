@@ -49,7 +49,7 @@ func (h *Handler) Register(r *gin.RouterGroup) {
 		productOwner.DELETE("/:id", h.delete)
 	}
 
-	// /api/stores/:storeID/products
+	// /api/stores/:id/products
 	sg := r.Group("/stores")
 	storeOwner := sg.Group("", middleware.RequireRolesAny(h.roleSvc, "Seller", "Admin"))
 	{
@@ -207,15 +207,43 @@ func (h *Handler) listByStore(c *gin.Context) {
 		return
 	}
 
-	ps, err := h.svc.ListByStoreID(c.Request.Context(), storeID)
+	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "20"))
+	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
+
+	if limit <= 0 {
+		limit = 20
+	}
+	if page <= 0 {
+		page = 1
+	}
+
+	items, total, err := h.svc.ListByStoreID(
+		c.Request.Context(),
+		storeID,
+		limit,
+		page,
+	)
 	if err != nil {
 		c.Error(err)
 		return
 	}
-	if ps == nil {
-		ps = []Product{}
+	if items == nil {
+		items = []Product{}
 	}
-	respond.OK(c, apperr.OK, ps)
+
+	resp := struct {
+		PageSize  int       `json:"pageSize"`
+		PageIndex int       `json:"pageIndex"`
+		Total     int64     `json:"total"`
+		Items     []Product `json:"items"`
+	}{
+		PageSize:  limit,
+		PageIndex: page,
+		Total:     total,
+		Items:     items,
+	}
+
+	respond.OK(c, apperr.OK, resp)
 }
 
 // 2.3 GET /api/products/:id (Owner/Admin)
