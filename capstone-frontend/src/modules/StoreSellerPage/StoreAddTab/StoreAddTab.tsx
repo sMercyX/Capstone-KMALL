@@ -1,5 +1,5 @@
 // src/pages/Store/StoreAddTab/StoreAddTab.tsx
-import { useRef, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import {
   ImagePlus,
   ChevronLeft,
@@ -9,6 +9,8 @@ import {
 
 import { useProductApi, type AddProductRequest } from "../../../api/productApi"
 import { useStoreStore } from "../../../stores/storeStore"
+import { useCatagoriesApi, type CatagoriesResponse } from "../../../api/catagoriesApi"
+
 
 type ImageSlot = string
 
@@ -21,15 +23,63 @@ export function StoreAddTab() {
   const [name, setName] = useState("")
   const [description, setDescription] = useState("")
   const [price, setPrice] = useState<string>("")
-  const [categoryId, setCategoryId] = useState<number>(1) // 1=food
+  const [categoryId, setCategoryId] = useState<number>(0)
 
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
+  // ----- categories state -----
+  const [categories, setCategories] = useState<CatagoriesResponse[]>([])
+  const [loadingCategories, setLoadingCategories] = useState(false)
+  const [categoryError, setCategoryError] = useState<string | null>(null)
+
   const { addProduct } = useProductApi()
   const { store } = useStoreStore() // ต้องมี store.id จาก /api/stores/me
+  const { getCatagoriesSubName } = useCatagoriesApi()
 
-  // ---------- image handlers (เหมือนเดิม) ----------
+  // ---------- load categories (only_sub) ----------
+  useEffect(() => {
+    let cancelled = false
+
+    const loadCategories = async () => {
+      setLoadingCategories(true)
+      setCategoryError(null)
+
+      try {
+        const res = await getCatagoriesSubName()
+        if (cancelled) return
+
+        const list = res.data ?? []
+        setCategories(list)
+
+        // ถ้ายังไม่ได้เลือก categoryId ตั้งค่าเป็นตัวแรก
+        if (!categoryId && list.length > 0) {
+          setCategoryId(list[0].id)
+        }
+
+        if (list.length === 0) {
+          setCategoryError("ไม่มีหมวดหมู่สินค้า กรุณาติดต่อผู้ดูแลระบบ")
+        }
+      } catch (err) {
+        console.error(err)
+        if (!cancelled) {
+          setCategoryError("โหลดหมวดหมู่ไม่สำเร็จ กรุณารีเฟรชหน้า")
+        }
+      } finally {
+        if (!cancelled) {
+          setLoadingCategories(false)
+        }
+      }
+    }
+
+    loadCategories()
+
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  // ---------- image handlers ----------
   const handleClickAddImages = () => {
     fileInputRef.current?.click()
   }
@@ -111,6 +161,11 @@ export function StoreAddTab() {
       return
     }
 
+    if (!categoryId) {
+      setError("กรุณาเลือกหมวดหมู่สินค้า")
+      return
+    }
+
     try {
       setIsSubmitting(true)
 
@@ -118,7 +173,7 @@ export function StoreAddTab() {
         name,
         description,
         price: priceNumber,
-        image_url: "", // ✅ ตอนนี้ยังไม่ทำอัปโหลดรูป ส่งค่าว่างไปก่อน
+        image_url: "", // ตอนนี้ยังไม่ทำอัปโหลดรูป ส่งค่าว่างไปก่อน
         is_active: "YES",
         store_id: store.id,
         category_id: categoryId,
@@ -281,20 +336,35 @@ export function StoreAddTab() {
             />
           </div>
 
+          {/* ===== หมวดหมู่ จาก API ===== */}
           <div>
             <label className="block mb-1 text-sm font-semibold text-gray-800">
               หมวดหมู่
             </label>
             <select
-              value={categoryId}
+              value={categoryId || ""}
               onChange={(e) => setCategoryId(Number(e.target.value))}
-              className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400"
+              disabled={loadingCategories || categories.length === 0}
+              className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 disabled:bg-gray-100 disabled:text-gray-400"
             >
-              <option value={1}>อาหารและเครื่องดื่ม</option>
-              <option value={2}>เสื้อผ้า</option>
-              <option value={3}>สินค้าแฮนด์เมด</option>
-              <option value={4}>สินค้าแฮนด์เมด</option>
+              {loadingCategories && (
+                <option value="">กำลังโหลดหมวดหมู่...</option>
+              )}
+
+              {!loadingCategories && categories.length === 0 && (
+                <option value="">ไม่มีหมวดหมู่</option>
+              )}
+
+              {!loadingCategories &&
+                categories.map((cat) => (
+                  <option key={cat.id} value={cat.id}>
+                    {cat.name}
+                  </option>
+                ))}
             </select>
+            {categoryError && (
+              <p className="text-xs text-red-500 mt-1">{categoryError}</p>
+            )}
           </div>
 
           {error && (
