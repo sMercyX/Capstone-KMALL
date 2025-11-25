@@ -1,3 +1,4 @@
+// src/pages/product/ProductPage.tsx
 import { useEffect, useState } from "react"
 import { useNavigate, useParams } from "react-router-dom"
 import {
@@ -9,7 +10,9 @@ import {
 } from "lucide-react"
 import { useProductApi } from "../../api/productApi"
 import { useProductStore } from "../../stores/productStore"
+import { useCartStore } from "../../stores/cartStore"
 import Card from "../../components/Card/Card"
+import { useCartApi } from "../../api/cartApi"
 
 // ====== UI Helpers ======
 function RatingStarsFixed() {
@@ -43,10 +46,17 @@ export default function ProductPage() {
     reset,
   } = useProductStore()
 
+  const { addCart, getCart } = useCartApi()
+  const {
+    startLoading: startCartLoading,
+    setCart,
+    setError: setCartError,
+  } = useCartStore()
+
   const [qty, setQty] = useState(1)
   const [activeImageIndex, setActiveImageIndex] = useState(0)
 
-  // โหลด product เดียว ด้วย productId
+  // โหลด product เดียว
   useEffect(() => {
     if (!id) {
       setError("ไม่พบสินค้า")
@@ -76,9 +86,32 @@ export default function ProductPage() {
     return () => {
       cancelled = true
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id])
 
   const handleBack = () => navigate(-1)
+
+  // เพิ่มลงตะกร้า
+  const handleAddToCart = async () => {
+    if (!product) return
+
+    try {
+      startCartLoading()
+
+      await addCart({
+        product_id: product.id,
+        quantity: qty,
+      })
+
+      const res = await getCart()
+      setCart(res.data)
+
+      // TODO: toast success ถ้าต้องการ
+    } catch (err) {
+      console.error(err)
+      setCartError("ไม่สามารถเพิ่มสินค้าในตะกร้าได้")
+    }
+  }
 
   // LOADING
   if (isLoading && !product) {
@@ -108,14 +141,16 @@ export default function ProductPage() {
     )
   }
 
-  // ใช้ image_url เดียวทำเป็น list ชั่วคราว (ไว้ต่อยอด multiple images ทีหลัง)
   const thumbnails = [
     product.image_url,
     product.image_url,
     product.image_url,
   ].filter(Boolean)
+
   const mainImage =
-    thumbnails[activeImageIndex] || product.image_url || "https://via.placeholder.com/800"
+    thumbnails[activeImageIndex] ||
+    product.image_url ||
+    "https://via.placeholder.com/800"
 
   const handlePrevThumb = () => {
     setActiveImageIndex((prev) =>
@@ -137,9 +172,8 @@ export default function ProductPage() {
     setQty((prev) => prev + 1)
   }
 
-  const storeName = `ร้านหมายเลข ${product.store_id}` // ตอนนี้มีแค่ store_id เลยใส่ชื่อชั่วคราว
+  const storeName = `ร้านหมายเลข ${product.store_id}`
 
-  // SUCCESS
   return (
     <main className="max-w-6xl mx-auto px-4 py-8 md:py-10">
       {/* Back button */}
@@ -154,9 +188,8 @@ export default function ProductPage() {
       {/* การ์ดหลักสินค้า */}
       <Card className="rounded-3xl px-6 py-6 md:px-10 md:py-8">
         <div className="grid gap-10 md:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)] items-start">
-          {/* LEFT: IMAGE + THUMBNAIL */}
+          {/* LEFT: IMAGE + THUMB */}
           <section className="flex flex-col items-center">
-            {/* รูปใหญ่ */}
             <div className="w-full max-w-[420px] aspect-square overflow-hidden rounded-3xl bg-gray-50">
               <img
                 src={mainImage}
@@ -165,7 +198,6 @@ export default function ProductPage() {
               />
             </div>
 
-            {/* แถวรูปเล็ก + ลูกศร */}
             <div className="mt-5 flex items-center gap-4">
               <button
                 type="button"
@@ -212,30 +244,24 @@ export default function ProductPage() {
 
           {/* RIGHT: DETAILS */}
           <section className="space-y-4">
-            {/* ชื่อ */}
             <h1 className="text-2xl md:text-3xl font-bold leading-tight">
               {product.name}
             </h1>
 
-            {/* ดาว + reviews */}
             <div className="flex items-center gap-3 text-gray-700">
               <RatingStarsFixed />
               <span className="text-sm">288 reviews</span>
             </div>
 
-            {/* ราคา */}
             <p className="text-2xl md:text-3xl font-bold text-gray-900">
               {product.price ? `${product.price} บาท` : "—"}
             </p>
 
-            {/* description */}
             <p className="text-sm text-gray-600 leading-relaxed">
               {product.description || "ไม่มีรายละเอียดสินค้า"}
             </p>
 
-            {/* จำนวน + ปุ่มเพิ่มตะกร้า */}
             <div className="flex flex-wrap items-center gap-4 pt-4">
-              {/* จำนวน */}
               <div className="inline-flex items-center rounded-full border border-gray-300 bg-white px-3 py-2">
                 <button
                   type="button"
@@ -256,9 +282,9 @@ export default function ProductPage() {
                 </button>
               </div>
 
-              {/* ปุ่มตะกร้า */}
               <button
                 type="button"
+                onClick={handleAddToCart}
                 className="flex-1 min-w-[200px] rounded-full bg-orange-500 px-6 py-3 text-sm font-semibold text-white shadow-sm hover:bg-orange-600 transition inline-flex items-center justify-center gap-2"
               >
                 <ShoppingCart className="h-5 w-5" />
@@ -266,7 +292,6 @@ export default function ProductPage() {
               </button>
             </div>
 
-            {/* Add to favorite */}
             <button
               type="button"
               className="mt-2 inline-flex items-center gap-2 text-sm text-gray-600 hover:text-gray-900"
@@ -281,10 +306,7 @@ export default function ProductPage() {
       {/* แถบข้อมูลร้านด้านล่าง */}
       <Card className="mt-8 flex flex-wrap items-center justify-between gap-4 rounded-3xl px-6 py-4">
         <div className="flex items-center gap-3">
-          {/* avatar ร้าน (placeholder วงกลม) */}
-          <div className="h-12 w-12 rounded-full bg-gray-200 overflow-hidden">
-            {/* ถ้ามีรูปโลโก้ร้านค่อยเอามาแทน */}
-          </div>
+          <div className="h-12 w-12 rounded-full bg-gray-200 overflow-hidden" />
           <div>
             <p className="text-sm font-semibold text-gray-900">{storeName}</p>
             <p className="text-xs text-gray-500">ร้านค้าพาร์ทเนอร์บน KMALL</p>

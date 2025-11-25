@@ -13,7 +13,8 @@ const Dashboard = lazy(() => import("../modules/DashBoard/Dashboard"))
 const LandingPage = lazy(() => import("../modules/LandingPage/LandingPage"))
 const CategoryPage = lazy(() => import("../modules/CategoryPage/CategoryPage"))
 
-const StorePage = lazy(() => import("../modules/StoreSellerPage/StorePage"))
+const StorePage = lazy(() => import("../modules/StorePage/StorePage"))
+const StoreSellerPage = lazy(() => import("../modules/StoreSellerPage/StorePage"))
 const StoreRegisterPage = lazy(() => import("../modules/StoreRegisterPage/StoreRegisterPage"))
 const CartPage = lazy(() => import("../modules/CartPage/CartPage"))
 const CheckoutPage = lazy(() => import("../modules/CheckoutPage/CheckoutPage"))
@@ -77,7 +78,7 @@ export default function AppRoutes() {
               path="/store/me"
               element={
                 <ProtectedRoute>
-                  <StorePage />
+                  <StoreSellerPage />
                 </ProtectedRoute>
               }
             />
@@ -85,7 +86,7 @@ export default function AppRoutes() {
               path="/store/products"
               element={
                 <ProtectedRoute>
-                  <StorePage />
+                  <StoreSellerPage />
                 </ProtectedRoute>
               }
             />
@@ -93,7 +94,7 @@ export default function AppRoutes() {
               path="/store/add"
               element={
                 <ProtectedRoute>
-                  <StorePage />
+                  <StoreSellerPage />
                 </ProtectedRoute>
               }
             />
@@ -101,7 +102,7 @@ export default function AppRoutes() {
               path="/store/orders"
               element={
                 <ProtectedRoute>
-                  <StorePage />
+                  <StoreSellerPage />
                 </ProtectedRoute>
               }
             />
@@ -109,7 +110,7 @@ export default function AppRoutes() {
               path="/store/settings"
               element={
                 <ProtectedRoute>
-                  <StorePage />
+                  <StoreSellerPage />
                 </ProtectedRoute>
               }
             />

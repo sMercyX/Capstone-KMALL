@@ -23,6 +23,12 @@ const LandingPage = () => {
     const url = `${API_BASE}/oauth2/start?rd=${encodeURIComponent(redirect)}`;
     window.location.assign(url);
   };
+  //  const login = () => {
+  //   const redirect = `${FE_BASE}/dashboard`;
+  //   const url = `${API_BASE}/oauth2/start?rd=${encodeURIComponent(redirect)}`
+  //   window.location.assign(url)
+  // }
+
 
   return (
     <div className="h-screen w-full flex flex-col justify-center items-center">

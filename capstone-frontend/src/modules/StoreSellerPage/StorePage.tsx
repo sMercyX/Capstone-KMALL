@@ -1,4 +1,4 @@
-import { useLocation } from "react-router-dom"
+import { useLocation, useNavigate } from "react-router-dom"
 import Card from "../../components/Card/Card"
 import SwitchTabs, {
   type SwitchTabItem,
@@ -8,11 +8,14 @@ import StoreOrdersTab from "./StoreOrdersTab"
 import StoreSettingsTab from "./StoreSettingTab"
 import { StoreAddTab } from "./StoreAddTab/StoreAddTab"
 import StoreProductsTab from "./StoreProductsTab/StoreProductsTab"
+import { useUserStore } from "../../stores/userStore"
+import { useEffect } from "react"
 
 type StoreTabKey = "store" | "products" | "add" | "orders" | "settings"
 
 export default function StorePage() {
   const location = useLocation()
+  const navigate = useNavigate()
   const pathname = location.pathname
 
   const tabs: SwitchTabItem[] = [
@@ -34,6 +37,16 @@ export default function StorePage() {
 
   const activeLabel =
     tabs.find((t) => t.key === activeKey)?.label || "ร้านค้าของฉัน"
+
+  const roles = useUserStore((s) => s.roles)
+  // 🔒 ถ้ามี role seller อยู่แล้ว ห้ามเข้าหน้านี้ → เด้งไป /store/me
+  const hasSellerRole = !roles?.some((r) => r.toLowerCase() === "seller")
+
+  useEffect(() => {
+    if (hasSellerRole) {
+      navigate("/store/register", { replace: true })
+    }
+  }, [hasSellerRole, navigate])
 
   return (
     <div className="max-w-6xl mx-auto py-10">
