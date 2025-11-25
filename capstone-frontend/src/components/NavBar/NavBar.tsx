@@ -2,10 +2,12 @@ import { useState } from "react"
 import { Link, useLocation } from "react-router-dom"
 import { ShoppingCart, User, ChevronDown, Image, Check } from "lucide-react"
 import { useUserStore } from "../../stores/userStore"
+import { useTheme } from "../../theme/ThemeContext"
 
 export default function Navbar() {
   const [isOpen, setIsOpen] = useState(false)
-  const [theme, setTheme] = useState<"dark" | "light">("dark")
+  const { theme, setTheme } = useTheme()
+
 
   const location = useLocation()
   const isStoreActive = location.pathname.startsWith("/store")
