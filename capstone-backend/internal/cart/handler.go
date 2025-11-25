@@ -110,19 +110,26 @@ func (h *Handler) getCart(c *gin.Context) {
 
 	itemsPage := cw.Items[offset:end]
 
-	// ===== รูปแบบ response ให้เหมือน listPublic =====
+	totalQuantity := 0
+	for _, item := range cw.Items {
+		totalQuantity += item.Quantity
+	}
+
+	// ===== Response =====
 	resp := struct {
-		Cart      Cart       `json:"cart"`
-		PageSize  int        `json:"pageSize"`
-		PageIndex int        `json:"pageIndex"`
-		Total     int64      `json:"total"`
-		Items     []CartItem `json:"items"`
+		Cart          Cart       `json:"cart"`
+		PageSize      int        `json:"pageSize"`
+		PageIndex     int        `json:"pageIndex"`
+		Total         int64      `json:"total"`
+		TotalQuantity int        `json:"totalQuantity"`
+		Items         []CartItem `json:"items"`
 	}{
-		Cart:      cw.Cart,
-		PageSize:  limit,
-		PageIndex: page,
-		Total:     int64(total),
-		Items:     itemsPage,
+		Cart:          cw.Cart,
+		PageSize:      limit,
+		PageIndex:     page,
+		Total:         int64(total),
+		TotalQuantity: totalQuantity,
+		Items:         itemsPage,
 	}
 
 	respond.OK(c, apperr.OK, resp)
