@@ -1,74 +1,79 @@
+// src/api/storeApi.ts
 import { useCrudApi } from "../utils/fetch"
+import type {
+  ApiCreateResponse,
+  ApiResponse,
+  ApiUpdatedResponse,
+  PaginatedResponse,
+} from "./responseType"
 
-// Interface for the Store object
-export interface Store {
-  id: number;
-  name: string;
-  description: string;
-  is_active: boolean;
-  user_id: number;
-  created_at: string;
-  updated_at: string;
+export interface AddResponse {
+  id: number
+  name: string
+  description: string
+  profile_url: string
+  is_active: "YES" | "NO"
+  created_at: string
+  updated_at: string
+  user_id: string
 }
 
-// Interface for creating a new store
-export interface CreateStoreDTO {
-  name: string;
-  description: string;
+export interface addStoreData {
+  name: string
+  description: string
+  profile_url: string
+  is_active: "YES" | "NO"
 }
 
-// Interface for updating an existing store
-export interface UpdateStoreDTO {
-  name?: string;
-  description?: string;
-  is_active?: boolean;
+export interface updatedStoreData {
+  name?: string
+  description?: string
+  profile_url?: string
+  is_active?: "YES" | "NO"
+}
+
+export interface storeProductDataRequset {
+  id: number
+  name: string
+  description: string
+  price: number
+  image_url: string
+  created_at: string
+  updated_at: string
+  is_active: "YES" | "NO"
+  store_id: number
+  category_id: string
 }
 
 export function useStoreApi() {
-  const httpClient = useCrudApi();
+  const http = useCrudApi()
 
-  // 1. POST /api/stores (Seller) - Create a new store
-  async function createStore(storeData: CreateStoreDTO): Promise<Store> {
-    return httpClient.postItem("/stores", storeData);
+  async function addStore(
+    data: addStoreData
+  ): Promise<ApiCreateResponse<AddResponse>> {
+    return http.postItem(`/api/stores`, data)
   }
 
-  // 2. GET /api/stores/me (Seller) - Get stores for the current user
-  async function getMyStores(): Promise<Store[]> {
-    return httpClient.getItems("/stores/me");
+  async function getStore(): Promise<ApiResponse<addStoreData>> {
+    return http.getItems(`/api/stores/me`)
   }
 
-  // 3. GET /api/stores/:id (Admin) - Get store details by ID
-  async function getStoreByIdAdmin(id: number): Promise<Store> {
-    return httpClient.getItems(`/stores/${id}`);
+  async function updateStore(
+    store_id: number,
+    data: updatedStoreData
+  ): Promise<ApiUpdatedResponse<AddResponse>> {
+    return http.putItem(`/api/stores/${store_id}`, data)
   }
 
-  // 4. PUT /api/stores/:id (Owner/Admin) - Update a store
-  async function updateStore(id: number, storeData: UpdateStoreDTO): Promise<Store> {
-    return httpClient.putItem(`/stores/$z{id}`, storeData);
+  async function getStoreProducts(
+    store_id: number,
+    pageIndex: number,
+    pageSize: number
+  ): Promise<PaginatedResponse<storeProductDataRequset>> {
+    return http.getItems(
+      `/api/stores/${store_id}/products?page=${pageIndex}&limit=${pageSize}`
+    )
   }
 
-  // 5. DELETE /api/stores/:id (Owner/Admin) - Delete a store (soft delete)
-  async function deleteStore(id: number): Promise<void> {
-    return httpClient.deleteItem(`/stores/${id}`);
-  }
-
-  // 6. GET /api/stores (Public) - Get all active stores
-  async function getAllPublicStores(): Promise<Store[]> {
-    return httpClient.getItems("/stores");
-  }
-
-  // 7. GET /api/stores/:id/public (Buyer/Public) - Get public store details by ID
-  async function getPublicStoreById(id: number): Promise<Store> {
-    return httpClient.getItems(`/stores/${id}/public`);
-  }
-
-  return {
-    createStore,
-    getMyStores,
-    getStoreByIdAdmin,
-    updateStore,
-    deleteStore,
-    getAllPublicStores,
-    getPublicStoreById,
-  };
+  return { addStore, getStore, updateStore, getStoreProducts }
 }
