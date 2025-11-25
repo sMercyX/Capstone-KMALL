@@ -71,7 +71,7 @@ export function useProductApi() {
   async function getProductsByStore(storeId: number) {
     return http.getItems(`/api/products/public?store_id=${storeId}`)
   }
-
+  
   async function getProductsByParentId(
     categoryId: number,
     limit: number,
@@ -81,18 +81,24 @@ export function useProductApi() {
       `/api/products/public?parent_category_id=${categoryId}&limit=${limit}&page=${pageIndex}`
     )
   }
-
+  
   async function addProduct(
     data: AddProductRequest
   ): Promise<ApiCreateResponse<Product>> {
     return http.postItem(`/api/products`, data)
   }
 
+  async function getProduct(storeId: number) {
+    return http.getItems(`/api/products/${storeId}/public`)
+  }
+
+
   return {
     getProductsByCategory,
     getProductBySlug,
     getProductsByStore,
     getProductsByParentId,
-    addProduct
+    addProduct,
+    getProduct
   }
 }
