@@ -2,55 +2,53 @@ _format_version: "3.0"
 _transform: true
 
 services:
+  # ===== FRONTEND (React build บน Nginx) =====
+  - name: frontend
+    url: http://frontend:80         
+    routes:
+      - name: frontend-route
+        paths:
+          - /
+          - /capstone25/cp25ssa2
+          - /capstone25/cp25ssa2/ 
+        strip_path: false
+        preserve_host: true
+
   # ===== OAUTH2-PROXY PUBLIC ENDPOINTS (/oauth2/*) =====
-  - name: oauth2-endpoints
+  - name: oauth2-public
     url: http://oauth2-proxy:4180
     routes:
       - name: oauth2-route
         paths:
           - /oauth2
+          - /oauth2/
+          - /oauth2/*
         strip_path: false
-        preserve_host: true       
-        request_buffering: true
+        preserve_host: true
+
 
   # ===== API THROUGH OAUTH2-PROXY (/api/*) =====
-  - name: api-through-proxy
+  - name: api-service
     url: http://oauth2-proxy:4180
     routes:
       - name: api-route
         paths:
-          - /api
-        strip_path: false
-        preserve_host: true     
-        request_buffering: true
-      - name: static-route
-        paths:
-          - /static
+          - /capstone25/cp25ssa2/api
         strip_path: false
         preserve_host: true
-        request_buffering: true
     plugins:
       - name: cors
         config:
           origins:
-            - http://localhost:5173
-            - http://localhost
-            - http://cp25ssa2.sit.kmutt.ac.th
             - https://bscit.sit.kmutt.ac.th
-          methods:
-            - GET
-            - POST
-            - PUT
-            - PATCH
-            - DELETE
-            - OPTIONS
+          methods: ["GET","POST","PUT","PATCH","DELETE","OPTIONS"]
+          credentials: true
           headers:
             - Authorization
             - Content-Type
+            - Cookie
             - X-Requested-With
           exposed_headers:
-            - X-Auth-Request-Email
-            - X-Auth-Request-User
-          credentials: true
+            - Set-Cookie
+            - Authorization
           max_age: 3600
-

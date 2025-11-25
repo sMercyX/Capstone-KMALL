@@ -13,6 +13,12 @@ function isFormData(body: unknown): body is FormData {
   return typeof FormData !== "undefined" && body instanceof FormData;
 }
 
+function joinUrl(base: string, path: string): string {
+  const b = base.replace(/\/+$/, "");    
+  const p = path.replace(/^\/+/, "");       
+  return `${b}/${p}`;                      
+}
+
 export function useHttpClient(baseUrl: string) {
   async function fetchData(
     path: string,
@@ -20,15 +26,13 @@ export function useHttpClient(baseUrl: string) {
   ) {
     const { auth = "auto", headers = {}, credentials, ...rest } = options;
 
-    const url = new URL(path, baseUrl);
+    const url = joinUrl(baseUrl, path);
     const h = new Headers(headers);
 
-    // ตั้ง Content-Type ให้อัตโนมัติถ้าเป็น JSON
     if (rest.body && !h.has("Content-Type") && !isFormData(rest.body)) {
       h.set("Content-Type", "application/json");
     }
 
-    // ส่ง cookie ไปให้ BE (ถ้าใช้ auth!=none)
     const finalCredentials: RequestCredentials | undefined =
       credentials ?? (auth === "none" ? "same-origin" : "include");
 
@@ -77,12 +81,11 @@ export function useHttpClient(baseUrl: string) {
   return { getItems, postItem, putItem, deleteItem };
 }
 
-// ใช้ที่อื่นเรียกแบบนี้
 export function useCrudApi() {
-  const baseUrl =
-    (import.meta as any)?.env?.VITE_API_BASE ||
-    (process.env as any)?.NEXT_PUBLIC_BASE_URL ||
-    API_BASE ||
-    "";
+  let baseUrl = import.meta.env.VITE_API_BASE || API_BASE;
+
+  baseUrl = baseUrl.replace(/\/+$/, "");
+
   return useHttpClient(baseUrl);
 }
+

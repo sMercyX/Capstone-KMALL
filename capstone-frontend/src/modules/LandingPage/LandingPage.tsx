@@ -2,7 +2,7 @@ import { useEffect } from "react";
 import CircularGallery from "../../components/CircleGallery/CircleGallery";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { API_BASE, FE_BASE } from "../../config";
+import { FE_BASE } from "../../config";
 import { useAuth } from "../../auth/AuthContext";   // <<< เพิ่ม
 
 const LandingPage = () => {
@@ -19,10 +19,12 @@ const LandingPage = () => {
   }, [ready, user, navigate]);
 
   const goLogin = () => {
-    const redirect = `${FE_BASE}/dashboard`;
-    const url = `${API_BASE}/oauth2/start?rd=${encodeURIComponent(redirect)}`;
-    window.location.assign(url);
-  };
+    const redirect = `${FE_BASE}/dashboard`
+    const url = `${FE_BASE}/oauth2/start?rd=${encodeURIComponent(redirect)}`
+    window.location.assign(url)
+  }
+
+
 
   return (
     <div className="h-screen w-full flex flex-col justify-center items-center">

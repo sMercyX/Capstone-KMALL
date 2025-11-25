@@ -57,7 +57,7 @@ func Attach(r *gin.Engine, db *pgxpool.Pool, cfg config.Config) {
 	oSvc := order.NewService(oRepo, cartSvc, pSvc)
 
 	// API routes (protected)
-	v1 := r.Group("/api",
+	v1 := r.Group("/capstone25/cp25ssa2/api",
 		middleware.UpstreamAuth(),
 		middleware.EnsureUser(func(ctx context.Context, oid, email, name string) (string, error) {
 			u, err := uSvc.UpsertAndEnsureBuyer(ctx, oid, email, name)
