@@ -87,7 +87,6 @@ func (h *Handler) getCart(c *gin.Context) {
 		return
 	}
 
-	// ===== อ่าน query สำหรับ pagination =====
 	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "20"))
 	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
 
@@ -108,6 +107,7 @@ func (h *Handler) getCart(c *gin.Context) {
 		end = total
 	}
 
+	// 🔹 ตอนนี้ items เป็น []CartItemView
 	itemsPage := cw.Items[offset:end]
 
 	totalQuantity := 0
@@ -117,12 +117,12 @@ func (h *Handler) getCart(c *gin.Context) {
 
 	// ===== Response =====
 	resp := struct {
-		Cart          Cart       `json:"cart"`
-		PageSize      int        `json:"pageSize"`
-		PageIndex     int        `json:"pageIndex"`
-		Total         int64      `json:"total"`
-		TotalQuantity int        `json:"totalQuantity"`
-		Items         []CartItem `json:"items"`
+		Cart          Cart           `json:"cart"`
+		PageSize      int            `json:"pageSize"`
+		PageIndex     int            `json:"pageIndex"`
+		Total         int64          `json:"total"`
+		TotalQuantity int            `json:"totalQuantity"`
+		Items         []CartItemView `json:"items"`
 	}{
 		Cart:          cw.Cart,
 		PageSize:      limit,
