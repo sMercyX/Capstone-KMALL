@@ -10,8 +10,8 @@ import (
 // DTO / Input Types
 // ============================================================================
 type CartWithItems struct {
-	Cart  Cart       `json:"cart"`
-	Items []CartItem `json:"items"`
+	Cart  Cart           `json:"cart"`
+	Items []CartItemView `json:"items"`
 }
 
 type CartItemCreateInput struct {
@@ -85,7 +85,7 @@ func (s *service) GetCart(ctx context.Context, userID string) (CartWithItems, er
 		return CartWithItems{}, err
 	}
 
-	items, err := s.repo.ListItemsByCartID(ctx, int64(cart.ID))
+	items, err := s.repo.ListItemViewsByCartID(ctx, int64(cart.ID))
 	if err != nil {
 		return CartWithItems{}, err
 	}
@@ -94,7 +94,6 @@ func (s *service) GetCart(ctx context.Context, userID string) (CartWithItems, er
 		Cart:  cart,
 		Items: items,
 	}, nil
-
 }
 
 func (s *service) AddItem(ctx context.Context, userID string, in CartItemCreateInput) (CartItem, error) {
@@ -103,6 +102,14 @@ func (s *service) AddItem(ctx context.Context, userID string, in CartItemCreateI
 	}
 	if err := validateCreateInput(&in); err != nil {
 		return CartItem{}, err
+	}
+
+	ownerID, err := s.repo.GetProductOwnerID(ctx, in.ProductID)
+	if err != nil {
+		return CartItem{}, err
+	}
+	if ownerID == userID {
+		return CartItem{}, apperr.New(apperr.Forbidden, "cannot add your own product to cart")
 	}
 
 	cart, err := s.repo.GetOrCreateCartByUserID(ctx, userID)
