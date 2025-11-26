@@ -41,7 +41,7 @@ services:
     networks: [capstone_net]
 
   database:
-    image: postgres:15
+    image: postgres:18
     container_name: capstone-database
     restart: unless-stopped
     environment:
