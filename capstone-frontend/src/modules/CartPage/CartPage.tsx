@@ -1,3 +1,5 @@
+// src/pages/cart/CartPage.tsx
+import { useEffect } from "react"
 import {
   Heart,
   Minus,
@@ -6,45 +8,25 @@ import {
   Store as StoreIcon,
   Trash2,
 } from "lucide-react"
+import { useCartStore } from "../../stores/cartStore"
+import { useCartApi } from "../../api/cartApi"
+import { Link } from "react-router-dom"
 
 type CartItem = {
-  id: string
+  id: number
+  productId: number
   name: string
   price: number
   quantity: number
   image: string
+  subtotal: number
 }
 
 type CartStore = {
-  id: string
+  id: number
   name: string
   items: CartItem[]
 }
-
-const CART_STORES: CartStore[] = [
-  {
-    id: "handmade",
-    name: "Handmade Store",
-    items: [
-      {
-        id: "bracelet",
-        name: "กำไลข้อมือ",
-        price: 39,
-        quantity: 2,
-        image:
-          "https://images.unsplash.com/photo-1522337360788-8b13dee7a37e?w=400&auto=format&fit=crop",
-      },
-      {
-        id: "necklace",
-        name: "สร้อยคอ",
-        price: 45,
-        quantity: 1,
-        image:
-          "https://images.unsplash.com/photo-1469334031218-e382a71b716b?w=400&auto=format&fit=crop",
-      },
-    ],
-  },
-]
 
 const formatPrice = (value: number) =>
   value.toLocaleString("th-TH", { minimumFractionDigits: 0 })
@@ -65,7 +47,13 @@ function ToggleIcon({ checked }: { checked: boolean }) {
   )
 }
 
-function CartItemRow({ item }: { item: CartItem }) {
+function CartItemRow({
+  item,
+  onDelete,
+}: {
+  item: CartItem
+  onDelete: (id: number) => void
+}) {
   return (
     <div className="flex items-center justify-between gap-4 py-4">
       <div className="flex flex-1 items-center gap-4">
@@ -82,7 +70,7 @@ function CartItemRow({ item }: { item: CartItem }) {
         <div className="flex flex-col">
           <p className="text-base font-semibold text-gray-900">{item.name}</p>
           <p className="text-sm text-gray-500">
-            {formatPrice(item.price)} บาท
+            {item.price > 0 ? `${formatPrice(item.price)} บาท` : "—"}
           </p>
         </div>
       </div>
@@ -103,13 +91,16 @@ function CartItemRow({ item }: { item: CartItem }) {
 
       <div className="flex items-center gap-4">
         <p className="w-24 text-right text-lg font-semibold text-gray-900">
-          {formatPrice(item.price * item.quantity)} บาท
+          {item.subtotal > 0 ? `${formatPrice(item.subtotal)} บาท` : "—"}
         </p>
         <div className="flex items-center gap-2">
           <button className="flex h-10 w-10 items-center justify-center rounded-full border border-gray-200 bg-white text-gray-600 shadow-sm hover:border-orange-300 hover:text-[#f15a24]">
             <Heart className="h-5 w-5" />
           </button>
-          <button className="flex h-10 w-10 items-center justify-center rounded-full bg-[#d73c30] text-white shadow-sm hover:bg-[#bf3228]">
+          <button
+            className="flex h-10 w-10 items-center justify-center rounded-full bg-[#d73c30] text-white shadow-sm hover:bg-[#bf3228]"
+            onClick={() => onDelete(item.id)}
+          >
             <Trash2 className="h-5 w-5" />
           </button>
         </div>
@@ -118,7 +109,13 @@ function CartItemRow({ item }: { item: CartItem }) {
   )
 }
 
-function CartStoreBlock({ store }: { store: CartStore }) {
+function CartStoreBlock({
+  store,
+  onDeleteItem,
+}: {
+  store: CartStore
+  onDeleteItem: (id: number) => void
+}) {
   const totalItems = store.items.reduce((sum, item) => sum + item.quantity, 0)
 
   return (
@@ -136,7 +133,7 @@ function CartStoreBlock({ store }: { store: CartStore }) {
 
       <div className="space-y-2">
         {store.items.map((item) => (
-          <CartItemRow key={item.id} item={item} />
+          <CartItemRow key={item.id} item={item} onDelete={onDeleteItem} />
         ))}
       </div>
     </div>
@@ -144,47 +141,154 @@ function CartStoreBlock({ store }: { store: CartStore }) {
 }
 
 export default function CartPage() {
-  const totalItems = CART_STORES.reduce(
-    (sum, store) =>
-      sum + store.items.reduce((acc, item) => acc + item.quantity, 0),
-    0,
-  )
+  const { getCart, deleteItemCart } = useCartApi()
+  const { cart, isLoading, error, startLoading, setCart, setError } =
+    useCartStore()
 
-  const totalPrice = CART_STORES.reduce(
-    (sum, store) =>
-      sum +
-      store.items.reduce((acc, item) => acc + item.price * item.quantity, 0),
-    0,
-  )
+  useEffect(() => {
+    let cancelled = false
+
+    async function load() {
+      try {
+        startLoading()
+        const res = await getCart()
+        if (!cancelled) {
+          setCart(res.data)
+        }
+      } catch (err) {
+        console.error(err)
+        if (!cancelled) setError("ไม่สามารถโหลดตะกร้าได้")
+      }
+    }
+
+    if (!cart) {
+      load()
+    }
+
+    return () => {
+      cancelled = true
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  async function handleDeleteItem(id: number) {
+    try {
+      await deleteItemCart(id)
+      const res = await getCart()
+      setCart(res.data)
+    } catch (err) {
+      console.error(err)
+      setError("ลบสินค้าไม่สำเร็จ")
+    }
+  }
+
+  let uiStores: CartStore[] = []
+  let totalItems = 0
+  let totalPrice = 0
+
+  if (cart) {
+    const storeMap = new Map<number, CartStore>()
+
+    for (const it of cart.items) {
+      const storeId = it.store_id
+      const existing = storeMap.get(storeId)
+
+      const item: CartItem = {
+        id: it.id,
+        productId: it.product_id,
+        name: it.product_name,
+        price: it.product_price,
+        quantity: it.quantity,
+        image: it.product_image_url || "https://via.placeholder.com/160",
+        subtotal: it.subtotal,
+      }
+
+      if (!existing) {
+        storeMap.set(storeId, {
+          id: storeId,
+          name: it.store_name,
+          items: [item],
+        })
+      } else {
+        existing.items.push(item)
+      }
+    }
+
+    uiStores = Array.from(storeMap.values())
+
+    totalItems =
+      typeof cart.totalQuantity === "number"
+        ? cart.totalQuantity
+        : uiStores.reduce(
+            (sum, store) =>
+              sum + store.items.reduce((s, item) => s + item.quantity, 0),
+            0
+          )
+
+    totalPrice = uiStores.reduce(
+      (sum, store) =>
+        sum + store.items.reduce((s, item) => s + item.subtotal, 0),
+      0
+    )
+  }
+
+  if (isLoading && !cart) {
+    return (
+      <div className="pt-10 pb-24">
+        <p className="text-center text-sm text-gray-500">กำลังโหลดตะกร้า...</p>
+      </div>
+    )
+  }
+
+  if (error && !cart) {
+    return (
+      <div className="pt-10 pb-24">
+        <p className="text-center text-sm text-red-500">{error}</p>
+      </div>
+    )
+  }
 
   return (
     <div className="pt-10 pb-24">
       <div className="flex items-center gap-3 text-gray-900">
         <ShoppingCart className="h-7 w-7 text-black" />
-        <h1 className="text-2xl font-semibold">
-          ตะกร้าทั้งหมด ({totalItems})
-        </h1>
+        <h1 className="text-2xl font-semibold">ตะกร้าทั้งหมด ({totalItems})</h1>
       </div>
 
       <section className="mt-8 w-full rounded-[28px] border border-gray-200 bg-[#f7f7f7] px-10 py-10 shadow-[0_18px_40px_rgba(0,0,0,0.06)]">
-        <div className="space-y-6">
-          {CART_STORES.map((store) => (
-            <CartStoreBlock key={store.id} store={store} />
-          ))}
-        </div>
+        {!cart || uiStores.length === 0 ? (
+          <p className="text-center text-sm text-gray-500">
+            ยังไม่มีสินค้าในตะกร้า
+          </p>
+        ) : (
+          <>
+            <div className="space-y-6">
+              {uiStores.map((store) => (
+                <CartStoreBlock
+                  key={store.id}
+                  store={store}
+                  onDeleteItem={handleDeleteItem}
+                />
+              ))}
+            </div>
 
-        <div className="mt-10 flex justify-end pr-2">
-          <div className="flex items-baseline gap-2 text-right">
-            <p className="text-sm text-gray-600">
-              รวม ({totalItems} สินค้า)
-            </p>
-            <span className="text-sm text-gray-700">:</span>
-            <p className="text-xl font-semibold text-[#d73c30]">
-              {formatPrice(totalPrice)} บาท
-            </p>
-          </div>
-        </div>
+            <div className="mt-10 flex justify-end pr-2">
+              <div className="flex items-baseline gap-2 text-right">
+                <p className="text-sm text-gray-600">
+                  รวม ({totalItems} สินค้า)
+                </p>
+                <span className="text-sm text-gray-700">:</span>
+                <p className="text-xl font-semibold text-[#d73c30]">
+                  {totalPrice > 0 ? `${formatPrice(totalPrice)} บาท` : "— บาท"}
+                </p>
+              </div>
+            </div>
+          </>
+        )}
       </section>
+      <Link to="/checkout" className="text-2xl font-bold text-orange-600">
+        ยืนยันรายาการคำสั่งซื้อ
+      </Link>
     </div>
   )
 }

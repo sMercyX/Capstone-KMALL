@@ -1,57 +1,166 @@
+// src/pages/cart/CheckoutPage.tsx
+import { useEffect, useState } from "react"
 import { MapPin, ShoppingCart, Store as StoreIcon } from "lucide-react"
+import { useCartApi } from "../../api/cartApi"
+import { useCartStore } from "../../stores/cartStore"
+import { useUserStore } from "../../stores/userStore"
+import { useCheckkOutApi, type orderCreatedRequest } from "../../api/checkOutApi"
+
 
 type CheckoutItem = {
-  id: string
+  id: number
   name: string
   price: number
   quantity: number
   image: string
+  subtotal: number
 }
 
 type CheckoutStore = {
-  id: string
+  id: number
   name: string
   items: CheckoutItem[]
-}
-
-const CHECKOUT_STORE: CheckoutStore = {
-  id: "handmade",
-  name: "Handmade Store",
-  items: [
-    {
-      id: "bracelet",
-      name: "กำไลข้อมือ",
-      price: 78,
-      quantity: 2,
-      image:
-        "https://images.unsplash.com/photo-1522337360788-8b13dee7a37e?w=400&auto=format&fit=crop",
-    },
-    {
-      id: "necklace",
-      name: "สร้อยคอ",
-      price: 45,
-      quantity: 1,
-      image:
-        "https://images.unsplash.com/photo-1469334031218-e382a71b716b?w=400&auto=format&fit=crop",
-    },
-  ],
+  subtotal: number
 }
 
 const formatPrice = (v: number) =>
   v.toLocaleString("th-TH", { minimumFractionDigits: 0 })
 
 export default function CheckoutPage() {
-  const totalItems = CHECKOUT_STORE.items.reduce(
-    (sum, item) => sum + item.quantity,
-    0,
-  )
+  // ดึง cart (getCart) จาก cartApi
+  const { getCart } = useCartApi()
+  const {
+    cart,
+    isLoading,
+    error,
+    startLoading,
+    setCart,
+    setError,
+  } = useCartStore()
 
-  const merchandiseTotal = CHECKOUT_STORE.items.reduce(
-    (sum, item) => sum + item.price,
-    0,
-  )
+  // ยิง checkout (checkOutOrder) จาก storeApi
+  const { checkOutOrder } = useCheckkOutApi()
+
+  const { email } = useUserStore()
+
+  const { reset } = useCartStore()
+
+  const [addressExtra, setAddressExtra] = useState("")
+  const [note, setNote] = useState("")
+  const [submitting, setSubmitting] = useState(false)
+
+  // โหลด cart ถ้ายังไม่มี
+  useEffect(() => {
+    if (cart || isLoading) return
+
+    ;(async () => {
+      try {
+        startLoading()
+        const res = await getCart()
+        setCart(res.data)
+      } catch (err) {
+        console.error(err)
+        setError("ไม่สามารถโหลดตะกร้าได้")
+      }
+    })()
+  }, [cart, isLoading, getCart, setCart, setError, startLoading])
+
+  let stores: CheckoutStore[] = []
+  let totalItems = 0
+  let merchandiseTotal = 0
   const shippingFee = 10
+
+  if (cart) {
+    const storeMap = new Map<number, CheckoutStore>()
+
+    for (const it of cart.items) {
+      const item: CheckoutItem = {
+        id: it.id,
+        name: it.product_name,
+        price: it.product_price,
+        quantity: it.quantity,
+        image:
+          it.product_image_url ||
+          "https://via.placeholder.com/160?text=Product",
+        subtotal: it.subtotal,
+      }
+
+      const existing = storeMap.get(it.store_id)
+      if (!existing) {
+        storeMap.set(it.store_id, {
+          id: it.store_id,
+          name: it.store_name,
+          items: [item],
+          subtotal: item.subtotal,
+        })
+      } else {
+        existing.items.push(item)
+        existing.subtotal += item.subtotal
+      }
+    }
+
+    stores = Array.from(storeMap.values())
+
+    totalItems =
+      typeof cart.totalQuantity === "number"
+        ? cart.totalQuantity
+        : stores.reduce(
+            (sum, s) =>
+              sum + s.items.reduce((ss, i) => ss + i.quantity, 0),
+            0,
+          )
+
+    merchandiseTotal = stores.reduce((sum, s) => sum + s.subtotal, 0)
+  }
+
   const grandTotal = merchandiseTotal + shippingFee
+
+  async function handleSubmit() {
+    if (!cart) return
+
+    try {
+      setSubmitting(true)
+
+      // payload สำหรับ /api/checkout/confirm
+      const payload: orderCreatedRequest = {
+        fulfillment_type: "STANDARD", // หรือให้เลือกจาก UI ทีหลังได้
+        promised_ship_date: new Date().toISOString(), // ปรับให้ตรง logic BE ถ้าต้องการ
+        deposit_amount: grandTotal, // ถ้าต้องการมัดจำบางส่วนเปลี่ยนค่าตรงนี้ได้
+      }
+
+      const res = await checkOutOrder(payload)
+
+      console.log("Order created:", res.data.order)
+
+      reset()
+      
+      alert(`ยืนยันออเดอร์สำเร็จ! เลขคำสั่งซื้อ #${res.data.order.order_id}`)
+
+      // TODO: redirect ไปหน้า orders หรือหน้า success
+      // navigate(`/orders/${res.data.order.order_id}`)
+    } catch (err) {
+      console.error(err)
+      alert("ยืนยันออเดอร์ไม่สำเร็จ")
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  if (isLoading && !cart) {
+    return (
+      <div className="min-h-screen bg-white flex items-center justify-center text-sm text-gray-500">
+        กำลังโหลดตะกร้า...
+      </div>
+    )
+  }
+
+  if (error && !cart) {
+    return (
+      <div className="min-h-screen bg-white flex items-center justify-center text-sm text-red-500">
+        {error}
+      </div>
+    )
+  }
 
   return (
     <div className="min-h-screen bg-white">
@@ -62,17 +171,20 @@ export default function CheckoutPage() {
         </div>
 
         <div className="grid items-start gap-16 lg:grid-cols-[0.6fr_0.4fr]">
+          {/* LEFT FORM */}
           <section className="space-y-10">
             <div>
               <h2 className="text-lg font-semibold">ที่อยู่จัดส่ง</h2>
 
               <p className="mt-3 text-sm font-medium">
-                nitchan.konk@kmutt.ac.th
+                {email || "example@kmutt.ac.th"}
               </p>
 
               <input
                 type="text"
                 placeholder="ระบุจุดรับเพิ่มเติม เช่น รออยู่ CBI ตรงร้านถ่ายเอกสารนะครับ"
+                value={addressExtra}
+                onChange={(e) => setAddressExtra(e.target.value)}
                 className="mt-3 w-full rounded-lg border border-gray-200 bg-white px-4 py-3 text-sm shadow-sm focus:border-orange-400 focus:ring-2 focus:ring-orange-100"
               />
             </div>
@@ -82,6 +194,8 @@ export default function CheckoutPage() {
               <input
                 type="text"
                 placeholder="ระบุหมายเหตุเพิ่มเติม"
+                value={note}
+                onChange={(e) => setNote(e.target.value)}
                 className="mt-3 w-full rounded-lg border border-gray-200 bg-white px-4 py-3 text-sm shadow-sm focus:border-orange-400 focus:ring-2 focus:ring-orange-100"
               />
             </div>
@@ -97,73 +211,102 @@ export default function CheckoutPage() {
 
               <button
                 type="button"
-                className="rounded-xl bg-[#f0532c] px-10 py-3 text-sm font-semibold text-white shadow-lg hover:bg-[#e24420]"
+                onClick={handleSubmit}
+                disabled={submitting || !cart || totalItems === 0}
+                className="rounded-xl bg-[#f0532c] px-10 py-3 text-sm font-semibold text-white shadow-lg hover:bg-[#e24420] disabled:opacity-60 disabled:cursor-not-allowed"
               >
                 ยืนยันออเดอร์
               </button>
             </div>
           </section>
 
+          {/* RIGHT SUMMARY */}
           <section className="rounded-[28px] border border-gray-200 bg-[#f7f7f7] px-10 py-10 shadow-[0_18px_40px_rgba(0,0,0,0.06)]">
-            <div className="mb-6 flex items-center gap-2 text-base font-semibold">
-              <StoreIcon className="h-5 w-5" />
-              <span>{CHECKOUT_STORE.name}</span>
-              <span className="text-xs font-normal text-gray-500">
-                ({totalItems} รายการ)
-              </span>
-            </div>
-
-            <div className="space-y-6">
-              {CHECKOUT_STORE.items.map((item) => (
-                <div key={item.id} className="flex items-center justify-between">
-                  <div className="flex items-center gap-4">
-                    <div className="relative inline-block">
-                      <div className="rounded-[18px] bg-white shadow-[0_10px_25px_rgba(0,0,0,0.12)]">
-                        <div className="rounded-[18px] border border-orange-100 bg-white p-1">
-                          <div className="overflow-hidden rounded-[14px]">
-                            <img
-                              src={item.image}
-                              className="h-20 w-20 object-cover"
-                            />
-                          </div>
-                        </div>
-                      </div>
-
-                      <span className="absolute -top-2 -right-2 flex h-7 w-7 items-center justify-center rounded-[8px] bg-[#ff5a1f] text-sm font-semibold text-white shadow-[0_6px_16px_rgba(255,90,31,0.6)]">
-                        {item.quantity}
+            {stores.length === 0 ? (
+              <p className="text-center text-sm text-gray-400">
+                ยังไม่มีสินค้าในตะกร้า
+              </p>
+            ) : (
+              <>
+                {stores.map((store) => (
+                  <div key={store.id} className="mb-8 last:mb-0">
+                    <div className="mb-6 flex items-center gap-2 text-base font-semibold">
+                      <StoreIcon className="h-5 w-5" />
+                      <span>{store.name}</span>
+                      <span className="text-xs font-normal text-gray-500">
+                        ({store.items.reduce(
+                          (s, i) => s + i.quantity,
+                          0,
+                        )}{" "}
+                        รายการ)
                       </span>
                     </div>
 
-                    <p className="text-sm font-semibold">{item.name}</p>
+                    <div className="space-y-6">
+                      {store.items.map((item) => (
+                        <div
+                          key={item.id}
+                          className="flex items-center justify-between"
+                        >
+                          <div className="flex items-center gap-4">
+                            <div className="relative inline-block">
+                              <div className="rounded-[18px] bg-white shadow-[0_10px_25px_rgba(0,0,0,0.12)]">
+                                <div className="rounded-[18px] border border-orange-100 bg-white p-1">
+                                  <div className="overflow-hidden rounded-[14px]">
+                                    <img
+                                      src={item.image}
+                                      className="h-20 w-20 object-cover"
+                                      alt={item.name}
+                                    />
+                                  </div>
+                                </div>
+                              </div>
+
+                              <span className="absolute -top-2 -right-2 flex h-7 w-7 items-center justify-center rounded-[8px] bg-[#ff5a1f] text-sm font-semibold text-white shadow-[0_6px_16px_rgba(255,90,31,0.6)]">
+                                {item.quantity}
+                              </span>
+                            </div>
+
+                            <p className="text-sm font-semibold">
+                              {item.name}
+                            </p>
+                          </div>
+
+                          <p className="text-sm font-semibold">
+                            {formatPrice(item.price)} บาท
+                          </p>
+                        </div>
+                      ))}
+                    </div>
+
+                    {stores.length > 1 && (
+                      <div className="my-8 h-px w-full bg-gray-200" />
+                    )}
+                  </div>
+                ))}
+
+                <div className="my-8 h-px w-full bg-gray-200" />
+
+                <div className="space-y-2 text-sm">
+                  <div className="flex justify-between">
+                    <span>รวมการสั่งซื้อ</span>
+                    <span>{formatPrice(merchandiseTotal)} บาท</span>
                   </div>
 
-                  <p className="text-sm font-semibold">
-                    {formatPrice(item.price)} บาท
-                  </p>
+                  <div className="flex justify-between">
+                    <span>ค่าจัดส่ง</span>
+                    <span>{formatPrice(shippingFee)} บาท</span>
+                  </div>
                 </div>
-              ))}
-            </div>
 
-            <div className="my-8 h-px w-full bg-gray-200" />
-
-            <div className="space-y-2 text-sm">
-              <div className="flex justify-between">
-                <span>รวมการสั่งซื้อ</span>
-                <span>{formatPrice(merchandiseTotal)} บาท</span>
-              </div>
-
-              <div className="flex justify-between">
-                <span>ค่าจัดส่ง</span>
-                <span>{formatPrice(shippingFee)} บาท</span>
-              </div>
-            </div>
-
-            <div className="mt-5 flex justify-between text-base font-semibold">
-              <span>ยอดชำระทั้งหมด</span>
-              <span className="text-xl font-bold text-[#d73c30]">
-                {formatPrice(grandTotal)} บาท
-              </span>
-            </div>
+                <div className="mt-5 flex justify-between text-base font-semibold">
+                  <span>ยอดชำระทั้งหมด</span>
+                  <span className="text-xl font-bold text-[#d73c30]">
+                    {formatPrice(grandTotal)} บาท
+                  </span>
+                </div>
+              </>
+            )}
           </section>
         </div>
       </div>

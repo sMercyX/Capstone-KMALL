@@ -9,11 +9,23 @@ export interface cartRequset {
   product_id: number
   quantity: number
 }
+// export interface cartResponse {
+//   id: number
+//   cart_id: number
+//   product_id: number
+//   quantity: number
+// }
 export interface cartResponse {
-  id: number
   cart_id: number
+  id: number
   product_id: number
+  product_image_url: string
+  product_name: string
+  product_price: number
   quantity: number
+  store_id: number
+  store_name: string
+  subtotal: number
 }
 
 export interface cartResponse2{
@@ -32,7 +44,9 @@ export interface PaginatedCartData {
   cart: cartResponse2
 }
 
-
+export interface deleteItemResponse{
+  deleted:boolean
+}
 export function useCartApi() {
   const http = useCrudApi()
 
@@ -45,6 +59,9 @@ export function useCartApi() {
   async function getCart(): Promise<ApiResponse<PaginatedCartData>> {
     return http.getItems(`/api/cart`)
   }
+  async function deleteItemCart(item_id:number): Promise<ApiResponse<deleteItemResponse>> {
+    return http.deleteItem(`/api/cart/items/${item_id}`)
+  }
 
-  return { addCart, getCart }
+  return { addCart, getCart, deleteItemCart }
 }

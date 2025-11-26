@@ -17,6 +17,7 @@ import { useCartApi } from "../../api/cartApi"
 export default function Navbar() {
   const [isUserOpen, setIsUserOpen] = useState(false)
   const [isCartOpen, setIsCartOpen] = useState(false)
+  const [deletingId, setDeletingId] = useState<number | null>(null)
 
   const { theme, setTheme } = useTheme()
   const location = useLocation()
@@ -27,8 +28,8 @@ export default function Navbar() {
 
   const { name, email, roles } = useUserStore()
 
-  // ===== CART STATE + API =====
-  const { getCart } = useCartApi()
+  // CART STATE + API
+  const { getCart, deleteItemCart } = useCartApi()
   const {
     cart,
     isLoading: cartLoading,
@@ -56,6 +57,20 @@ export default function Navbar() {
       }
     })()
   }, [isCartOpen, cart, cartLoading, getCart, setCart, setCartError, startCartLoading])
+
+  async function handleDeleteItem(id: number) {
+    try {
+      setDeletingId(id)
+      await deleteItemCart(id)
+      const res = await getCart()
+      setCart(res.data)
+    } catch (err) {
+      console.error("Failed to delete cart item", err)
+      setCartError("ลบสินค้าไม่สำเร็จ")
+    } finally {
+      setDeletingId(null)
+    }
+  }
 
   // เช็ค role seller
   const hasSellerRole = roles?.some((r) => r.toLowerCase() === "seller")
@@ -163,24 +178,36 @@ export default function Navbar() {
                           <Check className="h-3 w-3 text-white" />
                         </div>
 
-                        {/* IMG placeholder */}
+                        {/* IMG */}
                         <div className="h-16 w-16 rounded-lg bg-gray-200 overflow-hidden">
-                          <div className="flex h-full w-full items-center justify-center text-[10px] text-gray-500">
-                            IMG
-                          </div>
+                          {item.product_image_url ? (
+                            <img
+                              src={item.product_image_url}
+                              alt={item.product_name}
+                              className="h-full w-full object-cover"
+                            />
+                          ) : (
+                            <div className="flex h-full w-full items-center justify-center text-[10px] text-gray-500">
+                              IMG
+                            </div>
+                          )}
                         </div>
 
                         {/* Info */}
                         <div className="flex-1">
                           <p className="font-medium text-gray-900 line-clamp-1">
-                            สินค้า #{item.product_id}
+                            {item.product_name || `สินค้า #${item.product_id}`}
                           </p>
                           <p className="text-xs text-gray-500 mt-0.5">
                             จำนวน {item.quantity} ชิ้น
                           </p>
                         </div>
 
-                        <button className="flex h-9 w-9 items-center justify-center rounded-full bg-orange-500 shadow-md shadow-orange-200">
+                        <button
+                          className="flex h-9 w-9 items-center justify-center rounded-full bg-orange-500 shadow-md shadow-orange-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                          onClick={() => handleDeleteItem(item.id)}
+                          disabled={deletingId === item.id}
+                        >
                           <X className="h-4 w-4 text-white" />
                         </button>
                       </div>
