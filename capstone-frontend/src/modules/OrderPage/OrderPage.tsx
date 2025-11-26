@@ -69,11 +69,11 @@ export default function OrderPage() {
 
   // sync URL -> activeKey
   useEffect(() => {
-    let routeKey: OrderTabKey = "ongoing"
+    let routeKey: OrderTabKey 
     if (pathname.startsWith("/orders/ongoing")) routeKey = "ongoing"
     else if (pathname.startsWith("/orders/completed")) routeKey = "completed"
     else if (pathname.startsWith("/orders/canceled")) routeKey = "canceled"
-    setActiveKey(routeKey)
+    setActiveKey(routeKey!)
   }, [pathname, setActiveKey])
 
   // load data เมื่อ activeKey เปลี่ยน
