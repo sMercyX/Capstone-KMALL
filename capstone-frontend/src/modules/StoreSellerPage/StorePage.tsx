@@ -4,7 +4,7 @@ import SwitchTabs, {
   type SwitchTabItem,
 } from "../../components/SwitchTabs/SwitchTabs"
 import StoreInfoTab from "./StoreInfoTab/StoreInfoTab"
-import StoreOrdersTab from "./StoreOrdersTab"
+import StoreOrdersTab from "./storeOrderTab/StoreOrdersTab"
 import StoreSettingsTab from "./StoreSettingTab"
 import { StoreAddTab } from "./StoreAddTab/StoreAddTab"
 import StoreProductsTab from "./StoreProductsTab/StoreProductsTab"
