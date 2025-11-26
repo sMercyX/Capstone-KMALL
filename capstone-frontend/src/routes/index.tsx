@@ -22,6 +22,7 @@ const StoreRegisterPage = lazy(
 )
 const CartPage = lazy(() => import("../modules/CartPage/CartPage"))
 const CheckoutPage = lazy(() => import("../modules/CheckoutPage/CheckoutPage"))
+const StoreOrderDetailPage = lazy(() => import("../modules/StoreOrderDetailPage/StoreOrderDetailPage"))
 const OrderPage = lazy(() => import("../modules/OrderPage/OrderPage"))
 
 export default function AppRoutes() {
@@ -50,6 +51,14 @@ export default function AppRoutes() {
               element={
                 <ProtectedRoute>
                   <CheckoutPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/store/orders/:orderId"
+              element={
+                <ProtectedRoute>
+                  <StoreOrderDetailPage />
                 </ProtectedRoute>
               }
             />

@@ -26,6 +26,33 @@ export interface orderSellerResponse {
   buyer_email: string
 }
 
+// ---------------------------------------
+
+export interface OrderItemDetail {
+  order_item_id: number
+  quantity: number
+  unit_price: number
+  fulfillment_type: string
+  subtotal: number
+  deposit_amount: number
+  promised_ship_date: string
+  order_id: number
+  product_id: number
+}
+
+export interface OrderBuyerDetail {
+  id: string
+  display_name: string
+  email: string
+}
+
+export interface OrderDetailResponse {
+  order: orderSellerData
+  items: OrderItemDetail[]
+  buyer: OrderBuyerDetail
+}
+
+// --------------------------
 export function useOrderSellerApi() {
   const http = useCrudApi()
 
@@ -38,5 +65,12 @@ export function useOrderSellerApi() {
     )
   }
 
-  return { getOrdersSellerByStatus }
+  async function getOrderDetail(
+    orderId: number
+  ): Promise<ApiResponse<OrderDetailResponse>> {
+    return http.getItems(`/api/orders/${orderId}`)
+  }
+
+
+  return { getOrdersSellerByStatus, getOrderDetail}
 }
