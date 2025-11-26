@@ -9,6 +9,7 @@ export type SwitchTabItem = {
 interface SwitchTabsProps {
   tabs: SwitchTabItem[];
   className?: string;
+  rootPath?: string;
 }
 
 export default function SwitchTabs({ tabs, className = "" }: SwitchTabsProps) {

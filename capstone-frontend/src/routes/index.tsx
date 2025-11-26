@@ -14,11 +14,15 @@ const LandingPage = lazy(() => import("../modules/LandingPage/LandingPage"))
 const CategoryPage = lazy(() => import("../modules/CategoryPage/CategoryPage"))
 
 const StorePage = lazy(() => import("../modules/StorePage/StorePage"))
-const StoreSellerPage = lazy(() => import("../modules/StoreSellerPage/StorePage"))
-const StoreRegisterPage = lazy(() => import("../modules/StoreRegisterPage/StoreRegisterPage"))
+const StoreSellerPage = lazy(
+  () => import("../modules/StoreSellerPage/StorePage")
+)
+const StoreRegisterPage = lazy(
+  () => import("../modules/StoreRegisterPage/StoreRegisterPage")
+)
 const CartPage = lazy(() => import("../modules/CartPage/CartPage"))
 const CheckoutPage = lazy(() => import("../modules/CheckoutPage/CheckoutPage"))
-
+const OrderPage = lazy(() => import("../modules/OrderPage/OrderPage"))
 
 export default function AppRoutes() {
   return (
@@ -33,9 +37,46 @@ export default function AppRoutes() {
           <>
             <Route path="/dashboard2" element={<Dashboard />} />
             <Route path="/store/:id" element={<StorePage />} />
-            <Route path="/cart" element={<CartPage />} />
-            <Route path="/checkout" element={<CheckoutPage />} />
-
+            <Route
+              path="/cart"
+              element={
+                <ProtectedRoute>
+                  <CartPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/checkout"
+              element={
+                <ProtectedRoute>
+                  <CheckoutPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/orders/ongoing"
+              element={
+                <ProtectedRoute>
+                  <OrderPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/orders/completed"
+              element={
+                <ProtectedRoute>
+                  <OrderPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/orders/canceled"
+              element={
+                <ProtectedRoute>
+                  <OrderPage />
+                </ProtectedRoute>
+              }
+            />
           </>
           {/* privateRoutes */}
           <>

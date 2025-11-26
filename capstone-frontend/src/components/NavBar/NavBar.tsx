@@ -86,7 +86,7 @@ export default function Navbar() {
       <nav className="max-w-[calc(100%-110px)] mx-auto flex items-center justify-between px-6 py-3 shadow-lg shadow-blue-50 bg-[var(--color-bg)] rounded-full ">
         {/* LEFT: Logo */}
         <div className="flex items-center gap-3">
-          <Link to="/" className="text-2xl font-bold text-orange-600">
+          <Link to="/dashboard" className="text-2xl font-bold text-orange-600">
             KMALL
           </Link>
           <img src="/kmutt-logo.png" alt="KMUTT" className="h-8 w-8" />
@@ -313,7 +313,7 @@ export default function Navbar() {
                   </Link>
 
                   <Link
-                    to="/orders"
+                    to="/orders/ongoing"
                     className={`flex w-full items-center justify-between gap-2 rounded-xl px-2 py-2 text-sm
                     ${
                       isCartActive
