@@ -50,7 +50,7 @@ export interface OrderBuyerDetail {
 export type OrderStatus =
   | "Pending Seller Confirmation"
   | "Awaiting Buyer Confirmation"
-  | "'Ready for Pickup"
+  | "Ready for Pickup"
   | "Ready for Delivery"
   | "Completed"
   | "Cancelled"

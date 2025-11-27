@@ -8,27 +8,59 @@ import {
   type OrderDetailResponse,
 } from "../../api/orderSellerApi"
 
-const STEPS = [
+type StepKey = "PENDING" | "ACCEPTED" | "OUT_FOR_DELIVERY" | "ARRIVED" | "DONE"
+
+const STEPS: { key: StepKey; label: string }[] = [
   { key: "PENDING", label: "PENDING" },
   { key: "ACCEPTED", label: "ACCEPTED" },
+  { key: "OUT_FOR_DELIVERY", label: "OUT FOR DELIVERY" },
   { key: "ARRIVED", label: "ARRIVED" },
-  { key: "COMPLETED", label: "COMPLETED" },
-] as const
+  { key: "DONE", label: "COMPLETED" }, // label สุดท้ายจะเปลี่ยนตาม status จริงด้านล่าง
+]
 
 function getStepIndex(status: string): number {
   switch (status) {
-    case "PENDING":
-      return 0
-    case "ACCEPTED":
-      return 1
-    case "ARRIVED":
-      return 2
-    case "COMPLETED":
-      return 3
+    case "Pending Seller Confirmation":
+    case "Awaiting Buyer Confirmation":
+      return 0 // PENDING
+
+    case "Accepted":
+      return 1 // ACCEPTED
+
+    case "Out for delivery":
+      return 2 // OUT_FOR_DELIVERY
+
+    case "Arrived":
+      return 3 // ARRIVED
+
+    case "Completed":
+    case "Cancelled":
+      return 4 // DONE (Completed/Cancelled)
+
     default:
       return 0
   }
 }
+
+function getStepLabel(stepKey: StepKey, currentStatus?: string): string {
+  switch (stepKey) {
+    case "PENDING":
+      return "PENDING";
+    case "ACCEPTED":
+      return "ACCEPTED";
+    case "OUT_FOR_DELIVERY":
+      return "OUT FOR DELIVERY";
+    case "ARRIVED":
+      return "ARRIVED";
+    case "DONE":
+      // ถ้า status จริงเป็น Cancelled → เปลี่ยนคำบน stepper เป็น CANCELED
+      if (currentStatus === "Cancelled") return "CANCELED";
+      return "COMPLETED";
+    default:
+      return "";
+  }
+}
+
 
 export default function StoreOrderDetailPage() {
   const { orderId } = useParams<{ orderId: string }>()
@@ -68,9 +100,7 @@ export default function StoreOrderDetailPage() {
 
   // อนุญาตให้กดปุ่มก็ต่อเมื่อยังไม่ Completed / Cancelled
   const canAct =
-    !!order &&
-    order.status !== "Completed" &&
-    order.status !== "Cancelled"
+    !!order && order.status !== "Completed" && order.status !== "Cancelled"
 
   // ---- handler ปุ่ม Reject ----
   const handleReject = async () => {
@@ -96,31 +126,30 @@ export default function StoreOrderDetailPage() {
   }
 
   // ---- handler ปุ่ม Accept ----
- const handleAccept = async () => {
-  if (!order || !orderId || !canAct) return
-  setActionLoading("accept")
-  setError(null)
-  try {
-    await updateOrderStatus(order.order_id, {
-      status: "Completed",   // 👈 ห่อเป็น object ตาม interface ใหม่
-    })
+  const handleAccept = async () => {
+    if (!order || !orderId || !canAct) return
+    setActionLoading("accept")
+    setError(null)
+    try {
+      await updateOrderStatus(order.order_id, {
+        status: "Completed", // 👈 ห่อเป็น object ตาม interface ใหม่
+      })
 
-    // อัปเดต state เป็น Completed
-    setData((prev) =>
-      prev
-        ? {
-            ...prev,
-            order: { ...prev.order, status: "Completed" },
-          }
-        : prev
-    )
-  } catch (e) {
-    setError("ไม่สามารถยืนยันคำสั่งซื้อได้")
-  } finally {
-    setActionLoading(null)
+      // อัปเดต state เป็น Completed
+      setData((prev) =>
+        prev
+          ? {
+              ...prev,
+              order: { ...prev.order, status: "Completed" },
+            }
+          : prev
+      )
+    } catch (e) {
+      setError("ไม่สามารถยืนยันคำสั่งซื้อได้")
+    } finally {
+      setActionLoading(null)
+    }
   }
-}
-
 
   return (
     <div className="max-w-5xl mx-auto py-10">
@@ -149,11 +178,11 @@ export default function StoreOrderDetailPage() {
                   >
                     <div
                       className={`flex h-8 w-8 items-center justify-center rounded-full border-2 text-sm font-semibold
-                        ${
-                          isActive
-                            ? "border-black bg-black text-white"
-                            : "border-gray-400 bg-white text-gray-500"
-                        }`}
+            ${
+              isActive
+                ? "border-black bg-black text-white"
+                : "border-gray-400 bg-white text-gray-500"
+            }`}
                     >
                       {idx + 1}
                     </div>
@@ -162,7 +191,7 @@ export default function StoreOrderDetailPage() {
                         isActive ? "text-black" : "text-gray-400"
                       }`}
                     >
-                      {step.label}
+                      {getStepLabel(step.key, order?.status)}
                     </span>
                   </div>
                 )
@@ -190,9 +219,7 @@ export default function StoreOrderDetailPage() {
         {loading && (
           <p className="text-center text-sm text-gray-500">กำลังโหลด...</p>
         )}
-        {error && (
-          <p className="text-center text-sm text-red-500">{error}</p>
-        )}
+        {error && <p className="text-center text-sm text-red-500">{error}</p>}
 
         {order && !loading && !error && (
           <>
