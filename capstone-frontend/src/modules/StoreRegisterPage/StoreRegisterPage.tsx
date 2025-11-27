@@ -9,16 +9,18 @@ import { useStoreApi } from "../../api/storeApi"
 import { useUserStore } from "../../stores/userStore"
 import StoreAgreementModal from "../../components/Policies/StoreAgreementModal"
 
-// ✅ Yup schema
+// ✅ Yup schema: ชื่อร้านไม่เกิน 20 ตัวอักษร, คำอธิบายไม่เกิน 200 ตัวอักษร
 const storeRegisterSchema = yup.object({
   name: yup
     .string()
     .trim()
-    .required("กรุณากรอกชื่อร้าน"),
+    .required("กรุณากรอกชื่อร้าน")
+    .max(100, "ชื่อร้านต้องไม่เกิน 20 ตัวอักษร"),
   description: yup
     .string()
     .trim()
-    .required("กรุณากรอกคำอธิบายร้าน"),
+    .required("กรุณากรอกคำอธิบายร้าน")
+    .max(255, "คำอธิบายร้านต้องไม่เกิน 200 ตัวอักษร"),
   agreeTerms: yup
     .boolean()
     .oneOf([true], "กรุณายอมรับ KMALL terms & policies"),
@@ -28,7 +30,7 @@ const storeRegisterSchema = yup.object({
 })
 
 export default function StoreRegisterPage() {
-  const { addStore } = useStoreApi()
+  const { addStore, addImageStore } = useStoreApi()
   const navigate = useNavigate()
 
   const roles = useUserStore((s) => s.roles)
@@ -36,8 +38,8 @@ export default function StoreRegisterPage() {
 
   const [name, setName] = useState("")
   const [description, setDescription] = useState("")
-  const [profileUrl, setProfileUrl] = useState("")
   const [fileName, setFileName] = useState("Nothing selected.")
+  const [logoFile, setLogoFile] = useState<File | null>(null) // 👈 เก็บไฟล์จริง ๆ
 
   const [agreeTerms, setAgreeTerms] = useState(false)
   const [agreeRules, setAgreeRules] = useState(false)
@@ -56,20 +58,32 @@ export default function StoreRegisterPage() {
 
   function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
-    if (file) {
-      setFileName(file.name)
-      // TODO: เปลี่ยนเป็น url จริงจากระบบอัปโหลด
-      setProfileUrl(file.name)
-    } else {
+
+    if (!file) {
       setFileName("Nothing selected.")
-      setProfileUrl("")
+      setLogoFile(null)
+      return
     }
+
+    // ✅ รับเฉพาะรูป
+    if (!file.type.startsWith("image/")) {
+      toast.error("กรุณาอัปโหลดเฉพาะไฟล์รูปภาพ")
+      setFileName("Nothing selected.")
+      setLogoFile(null)
+      e.target.value = ""
+      return
+    }
+
+    setFileName(file.name)
+    setLogoFile(file)
+    // profileUrl จริง ๆ จะได้จาก backend หลัง upload เสร็จ
+    // ตอนสร้าง store ครั้งแรกส่ง "" ไปก่อนได้
   }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
 
-    // ✅ ใช้ Yup validate ก่อนยิง API
+    // ✅ validate ด้วย yup ก่อน
     try {
       await storeRegisterSchema.validate(
         {
@@ -82,36 +96,54 @@ export default function StoreRegisterPage() {
       )
     } catch (err) {
       if (err instanceof yup.ValidationError) {
-        // เอา error แรกพอ จะได้ไม่ยาวเกิน
         const msg = err.errors[0] ?? "กรุณาตรวจสอบข้อมูลให้ถูกต้อง"
         toast.error(msg)
         return
       }
-      toast.error("ข้อมูลไม่ถูกต้อง กรุณาลองใหม่")
+      const msg = "ข้อมูลไม่ถูกต้อง กรุณาลองใหม่"
+      toast.error(msg)
       return
     }
 
     try {
       setIsSubmitting(true)
 
+      // 1) ✅ สร้างร้านก่อน
       const res = await addStore({
         name,
         description,
-        profile_url: profileUrl || "",
+        profile_url:  "", // หรือจะส่ง "" ตรง ๆ ไปเลยก็ได้
         is_active: "YES",
       })
 
       console.log("STORE CREATED:", res)
 
-      if (res.code === 201 && res.created === true) {
-        addRole("seller")
-        toast.success("เปิดร้านค้าสำเร็จแล้ว!")
-        navigate("/store/me")
+      if (!(res.code === 201 && (res as any).created === true)) {
+        const msg = "เกิดข้อผิดพลาด ไม่สามารถสร้างร้านได้"
+        toast.error(msg)
+        setIsSubmitting(false)
         return
       }
 
-      const msg = "เกิดข้อผิดพลาด ไม่สามารถสร้างร้านได้"
-      toast.error(msg)
+      // ดึง storeId จาก response
+      const createdStore = (res as any).data as { id: number }
+      const storeId = createdStore?.id
+
+      // 2) ✅ ถ้ามีไฟล์โลโก้ → เรียก addImageStore ต่อ
+      if (storeId && logoFile) {
+        try {
+          await addImageStore(storeId, logoFile)
+        } catch (uploadErr) {
+          console.error("upload logo failed:", uploadErr)
+          // ร้านสร้างสำเร็จ แต่โลโก้ fail → แจ้งเตือนแยก
+          toast.error("สร้างร้านสำเร็จ แต่การอัปโหลดโลโก้ล้มเหลว")
+        }
+      }
+
+      // 3) ✅ เพิ่ม role + success + redirect
+      addRole("seller")
+      toast.success("เปิดร้านค้าสำเร็จแล้ว!")
+      navigate("/store/me")
     } catch (err) {
       console.error(err)
       const msg = "สร้างร้านค้าไม่สำเร็จ กรุณาลองใหม่อีกครั้ง"
@@ -140,7 +172,6 @@ export default function StoreRegisterPage() {
       <div className="max-w-3xl mx-auto py-10 text-black">
         <Card className="space-y-8 p-8">
           <form onSubmit={handleSubmit} className="space-y-8">
-            {/* Title */}
             <h1 className="text-center text-2xl font-bold">
               ข้อมูลร้านที่จะเปิด
             </h1>
@@ -156,8 +187,12 @@ export default function StoreRegisterPage() {
                 placeholder="Store Name"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
+                maxLength={100}
                 className="w-full rounded-xl border px-4 py-2 focus:outline-none focus:ring-2 focus:ring-orange-500"
               />
+              <p className="text-xs text-gray-500 text-right">
+                {name.length} / 100 ตัวอักษร
+              </p>
             </div>
 
             {/* คำอธิบายร้าน */}
@@ -171,8 +206,12 @@ export default function StoreRegisterPage() {
                 rows={3}
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
+                maxLength={255}
                 className="w-full rounded-xl border px-4 py-2 focus:outline-none focus:ring-2 focus:ring-orange-500 resize-none"
               />
+              <p className="text-xs text-gray-500 text-right">
+                {description.length} / 255 ตัวอักษร
+              </p>
             </div>
 
             {/* โลโก้ร้าน */}
@@ -184,10 +223,12 @@ export default function StoreRegisterPage() {
 
               <label className="flex flex-col items-center justify-center cursor-pointer border border-dashed rounded-xl py-6 hover:bg-gray-50 transition">
                 <Upload className="h-6 w-6 text-gray-500" />
-                <span className="mt-1 text-sm text-gray-600">Upload Files</span>
+                <span className="mt-1 text-sm text-gray-600">Upload Image</span>
                 <input
                   type="file"
                   className="hidden"
+                  accept="image/*"
+                  multiple={false}
                   onChange={handleFileChange}
                 />
               </label>
@@ -229,9 +270,9 @@ export default function StoreRegisterPage() {
               </label>
             </div>
 
-     
+            {/* ไม่ต้องมี error text ซ้ำ ถ้าใช้ toast อย่างเดียวก็โอเคแล้ว */}
+            {/* {error && <p className="text-sm text-red-500">{error}</p>} */}
 
-            {/* Submit Button */}
             <div className="pt-2">
               <button
                 type="submit"

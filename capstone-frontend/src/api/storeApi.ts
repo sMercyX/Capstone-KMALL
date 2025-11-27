@@ -44,6 +44,21 @@ export interface storeProductDataRequset {
   store_id: number
   category_id: string
 }
+export interface storeProductDataRequset {
+  id: number
+  name: string
+  description: string
+  price: number
+  image_url: string
+  created_at: string
+  updated_at: string
+  is_active: "YES" | "NO"
+  store_id: number
+  category_id: string
+}
+export interface storePictureResponse {
+  profile_url: number
+}
 
 export function useStoreApi() {
   const http = useCrudApi()
@@ -53,7 +68,7 @@ export function useStoreApi() {
   ): Promise<ApiCreateResponse<AddResponse>> {
     return http.postItem(`/api/stores`, data)
   }
-
+  
   async function getStore(): Promise<ApiResponse<addStoreData>> {
     return http.getItems(`/api/stores/me`)
   }
@@ -74,6 +89,19 @@ export function useStoreApi() {
       `/api/stores/${store_id}/products?page=${pageIndex}&limit=${pageSize}`
     )
   }
+  
+  async function getImageStore(storeId:number): Promise<ApiResponse<storePictureResponse>> {
+    return http.getItems(`/api/stores/${storeId}/images`)
+  }
+  
+    async function addImageStore(
+    storeId: number,
+    file: File
+  ): Promise<ApiCreateResponse<storePictureResponse>> {
+    const formData = new FormData()
+    formData.append("file", file)
+    return http.postItem(`/api/stores/${storeId}/images/upload`, formData as any)
+  }
 
-  return { addStore, getStore, updateStore, getStoreProducts }
+  return { addStore, getStore, updateStore, getStoreProducts, getImageStore, addImageStore }
 }
