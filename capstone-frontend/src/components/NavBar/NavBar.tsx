@@ -1,14 +1,7 @@
 // src/components/layout/Navbar.tsx
 import { useEffect, useState } from "react"
 import { Link, useLocation, useNavigate } from "react-router-dom"
-import {
-  ShoppingCart,
-  User,
-  ChevronDown,
-  Image,
-  Check,
-  X,
-} from "lucide-react"
+import { ShoppingCart, User, ChevronDown, Image, Check, X } from "lucide-react"
 import { useUserStore } from "../../stores/userStore"
 import { useTheme } from "../../theme/ThemeContext"
 import { useCartStore } from "../../stores/cartStore"
@@ -45,7 +38,6 @@ export default function Navbar() {
   useEffect(() => {
     if (!isCartOpen) return
     if (cart || cartLoading) return
-
     ;(async () => {
       try {
         startCartLoading()
@@ -56,7 +48,15 @@ export default function Navbar() {
         setCartError("โหลดตะกร้าไม่สำเร็จ")
       }
     })()
-  }, [isCartOpen, cart, cartLoading, getCart, setCart, setCartError, startCartLoading])
+  }, [
+    isCartOpen,
+    cart,
+    cartLoading,
+    getCart,
+    setCart,
+    setCartError,
+    startCartLoading,
+  ])
 
   async function handleDeleteItem(id: number) {
     try {
@@ -289,20 +289,20 @@ export default function Navbar() {
                 <div className="mt-4 rounded-2xl border border-gray-200 bg-gray-50 px-3 py-2 space-y-1">
                   <Link
                     to={storeLink}
-                    className={`flex w-full items-center justify-between gap-2 rounded-xl px-2 py-2 text-sm
+                    className={`flex w-full items-center justify-between gap-2 rounded-xl px-2 py-2 text-sm hover:text-orange-500! transition-colors
                     ${
                       isStoreActive
                         ? "bg-white text-black font-medium"
-                        : "text-gray-500 hover:bg-white"
+                        : "text-gray-500! hover:bg-white"
                     }
                   `}
                     onClick={() => setIsUserOpen(false)}
                   >
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 ">
                       <span className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-gray-100">
                         <Image className="h-4 w-4 text-gray-400" />
                       </span>
-                      <span>
+                      <span >
                         {hasSellerRole ? "ร้านค้าของฉัน" : "เปิดร้านค้าของฉัน"}
                       </span>
                     </div>
@@ -314,20 +314,20 @@ export default function Navbar() {
 
                   <Link
                     to="/orders/ongoing"
-                    className={`flex w-full items-center justify-between gap-2 rounded-xl px-2 py-2 text-sm
+                    className={`flex w-full items-center justify-between gap-2 rounded-xl px-2 py-2 text-sm hover:text-orange-500! transition-colors
                     ${
                       isCartActive
                         ? "bg-white text-black font-medium"
-                        : "text-gray-500 hover:bg-white"
+                        : "text-gray-500! hover:bg-white"
                     }
                   `}
                     onClick={() => setIsUserOpen(false)}
                   >
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 ">
                       <span className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-gray-100">
                         <Image className="h-4 w-4 text-gray-400" />
                       </span>
-                      การซื้อของฉัน
+                      <span >การซื้อของฉัน</span>
                     </div>
 
                     {isCartActive && (
@@ -336,7 +336,7 @@ export default function Navbar() {
                   </Link>
 
                   <button
-                    className="flex w-full items-center gap-2 rounded-xl px-2 py-2 text-sm text-gray-500 hover:bg-white"
+                    className="flex w-full items-center gap-2 rounded-xl px-2 py-2 text-sm text-gray-500 hover:bg-white cursor-pointer hover:text-orange-500"
                     onClick={() => {
                       setIsUserOpen(false)
                       // TODO: logout
@@ -345,7 +345,7 @@ export default function Navbar() {
                     <span className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-gray-100">
                       <Image className="h-4 w-4 text-gray-400" />
                     </span>
-                    <span>ออกจากระบบ</span>
+                    <span >ออกจากระบบ</span>
                   </button>
                 </div>
               </div>

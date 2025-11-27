@@ -61,7 +61,7 @@ export function useHttpClient(baseUrl: string) {
   const getItems = (url: string, opt: ExtraOptions = {}) =>
     fetchData(url, { method: "GET", ...opt });
 
-  const postItem = (url: string, item: unknown, opt: ExtraOptions = {}) =>
+  const postItem = (url: string, item?: unknown, opt: ExtraOptions = {}) =>
     fetchData(url, {
       method: "POST",
       body: isFormData(item) ? (item as any) : JSON.stringify(item ?? {}),

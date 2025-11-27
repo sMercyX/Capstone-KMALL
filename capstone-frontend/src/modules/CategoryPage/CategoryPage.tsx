@@ -17,21 +17,6 @@ import { useProductListStore } from "../../stores/catagoriesStore"
 // ====================== UTIL MAPPING ======================
 type SortKey = "popular" | "price-asc" | "price-desc" | "rating"
 
-function mapCategory(category?: string) {
-  if (!category) return "food"
-  switch (category) {
-    case "food":
-      return "food"
-    case "clothe":
-    case "clothes":
-      return "clothing"
-    case "handmade":
-      return "handmade-products"
-    default:
-      return "food"
-  }
-}
-
 function mapCategoryId(category?: string) {
   switch (category) {
     case "food":
@@ -41,6 +26,7 @@ function mapCategoryId(category?: string) {
     case "clothing":
       return 2
     case "handmade":
+    case "handmade-products":
       return 3
     default:
       return 1
@@ -51,9 +37,8 @@ function mapCategoryId(category?: string) {
 function PageHeader({ category }: { category: string }) {
   const titleMap: Record<string, string> = {
     food: "อาหารและเครื่องดื่ม (Food & Drinks)",
-    clothe: "เสื้อผ้า (Clothes)",
-    clothes: "เสื้อผ้า (Clothes)",
-    handmade: "สินค้าแฮนด์เมด (Handmade Products)",
+    clothing: "เสื้อผ้า (Clothes)",
+    "handmade-products": "สินค้าแฮนด์เมด (Handmade Products)",
   }
 
   return (
@@ -248,11 +233,9 @@ function Pagination({
 export default function CategoryPage() {
   const { category: routeCategory } = useParams()
 
-  const apiCategory = mapCategory(routeCategory)
   const apiCategoryId = mapCategoryId(routeCategory)
 
   const [sort, setSort] = useState<SortKey>("popular")
-  const [hasRequested, setHasRequested] = useState(false)
 
   const {
     items,
@@ -271,25 +254,40 @@ export default function CategoryPage() {
   // ใช้ getProductsByParentId แล้ว
   const { getProductsByParentId } = useProductApi()
 
-  // reset เมื่อเปลี่ยนหมวด + reset flag ปุ่ม
+  // reset เมื่อเปลี่ยนหมวด
   useEffect(() => {
     reset()
     setPageIndex(1)
-    setHasRequested(false)
-  }, [apiCategory, reset, setPageIndex])
+  }, [routeCategory, reset, setPageIndex])
 
-  // ดึงข้อมูลเมื่อกดปุ่ม
-  async function handleFetch() {
-    try {
-      setHasRequested(true)
-      startLoading()
+  // ดึงข้อมูลอัตโนมัติเมื่อเข้าเพจ / เปลี่ยนหน้า / เปลี่ยนหมวด
+  useEffect(() => {
+    let ignore = false
 
-      const res = await getProductsByParentId(apiCategoryId, pageSize, pageIndex)
-      setPageData(res.data)
-    } catch (err) {
-      setError("โหลดสินค้าล้มเหลว")
+    async function fetchData() {
+      try {
+        startLoading()
+        const res = await getProductsByParentId(apiCategoryId, pageSize, pageIndex)
+        if (ignore) return
+        setPageData(res.data)
+        setError(null)
+      } catch (err) {
+        if (ignore) return
+        setError("โหลดสินค้าล้มเหลว")
+      }
     }
-  }
+
+    fetchData()
+
+    return () => {
+      ignore = true
+    }
+  }, [
+    apiCategoryId,
+    pageIndex,
+    pageSize,
+   
+  ])
 
   // sort ฝั่ง FE
   const sortedItems = useMemo(() => {
@@ -325,20 +323,7 @@ export default function CategoryPage() {
       </div>
 
       <div className="mt-6">
-        {/* ถ้ายังไม่เคยกดโหลดเลย */}
-        {!hasRequested ? (
-          <div className="py-10 text-center">
-            <p className="mb-4 text-gray-500">
-              ยังไม่ได้โหลดสินค้าในหมวดนี้
-            </p>
-            <button
-              onClick={handleFetch}
-              className="inline-flex items-center gap-2 rounded-xl bg-gray-900 px-5 py-2.5 text-sm font-medium text-white hover:bg-gray-800"
-            >
-              โหลดสินค้าจากหมวดนี้
-            </button>
-          </div>
-        ) : isLoading ? (
+        {isLoading ? (
           <div className="py-10 text-center text-gray-500">
             กำลังโหลดสินค้า...
           </div>
@@ -349,8 +334,8 @@ export default function CategoryPage() {
         )}
       </div>
 
-      {/* แสดง pagination เฉพาะตอนโหลดแล้วและมีของ */}
-      {hasRequested && sortedItems.length > 0 && (
+      {/* แสดง pagination เฉพาะตอนมีของ */}
+      {sortedItems.length > 0 && (
         <Pagination
           page={pageIndex}
           totalPages={totalPages}
