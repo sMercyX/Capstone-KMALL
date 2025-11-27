@@ -1,17 +1,17 @@
 // src/pages/Store/StoreInfoTab.tsx
 import { useEffect, useState } from "react"
+import { toast } from "react-toastify"
+
 import { useStoreApi } from "../../../api/storeApi"
 import { useStoreStore } from "../../../stores/storeStore"
 import type { StoreEditForm } from "./StoreEditModal/StoreEditModal"
 import StoreEditModal from "./StoreEditModal/StoreEditModal"
 
 export default function StoreInfoTab() {
-  const { updateStore } = useStoreApi()
-
+  const { updateStore, editImageStore } = useStoreApi()
   const { store, loading, error, fetchStore, updateStoreData } = useStoreStore()
 
   const [isModalOpen, setIsModalOpen] = useState(false)
-
   // โหลดข้อมูลร้านตอนเข้าแท็บนี้ครั้งแรก
   useEffect(() => {
     fetchStore()
@@ -23,8 +23,9 @@ export default function StoreInfoTab() {
   if (!store) return <p className="text-center text-red-500">ไม่พบข้อมูลร้าน</p>
 
   // เวลากด "บันทึก" จาก Modal
-  async function handleSubmitEdit(data: StoreEditForm) {
+  async function handleSubmitEdit(data: StoreEditForm, logoFile: File | null) {
     try {
+      // 1) อัปเดตข้อมูลร้าน (ชื่อ + คำอธิบาย + profile_url เดิมไปก่อน)
       const res = await updateStore(store!.id, {
         name: data.name,
         description: data.description,
@@ -34,20 +35,50 @@ export default function StoreInfoTab() {
 
       console.log("UPDATED STORE:", res)
 
-      // อัปเดตค่าใน global store (FE)
-      const updated = (res as any).data
-      if (updated) {
+      const updatedStore = (res as any).data as {
+        name?: string
+        description?: string
+        profile_url?: string
+      }
+
+      if (updatedStore) {
         updateStoreData({
-          name: updated.name,
-          description: updated.description,
-          profile_url: updated.profile_url,
+          name: updatedStore.name ?? store!.name,
+          description: updatedStore.description ?? store!.description,
+          profile_url: updatedStore.profile_url ?? store!.profile_url,
         })
+      }
+
+      let imageError = false
+
+      // 2) ถ้ามีไฟล์โลโก้ใหม่ → เรียก editImageStore
+      if (logoFile) {
+        try {
+          const uploadRes = await editImageStore(store!.id, logoFile)
+          console.log("UPDATED STORE IMAGE:", uploadRes)
+
+          const imgData = (uploadRes as any).data as { profile_url?: string }
+
+          if (imgData?.profile_url) {
+            updateStoreData({
+              profile_url: imgData.profile_url,
+            })
+          }
+        } catch (uploadErr) {
+          console.error("update store image failed:", uploadErr)
+          imageError = true
+          toast.error("แก้ไขข้อมูลร้านสำเร็จ แต่การอัปโหลดโลโก้ล้มเหลว")
+        }
+      }
+
+      if (!imageError) {
+        toast.success("แก้ไขข้อมูลร้านค้าสำเร็จแล้ว!")
       }
 
       setIsModalOpen(false)
     } catch (err) {
       console.error("update store failed:", err)
-      // จะเพิ่ม toast หรือ error message เพิ่มเติมก็ได้
+      toast.error("ไม่สามารถแก้ไขข้อมูลร้านได้ กรุณาลองใหม่อีกครั้ง")
     }
   }
 

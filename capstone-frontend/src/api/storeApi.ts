@@ -95,13 +95,21 @@ export function useStoreApi() {
   }
   
     async function addImageStore(
-    storeId: number,
-    file: File
-  ): Promise<ApiCreateResponse<storePictureResponse>> {
-    const formData = new FormData()
-    formData.append("file", file)
-    return http.postItem(`/api/stores/${storeId}/images/upload`, formData as any)
+      storeId: number,
+      file: File
+    ): Promise<ApiCreateResponse<storePictureResponse>> {
+      const formData = new FormData()
+      formData.append("file", file)
+      return http.postItem(`/api/stores/${storeId}/images/upload`, formData as any)
+    }
+    
+    async function editImageStore(
+      storeId: number,
+      file: File
+    ): Promise<ApiCreateResponse<AddResponse>> {
+      const formData = new FormData()
+      formData.append("file", file)
+      return http.postItem(`/api/stores/${storeId}/images/upload`, formData as any)
+    }
+    return { addStore, getStore, updateStore, getStoreProducts, getImageStore, addImageStore,editImageStore }
   }
-
-  return { addStore, getStore, updateStore, getStoreProducts, getImageStore, addImageStore }
-}

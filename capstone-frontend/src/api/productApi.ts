@@ -87,10 +87,11 @@ export function useProductApi() {
   ): Promise<ApiCreateResponse<Product>> {
     return http.postItem(`/api/products`, data)
   }
-
+  
   async function getProduct(storeId: number) {
     return http.getItems(`/api/products/${storeId}/public`)
   }
+  
 
 
   return {
