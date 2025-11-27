@@ -26,6 +26,7 @@ function mapCategoryId(category?: string) {
     case "clothing":
       return 2
     case "handmade":
+    case "handmade-products":
       return 3
     default:
       return 1
