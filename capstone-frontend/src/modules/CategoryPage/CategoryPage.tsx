@@ -37,9 +37,8 @@ function mapCategoryId(category?: string) {
 function PageHeader({ category }: { category: string }) {
   const titleMap: Record<string, string> = {
     food: "อาหารและเครื่องดื่ม (Food & Drinks)",
-    clothe: "เสื้อผ้า (Clothes)",
-    clothes: "เสื้อผ้า (Clothes)",
-    handmade: "สินค้าแฮนด์เมด (Handmade Products)",
+    clothing: "เสื้อผ้า (Clothes)",
+    "handmade-products": "สินค้าแฮนด์เมด (Handmade Products)",
   }
 
   return (
