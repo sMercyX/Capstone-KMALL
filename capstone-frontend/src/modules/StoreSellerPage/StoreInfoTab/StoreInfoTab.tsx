@@ -80,7 +80,11 @@ export default function StoreInfoTab() {
         <div className="flex flex-col items-center justify-start">
           <p className="font-semibold mb-2">โลโก้ร้าน</p>
           <img
-            src={store.profile_url || "/images/default-store.png"}
+            src={
+              store.profile_url
+                ? `http://localhost:8000${store.profile_url}`
+                : "/images/default-store.png"
+            }
             alt="store-logo"
             className="w-40 h-40 object-cover rounded-full border shadow"
           />
