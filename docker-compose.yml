@@ -61,6 +61,8 @@ services:
     restart: unless-stopped
     env_file:
       - ./capstone-backend/.env
+    volumes:
+      - ./capstone-backend/.env:/app/.env:ro
     expose:
       - "8080"
     networks:
