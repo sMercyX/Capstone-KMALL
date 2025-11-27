@@ -30,13 +30,13 @@ services:
       - backend 
     networks: [capstone_net]
 
-  redis:
-    image: redis:7-alpine
-    container_name: capstone-redis
-    restart: unless-stopped
-    ports:
-      - "6379:6379" 
-    networks: [capstone_net]
+  # redis:
+  #   image: redis:7-alpine
+  #   container_name: capstone-redis
+  #   restart: unless-stopped
+  #   ports:
+  #     - "6379:6379" 
+  #   networks: [capstone_net]
 
   oauth2-proxy:
     image: quay.io/oauth2-proxy/oauth2-proxy:v7.6.0
@@ -52,7 +52,7 @@ services:
 
 
   database:
-    image: postgres:15
+    image: postgres:18
     container_name: capstone-database
     restart: unless-stopped
     environment:
@@ -62,7 +62,7 @@ services:
     ports:
       - "5555:5432"
     volumes:
-      - db_data:/var/lib/postgresql/data
+      - db_data:/var/lib/postgresql 
       - ./capstone-database/init:/docker-entrypoint-initdb.d
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres -d kmall_db || exit 1"]
