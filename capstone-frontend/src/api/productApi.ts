@@ -48,6 +48,10 @@ export type ProductListResponse = PaginatedResponse<Product>
 
 export type CategoryListResponse = PaginatedResponse<Product>
 
+export interface productPictureResponse {
+  image_url: number
+}
+
 export function useProductApi() {
   const http = useCrudApi()
 
@@ -71,7 +75,7 @@ export function useProductApi() {
   async function getProductsByStore(storeId: number) {
     return http.getItems(`/api/products/public?store_id=${storeId}`)
   }
-  
+
   async function getProductsByParentId(
     categoryId: number,
     limit: number,
@@ -81,25 +85,35 @@ export function useProductApi() {
       `/api/products/public?parent_category_id=${categoryId}&limit=${limit}&page=${pageIndex}`
     )
   }
-  
+
   async function addProduct(
     data: AddProductRequest
   ): Promise<ApiCreateResponse<Product>> {
     return http.postItem(`/api/products`, data)
   }
-  
+
   async function getProduct(storeId: number) {
     return http.getItems(`/api/products/${storeId}/public`)
   }
-  
 
-
+  async function addImageProduct(
+    product_id: number,
+    file: File
+  ): Promise<ApiCreateResponse<productPictureResponse>> {
+    const formData = new FormData()
+    formData.append("file", file)
+    return http.postItem(
+      `/api/products/${product_id}/images/upload`,
+      formData as any
+    )
+  }
   return {
     getProductsByCategory,
     getProductBySlug,
     getProductsByStore,
     getProductsByParentId,
     addProduct,
-    getProduct
+    getProduct,
+    addImageProduct
   }
 }

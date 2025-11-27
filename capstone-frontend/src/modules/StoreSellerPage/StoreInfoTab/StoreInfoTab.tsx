@@ -2,16 +2,17 @@
 import { useEffect, useState } from "react"
 import { toast } from "react-toastify"
 
-import { useStoreApi } from "../../../api/storeApi"
+import { useStoreApi, type storePictureResponse } from "../../../api/storeApi"
 import { useStoreStore } from "../../../stores/storeStore"
 import type { StoreEditForm } from "./StoreEditModal/StoreEditModal"
 import StoreEditModal from "./StoreEditModal/StoreEditModal"
 
 export default function StoreInfoTab() {
-  const { updateStore, editImageStore } = useStoreApi()
+  const { updateStore, addImageStore, editImageStore } = useStoreApi()
   const { store, loading, error, fetchStore, updateStoreData } = useStoreStore()
 
   const [isModalOpen, setIsModalOpen] = useState(false)
+
   // โหลดข้อมูลร้านตอนเข้าแท็บนี้ครั้งแรก
   useEffect(() => {
     fetchStore()
@@ -25,15 +26,45 @@ export default function StoreInfoTab() {
   // เวลากด "บันทึก" จาก Modal
   async function handleSubmitEdit(data: StoreEditForm, logoFile: File | null) {
     try {
-      // 1) อัปเดตข้อมูลร้าน (ชื่อ + คำอธิบาย + profile_url เดิมไปก่อน)
+      let primaryImageUrl = store!.profile_url ?? ""
+      let imageError = false
+
+      // 1) ถ้ามีไฟล์โลโก้ใหม่ → upload ก่อน
+      if (logoFile) {
+        try {
+          const uploadRes = await addImageStore(store!.id, logoFile)
+          // 🔴 จริง ๆ data เป็น Array(1) → ต้องอ่าน index 0
+          const list = (uploadRes as any).data as storePictureResponse[] | storePictureResponse
+
+          const uploaded = Array.isArray(list) ? list[0] : list
+
+          if (uploaded && uploaded.id) {
+            // 2) set รูปนี้เป็น primary
+            const editRes = await editImageStore(uploaded.id, {
+              is_primary: true,
+            })
+            const edited = (editRes as any).data as storePictureResponse
+
+            if (edited?.image_url) {
+              primaryImageUrl = edited.image_url
+            } else if (uploaded.image_url) {
+              // fallback ถ้า backend ไม่ส่ง image_url ใหม่
+              primaryImageUrl = uploaded.image_url
+            }
+          }
+        } catch (uploadErr) {
+          imageError = true
+          toast.error("อัปโหลดโลโก้ใหม่ไม่สำเร็จ")
+        }
+      }
+
+      // 3) update ข้อมูลร้าน + profile_url ให้ใช้รูปใหม่ (ถ้ามี)
       const res = await updateStore(store!.id, {
         name: data.name,
         description: data.description,
-        profile_url: data.profile_url ?? "",
+        profile_url: primaryImageUrl,
         is_active: "YES",
       })
-
-      console.log("UPDATED STORE:", res)
 
       const updatedStore = (res as any).data as {
         name?: string
@@ -41,35 +72,13 @@ export default function StoreInfoTab() {
         profile_url?: string
       }
 
-      if (updatedStore) {
-        updateStoreData({
-          name: updatedStore.name ?? store!.name,
-          description: updatedStore.description ?? store!.description,
-          profile_url: updatedStore.profile_url ?? store!.profile_url,
-        })
-      }
-
-      let imageError = false
-
-      // 2) ถ้ามีไฟล์โลโก้ใหม่ → เรียก editImageStore
-      if (logoFile) {
-        try {
-          const uploadRes = await editImageStore(store!.id, logoFile)
-          console.log("UPDATED STORE IMAGE:", uploadRes)
-
-          const imgData = (uploadRes as any).data as { profile_url?: string }
-
-          if (imgData?.profile_url) {
-            updateStoreData({
-              profile_url: imgData.profile_url,
-            })
-          }
-        } catch (uploadErr) {
-          console.error("update store image failed:", uploadErr)
-          imageError = true
-          toast.error("แก้ไขข้อมูลร้านสำเร็จ แต่การอัปโหลดโลโก้ล้มเหลว")
-        }
-      }
+      // 4) อัปเดต global store ฝั่ง FE
+      updateStoreData({
+        name: updatedStore?.name ?? data.name,
+        description: updatedStore?.description ?? data.description,
+        profile_url:
+          updatedStore?.profile_url ?? primaryImageUrl ?? store!.profile_url,
+      })
 
       if (!imageError) {
         toast.success("แก้ไขข้อมูลร้านค้าสำเร็จแล้ว!")
@@ -77,7 +86,6 @@ export default function StoreInfoTab() {
 
       setIsModalOpen(false)
     } catch (err) {
-      console.error("update store failed:", err)
       toast.error("ไม่สามารถแก้ไขข้อมูลร้านได้ กรุณาลองใหม่อีกครั้ง")
     }
   }
