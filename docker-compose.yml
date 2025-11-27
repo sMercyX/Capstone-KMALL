@@ -26,11 +26,11 @@ services:
       - oauth2-proxy
       - backend
 
-  # redis:
-  #   image: redis:7-alpine
-  #   container_name: capstone-redis
-  #   restart: unless-stopped
-  #   networks: [capstone_net]
+  redis:
+    image: redis:7-alpine
+    container_name: capstone-redis
+    restart: unless-stopped
+    networks: [capstone_net]
 
   oauth2-proxy:
     image: quay.io/oauth2-proxy/oauth2-proxy:v7.6.0
