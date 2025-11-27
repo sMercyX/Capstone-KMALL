@@ -199,6 +199,9 @@ func (h *Handler) listPublic(c *gin.Context) {
 	// public: activeOnly = true เป็น default
 	activeOnly := parseBoolQuery(c.Query("active_only"), true)
 
+	// ✅ เพิ่ม query สำหรับ filter เอาเฉพาะ sub category
+	onlySub := parseBoolQuery(c.Query("only_sub"), false)
+
 	cats, err := h.svc.List(c.Request.Context(), q, parentID, activeOnly, limit, page)
 	if err != nil {
 		c.Error(err)
@@ -207,6 +210,17 @@ func (h *Handler) listPublic(c *gin.Context) {
 	if cats == nil {
 		cats = []Category{}
 	}
+
+	if onlySub {
+		filtered := make([]Category, 0, len(cats))
+		for _, cat := range cats {
+			if cat.ParentID != nil && *cat.ParentID != 0 {
+				filtered = append(filtered, cat)
+			}
+		}
+		cats = filtered
+	}
+
 	respond.OK(c, apperr.OK, cats)
 }
 

@@ -81,13 +81,58 @@ func (h *Handler) getCart(c *gin.Context) {
 		return
 	}
 
-	cart, err := h.svc.GetCart(c.Request.Context(), userID)
+	cw, err := h.svc.GetCart(c.Request.Context(), userID)
 	if err != nil {
 		c.Error(err)
 		return
 	}
 
-	respond.OK(c, apperr.OK, cart)
+	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "20"))
+	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
+
+	if limit <= 0 {
+		limit = 20
+	}
+	if page <= 0 {
+		page = 1
+	}
+
+	total := len(cw.Items)
+	offset := (page - 1) * limit
+	if offset > total {
+		offset = total
+	}
+	end := offset + limit
+	if end > total {
+		end = total
+	}
+
+	// 🔹 ตอนนี้ items เป็น []CartItemView
+	itemsPage := cw.Items[offset:end]
+
+	totalQuantity := 0
+	for _, item := range cw.Items {
+		totalQuantity += item.Quantity
+	}
+
+	// ===== Response =====
+	resp := struct {
+		Cart          Cart           `json:"cart"`
+		PageSize      int            `json:"pageSize"`
+		PageIndex     int            `json:"pageIndex"`
+		Total         int64          `json:"total"`
+		TotalQuantity int            `json:"totalQuantity"`
+		Items         []CartItemView `json:"items"`
+	}{
+		Cart:          cw.Cart,
+		PageSize:      limit,
+		PageIndex:     page,
+		Total:         int64(total),
+		TotalQuantity: totalQuantity,
+		Items:         itemsPage,
+	}
+
+	respond.OK(c, apperr.OK, resp)
 }
 
 // ============================================================================

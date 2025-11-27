@@ -1,25 +1,25 @@
-// import { useParams } from "react-router-dom";
-import { Star, Share2, UserPlus } from "lucide-react";
+import { Star, Share2, UserPlus } from "lucide-react"
+import Card from "../../components/Card/Card"
 
 // ===== Types =====
 type Store = {
-  id: string;
-  name: string;
-  logoUrl: string;
-  rating: number;
-  reviewCount: number;
-  followerCount: number;
-  description?: string;
-};
+  id: string
+  name: string
+  logoUrl: string
+  rating: number
+  reviewCount: number
+  followerCount: number
+  description?: string
+}
 
 type StoreProduct = {
-  id: string;
-  name: string;
-  price: number;
-  sold: number;
-  rating: number;
-  imageUrl: string;
-};
+  id: string
+  name: string
+  price: number
+  sold: number
+  rating: number
+  imageUrl: string
+}
 
 // ===== Mock Data (เปลี่ยนเป็น API จริงภายหลัง) =====
 const MOCK_STORE: Store = {
@@ -32,7 +32,7 @@ const MOCK_STORE: Store = {
   followerCount: 5600,
   description:
     "โฮมเมดเบเกอรี่หอมเนยสด สดใหม่จากเตาทุกวัน พร้อมเมนูบราวนี่ เค้ก และคุกกี้สูตรพิเศษของทางร้าน",
-};
+}
 
 const MOCK_PRODUCTS: StoreProduct[] = [
   {
@@ -89,7 +89,7 @@ const MOCK_PRODUCTS: StoreProduct[] = [
     imageUrl:
       "https://images.unsplash.com/photo-1532581140115-3e355d1ed1de?q=80&w=800&auto=format&fit=crop",
   },
-];
+]
 
 // ===== Sub-components =====
 
@@ -135,7 +135,7 @@ function StoreHeader({ store }: { store: Store }) {
         </button>
       </div>
     </section>
-  );
+  )
 }
 
 function StoreTabs() {
@@ -163,7 +163,7 @@ function StoreTabs() {
         </select>
       </div>
     </div>
-  );
+  )
 }
 
 function StoreProductCard({ product }: { product: StoreProduct }) {
@@ -198,7 +198,7 @@ function StoreProductCard({ product }: { product: StoreProduct }) {
         </button>
       </div>
     </div>
-  );
+  )
 }
 
 function StoreProductGrid({ products }: { products: StoreProduct[] }) {
@@ -208,23 +208,21 @@ function StoreProductGrid({ products }: { products: StoreProduct[] }) {
         <StoreProductCard key={p.id} product={p} />
       ))}
     </div>
-  );
+  )
 }
 
 // ===== Main Page =====
 export default function StorePage() {
-  // const { storeId } = useParams(); // เอาไปใช้เรียก API จริงได้ภายหลัง
-
-  const store = MOCK_STORE; // TODO: เรียกจาก backend ด้วย storeId
-  const products = MOCK_PRODUCTS;
+  const store = MOCK_STORE // TODO: เรียกจาก backend ด้วย storeId
+  const products = MOCK_PRODUCTS
 
   return (
-    <div className="min-h-screen bg-neutral-900 py-6 md:py-10">
-      <div className="mx-auto max-w-6xl rounded-3xl bg-[#f7f7f7] px-4 py-6 md:px-8 md:py-8">
-        <StoreHeader store={store} />
-        <StoreTabs />
-        <StoreProductGrid products={products} />
-      </div>
-    </div>
-  );
+    // <div className="min-h-screen bg-neutral-900 py-6 md:py-10">
+        <Card className="max-w-6xl mx-auto ">
+          <StoreHeader store={store} />
+          <StoreTabs />
+          <StoreProductGrid products={products} />
+        </Card>
+    // </div>
+  )
 }

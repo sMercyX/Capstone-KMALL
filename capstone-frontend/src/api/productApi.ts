@@ -1,6 +1,6 @@
 // api/productApi.ts
 import { useCrudApi } from "../utils/fetch"
-import type { PaginatedResponse } from "./responseType"
+import type { ApiCreateResponse, PaginatedResponse } from "./responseType"
 
 export type CategoryType = "food" | "clothing" | "handmade-products"
 
@@ -34,6 +34,15 @@ export interface Product {
   store_id: number
   category_id: number
 }
+export interface AddProductRequest {
+  name: string
+  description: string
+  price: number
+  image_url: string
+  is_active: "YES" | "NO"
+  store_id: number
+  category_id: number
+}
 
 export type ProductListResponse = PaginatedResponse<Product>
 
@@ -62,7 +71,7 @@ export function useProductApi() {
   async function getProductsByStore(storeId: number) {
     return http.getItems(`/api/products/public?store_id=${storeId}`)
   }
-
+  
   async function getProductsByParentId(
     categoryId: number,
     limit: number,
@@ -72,11 +81,24 @@ export function useProductApi() {
       `/api/products/public?parent_category_id=${categoryId}&limit=${limit}&page=${pageIndex}`
     )
   }
+  
+  async function addProduct(
+    data: AddProductRequest
+  ): Promise<ApiCreateResponse<Product>> {
+    return http.postItem(`/api/products`, data)
+  }
+
+  async function getProduct(storeId: number) {
+    return http.getItems(`/api/products/${storeId}/public`)
+  }
+
 
   return {
     getProductsByCategory,
     getProductBySlug,
     getProductsByStore,
     getProductsByParentId,
+    addProduct,
+    getProduct
   }
 }

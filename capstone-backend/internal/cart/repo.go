@@ -18,6 +18,7 @@ type Repo interface {
 
 	// Cart items
 	ListItemsByCartID(ctx context.Context, cartID int64) ([]CartItem, error)
+	ListItemViewsByCartID(ctx context.Context, cartID int64) ([]CartItemView, error)
 	GetItem(ctx context.Context, id int64) (CartItem, error)
 	CreateItem(ctx context.Context, in CartItemCreateParams) (CartItem, error)
 	UpdateItem(ctx context.Context, id int64, in CartItemUpdateParams) (CartItem, error)
@@ -26,6 +27,8 @@ type Repo interface {
 	ClearItemsByCartID(ctx context.Context, cartID int64) error
 	GetCartStoreID(ctx context.Context, cartID int64) (*int, error)
 	GetProductStoreID(ctx context.Context, productID int) (int, error)
+
+	GetProductOwnerID(ctx context.Context, productID int) (string, error)
 }
 
 type repo struct {
@@ -275,4 +278,73 @@ func (r *repo) ClearItemsByCartID(ctx context.Context, cartID int64) error {
 		return apperr.Wrap(apperr.Internal, err, "clear cart items failed")
 	}
 	return nil
+}
+
+func (r *repo) GetProductOwnerID(ctx context.Context, productID int) (string, error) {
+	var ownerID string
+	err := r.db.QueryRow(ctx, `
+		SELECT s.user_id
+		FROM products p
+		JOIN stores s ON p.store_id = s.store_id
+		WHERE p.product_id = $1;
+	`, productID).Scan(&ownerID)
+
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return "", apperr.New(apperr.NotFound, "product not found")
+		}
+		return "", apperr.Wrap(apperr.Internal, err, "get product owner failed")
+	}
+	return ownerID, nil
+}
+
+func (r *repo) ListItemViewsByCartID(ctx context.Context, cartID int64) ([]CartItemView, error) {
+	rows, err := r.db.Query(ctx, `
+		SELECT
+			ci.cart_item_id,
+			ci.cart_id,
+			ci.product_id,
+			p.name AS product_name,
+			p.image_url AS product_image_url,
+			p.price AS product_price,
+			s.store_id,
+			s.store_name,
+			ci.quantity,
+			(ci.quantity * p.price) AS subtotal
+		FROM cart_items ci
+		JOIN products p ON ci.product_id = p.product_id
+		JOIN stores s ON p.store_id = s.store_id
+		WHERE ci.cart_id = $1
+		ORDER BY ci.cart_item_id ASC;
+	`, cartID)
+	if err != nil {
+		return nil, apperr.Wrap(apperr.Internal, err, "list cart item views failed")
+	}
+	defer rows.Close()
+
+	out := []CartItemView{}
+
+	for rows.Next() {
+		var v CartItemView
+		if err := rows.Scan(
+			&v.ID,
+			&v.CartID,
+			&v.ProductID,
+			&v.ProductName,
+			&v.ProductImageURL,
+			&v.ProductPrice,
+			&v.StoreID,
+			&v.StoreName,
+			&v.Quantity,
+			&v.Subtotal,
+		); err != nil {
+			return nil, apperr.Wrap(apperr.Internal, err, "scan cart item view failed")
+		}
+		out = append(out, v)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, apperr.Wrap(apperr.Internal, err, "rows error")
+	}
+
+	return out, nil
 }

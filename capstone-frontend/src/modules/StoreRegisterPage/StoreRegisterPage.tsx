@@ -1,12 +1,12 @@
 import { useState, useEffect } from "react"
 import { Info, Upload } from "lucide-react"
 import Card from "../../components/Card/Card"
-import { useUserApi } from "../../api/storeApi"
+import { useStoreApi } from "../../api/storeApi"
 import { useNavigate } from "react-router-dom"
 import { useUserStore } from "../../stores/userStore"
 
 export default function StoreRegisterPage() {
-  const { addStore } = useUserApi()
+  const { addStore } = useStoreApi()
   const navigate = useNavigate()
 
   const roles = useUserStore((s) => s.roles)

@@ -88,6 +88,30 @@ type statusUpdateReq struct {
 	Status string `json:"status"`
 }
 
+type orderBuyerDTO struct {
+	ID          string `json:"id"`
+	DisplayName string `json:"display_name"`
+	Email       string `json:"email"`
+}
+
+type orderDetailResp struct {
+	Order Order          `json:"order"`
+	Items []OrderItem    `json:"items"`
+	Buyer *orderBuyerDTO `json:"buyer,omitempty"` // null / ไม่ส่ง ถ้าไม่ใช่ seller/admin
+}
+
+type buyerOrderDTO struct {
+	Order     Order  `json:"order"`
+	StoreName string `json:"store_name"`
+}
+
+type storeOrderDTO struct {
+	Order            Order  `json:"order"`
+	BuyerID          string `json:"buyer_id"`
+	BuyerDisplayName string `json:"buyer_display_name"`
+	BuyerEmail       string `json:"buyer_email"`
+}
+
 // ============================================================================
 // Helper
 // ============================================================================
@@ -219,14 +243,47 @@ func (h *Handler) getOrder(c *gin.Context) {
 		return
 	}
 
-	if result.Order.UserID != userID && !h.isAdmin(c, userID) {
-		if len(c.Errors) == 0 {
-			respond.Error(c, http.StatusForbidden, "FORBIDDEN", "not allowed to view this order", nil)
-		}
+	order := result.Order
+
+	isBuyer := order.UserID == userID
+	isAdmin := h.isAdmin(c, userID)
+
+	isStoreOwner := false
+	if !isBuyer && !isAdmin {
+		isStoreOwner = h.isStoreOwnerOrAdmin(c, int64(order.StoreID), userID)
+	}
+
+	if !isBuyer && !isAdmin && !isStoreOwner {
+		c.Error(apperr.New(
+			apperr.Forbidden,
+			"only buyer, store owner or admin can view this order",
+		))
 		return
 	}
 
-	respond.OK(c, apperr.OK, result)
+	var buyerDTO *orderBuyerDTO
+
+	if isStoreOwner || isAdmin {
+		u, err := h.userSvc.Get(c.Request.Context(), order.UserID)
+		if err != nil {
+			c.Error(err)
+			return
+		}
+
+		buyerDTO = &orderBuyerDTO{
+			ID:          u.ID,
+			DisplayName: u.DisplayName,
+			Email:       u.Email,
+		}
+	}
+
+	resp := orderDetailResp{
+		Order: result.Order,
+		Items: result.Items,
+		Buyer: buyerDTO,
+	}
+
+	respond.OK(c, apperr.OK, resp)
 }
 
 func (h *Handler) updateStatus(c *gin.Context) {
@@ -329,7 +386,6 @@ func (h *Handler) cancelOrder(c *gin.Context) {
 		}
 	}
 
-	// ----- cancel จริง -----
 	cancelled, err := h.svc.Cancel(c.Request.Context(), id)
 	if err != nil {
 		c.Error(err)
@@ -352,7 +408,30 @@ func (h *Handler) listBuyerOrders(c *gin.Context) {
 		return
 	}
 
-	respond.OK(c, apperr.OK, orders)
+	ctx := c.Request.Context()
+
+	storeNameCache := make(map[int]string)
+	resp := make([]buyerOrderDTO, 0, len(orders))
+
+	for _, o := range orders {
+		name, ok := storeNameCache[o.StoreID]
+		if !ok {
+			st, err := h.storeSvc.Get(ctx, int64(o.StoreID))
+			if err != nil {
+				c.Error(err)
+				return
+			}
+			name = st.Name
+			storeNameCache[o.StoreID] = name
+		}
+
+		resp = append(resp, buyerOrderDTO{
+			Order:     o,
+			StoreName: name,
+		})
+	}
+
+	respond.OK(c, apperr.OK, resp)
 }
 
 func (h *Handler) listStoreOrders(c *gin.Context) {
@@ -381,5 +460,30 @@ func (h *Handler) listStoreOrders(c *gin.Context) {
 		return
 	}
 
-	respond.OK(c, apperr.OK, orders)
+	ctx := c.Request.Context()
+
+	buyerCache := make(map[string]user.User)
+	resp := make([]storeOrderDTO, 0, len(orders))
+
+	for _, o := range orders {
+		u, ok := buyerCache[o.UserID]
+		if !ok {
+			usr, err := h.userSvc.Get(ctx, o.UserID)
+			if err != nil {
+				c.Error(err)
+				return
+			}
+			u = usr
+			buyerCache[o.UserID] = u
+		}
+
+		resp = append(resp, storeOrderDTO{
+			Order:            o,
+			BuyerID:          u.ID,
+			BuyerDisplayName: u.DisplayName,
+			BuyerEmail:       u.Email,
+		})
+	}
+
+	respond.OK(c, apperr.OK, resp)
 }

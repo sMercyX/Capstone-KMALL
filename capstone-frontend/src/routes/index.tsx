@@ -12,8 +12,17 @@ import ProtectedRoute from "../components/ProtectedRoute/ProtectedRoute"
 const Dashboard = lazy(() => import("../modules/DashBoard/Dashboard"))
 const LandingPage = lazy(() => import("../modules/LandingPage/LandingPage"))
 const CategoryPage = lazy(() => import("../modules/CategoryPage/CategoryPage"))
-const StorePage = lazy(() => import("../modules/StoreSellerPage/StorePage"))
-const StoreRegisterPage = lazy(() => import("../modules/StoreRegisterPage/StoreRegisterPage"))
+
+const StorePage = lazy(() => import("../modules/StorePage/StorePage"))
+const StoreSellerPage = lazy(
+  () => import("../modules/StoreSellerPage/StorePage")
+)
+const StoreRegisterPage = lazy(
+  () => import("../modules/StoreRegisterPage/StoreRegisterPage")
+)
+const CartPage = lazy(() => import("../modules/CartPage/CartPage"))
+const CheckoutPage = lazy(() => import("../modules/CheckoutPage/CheckoutPage"))
+const OrderPage = lazy(() => import("../modules/OrderPage/OrderPage"))
 
 export default function AppRoutes() {
   return (
@@ -27,6 +36,47 @@ export default function AppRoutes() {
           {/* publicRoutes */}
           <>
             <Route path="/dashboard2" element={<Dashboard />} />
+            <Route path="/store/:id" element={<StorePage />} />
+            <Route
+              path="/cart"
+              element={
+                <ProtectedRoute>
+                  <CartPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/checkout"
+              element={
+                <ProtectedRoute>
+                  <CheckoutPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/orders/ongoing"
+              element={
+                <ProtectedRoute>
+                  <OrderPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/orders/completed"
+              element={
+                <ProtectedRoute>
+                  <OrderPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/orders/canceled"
+              element={
+                <ProtectedRoute>
+                  <OrderPage />
+                </ProtectedRoute>
+              }
+            />
           </>
           {/* privateRoutes */}
           <>
@@ -39,7 +89,7 @@ export default function AppRoutes() {
               }
             />
             <Route
-              path="/category/:category"
+              path="/categories/:category"
               element={
                 <ProtectedRoute>
                   {/* <AllowedCategoryRoute> */}
@@ -69,7 +119,7 @@ export default function AppRoutes() {
               path="/store/me"
               element={
                 <ProtectedRoute>
-                  <StorePage />
+                  <StoreSellerPage />
                 </ProtectedRoute>
               }
             />
@@ -77,7 +127,7 @@ export default function AppRoutes() {
               path="/store/products"
               element={
                 <ProtectedRoute>
-                  <StorePage />
+                  <StoreSellerPage />
                 </ProtectedRoute>
               }
             />
@@ -85,7 +135,7 @@ export default function AppRoutes() {
               path="/store/add"
               element={
                 <ProtectedRoute>
-                  <StorePage />
+                  <StoreSellerPage />
                 </ProtectedRoute>
               }
             />
@@ -93,7 +143,7 @@ export default function AppRoutes() {
               path="/store/orders"
               element={
                 <ProtectedRoute>
-                  <StorePage />
+                  <StoreSellerPage />
                 </ProtectedRoute>
               }
             />
@@ -101,7 +151,7 @@ export default function AppRoutes() {
               path="/store/settings"
               element={
                 <ProtectedRoute>
-                  <StorePage />
+                  <StoreSellerPage />
                 </ProtectedRoute>
               }
             />

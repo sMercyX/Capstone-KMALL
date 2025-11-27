@@ -1,8 +1,18 @@
-import { useEffect } from "react"
-import {  useNavigate, useParams } from "react-router-dom"
-import { ChevronLeft, Star, ShoppingCart, Heart } from "lucide-react"
+// src/pages/product/ProductPage.tsx
+import { useEffect, useState } from "react"
+import { useNavigate, useParams } from "react-router-dom"
+import {
+  ChevronLeft,
+  ChevronRight,
+  Star,
+  ShoppingCart,
+  Heart,
+} from "lucide-react"
 import { useProductApi } from "../../api/productApi"
 import { useProductStore } from "../../stores/productStore"
+import { useCartStore } from "../../stores/cartStore"
+import Card from "../../components/Card/Card"
+import { useCartApi } from "../../api/cartApi"
 
 // ====== UI Helpers ======
 function RatingStarsFixed() {
@@ -22,11 +32,10 @@ function RatingStarsFixed() {
 }
 
 export default function ProductPage() {
-  const { slug } = useParams<{ slug: string }>()
+  const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
 
-  const { getProductBySlug } = useProductApi()
-
+  const { getProduct } = useProductApi()
   const {
     product,
     isLoading,
@@ -37,10 +46,20 @@ export default function ProductPage() {
     reset,
   } = useProductStore()
 
+  const { addCart, getCart } = useCartApi()
+  const {
+    startLoading: startCartLoading,
+    setCart,
+    setError: setCartError,
+  } = useCartStore()
+
+  const [qty, setQty] = useState(1)
+  const [activeImageIndex, setActiveImageIndex] = useState(0)
+
   // โหลด product เดียว
   useEffect(() => {
-    if (!slug) {
-      setError("ไม่พบข้อมูลสินค้า")
+    if (!id) {
+      setError("ไม่พบสินค้า")
       return
     }
 
@@ -51,21 +70,50 @@ export default function ProductPage() {
         reset()
         startLoading()
 
-        const res = await getProductBySlug(slug!)
-        if (!cancelled) setProduct(res.data)
+        const productId = Number(id)
+        const res = await getProduct(productId)
+
+        if (!cancelled) {
+          setProduct(res.data)
+        }
       } catch (err) {
-        if (!cancelled) setError("ไม่สามารถโหลดข้อมูลสินค้าได้")
+        if (!cancelled) setError("ไม่สามารถโหลดสินค้าได้")
       }
     }
 
     load()
+
     return () => {
       cancelled = true
     }
-  }, [slug])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id])
 
   const handleBack = () => navigate(-1)
 
+  // เพิ่มลงตะกร้า
+  const handleAddToCart = async () => {
+    if (!product) return
+
+    try {
+      startCartLoading()
+
+      await addCart({
+        product_id: product.id,
+        quantity: qty,
+      })
+
+      const res = await getCart()
+      setCart(res.data)
+
+      // TODO: toast success ถ้าต้องการ
+    } catch (err) {
+      console.error(err)
+      setCartError("ไม่สามารถเพิ่มสินค้าในตะกร้าได้")
+    }
+  }
+
+  // LOADING
   if (isLoading && !product) {
     return (
       <main className="max-w-6xl mx-auto px-4 py-10">
@@ -74,6 +122,7 @@ export default function ProductPage() {
     )
   }
 
+  // Error / No data
   if (error || !product) {
     return (
       <main className="max-w-6xl mx-auto px-4 py-10">
@@ -92,8 +141,41 @@ export default function ProductPage() {
     )
   }
 
+  const thumbnails = [
+    product.image_url,
+    product.image_url,
+    product.image_url,
+  ].filter(Boolean)
+
+  const mainImage =
+    thumbnails[activeImageIndex] ||
+    product.image_url ||
+    "https://via.placeholder.com/800"
+
+  const handlePrevThumb = () => {
+    setActiveImageIndex((prev) =>
+      prev === 0 ? thumbnails.length - 1 : prev - 1
+    )
+  }
+
+  const handleNextThumb = () => {
+    setActiveImageIndex((prev) =>
+      prev === thumbnails.length - 1 ? 0 : prev + 1
+    )
+  }
+
+  const handleDecreaseQty = () => {
+    setQty((prev) => (prev > 1 ? prev - 1 : 1))
+  }
+
+  const handleIncreaseQty = () => {
+    setQty((prev) => prev + 1)
+  }
+
+  const storeName = `ร้านหมายเลข ${product.store_id}`
+
   return (
-    <main className="max-w-6xl mx-auto px-4 py-6 md:py-10">
+    <main className="max-w-6xl mx-auto px-4 py-8 md:py-10">
       {/* Back button */}
       <button
         onClick={handleBack}
@@ -103,64 +185,143 @@ export default function ProductPage() {
         กลับ
       </button>
 
-      <div className="grid gap-8 md:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)]">
-        {/* LEFT: Image */}
-        <section className="rounded-3xl border bg-white p-4 md:p-6">
-          <div className="aspect-square w-full overflow-hidden rounded-2xl bg-gray-50">
-            <img
-              src={product.image_url || "https://via.placeholder.com/800"}
-              alt={product.name}
-              className="h-full w-full object-cover"
-            />
-          </div>
-        </section>
+      {/* การ์ดหลักสินค้า */}
+      <Card className="rounded-3xl px-6 py-6 md:px-10 md:py-8">
+        <div className="grid gap-10 md:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)] items-start">
+          {/* LEFT: IMAGE + THUMB */}
+          <section className="flex flex-col items-center">
+            <div className="w-full max-w-[420px] aspect-square overflow-hidden rounded-3xl bg-gray-50">
+              <img
+                src={mainImage}
+                alt={product.name}
+                className="h-full w-full object-cover"
+              />
+            </div>
 
-        {/* RIGHT: Details */}
-        <section className="space-y-4 rounded-3xl border bg-white p-4 md:p-6">
-          {/* Title */}
-          <h1 className="text-2xl md:text-3xl font-bold leading-tight">
-            {product.name}
-          </h1>
+            <div className="mt-5 flex items-center gap-4">
+              <button
+                type="button"
+                className="flex h-9 w-9 items-center justify-center rounded-full border bg-white shadow-sm hover:bg-gray-50"
+                onClick={handlePrevThumb}
+              >
+                <ChevronLeft className="h-4 w-4" />
+              </button>
 
-          {/* Rating */}
-          <div className="flex items-center gap-2 text-gray-700">
-            <RatingStarsFixed />
-            <span className="text-sm">4.00 | 120 รีวิว</span>
-          </div>
+              <div className="flex gap-3">
+                {thumbnails.map((thumb, index) => (
+                  <button
+                    key={index}
+                    type="button"
+                    onClick={() => setActiveImageIndex(index)}
+                    className={`relative h-20 w-20 overflow-hidden rounded-2xl border transition
+                      ${
+                        index === activeImageIndex
+                          ? "border-orange-500 shadow-sm"
+                          : "border-transparent hover:border-gray-300"
+                      }`}
+                  >
+                    <img
+                      src={thumb}
+                      alt={`thumb-${index}`}
+                      className="h-full w-full object-cover"
+                    />
+                    {index === activeImageIndex && (
+                      <span className="absolute inset-x-3 bottom-1 h-1 rounded-full bg-orange-500" />
+                    )}
+                  </button>
+                ))}
+              </div>
 
-          {/* Price */}
-          <p className="text-3xl font-bold text-rose-600">
-            {product.price ? `${product.price} บาท` : "—"}
-          </p>
+              <button
+                type="button"
+                className="flex h-9 w-9 items-center justify-center rounded-full border bg-white shadow-sm hover:bg-gray-50"
+                onClick={handleNextThumb}
+              >
+                <ChevronRight className="h-4 w-4" />
+              </button>
+            </div>
+          </section>
 
-          {/* Description */}
-          <p className="text-sm text-gray-600 leading-relaxed">
-            สินค้านี้เป็นสินค้าที่จำหน่ายบนระบบ KMALL
-            สามารถดูรายละเอียดเพิ่มเติมจากร้านค้าต้นทาง
-            และเพิ่มลงตะกร้าเพื่อทำการสั่งซื้อได้
-          </p>
+          {/* RIGHT: DETAILS */}
+          <section className="space-y-4">
+            <h1 className="text-2xl md:text-3xl font-bold leading-tight">
+              {product.name}
+            </h1>
 
-          {/* Buttons */}
-          <div className="pt-2 flex flex-wrap gap-3">
-            <button className="flex-1 min-w-[200px] rounded-full bg-orange-500 px-6 py-3 text-sm font-semibold text-white shadow-sm hover:bg-orange-600 transition inline-flex items-center justify-center gap-2">
-              <ShoppingCart className="h-5 w-5" />
-              เพิ่มลงตะกร้า
+            <div className="flex items-center gap-3 text-gray-700">
+              <RatingStarsFixed />
+              <span className="text-sm">288 reviews</span>
+            </div>
+
+            <p className="text-2xl md:text-3xl font-bold text-gray-900">
+              {product.price ? `${product.price} บาท` : "—"}
+            </p>
+
+            <p className="text-sm text-gray-600 leading-relaxed">
+              {product.description || "ไม่มีรายละเอียดสินค้า"}
+            </p>
+
+            <div className="flex flex-wrap items-center gap-4 pt-4">
+              <div className="inline-flex items-center rounded-full border border-gray-300 bg-white px-3 py-2">
+                <button
+                  type="button"
+                  onClick={handleDecreaseQty}
+                  className="px-2 text-lg leading-none text-gray-600 hover:text-gray-900"
+                >
+                  –
+                </button>
+                <span className="mx-3 w-6 text-center text-sm font-medium">
+                  {qty}
+                </span>
+                <button
+                  type="button"
+                  onClick={handleIncreaseQty}
+                  className="px-2 text-lg leading-none text-gray-600 hover:text-gray-900"
+                >
+                  +
+                </button>
+              </div>
+
+              <button
+                type="button"
+                onClick={handleAddToCart}
+                className="flex-1 min-w-[200px] rounded-full bg-orange-500 px-6 py-3 text-sm font-semibold text-white shadow-sm hover:bg-orange-600 transition inline-flex items-center justify-center gap-2"
+              >
+                <ShoppingCart className="h-5 w-5" />
+                เพิ่มลงในตะกร้า
+              </button>
+            </div>
+
+            <button
+              type="button"
+              className="mt-2 inline-flex items-center gap-2 text-sm text-gray-600 hover:text-gray-900"
+            >
+              <Heart className="h-4 w-4" />
+              <span>Add to Favorite</span>
             </button>
+          </section>
+        </div>
+      </Card>
 
-            <button className="h-11 w-11 rounded-full border border-gray-300 flex items-center justify-center hover:bg-gray-50 transition">
-              <Heart className="h-5 w-5 text-gray-700" />
-            </button>
+      {/* แถบข้อมูลร้านด้านล่าง */}
+      <Card className="mt-8 flex flex-wrap items-center justify-between gap-4 rounded-3xl px-6 py-4">
+        <div className="flex items-center gap-3">
+          <div className="h-12 w-12 rounded-full bg-gray-200 overflow-hidden" />
+          <div>
+            <p className="text-sm font-semibold text-gray-900">{storeName}</p>
+            <p className="text-xs text-gray-500">ร้านค้าพาร์ทเนอร์บน KMALL</p>
           </div>
+        </div>
 
-          {/* Shop name */}
-          <p className="pt-3 text-sm text-gray-600">
-            ร้าน:{" "}
-            <span className="font-semibold">
-              {product.store_id || "ร้านค้าทั่วไป"}
-            </span>
-          </p>
-        </section>
-      </div>
+        <div className="flex gap-3">
+          <button className="rounded-full border border-orange-500 px-5 py-2 text-sm font-semibold text-orange-500 hover:bg-orange-50 transition">
+            แชทเลย
+          </button>
+          <button className="rounded-full bg-orange-500 px-5 py-2 text-sm font-semibold text-white hover:bg-orange-600 transition">
+            ดูร้านค้า
+          </button>
+        </div>
+      </Card>
     </main>
   )
 }
