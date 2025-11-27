@@ -1,20 +1,20 @@
 // src/pages/store/StoreOrdersTab.tsx
 import { useEffect } from "react";
+import { useLocation } from "react-router-dom";
 import type { SwitchTabItem } from "../../../components/SwitchTabs/SwitchTabs";
 import type { OrderStatusGroup } from "../../../api/orderApi";
-import { useStoreOrderStore, type StoreOrderTabKey } from "../../../stores/storeOrderStore";
+import { useStoreOrderStore } from "../../../stores/storeOrderStore";
+import type { StoreOrderTabKey } from "../../../stores/storeOrderStore";
 import type { StoreOrderStatusContext } from "./StoreOrderListItem";
 import { useOrderSellerApi } from "../../../api/orderSellerApi";
 import StoreOrderListItem from "./StoreOrderListItem";
 import SwitchTabs from "../../../components/SwitchTabs/SwitchTabs";
 import { useStoreStore } from "../../../stores/storeStore";
 
-
-
 const ORDER_TABS: SwitchTabItem[] = [
-  { key: "ongoing", label: "ON GOING" },
-  { key: "completed", label: "COMPLETED" },
-  { key: "canceled", label: "CANCELED/FAILED" },
+  { key: "ongoing", label: "ON GOING", href: "/store/orders/ongoing" },
+  { key: "completed", label: "COMPLETED", href: "/store/orders/completed" },
+  { key: "canceled", label: "CANCELED/FAILED", href: "/store/orders/canceled" },
 ];
 
 const statusGroupMap: Record<StoreOrderTabKey, OrderStatusGroup> = {
@@ -29,10 +29,15 @@ const contextMap: Record<StoreOrderTabKey, StoreOrderStatusContext> = {
   canceled: "canceled",
 };
 
+function getActiveKeyFromPath(pathname: string): StoreOrderTabKey {
+  if (pathname.startsWith("/store/orders/completed")) return "completed";
+  if (pathname.startsWith("/store/orders/canceled")) return "canceled";
+  // default
+  return "ongoing";
+}
+
 export default function StoreOrdersTab() {
   const {
-    activeKey,
-    setActiveKey,
     orders,
     isLoading,
     error,
@@ -42,14 +47,17 @@ export default function StoreOrdersTab() {
   } = useStoreOrderStore();
 
   const { getOrdersSellerByStatus } = useOrderSellerApi();
+  const { store, fetchStore } = useStoreStore();
+  const location = useLocation();
+  const pathname = location.pathname;
 
-  // TODO: เปลี่ยนเป็น store_id จริงจาก storeStore ของโปรเจกต์คุณ
-   const { store, fetchStore } = useStoreStore()
-  useEffect(()=>{
-    fetchStore()
-  }, [])
+  const activeKey = getActiveKeyFromPath(pathname);
+
   useEffect(() => {
-    
+    fetchStore();
+  }, [fetchStore]);
+
+  useEffect(() => {
     if (!store?.id) return;
 
     const status = statusGroupMap[activeKey];
@@ -59,22 +67,20 @@ export default function StoreOrdersTab() {
 
     (async () => {
       try {
-        const res = await getOrdersSellerByStatus(store?.id, status);
+        const res = await getOrdersSellerByStatus(store.id, status);
         setOrders(res.data ?? []);
       } catch (e) {
         setError("ไม่สามารถโหลดคำสั่งซื้อของร้านค้าได้");
       }
     })();
   }, [activeKey, store?.id]);
+
   return (
     <div className="pb-6">
       {/* เส้นคั่น + tabs */}
       <div className="mb-4 border-gray-300 pt-3">
         <SwitchTabs
-          tabs={ORDER_TABS}
-          useNavLink={false}
-          activeKey={activeKey}
-          onChange={(key) => setActiveKey(key as StoreOrderTabKey)}
+          tabs={ORDER_TABS} // ใช้โหมด NavLink แบบเดียวกับ StorePage
         />
       </div>
 

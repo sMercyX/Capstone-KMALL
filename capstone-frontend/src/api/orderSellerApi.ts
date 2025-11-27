@@ -1,6 +1,6 @@
 // src/api/storeApi.ts
 import { useCrudApi } from "../utils/fetch"
-import type { ApiResponse } from "./responseType"
+import type { ApiResponse, ApiUpdatedResponse } from "./responseType"
 
 export interface orderSellerRequest {
   fulfillment_type: "STANDARD" | "EXPRESS"
@@ -46,13 +46,24 @@ export interface OrderBuyerDetail {
   email: string
 }
 
+// ---------------------------
+export type OrderStatus =
+  | "Pending Seller Confirmation"
+  | "Awaiting Buyer Confirmation"
+  | "'Ready for Pickup"
+  | "Ready for Delivery"
+  | "Completed"
+  | "Cancelled"
+
 export interface OrderDetailResponse {
   order: orderSellerData
   items: OrderItemDetail[]
   buyer: OrderBuyerDetail
 }
+export interface OrderStatusResquest {
+  status: OrderStatus
+}
 
-// --------------------------
 export function useOrderSellerApi() {
   const http = useCrudApi()
 
@@ -71,6 +82,23 @@ export function useOrderSellerApi() {
     return http.getItems(`/api/orders/${orderId}`)
   }
 
+  async function updateOrderStatus(
+    orderId: number,
+    orderStatus: OrderStatusResquest
+  ): Promise<ApiUpdatedResponse<orderSellerData>> {
+    return http.putItem(`/api/orders/${orderId}/status`, orderStatus)
+  }
 
-  return { getOrdersSellerByStatus, getOrderDetail}
+  async function cancelledOrder(
+    orderId: number
+  ): Promise<ApiUpdatedResponse<orderSellerData>> {
+    return http.postItem(`/api/orders/${orderId}/cancel`)
+  }
+
+  return {
+    getOrdersSellerByStatus,
+    getOrderDetail,
+    updateOrderStatus,
+    cancelledOrder,
+  }
 }
