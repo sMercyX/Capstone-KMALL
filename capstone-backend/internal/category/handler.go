@@ -199,7 +199,7 @@ func (h *Handler) listPublic(c *gin.Context) {
 	// public: activeOnly = true เป็น default
 	activeOnly := parseBoolQuery(c.Query("active_only"), true)
 
-	// ✅ เพิ่ม query สำหรับ filter เอาเฉพาะ sub category
+	// เพิ่ม query สำหรับ filter เอาเฉพาะ sub category
 	onlySub := parseBoolQuery(c.Query("only_sub"), false)
 
 	cats, err := h.svc.List(c.Request.Context(), q, parentID, activeOnly, limit, page)
