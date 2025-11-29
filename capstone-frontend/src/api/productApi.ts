@@ -1,6 +1,6 @@
 // api/productApi.ts
 import { useCrudApi } from "../utils/fetch"
-import type { ApiCreateResponse, ApiUpdatedResponse, PaginatedResponse } from "./responseType"
+import type { ApiCreateResponse, ApiUpdatedResponse, PaginatedResponse, ApiResponse } from "./responseType"
 
 export type CategoryType = "food" | "clothing" | "handmade-products"
 
@@ -57,9 +57,20 @@ export interface productPictureResponse {
   created_at: string
   updated_at: string
 }
+
 export interface productPictureEditRequest {
   is_primary: boolean
 }
+
+export interface EditProductRequest {
+  name: string
+  description: string
+  price: number
+  image_url: string
+  is_active: "YES" | "NO"
+  category_id: number
+}
+
 
 export function useProductApi() {
   const http = useCrudApi()
@@ -105,6 +116,13 @@ export function useProductApi() {
     return http.getItems(`/api/products/${storeId}/public`)
   }
 
+  async function editProduct(
+    product_id: number,
+    data: EditProductRequest
+  ): Promise<ApiUpdatedResponse<Product>> {
+    return http.putItem(`/api/products/${product_id}`, data)
+  }
+
   async function addImageProduct(
     product_id: number,
     files: File[]
@@ -115,7 +133,7 @@ export function useProductApi() {
     })
     return http.postItem(
       `/api/products/${product_id}/images/upload`,
-      formData as any
+      formData 
     )
   }
 
@@ -126,6 +144,19 @@ export function useProductApi() {
     return http.putItem(`/api/product-images/${image_id}`, data)
   }
 
+  async function getProductImage(
+    productId: number
+  ): Promise<ApiResponse<productPictureResponse[]>> {
+    return http.getItems(`/api/products/${productId}/images`)
+  }
+
+  async function deleteProductImage(
+    imageId: number
+  ): Promise<ApiResponse<any>> {
+    return http.deleteItem(`/api/product-images/${imageId}`)
+  }
+  
+
   return {
     getProductsByCategory,
     getProductBySlug,
@@ -133,7 +164,10 @@ export function useProductApi() {
     getProductsByParentId,
     addProduct,
     getProduct,
+    editProduct,
     addImageProduct,
-    editImageProduct
+    editImageProduct,
+    getProductImage,
+    deleteProductImage,
   }
 }
