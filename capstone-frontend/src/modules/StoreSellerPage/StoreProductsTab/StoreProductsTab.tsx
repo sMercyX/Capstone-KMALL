@@ -191,14 +191,23 @@ export default function StoreProductsTab() {
               >
                 {/* รูป + รายละเอียด */}
                 <div className="flex items-start gap-4">
-                  <img
+                  {/* <img
                     src={
                       product.image_url ||
                       "https://via.placeholder.com/150?text=Product"
                     }
                     alt={product.name}
                     className="w-20 h-20 md:w-24 md:h-24 rounded-lg object-cover flex-shrink-0"
-                  />
+                  /> */}
+                  <img
+            src={
+              product.image_url
+                ? `http://localhost:8000${product.image_url}`
+                : "/images/default-store.png"
+            }
+            alt={product.name}
+            className="w-20 h-20 md:w-24 md:h-24 rounded-lg object-cover flex-shrink-0"
+          />
 
                   <div className="space-y-1">
                     <p className="font-semibold text-sm md:text-base">
