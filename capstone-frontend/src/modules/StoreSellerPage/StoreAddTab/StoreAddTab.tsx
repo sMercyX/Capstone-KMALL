@@ -7,7 +7,7 @@ import {
   Trash2,
 } from "lucide-react"
 
-import { useProductApi, type AddProductRequest } from "../../../api/productApi"
+import { useProductApi, type AddProductRequest, type productPictureResponse } from "../../../api/productApi"
 import { useStoreStore } from "../../../stores/storeStore"
 import { useCatagoriesApi, type CatagoriesResponse } from "../../../api/catagoriesApi"
 
@@ -16,6 +16,7 @@ type ImageSlot = string
 
 export function StoreAddTab() {
   const [images, setImages] = useState<ImageSlot[]>([])
+  const [files, setFiles] = useState<File[]>([]) // เก็บไฟล์จริง
   const [mainIndex, setMainIndex] = useState(0)
   const fileInputRef = useRef<HTMLInputElement | null>(null)
   const thumbsRef = useRef<HTMLDivElement | null>(null)
@@ -33,7 +34,7 @@ export function StoreAddTab() {
   const [loadingCategories, setLoadingCategories] = useState(false)
   const [categoryError, setCategoryError] = useState<string | null>(null)
 
-  const { addProduct } = useProductApi()
+  const { addProduct, addImageProduct, editImageProduct } = useProductApi()
   const { store } = useStoreStore() // ต้องมี store.id จาก /api/stores/me
   const { getCatagoriesSubName } = useCatagoriesApi()
 
@@ -85,13 +86,13 @@ export function StoreAddTab() {
   }
 
   const handleFilesChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files
-    if (!files || files.length === 0) return
+    const selectedFiles = e.target.files
+    if (!selectedFiles || selectedFiles.length === 0) return
 
-    const newUrls = Array.from(files).map((file) =>
-      URL.createObjectURL(file)
-    )
+    const newFiles = Array.from(selectedFiles)
+    const newUrls = newFiles.map((file) => URL.createObjectURL(file))
 
+    setFiles((prev) => [...prev, ...newFiles])
     setImages((prev) => {
       const next = [...prev, ...newUrls]
       if (prev.length === 0 && next.length > 0) {
@@ -114,6 +115,7 @@ export function StoreAddTab() {
     const ok = window.confirm("คุณต้องการลบรูปภาพนี้ใช่หรือไม่?")
     if (!ok) return
 
+    setFiles((prev) => prev.filter((_, i) => i !== index))
     setImages((prev) => {
       const next = prev.filter((_, i) => i !== index)
 
@@ -169,11 +171,12 @@ export function StoreAddTab() {
     try {
       setIsSubmitting(true)
 
+      // 1. สร้าง Product
       const payload: AddProductRequest = {
         name,
         description,
         price: priceNumber,
-        image_url: "", // ตอนนี้ยังไม่ทำอัปโหลดรูป ส่งค่าว่างไปก่อน
+        image_url: "", // เดี๋ยว backend หรือ logic อื่นจัดการ หรือถ้าต้องใส่รูปแรกเลยอาจจะต้องปรับ
         is_active: "YES",
         store_id: store.id,
         category_id: categoryId,
@@ -181,12 +184,32 @@ export function StoreAddTab() {
 
       const res = await addProduct(payload)
       console.log("PRODUCT CREATED:", res)
+      const newProductId = res.data.id
 
-      // reset ฟอร์มง่าย ๆ
+      // 2. อัปโหลดรูปภาพ (ถ้ามี)
+      if (files.length > 0) {
+        const resImages = await addImageProduct(newProductId, files)
+        
+        // หมายเหตุ: addImageProduct return data เป็น array ของรูปที่สร้าง
+        // แต่ใน Type Definition อาจจะระบุเป็น object เดียว ต้องระวังเรื่อง type
+        const uploadedImages = resImages.data as unknown as productPictureResponse[]
+
+        // 3. ตั้งค่ารูปหลัก (is_primary) ตาม mainIndex
+        // uploadedImages เรียงตาม files ที่ส่งไป ดังนั้น index ตรงกัน
+        if (uploadedImages && uploadedImages.length > mainIndex) {
+          const mainImg = uploadedImages[mainIndex]
+          if (mainImg) {
+            await editImageProduct(mainImg.id, { is_primary: true })
+          }
+        }
+      }
+
+      // reset ฟอร์ม
       setName("")
       setDescription("")
       setPrice("")
       setImages([])
+      setFiles([])
       setMainIndex(0)
       alert("เพิ่มสินค้าเรียบร้อยแล้ว")
     } catch (err) {

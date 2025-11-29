@@ -1,6 +1,6 @@
 // api/productApi.ts
 import { useCrudApi } from "../utils/fetch"
-import type { ApiCreateResponse, PaginatedResponse } from "./responseType"
+import type { ApiCreateResponse, ApiUpdatedResponse, PaginatedResponse } from "./responseType"
 
 export type CategoryType = "food" | "clothing" | "handmade-products"
 
@@ -49,7 +49,16 @@ export type ProductListResponse = PaginatedResponse<Product>
 export type CategoryListResponse = PaginatedResponse<Product>
 
 export interface productPictureResponse {
-  image_url: number
+  id: number
+  product_id: number
+  image_url: string
+  sort_order: number
+  is_primary: boolean
+  created_at: string
+  updated_at: string
+}
+export interface productPictureEditRequest {
+  is_primary: boolean
 }
 
 export function useProductApi() {
@@ -98,15 +107,25 @@ export function useProductApi() {
 
   async function addImageProduct(
     product_id: number,
-    file: File
-  ): Promise<ApiCreateResponse<productPictureResponse>> {
+    files: File[]
+  ): Promise<ApiCreateResponse<productPictureResponse[]>> {
     const formData = new FormData()
-    formData.append("file", file)
+    files.forEach((file) => {
+      formData.append("file", file)
+    })
     return http.postItem(
       `/api/products/${product_id}/images/upload`,
       formData as any
     )
   }
+
+  async function editImageProduct(
+    image_id: number,
+    data: productPictureEditRequest
+  ): Promise<ApiUpdatedResponse<productPictureResponse>> {
+    return http.putItem(`/api/product-images/${image_id}`, data)
+  }
+
   return {
     getProductsByCategory,
     getProductBySlug,
@@ -114,6 +133,7 @@ export function useProductApi() {
     getProductsByParentId,
     addProduct,
     getProduct,
-    addImageProduct
+    addImageProduct,
+    editImageProduct
   }
 }
