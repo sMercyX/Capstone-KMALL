@@ -2,6 +2,7 @@ import { Link } from "react-router-dom"
 import { ChevronDown, User, Image, Check } from "lucide-react"
 import { useTheme } from "../../theme/ThemeContext"
 import { useUserStore } from "../../stores/userStore"
+import { useAuth } from "../../auth/AuthContext"
 
 type Props = {
   isOpen: boolean
@@ -22,6 +23,7 @@ export default function UserDropdown({
 }: Props) {
   const { theme, setTheme } = useTheme()
   const { name, email } = useUserStore()
+  const { logout } = useAuth()
 
   return (
     <div className="relative">
@@ -117,7 +119,7 @@ export default function UserDropdown({
             <button
               className="flex w-full items-center gap-2 rounded-xl px-2 py-2 text-sm text-gray-500 hover:bg-white"
               onClick={() => {
-                // TODO: logout
+                logout()
                 onClose()
               }}
             >

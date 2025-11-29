@@ -75,7 +75,15 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   }
 
   const logout = () => {
-    window.location.assign(`${API_BASE}/oauth2/sign_out`)
+    const appLogout = import.meta.env.VITE_AUTH_LOGOUT
+    const msLogout = import.meta.env.VITE_MS_LOGOUT
+    const feBase = import.meta.env.VITE_FE_BASE
+
+    if (appLogout && msLogout && feBase) {
+      window.location.assign(`${appLogout}?rd=${feBase}`)
+    } else {
+      window.location.assign(`${appLogout}?rd=${feBase}`)
+    }
   }
 
   // เช็ค role แบบ array

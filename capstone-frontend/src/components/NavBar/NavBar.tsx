@@ -1,7 +1,6 @@
 // src/components/layout/Navbar.tsx
 import { useState } from "react"
 import { Link, useLocation } from "react-router-dom"
-import { ShoppingCart } from "lucide-react"
 import { useUserStore } from "../../stores/userStore"
 import CartDropdown from "./CartDropdown"
 import UserDropdown from "./UserDropdown"
@@ -30,7 +29,7 @@ export default function Navbar() {
         </div>
 
         {/* CENTER: Search */}
-        <div className="flex justify-center w-[50%]">
+        {/* <div className="flex justify-center w-[50%]">
           <div className="relative w-full">
             <input
               type="text"
@@ -38,7 +37,7 @@ export default function Navbar() {
               className="w-full rounded-full border border-gray-300 pl-4 pr-10 py-2 focus:outline-none focus:ring-2 focus:ring-orange-500"
             />
           </div>
-        </div>
+        </div> */}
 
         {/* RIGHT: Cart + User */}
         <div className="flex items-center gap-4">
