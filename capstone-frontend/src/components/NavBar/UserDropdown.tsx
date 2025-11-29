@@ -23,8 +23,15 @@ export default function UserDropdown({
   isCartActive,
 }: Props) {
   // const { theme, setTheme } = useTheme()
-  const { name, email } = useUserStore()
+  const { name, email, roles } = useUserStore()
   const { logout } = useAuth()
+
+  const getDisplayRole = () => {
+    if (!roles || roles.length === 0) return "Guest"
+    if (roles.includes("admin")) return "Admin"
+    if (roles.includes("seller")) return "Seller"
+    return "Buyer"
+  }
 
   return (
     <div className="relative">
@@ -50,7 +57,9 @@ export default function UserDropdown({
                 {name}
               </p>
               <p className="text-xs text-gray-500">{email}</p>
-
+              <p className="text-xs text-gray-500 font-medium mt-1">
+                {getDisplayRole()}
+              </p>
               {/* Theme toggle */}
               <ThemeSwitch2/>
               {/* <div className="mt-3 inline-flex rounded-full bg-gray-100 p-1 text-xs">
