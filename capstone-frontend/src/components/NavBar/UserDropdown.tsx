@@ -1,8 +1,9 @@
 import { Link } from "react-router-dom"
 import { ChevronDown, User, Image, Check } from "lucide-react"
-import { useTheme } from "../../theme/ThemeContext"
+// import { useTheme } from "../../theme/ThemeContext"
 import { useUserStore } from "../../stores/userStore"
 import { useAuth } from "../../auth/AuthContext"
+import ThemeSwitch2 from "../ThemeSwitch/ThemeSwitch2"
 
 type Props = {
   isOpen: boolean
@@ -21,18 +22,22 @@ export default function UserDropdown({
   isStoreActive,
   isCartActive,
 }: Props) {
-  const { theme, setTheme } = useTheme()
+  // const { theme, setTheme } = useTheme()
   const { name, email } = useUserStore()
   const { logout } = useAuth()
 
   return (
     <div className="relative">
       <button
-        className="flex items-center gap-1 rounded-full border border-gray-300 px-3 py-1 hover:bg-gray-100"
+        className="flex items-center gap-1 rounded-full border border-gray-300 text-gray-700 px-3 py-1 hover:bg-gray-100  cursor-pointer"
         onClick={onToggle}
       >
-        <User className="h-5 w-5 text-gray-700" />
-        <ChevronDown className="h-4 w-4 text-gray-500" />
+        <User className={`h-5 w-5 ${isOpen ? "text-orange-500" : "text-gray-500"}`} />
+        <ChevronDown
+          className={`h-4 w-4 text-gray-500 transition-transform duration-200 ${
+            isOpen ? "rotate-180" : ""
+          }`}
+        />
       </button>
 
       {isOpen && (
@@ -47,9 +52,10 @@ export default function UserDropdown({
               <p className="text-xs text-gray-500">{email}</p>
 
               {/* Theme toggle */}
-              <div className="mt-3 inline-flex rounded-full bg-gray-100 p-1 text-xs">
+              <ThemeSwitch2/>
+              {/* <div className="mt-3 inline-flex rounded-full bg-gray-100 p-1 text-xs">
                 <button
-                  className={`px-3 py-1 rounded-full ${
+                  className={`px-3 py-1 rounded-full cursor-pointer ${
                     theme === "dark"
                       ? "bg-gray-900 text-white shadow"
                       : "text-gray-600"
@@ -59,7 +65,7 @@ export default function UserDropdown({
                   Dark
                 </button>
                 <button
-                  className={`px-3 py-1 rounded-full ${
+                  className={`px-3 py-1 rounded-full cursor-pointer ${
                     theme === "light"
                       ? "bg-white text-gray-800 shadow"
                       : "text-gray-500"
@@ -68,7 +74,7 @@ export default function UserDropdown({
                 >
                   Light
                 </button>
-              </div>
+              </div> */}
             </div>
           </div>
 
@@ -85,7 +91,7 @@ export default function UserDropdown({
               `}
               onClick={onClose}
             >
-              <div className="flex items-center gap-2">
+              <div className={`flex items-center gap-2 text-gray-500 ${isStoreActive ? "text-orange-500" : "" }`}>
                 <span className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-gray-100">
                   <Image className="h-4 w-4 text-gray-400" />
                 </span>
@@ -106,7 +112,7 @@ export default function UserDropdown({
               `}
               onClick={onClose}
             >
-              <div className="flex items-center gap-2">
+              <div className={`flex items-center gap-2 text-gray-500 ${isCartActive ? "text-orange-500" : "" }`}>
                 <span className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-gray-100">
                   <Image className="h-4 w-4 text-gray-400" />
                 </span>
@@ -117,7 +123,7 @@ export default function UserDropdown({
             </Link>
 
             <button
-              className="flex w-full items-center gap-2 rounded-xl px-2 py-2 text-sm text-gray-500 hover:bg-white"
+              className="flex w-full items-center gap-2 rounded-xl px-2 py-2 text-sm text-gray-500 hover:bg-white cursor-pointer"
               onClick={() => {
                 logout()
                 onClose()
