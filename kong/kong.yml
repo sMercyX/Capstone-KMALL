@@ -2,9 +2,8 @@ _format_version: "3.0"
 _transform: true
 
 services:
-  # ===== FRONTEND (React build บน Nginx) =====
   - name: frontend
-    url: http://frontend:80         
+    url: http://frontend:80
     routes:
       - name: frontend-route
         paths:
@@ -12,7 +11,6 @@ services:
         strip_path: false
         preserve_host: true
 
-  # ===== OAUTH2-PROXY PUBLIC ENDPOINTS (/oauth2/*) =====
   - name: oauth2-public
     url: http://oauth2-proxy:4180
     routes:
@@ -24,8 +22,6 @@ services:
         strip_path: false
         preserve_host: true
 
-
-  # ===== API THROUGH OAUTH2-PROXY (/api/*) =====
   - name: api-service
     url: http://oauth2-proxy:4180
     routes:

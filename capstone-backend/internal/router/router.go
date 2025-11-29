@@ -2,6 +2,7 @@ package router
 
 import (
 	"context"
+	"log"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -30,7 +31,38 @@ func Attach(r *gin.Engine, db *pgxpool.Pool, cfg config.Config) {
 	)
 
 	// health (ไม่ต้อง auth)
-	r.GET("/health", func(c *gin.Context) { c.String(200, "ok") })
+	r.GET("/api/health", func(c *gin.Context) {
+		start := time.Now()
+
+		logData := gin.H{
+			"time":    start.Format(time.RFC3339),
+			"client":  c.ClientIP(),
+			"method":  c.Request.Method,
+			"path":    c.Request.URL.Path,
+			"headers": gin.H{},
+			"status":  "ok",
+		}
+
+		for k, v := range c.Request.Header {
+			if len(v) > 0 {
+				logData["headers"].(gin.H)[k] = v[0]
+			}
+		}
+
+		if _, ok := c.Request.Header["X-Auth-Request-Email"]; !ok {
+			logData["status"] = "missing-auth-header"
+			log.Println("missing X-Auth-Request-Email in /api/health")
+		}
+		if _, ok := c.Request.Header["X-Auth-Request-User"]; !ok {
+			logData["status"] = "missing-auth-header"
+			log.Println("missing X-Auth-Request-User in /api/health")
+		}
+
+		// log ลง stdout (docker logs)
+		log.Printf("[HEALTH DEBUG] %v\n", logData)
+
+		c.JSON(200, logData)
+	})
 
 	// static files (รูป)
 	r.Static("/static", "./uploads")
@@ -62,6 +94,7 @@ func Attach(r *gin.Engine, db *pgxpool.Pool, cfg config.Config) {
 	// Nginx ตัด prefix ออก → Kong เห็น: /api/...
 	// oauth2-proxy forward เข้า backend ด้วย path: /api/...
 	v1 := r.Group("/api",
+		apiLogger(),
 		middleware.UpstreamAuth(),
 		middleware.EnsureUser(func(ctx context.Context, oid, email, name string) (string, error) {
 			u, err := uSvc.UpsertAndEnsureBuyer(ctx, oid, email, name)
@@ -132,4 +165,31 @@ func Attach(r *gin.Engine, db *pgxpool.Pool, cfg config.Config) {
 	r.NoRoute(func(c *gin.Context) {
 		respond.Error(c, 404, "NOT_FOUND", "route not found", nil)
 	})
+}
+
+func apiLogger() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		start := time.Now()
+		rid, _ := c.Get("request_id")
+
+		log.Printf(
+			"[API-IN ] %s %s from %s rid=%v",
+			c.Request.Method,
+			c.Request.URL.Path,
+			c.ClientIP(),
+			rid,
+		)
+
+		c.Next()
+
+		status := c.Writer.Status()
+		log.Printf(
+			"[API-OUT] %s %s status=%d rid=%v took=%s",
+			c.Request.Method,
+			c.Request.URL.Path,
+			status,
+			rid,
+			time.Since(start),
+		)
+	}
 }
