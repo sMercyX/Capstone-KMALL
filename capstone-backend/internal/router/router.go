@@ -21,7 +21,7 @@ import (
 )
 
 func Attach(r *gin.Engine, db *pgxpool.Pool, cfg config.Config) {
-	// global middlewares
+	// ===== Global middlewares =====
 	r.Use(
 		middleware.RequestID(),
 		middleware.RequestTimeout(10*time.Second),
@@ -29,12 +29,13 @@ func Attach(r *gin.Engine, db *pgxpool.Pool, cfg config.Config) {
 		middleware.Recovery(),
 	)
 
-	// health
+	// health (ไม่ต้อง auth)
 	r.GET("/health", func(c *gin.Context) { c.String(200, "ok") })
 
+	// static files (รูป)
 	r.Static("/static", "./uploads")
 
-	// wiring repos & services
+	// ===== wiring repos & services =====
 	uRepo := user.NewRepo(db)
 	rRepo := role.NewRepo(db)
 
@@ -56,8 +57,11 @@ func Attach(r *gin.Engine, db *pgxpool.Pool, cfg config.Config) {
 	oRepo := order.NewRepo(db)
 	oSvc := order.NewService(oRepo, cartSvc, pSvc)
 
-	// API routes (protected)
-	v1 := r.Group("/capstone25/cp25ssa2/api",
+	// ===== API routes (protected ด้วย oauth2-proxy) =====
+	// ด้านนอกเรียก:  /capstone25/cp25ssa2/api/...
+	// Nginx ตัด prefix ออก → Kong เห็น: /api/...
+	// oauth2-proxy forward เข้า backend ด้วย path: /api/...
+	v1 := r.Group("/api",
 		middleware.UpstreamAuth(),
 		middleware.EnsureUser(func(ctx context.Context, oid, email, name string) (string, error) {
 			u, err := uSvc.UpsertAndEnsureBuyer(ctx, oid, email, name)
@@ -67,6 +71,17 @@ func Attach(r *gin.Engine, db *pgxpool.Pool, cfg config.Config) {
 			return u.ID, nil
 		}),
 	)
+
+	// ---- debug headers ผ่าน chain เต็ม (ต้อง login) ----
+	v1.GET("/debug/headers", func(c *gin.Context) {
+		h := make(map[string]string)
+		for k, v := range c.Request.Header {
+			if len(v) > 0 {
+				h[k] = v[0]
+			}
+		}
+		c.JSON(200, gin.H{"headers": h})
+	})
 
 	// users
 	uHdl := user.NewHandler(uSvc, rSvc)
@@ -102,14 +117,15 @@ func Attach(r *gin.Engine, db *pgxpool.Pool, cfg config.Config) {
 	oHdl := order.NewHandler(oSvc, rSvc, uSvc, sSvc)
 	oHdl.Register(v1)
 
-	// debug
-	v1.GET("/debug/headers", func(c *gin.Context) {
-		c.JSON(200, gin.H{
-			"Authorization":        c.GetHeader("Authorization"),
-			"X-Auth-Request-Email": c.GetHeader("X-Auth-Request-Email"),
-			"X-Auth-Request-User":  c.GetHeader("X-Auth-Request-User"),
-			"X-Forwarded-User":     c.GetHeader("X-Forwarded-User"),
-		})
+	// ---- debug local (ยิงตรง http://localhost:18080/debug/headers) ----
+	r.GET("/debug/headers", func(c *gin.Context) {
+		h := make(map[string]string)
+		for k, v := range c.Request.Header {
+			if len(v) > 0 {
+				h[k] = v[0]
+			}
+		}
+		c.JSON(200, gin.H{"headers": h})
 	})
 
 	// 404

@@ -2,16 +2,17 @@ _format_version: "3.0"
 _transform: true
 
 services:
+  # ===== FRONTEND (React build บน Nginx) =====
   - name: frontend
-    url: http://frontend:80
+    url: http://frontend:80         
     routes:
       - name: frontend-route
         paths:
           - /
-          - ~^/capstone25/cp25ssa2(?=/|$)
         strip_path: false
         preserve_host: true
 
+  # ===== OAUTH2-PROXY PUBLIC ENDPOINTS (/oauth2/*) =====
   - name: oauth2-public
     url: http://oauth2-proxy:4180
     routes:
@@ -21,27 +22,21 @@ services:
           - /oauth2/
           - /oauth2/*
         strip_path: false
-        preserve_host: false
+        preserve_host: true
 
+
+  # ===== API THROUGH OAUTH2-PROXY (/api/*) =====
   - name: api-service
     url: http://oauth2-proxy:4180
     routes:
       - name: api-route
         paths:
-          - /capstone25/cp25ssa2/api
-        strip_path: true
-        preserve_host: false
-
+          - /api
+          - /api/
+          - /api/*
+        strip_path: false
+        preserve_host: true
     plugins:
-      - name: request-transformer
-        config:
-          add:
-            headers:
-              - "X-Auth-Request-Email:{{X-Auth-Request-Email}}"
-              - "X-Auth-Request-Oid:{{X-Auth-Request-Oid}}"
-              - "X-Auth-Request-Name:{{X-Auth-Request-Name}}"
-              - "Authorization:{{Authorization}}"
-
       - name: cors
         config:
           origins:
@@ -53,9 +48,6 @@ services:
             - Content-Type
             - Cookie
             - X-Requested-With
-            - X-Auth-Request-Email
-            - X-Auth-Request-Name
-            - X-Auth-Request-Oid
           exposed_headers:
             - Set-Cookie
             - Authorization
