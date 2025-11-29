@@ -112,15 +112,19 @@ export function useProductApi() {
     return http.postItem(`/api/products`, data)
   }
 
-  async function getProduct(storeId: number) {
-    return http.getItems(`/api/products/${storeId}/public`)
+  async function getProduct(store_id: number) {
+    return http.getItems(`/api/products/${store_id}/public`)
   }
-
+  
   async function editProduct(
     product_id: number,
     data: EditProductRequest
   ): Promise<ApiUpdatedResponse<Product>> {
     return http.putItem(`/api/products/${product_id}`, data)
+  }
+  
+  async function deleteProduct(product_id: number) {
+    return http.deleteItem(`/api/products/${product_id}`)
   }
 
   async function addImageProduct(
@@ -165,6 +169,7 @@ export function useProductApi() {
     addProduct,
     getProduct,
     editProduct,
+    deleteProduct,
     addImageProduct,
     editImageProduct,
     getProductImage,

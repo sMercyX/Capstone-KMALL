@@ -6,6 +6,7 @@ import { useStoreApi, type storeProductDataRequset } from "../../../api/storeApi
 import { useStoreStore } from "../../../stores/storeStore"
 import { useStoreProductStore } from "./storeProductStore"
 import StoreEditProductModal from "./StoreEditProductModal"
+import ConfirmationModal from "../../../components/Modal/ConfirmationModal"
 
 export default function StoreProductsTab() {
   const { getStoreProducts } = useStoreApi()
@@ -73,7 +74,7 @@ export default function StoreProductsTab() {
 
   const totalPages = Math.max(1, Math.ceil(total / pageSize))
 
-  const { editProduct: updateProduct } = useProductApi()
+  const { editProduct: updateProduct, deleteProduct } = useProductApi()
 
   const toggleActive = async (id: number, current: "YES" | "NO") => {
     const product = items.find((p) => p.id === id)
@@ -130,8 +131,22 @@ export default function StoreProductsTab() {
     setRefreshKey((prev) => prev + 1)
   }
 
-  const handleDelete = (id: number) => {
-    console.log("delete product", id)
+  const [deleteId, setDeleteId] = useState<number | null>(null)
+
+  const handleDeleteClick = (id: number) => {
+    setDeleteId(id)
+  }
+
+  const handleConfirmDelete = async () => {
+    if (!deleteId) return
+    try {
+      await deleteProduct(deleteId)
+      setRefreshKey((prev) => prev + 1)
+      setDeleteId(null)
+    } catch (err) {
+      console.error("Failed to delete product:", err)
+      alert("ลบสินค้าไม่สำเร็จ กรุณาลองใหม่")
+    }
   }
 
   return (
@@ -205,7 +220,7 @@ export default function StoreProductsTab() {
                       <Pencil className="w-4 h-4 text-gray-700" />
                     </button>
                     <button
-                      onClick={() => handleDelete(product.id)}
+                      onClick={() => handleDeleteClick(product.id)}
                       className="w-9 h-9 rounded-full bg-gray-100 flex items-center justify-center hover:bg-red-100"
                     >
                       <Trash2 className="w-4 h-4 text-gray-700" />
@@ -259,6 +274,16 @@ export default function StoreProductsTab() {
           onSuccess={handleEditSuccess}
         />
       )}
+
+      <ConfirmationModal
+        isOpen={!!deleteId}
+        onClose={() => setDeleteId(null)}
+        onConfirm={handleConfirmDelete}
+        title="ยืนยันการลบสินค้า"
+        message="คุณต้องการลบสินค้านี้ใช่หรือไม่? การกระทำนี้ไม่สามารถเรียกคืนได้"
+        confirmText="ลบสินค้า"
+        variant="danger"
+      />
     </>
   )
 }
