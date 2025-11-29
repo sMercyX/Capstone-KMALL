@@ -1,3 +1,5 @@
+version: "3.9"
+
 networks:
   capstone_net:
     driver: bridge
@@ -6,22 +8,28 @@ volumes:
   db_data:
 
 services:
-
   kong:
     image: kong:3.6
     container_name: capstone-kong
     restart: unless-stopped
     ports:
-      - "443:443"    
-      - "8080:8000"  
+      - "443:443"      # Nginx ข้างหน้าต่อเข้าพอร์ตนี้
+      - "8080:8000"    # debug ตรง ๆ (ไม่จำเป็นสำหรับ prod แต่ไว้เทสต์ได้)
+      - "8001:8001"    # admin API (ถ้าจำเป็นต้องใช้)
     environment:
       KONG_DATABASE: "off"
       KONG_DECLARATIVE_CONFIG: "/kong/kong.yml"
       KONG_PROXY_LISTEN: "0.0.0.0:443 ssl, 0.0.0.0:8000"
       KONG_ADMIN_LISTEN: "0.0.0.0:8001"
+
+      # === ขยาย buffer header ของ upstream (แก้ error header ใหญ่เกิน) ===
+      KONG_NGINX_PROXY_PROXY_BUFFER_SIZE: "128k"
+      KONG_NGINX_PROXY_PROXY_BUFFERS: "16 128k"
+      KONG_NGINX_PROXY_PROXY_BUSY_BUFFERS_SIZE: "256k"
     volumes:
       - ./kong/kong.yml:/kong/kong.yml:ro
-    networks: [capstone_net]
+    networks:
+      - capstone_net
     depends_on:
       - oauth2-proxy
       - backend
@@ -30,7 +38,8 @@ services:
     image: redis:7-alpine
     container_name: capstone-redis
     restart: unless-stopped
-    networks: [capstone_net]
+    networks:
+      - capstone_net
 
   oauth2-proxy:
     image: quay.io/oauth2-proxy/oauth2-proxy:v7.6.0
@@ -38,7 +47,8 @@ services:
     restart: unless-stopped
     env_file:
       - ./capstone-oauth2-proxy/.env
-    networks: [capstone_net]
+    networks:
+      - capstone_net
 
   database:
     image: postgres:18
@@ -53,7 +63,8 @@ services:
     volumes:
       - db_data:/var/lib/postgresql
       - ./capstone-database/init:/docker-entrypoint-initdb.d
-    networks: [capstone_net]
+    networks:
+      - capstone_net
 
   backend:
     build: ./capstone-backend
@@ -61,8 +72,8 @@ services:
     restart: unless-stopped
     env_file:
       - ./capstone-backend/.env
-    expose:
-      - "8080"
+    ports:
+      - "18080:8080"
     networks:
       - capstone_net
     depends_on:

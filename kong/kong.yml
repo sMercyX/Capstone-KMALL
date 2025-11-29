@@ -9,8 +9,6 @@ services:
       - name: frontend-route
         paths:
           - /
-          - /capstone25/cp25ssa2
-          - /capstone25/cp25ssa2/ 
         strip_path: false
         preserve_host: true
 
@@ -33,7 +31,9 @@ services:
     routes:
       - name: api-route
         paths:
-          - /capstone25/cp25ssa2/api
+          - /api
+          - /api/
+          - /api/*
         strip_path: false
         preserve_host: true
     plugins:
