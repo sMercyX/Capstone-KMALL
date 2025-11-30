@@ -19,6 +19,7 @@ type Config struct {
 	ClientID     string
 	ClientSecret string
 	RedirectURL  string
+	OIDCIssuer   string
 
 	// JWT in app
 	JWTIssuer       string
@@ -62,7 +63,9 @@ func Load() Config {
 		port = "8080"
 	}
 
-	trustUpstream := getBool("TRUST_UPSTREAM_AUTH", true) // true = prod, false = dev
+	// แนะนำให้ default เป็น false ใน mode ใหม่ (backend verify เอง)
+	// แล้วค่อยตั้ง TRUST_UPSTREAM_AUTH=true เฉพาะตอนอยากกลับไปใช้ oauth2-proxy
+	trustUpstream := getBool("TRUST_UPSTREAM_AUTH", false)
 
 	cfg := Config{
 		Port:              port,
@@ -75,19 +78,31 @@ func Load() Config {
 		RefreshTokenTTL: mustDuration("JWT_REFRESH_TTL", 24*time.Hour),
 	}
 
-	if trustUpstream {
-		cfg.TenantID = os.Getenv("AZ_TENANT_ID")
-		cfg.ClientID = os.Getenv("AZ_CLIENT_ID")
-		cfg.ClientSecret = os.Getenv("AZ_CLIENT_SECRET")
-		cfg.RedirectURL = os.Getenv("AZ_REDIRECT_URL")
-		cfg.JWTSecret = os.Getenv("JWT_SECRET")
-	} else {
-		cfg.TenantID = must("AZ_TENANT_ID")
-		cfg.ClientID = must("AZ_CLIENT_ID")
-		cfg.ClientSecret = must("AZ_CLIENT_SECRET")
-		cfg.RedirectURL = must("AZ_REDIRECT_URL")
-		cfg.JWTSecret = must("JWT_SECRET")
+	tenantID := os.Getenv("AZ_TENANT_ID")
+	clientID := os.Getenv("AZ_CLIENT_ID")
+	clientSecret := os.Getenv("AZ_CLIENT_SECRET")
+	redirectURL := os.Getenv("AZ_REDIRECT_URL")
+
+	if !trustUpstream {
+		if tenantID == "" {
+			log.Fatalf("missing env: AZ_TENANT_ID")
+		}
+		if clientID == "" {
+			log.Fatalf("missing env: AZ_CLIENT_ID")
+		}
 	}
+
+	issuer := os.Getenv("OIDC_ISSUER_URL")
+	if issuer == "" && tenantID != "" {
+		issuer = "https://login.microsoftonline.com/" + tenantID + "/v2.0"
+	}
+
+	cfg.TenantID = tenantID
+	cfg.ClientID = clientID
+	cfg.ClientSecret = clientSecret
+	cfg.RedirectURL = redirectURL
+	cfg.OIDCIssuer = issuer
+	cfg.JWTSecret = must("JWT_SECRET")
 
 	return cfg
 }

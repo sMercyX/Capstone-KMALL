@@ -8,6 +8,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"github.com/Perpasit/Capstone-KMALL/internal/auth"
 	"github.com/Perpasit/Capstone-KMALL/internal/cart"
 	"github.com/Perpasit/Capstone-KMALL/internal/category"
 	"github.com/Perpasit/Capstone-KMALL/internal/config"
@@ -34,34 +35,34 @@ func Attach(r *gin.Engine, db *pgxpool.Pool, cfg config.Config) {
 	r.GET("/api/health", func(c *gin.Context) {
 		start := time.Now()
 
-		logData := gin.H{
-			"time":    start.Format(time.RFC3339),
-			"client":  c.ClientIP(),
-			"method":  c.Request.Method,
-			"path":    c.Request.URL.Path,
-			"headers": gin.H{},
-			"status":  "ok",
-		}
+		// logData := gin.H{
+		// 	"time":    start.Format(time.RFC3339),
+		// 	"client":  c.ClientIP(),
+		// 	"method":  c.Request.Method,
+		// 	"path":    c.Request.URL.Path,
+		// 	"headers": gin.H{},
+		// 	"status":  "ok",
+		// }
 
-		for k, v := range c.Request.Header {
-			if len(v) > 0 {
-				logData["headers"].(gin.H)[k] = v[0]
-			}
-		}
+		// for k, v := range c.Request.Header {
+		// 	if len(v) > 0 {
+		// 		logData["headers"].(gin.H)[k] = v[0]
+		// 	}
+		// }
 
-		if _, ok := c.Request.Header["X-Auth-Request-Email"]; !ok {
-			logData["status"] = "missing-auth-header"
-			log.Println("missing X-Auth-Request-Email in /api/health")
-		}
-		if _, ok := c.Request.Header["X-Auth-Request-User"]; !ok {
-			logData["status"] = "missing-auth-header"
-			log.Println("missing X-Auth-Request-User in /api/health")
-		}
+		// if _, ok := c.Request.Header["X-Auth-Request-Email"]; !ok {
+		// 	logData["status"] = "missing-auth-header"
+		// 	log.Println("missing X-Auth-Request-Email in /api/health")
+		// }
+		// if _, ok := c.Request.Header["X-Auth-Request-User"]; !ok {
+		// 	logData["status"] = "missing-auth-header"
+		// 	log.Println("missing X-Auth-Request-User in /api/health")
+		// }
 
 		// log ลง stdout (docker logs)
-		log.Printf("[HEALTH DEBUG] %v\n", logData)
+		// log.Printf("[HEALTH DEBUG] %v\n", logData)
 
-		c.JSON(200, logData)
+		c.JSON(200, start)
 	})
 
 	// static files (รูป)
@@ -89,13 +90,10 @@ func Attach(r *gin.Engine, db *pgxpool.Pool, cfg config.Config) {
 	oRepo := order.NewRepo(db)
 	oSvc := order.NewService(oRepo, cartSvc, pSvc)
 
-	// ===== API routes (protected ด้วย oauth2-proxy) =====
-	// ด้านนอกเรียก:  /capstone25/cp25ssa2/api/...
-	// Nginx ตัด prefix ออก → Kong เห็น: /api/...
-	// oauth2-proxy forward เข้า backend ด้วย path: /api/...
 	v1 := r.Group("/api",
 		apiLogger(),
-		middleware.UpstreamAuth(),
+		auth.AuthMiddleware(),
+		middleware.OIDCUser(),
 		middleware.EnsureUser(func(ctx context.Context, oid, email, name string) (string, error) {
 			u, err := uSvc.UpsertAndEnsureBuyer(ctx, oid, email, name)
 			if err != nil {
@@ -104,6 +102,7 @@ func Attach(r *gin.Engine, db *pgxpool.Pool, cfg config.Config) {
 			return u.ID, nil
 		}),
 	)
+	log.Println("[AUTH] Using direct OIDC auth (backend verifies token)")
 
 	// ---- debug headers ผ่าน chain เต็ม (ต้อง login) ----
 	v1.GET("/debug/headers", func(c *gin.Context) {
@@ -114,6 +113,19 @@ func Attach(r *gin.Engine, db *pgxpool.Pool, cfg config.Config) {
 			}
 		}
 		c.JSON(200, gin.H{"headers": h})
+	})
+
+	v1.GET("/auth/me-debug", func(c *gin.Context) {
+		u, err := auth.CurrentUser(c)
+		if err != nil {
+			c.JSON(401, gin.H{"error": err.Error()})
+			return
+		}
+		c.JSON(200, gin.H{
+			"oid":   u.Oid,
+			"email": u.Email,
+			"name":  u.Name,
+		})
 	})
 
 	// users

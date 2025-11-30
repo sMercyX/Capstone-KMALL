@@ -7,10 +7,11 @@ import {
   useState,
 } from "react"
 import type { ReactNode } from "react"
-import { API_BASE } from "../config"
 
 import { useUserApi, type User } from "../api/userApi"
 import { useUserStore } from "../stores/userStore"
+import { msalInstance } from "../auth/msalConfig"
+import { setAccessToken } from "../auth/tokenStore"
 
 type AuthContextType = {
   user: User | null
@@ -30,7 +31,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   const { getMe } = useUserApi()
 
-  // ฟังก์ชันจาก userStore
   const setUserStore = useUserStore((s) => s.setUser)
   const setRolesStore = useUserStore((s) => s.setRoles)
   const clearUserStore = useUserStore((s) => s.clearUser)
@@ -40,25 +40,71 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       try {
         setError(null)
 
-        // 🔹 ยิง /api/users/me แค่ครั้งเดียวที่เว็บโหลด
+        console.log("[AUTH] init MSAL...")
+        await msalInstance.initialize()
+        console.log("[AUTH] MSAL initialized")
+
+        // 1) เคลียร์ state redirect ของ MSAL
+        const redirectResult = await msalInstance.handleRedirectPromise()
+        console.log("[AUTH] redirectResult:", redirectResult)
+
+        if (redirectResult && redirectResult.account) {
+          msalInstance.setActiveAccount(redirectResult.account)
+          console.log("[AUTH] set active account from redirect")
+        }
+
+        // 2) หา account ปัจจุบัน
+        const account =
+          msalInstance.getActiveAccount() ||
+          msalInstance.getAllAccounts()[0]
+
+        console.log("[AUTH] active account:", account)
+
+        if (!account) {
+          console.log("[AUTH] no account → not logged in")
+          setUser(null)
+          clearUserStore()
+          setAccessToken(null)
+          return
+        }
+
+        // 3) ขอ token แบบ silent
+        const result = await msalInstance.acquireTokenSilent({
+          account,
+          scopes: ["openid", "profile", "email"],
+        })
+
+        // idToken จะมี claim OIDC ครบ และ aud = clientId
+        const rawIdToken = result.idToken;  // ⭐ ตรงนี้แหละสำคัญ
+
+        console.log(
+          "[AUTH] got id_token:",
+          rawIdToken ? rawIdToken.slice(0, 20) + "..." : "none"
+        )
+
+        setAccessToken(rawIdToken)
+
+
+
+        // 4) โหลด /api/users/me
+        console.log("[AUTH] calling /api/users/me ...")
         const u = await getMe()
+        console.log("[AUTH] /api/users/me OK:", u)
+
         setUser(u)
 
-        // 🔹 sync global store
         setUserStore({
           id: u.id,
           name: u.name,
           email: u.email,
         })
-
         setRolesStore(u.roles ?? [])
-      } catch (err) {
-        console.error("load /api/users/me failed", err)
+      } catch (err: any) {
+        console.error("load /api/users/me (via MSAL token) failed", err)
 
         setUser(null)
         clearUserStore()
-
-        // 401 = ยังไม่ล็อกอิน (ไม่ถือว่า error)
+        setAccessToken(null)
         setError(null)
       } finally {
         setReady(true)
@@ -67,18 +113,34 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  // Login / Logout
   const login = () => {
-    const redirect = window.location.href
-    const url = `${API_BASE}/oauth2/start?rd=${encodeURIComponent(redirect)}`
-    window.location.assign(url)
+    console.log("[AUTH] loginRedirect() called")
+    msalInstance
+      .loginRedirect({
+        scopes: ["openid", "profile", "email"],
+      })
+      .catch((e: any) => {
+        if (e?.errorCode === "interaction_in_progress") {
+          console.warn("[AUTH] interaction_in_progress, ignore duplicate login")
+          return
+        }
+        console.error("loginRedirect error:", e)
+        setError("ไม่สามารถเข้าสู่ระบบได้ กรุณาลองใหม่อีกครั้ง")
+      })
   }
 
   const logout = () => {
-    window.location.assign(`${API_BASE}/oauth2/sign_out`)
+    console.log("[AUTH] logoutRedirect() called")
+    setUser(null)
+    clearUserStore()
+    setRolesStore([])
+    setAccessToken(null)
+
+    msalInstance.logoutRedirect().catch((e) => {
+      console.error("logoutRedirect error:", e)
+    })
   }
 
-  // เช็ค role แบบ array
   const hasRole = (...roles: string[]) => {
     if (!user) return false
     const lower = user.roles.map((r) => r.toLowerCase())

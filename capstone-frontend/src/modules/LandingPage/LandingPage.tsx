@@ -1,29 +1,25 @@
-import { useEffect } from "react";
-import CircularGallery from "../../components/CircleGallery/CircleGallery";
-import { useNavigate } from "react-router-dom";
-import { useTranslation } from "react-i18next";
-import { FE_BASE } from "../../config";
-import { useAuth } from "../../auth/AuthContext";   // <<< เพิ่ม
+import { useEffect } from "react"
+import { useNavigate } from "react-router-dom"
+import { useTranslation } from "react-i18next"
+import CircularGallery from "../../components/CircleGallery/CircleGallery"
+import { useAuth } from "../../auth/AuthContext"
 
 const LandingPage = () => {
-  const { t } = useTranslation();
-  const navigate = useNavigate();
-  const { user, ready } = useAuth();               // <<< เอา user / ready มาใช้
+  const { t } = useTranslation()
+  const navigate = useNavigate()
+  const { user, ready, login } = useAuth()
 
-  // ถ้ามี user แล้วอยู่หน้า / ให้เด้งไป /dashboard
   useEffect(() => {
-    if (!ready) return;          // รอโหลด /me ให้เสร็จก่อน
+    console.log("[Landing] ready/user:", ready, user)
+    if (!ready) return
     if (user) {
-      navigate("/dashboard", { replace: true });
-    } 
-  }, [ready, user, navigate]);
+      navigate("/dashboard", { replace: true })
+    }
+  }, [ready, user, navigate])
 
   const goLogin = () => {
-    const redirect = `${FE_BASE}/dashboard`;
-    const url = `${FE_BASE}/oauth2/start?rd=${encodeURIComponent(redirect)}`;
-    window.location.assign(url);
-  };
-
+    login()
+  }
 
   return (
     <div className="h-screen w-full flex flex-col justify-center items-center">

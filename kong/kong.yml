@@ -11,19 +11,19 @@ services:
         strip_path: false
         preserve_host: true
 
-  - name: oauth2-public
-    url: http://oauth2-proxy:4180
-    routes:
-      - name: oauth2-route
-        paths:
-          - /oauth2
-          - /oauth2/
-          - /oauth2/*
-        strip_path: false
-        preserve_host: true
+  # - name: oauth2-public
+  #   url: http://oauth2-proxy:4180
+  #   routes:
+  #     - name: oauth2-route
+  #       paths:
+  #         - /oauth2
+  #         - /oauth2/
+  #         - /oauth2/*
+  #       strip_path: false
+  #       preserve_host: true
 
   - name: api-service
-    url: http://oauth2-proxy:4180
+    url: http://backend:8080 
     routes:
       - name: api-route
         paths:

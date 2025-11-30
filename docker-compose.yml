@@ -14,6 +14,7 @@ services:
     container_name: capstone-kong
     restart: unless-stopped
     ports:
+      - "80:8000"
       - "8080:8000"
       - "443:8443"
     environment:
@@ -30,8 +31,9 @@ services:
     networks:
       - capstone_net
     depends_on:
-      - oauth2-proxy
+      # - oauth2-proxy
       - backend
+      - frontend
 
   redis:
     image: redis:7-alpine
@@ -44,16 +46,16 @@ services:
 
 
 
-  oauth2-proxy:
-    image: quay.io/oauth2-proxy/oauth2-proxy:v7.6.0
-    container_name: capstone-oauth2-proxy
-    restart: unless-stopped
-    # ports:
-    #   - "4180:4180"
-    env_file:
-      - ./capstone-oauth2-proxy/.env
-    networks:
-      - capstone_net
+  # oauth2-proxy:
+  #   image: quay.io/oauth2-proxy/oauth2-proxy:v7.6.0
+  #   container_name: capstone-oauth2-proxy
+  #   restart: unless-stopped
+  #   # ports:
+  #   #   - "4180:4180"
+  #   env_file:
+  #     - ./capstone-oauth2-proxy/.env
+  #   networks:
+  #     - capstone_net
 
   database:
     image: postgres:18

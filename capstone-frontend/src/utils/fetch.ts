@@ -1,5 +1,6 @@
 // src/api/fetch.ts
 import { API_BASE } from "../config";
+import { getAccessToken } from "../auth/tokenStore"; // ⭐ เพิ่ม
 
 type AuthMode = "auto" | "required" | "none";
 
@@ -14,9 +15,9 @@ function isFormData(body: unknown): body is FormData {
 }
 
 function joinUrl(base: string, path: string): string {
-  const b = base.replace(/\/+$/, "");    
-  const p = path.replace(/^\/+/, "");       
-  return `${b}/${p}`;                      
+  const b = base.replace(/\/+$/, "");    // ตัด / ท้าย base
+  const p = path.replace(/^\/+/, "");    // ตัด / หน้า path
+  return `${b}/${p}`;                    // ต่อให้เหลือ / เดียว
 }
 
 export function useHttpClient(baseUrl: string) {
@@ -29,12 +30,22 @@ export function useHttpClient(baseUrl: string) {
     const url = joinUrl(baseUrl, path);
     const h = new Headers(headers);
 
+    // ⭐ แนบ Bearer token ถ้าไม่ใช่ auth="none"
+    if (auth !== "none") {
+      const token = getAccessToken();
+      if (token && !h.has("Authorization")) {
+        h.set("Authorization", `Bearer ${token}`);
+      }
+    }
+
+    // ตั้ง Content-Type ให้อัตโนมัติถ้าเป็น JSON
     if (rest.body && !h.has("Content-Type") && !isFormData(rest.body)) {
       h.set("Content-Type", "application/json");
     }
 
+    // ใช้ same-origin พอ เพราะเรา auth ด้วย Bearer token แล้ว
     const finalCredentials: RequestCredentials | undefined =
-      credentials ?? (auth === "none" ? "same-origin" : "include");
+      credentials ?? "same-origin";
 
     const res = await fetch(url, {
       ...rest,
@@ -88,4 +99,3 @@ export function useCrudApi() {
 
   return useHttpClient(baseUrl);
 }
-
