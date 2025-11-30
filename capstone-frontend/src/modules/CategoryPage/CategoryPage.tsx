@@ -5,10 +5,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Star,
-  StarHalf,
-  ShoppingCart,
-  Heart,
-  Eye,
+  StarHalf
 } from "lucide-react"
 import { Link, useParams } from "react-router-dom"
 import { useProductApi, type Product } from "../../api/productApi"
@@ -109,21 +106,25 @@ function RatingStars({ rating }: { rating: number }) {
 
 // ====================== PRODUCT CARD ======================
 function ProductCard({ product }: { product: Product }) {
-  const imageSrc =
-    product.image_url || "https://via.placeholder.com/300?text=KMALL+Product"
+
 
   return (
-    <div className="group relative overflow-hidden rounded-2xl border bg-white shadow-sm hover:shadow-xl transition">
+
+    <Link to={`/product/${product.id}`} className="group relative overflow-hidden rounded-2xl border bg-white shadow-sm hover:shadow-xl transition">
       <div className="relative aspect-[4/3] overflow-hidden">
         <img
-          src={imageSrc}
+          src={
+            product.image_url
+              ? `http://localhost:8000${product.image_url}`
+              : "/images/default-store.png"
+          }
           alt={product.name}
           className="h-full w-full object-cover transition duration-300 group-hover:scale-[1.04]"
         />
 
         <div className="absolute inset-0 bg-black/40 opacity-0 transition duration-300 group-hover:opacity-100" />
 
-        <div className="absolute inset-0 flex items-center justify-center gap-3 opacity-0 translate-y-4 transition duration-300 group-hover:opacity-100 group-hover:translate-y-0">
+        {/* <div className="absolute inset-0 flex items-center justify-center gap-3 opacity-0 translate-y-4 transition duration-300 group-hover:opacity-100 group-hover:translate-y-0">
           <button className="h-12 w-12 rounded-full bg-white shadow flex items-center justify-center hover:scale-110 transition">
             <Heart className="h-5 w-5 text-gray-700" />
           </button>
@@ -132,14 +133,13 @@ function ProductCard({ product }: { product: Product }) {
             <ShoppingCart className="h-5 w-5 text-gray-700" />
           </button>
 
-          {/* ตอนนี้ BE ยังไม่มี slug ใช้ id ไปก่อน */}
           <Link
             to={`/product/${product.id}`}
             className="h-12 w-12 rounded-full bg-orange-500 shadow flex items-center justify-center hover:scale-110 transition"
           >
             <Eye className="h-5 w-5 text-white" />
           </Link>
-        </div>
+        </div> */}
       </div>
 
       <div className="px-3 pb-3 pt-2 space-y-2">
@@ -158,7 +158,7 @@ function ProductCard({ product }: { product: Product }) {
           {product.price ? `${product.price} บาท` : "—"}
         </p>
       </div>
-    </div>
+    </Link>
   )
 }
 

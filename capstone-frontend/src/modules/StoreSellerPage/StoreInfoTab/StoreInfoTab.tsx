@@ -1,5 +1,5 @@
 // src/pages/Store/StoreInfoTab.tsx
-import { useEffect, useState } from "react"
+import { useState } from "react"
 import { toast } from "react-toastify"
 
 import { useStoreApi, type storePictureResponse } from "../../../api/storeApi"
@@ -9,15 +9,11 @@ import StoreEditModal from "./StoreEditModal/StoreEditModal"
 
 export default function StoreInfoTab() {
   const { updateStore, addImageStore, editImageStore } = useStoreApi()
-  const { store, loading, error, fetchStore, updateStoreData } = useStoreStore()
+  const { store, loading, error, updateStoreData } = useStoreStore()
 
   const [isModalOpen, setIsModalOpen] = useState(false)
 
-  // โหลดข้อมูลร้านตอนเข้าแท็บนี้ครั้งแรก
-  useEffect(() => {
-    fetchStore()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  
 
   if (loading) return <p className="text-center">กำลังโหลดข้อมูลร้าน...</p>
   if (error) return <p className="text-center text-red-500">{error}</p>

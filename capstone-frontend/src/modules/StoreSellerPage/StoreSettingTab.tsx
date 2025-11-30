@@ -1,18 +1,15 @@
 // src/pages/store/StoreSettingsTab.tsx
-import { useEffect, useState } from "react"
+import { useState } from "react"
 import { useStoreStore } from "../../stores/storeStore"
 import { useStoreApi } from "../../api/storeApi"
 
 export default function StoreSettingsTab() {
-  const { store, loading, error, fetchStore, updateStoreData } = useStoreStore()
+  const { store, loading, error, updateStoreData } = useStoreStore()
   const { updateStore } = useStoreApi()
 
   const [saving, setSaving] = useState(false)
 
-  // โหลดข้อมูลร้านของตัวเองตอนเข้าเพจ
-  useEffect(() => {
-    fetchStore()
-  }, [])
+ 
 
   if (loading) return <div className="text-gray-500">กำลังโหลดข้อมูลร้าน…</div>
   if (error || !store) {

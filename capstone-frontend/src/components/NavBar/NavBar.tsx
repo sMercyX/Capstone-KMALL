@@ -1,7 +1,9 @@
 // src/components/layout/Navbar.tsx
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Link, useLocation } from "react-router-dom"
 import { useUserStore } from "../../stores/userStore"
+import { useCartApi } from "../../api/cartApi"
+import { useCartStore } from "../../stores/cartStore"
 import CartDropdown from "./CartDropdown"
 import UserDropdown from "./UserDropdown"
 
@@ -16,6 +18,22 @@ export default function Navbar() {
   const { roles } = useUserStore()
   const hasSellerRole = roles?.some((r) => r.toLowerCase() === "seller")
   const storeLink = hasSellerRole ? "/store/me" : "/store/register"
+
+  const { getCart } = useCartApi()
+  const { setCart } = useCartStore()
+
+  // Load cart on mount (refresh)
+  useEffect(() => {
+    const fetchCart = async () => {
+      try {
+        const res = await getCart()
+        setCart(res.data)
+      } catch (err) {
+        console.error("Failed to load cart on navbar mount", err)
+      }
+    }
+    fetchCart()
+  }, [])
 
   return (
     <header className="sticky top-4 z-50 w-full bg-[--color-primary]">

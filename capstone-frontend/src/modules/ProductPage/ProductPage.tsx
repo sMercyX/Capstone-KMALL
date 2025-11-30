@@ -1,14 +1,14 @@
 // src/pages/product/ProductPage.tsx
-import { useEffect, useState } from "react"
+import { useEffect, useState, useRef } from "react"
 import { useNavigate, useParams } from "react-router-dom"
 import {
   ChevronLeft,
   ChevronRight,
   Star,
   ShoppingCart,
-  Heart,
 } from "lucide-react"
-import { useProductApi } from "../../api/productApi"
+import { toast } from "react-toastify"
+import { useProductApi, type productPictureResponse } from "../../api/productApi"
 import { useProductStore } from "../../stores/productStore"
 import { useCartStore } from "../../stores/cartStore"
 import Card from "../../components/Card/Card"
@@ -35,7 +35,7 @@ export default function ProductPage() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
 
-  const { getProduct } = useProductApi()
+  const { getProduct, getProductImage } = useProductApi()
   const {
     product,
     isLoading,
@@ -50,13 +50,16 @@ export default function ProductPage() {
   const {
     startLoading: startCartLoading,
     setCart,
-    setError: setCartError,
   } = useCartStore()
 
   const [qty, setQty] = useState(1)
+  
+  // ... (existing state)
   const [activeImageIndex, setActiveImageIndex] = useState(0)
+  const [images, setImages] = useState<productPictureResponse[]>([])
+  const scrollContainerRef = useRef<HTMLDivElement>(null)
 
-  // โหลด product เดียว
+  // โหลด product และ images
   useEffect(() => {
     if (!id) {
       setError("ไม่พบสินค้า")
@@ -71,10 +74,14 @@ export default function ProductPage() {
         startLoading()
 
         const productId = Number(id)
-        const res = await getProduct(productId)
+        const [productRes, imageRes] = await Promise.all([
+            getProduct(productId),
+            getProductImage(productId)
+        ])
 
         if (!cancelled) {
-          setProduct(res.data)
+          setProduct(productRes.data)
+          setImages(imageRes.data || [])
         }
       } catch (err) {
         if (!cancelled) setError("ไม่สามารถโหลดสินค้าได้")
@@ -107,9 +114,13 @@ export default function ProductPage() {
       setCart(res.data)
 
       // TODO: toast success ถ้าต้องการ
-    } catch (err) {
+    } catch (err: any) {
       console.error(err)
-      setCartError("ไม่สามารถเพิ่มสินค้าในตะกร้าได้")
+      if (err.response?.status === 403) {
+        toast.error("ไม่สามารถซื้อสินค้าจากร้านตัวเองได้")
+      } else {
+        toast.error("ไม่สามารถเพิ่มสินค้าในตะกร้าได้")
+      }
     }
   }
 
@@ -141,27 +152,27 @@ export default function ProductPage() {
     )
   }
 
-  const thumbnails = [
-    product.image_url,
-    product.image_url,
-    product.image_url,
-  ].filter(Boolean)
+  // Prepare thumbnails
+  // If API returns images, use them. 
+  // If not, fallback to product.image_url (if exists) or default.
+  const displayImages = images.length > 0 
+    ? images.map(img => `http://localhost:8000${img.image_url}`)
+    : product?.image_url 
+        ? [`http://localhost:8000${product.image_url}`] 
+        : ["/images/default-store.png"]
 
-  const mainImage =
-    thumbnails[activeImageIndex] ||
-    product.image_url ||
-    "https://via.placeholder.com/800"
+
 
   const handlePrevThumb = () => {
-    setActiveImageIndex((prev) =>
-      prev === 0 ? thumbnails.length - 1 : prev - 1
-    )
+    if (scrollContainerRef.current) {
+      scrollContainerRef.current.scrollBy({ left: -100, behavior: "smooth" })
+    }
   }
 
   const handleNextThumb = () => {
-    setActiveImageIndex((prev) =>
-      prev === thumbnails.length - 1 ? 0 : prev + 1
-    )
+    if (scrollContainerRef.current) {
+      scrollContainerRef.current.scrollBy({ left: 100, behavior: "smooth" })
+    }
   }
 
   const handleDecreaseQty = () => {
@@ -172,75 +183,73 @@ export default function ProductPage() {
     setQty((prev) => prev + 1)
   }
 
-  const storeName = `ร้านหมายเลข ${product.store_id}`
+  const storeName = `ร้านหมายเลข ${product?.store_id}`
 
   return (
     <main className="max-w-6xl mx-auto px-4 py-8 md:py-10">
-      {/* Back button */}
-      <button
-        onClick={handleBack}
-        className="mb-4 inline-flex items-center gap-2 text-sm text-gray-600 hover:text-gray-900"
-      >
-        <ChevronLeft className="h-4 w-4" />
-        กลับ
-      </button>
-
-      {/* การ์ดหลักสินค้า */}
+      {/* ... (back button) */}
+      
       <Card className="rounded-3xl px-6 py-6 md:px-10 md:py-8">
         <div className="grid gap-10 md:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)] items-start">
           {/* LEFT: IMAGE + THUMB */}
           <section className="flex flex-col items-center">
             <div className="w-full max-w-[420px] aspect-square overflow-hidden rounded-3xl bg-gray-50">
               <img
-                src={mainImage}
+                src={displayImages[activeImageIndex]}
                 alt={product.name}
                 className="h-full w-full object-cover"
               />
             </div>
 
-            <div className="mt-5 flex items-center gap-4">
-              <button
-                type="button"
-                className="flex h-9 w-9 items-center justify-center rounded-full border bg-white shadow-sm hover:bg-gray-50"
-                onClick={handlePrevThumb}
-              >
-                <ChevronLeft className="h-4 w-4" />
-              </button>
-
-              <div className="flex gap-3">
-                {thumbnails.map((thumb, index) => (
-                  <button
-                    key={index}
+            {displayImages.length > 1 && (
+                <div className="mt-5 flex items-center gap-4">
+                <button
                     type="button"
-                    onClick={() => setActiveImageIndex(index)}
-                    className={`relative h-20 w-20 overflow-hidden rounded-2xl border transition
-                      ${
-                        index === activeImageIndex
-                          ? "border-orange-500 shadow-sm"
-                          : "border-transparent hover:border-gray-300"
-                      }`}
-                  >
-                    <img
-                      src={thumb}
-                      alt={`thumb-${index}`}
-                      className="h-full w-full object-cover"
-                    />
-                    {index === activeImageIndex && (
-                      <span className="absolute inset-x-3 bottom-1 h-1 rounded-full bg-orange-500" />
-                    )}
-                  </button>
-                ))}
-              </div>
+                    className="flex h-9 w-9 items-center justify-center rounded-full border bg-white shadow-sm hover:bg-gray-50"
+                    onClick={handlePrevThumb}
+                >
+                    <ChevronLeft className="h-4 w-4" />
+                </button>
 
-              <button
-                type="button"
-                className="flex h-9 w-9 items-center justify-center rounded-full border bg-white shadow-sm hover:bg-gray-50"
-                onClick={handleNextThumb}
-              >
-                <ChevronRight className="h-4 w-4" />
-              </button>
-            </div>
+                <div 
+                  ref={scrollContainerRef}
+                  className="flex gap-3 overflow-x-auto py-2 px-1 max-w-[280px] scrollbar-hide scroll-smooth"
+                >
+                    {displayImages.map((thumb, index) => (
+                    <button
+                        key={index}
+                        type="button"
+                        onClick={() => setActiveImageIndex(index)}
+                        className={`relative h-20 w-20 flex-shrink-0 overflow-hidden rounded-2xl border transition
+                        ${
+                            index === activeImageIndex
+                            ? "border-orange-500 shadow-sm"
+                            : "border-transparent hover:border-gray-300"
+                        }`}
+                    >
+                        <img
+                        src={thumb}
+                        alt={`thumb-${index}`}
+                        className="h-full w-full object-cover"
+                        />
+                        {index === activeImageIndex && (
+                        <span className="absolute inset-x-3 bottom-1 h-1 rounded-full bg-orange-500" />
+                        )}
+                    </button>
+                    ))}
+                </div>
+
+                <button
+                    type="button"
+                    className="flex h-9 w-9 items-center justify-center rounded-full border bg-white shadow-sm hover:bg-gray-50"
+                    onClick={handleNextThumb}
+                >
+                    <ChevronRight className="h-4 w-4" />
+                </button>
+                </div>
+            )}
           </section>
+
 
           {/* RIGHT: DETAILS */}
           <section className="space-y-4">
@@ -292,13 +301,6 @@ export default function ProductPage() {
               </button>
             </div>
 
-            <button
-              type="button"
-              className="mt-2 inline-flex items-center gap-2 text-sm text-gray-600 hover:text-gray-900"
-            >
-              <Heart className="h-4 w-4" />
-              <span>Add to Favorite</span>
-            </button>
           </section>
         </div>
       </Card>
@@ -314,9 +316,9 @@ export default function ProductPage() {
         </div>
 
         <div className="flex gap-3">
-          <button className="rounded-full border border-orange-500 px-5 py-2 text-sm font-semibold text-orange-500 hover:bg-orange-50 transition">
+          {/* <button className="rounded-full border border-orange-500 px-5 py-2 text-sm font-semibold text-orange-500 hover:bg-orange-50 transition">
             แชทเลย
-          </button>
+          </button> */}
           <button className="rounded-full bg-orange-500 px-5 py-2 text-sm font-semibold text-white hover:bg-orange-600 transition">
             ดูร้านค้า
           </button>
