@@ -57,6 +57,16 @@ export interface storePictureResponse {
 export interface storePictureEditRequest {
   is_primary: boolean
 }
+export interface storeResponse {
+  id: number
+  name: string
+  description: string
+  is_active: "YES" | "NO"
+  user_id: string
+  profile_url: string
+  created_at: string
+  updated_at: string
+}
 export function useStoreApi() {
   const http = useCrudApi()
 
@@ -68,6 +78,10 @@ export function useStoreApi() {
 
   async function getStore(): Promise<ApiResponse<addStoreData>> {
     return http.getItems(`/api/stores/me`)
+  }
+  
+  async function getStoreDetail(store_id: number): Promise<ApiResponse<storeResponse>> {
+    return http.getItems(`/api/stores/${store_id}/public`)
   }
 
   async function updateStore(
@@ -120,5 +134,6 @@ export function useStoreApi() {
     getImageStore,
     addImageStore,
     editImageStore,
+    getStoreDetail,
   }
 }

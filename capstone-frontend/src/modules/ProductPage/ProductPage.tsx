@@ -13,6 +13,7 @@ import { useProductStore } from "../../stores/productStore"
 import { useCartStore } from "../../stores/cartStore"
 import Card from "../../components/Card/Card"
 import { useCartApi } from "../../api/cartApi"
+import StoreInfoCard from "../../components/Card/StoreInfoCard"
 
 // ====== UI Helpers ======
 function RatingStarsFixed() {
@@ -183,8 +184,6 @@ export default function ProductPage() {
     setQty((prev) => prev + 1)
   }
 
-  const storeName = `ร้านหมายเลข ${product?.store_id}`
-
   return (
     <main className="max-w-6xl mx-auto px-4 py-8 md:py-10">
       {/* ... (back button) */}
@@ -306,24 +305,8 @@ export default function ProductPage() {
       </Card>
 
       {/* แถบข้อมูลร้านด้านล่าง */}
-      <Card className="mt-8 flex flex-wrap items-center justify-between gap-4 rounded-3xl px-6 py-4">
-        <div className="flex items-center gap-3">
-          <div className="h-12 w-12 rounded-full bg-gray-200 overflow-hidden" />
-          <div>
-            <p className="text-sm font-semibold text-gray-900">{storeName}</p>
-            <p className="text-xs text-gray-500">ร้านค้าพาร์ทเนอร์บน KMALL</p>
-          </div>
-        </div>
-
-        <div className="flex gap-3">
-          {/* <button className="rounded-full border border-orange-500 px-5 py-2 text-sm font-semibold text-orange-500 hover:bg-orange-50 transition">
-            แชทเลย
-          </button> */}
-          <button className="rounded-full bg-orange-500 px-5 py-2 text-sm font-semibold text-white hover:bg-orange-600 transition">
-            ดูร้านค้า
-          </button>
-        </div>
-      </Card>
+      {/* แถบข้อมูลร้านด้านล่าง */}
+      {product?.store_id && <StoreInfoCard storeId={product.store_id} />}
     </main>
   )
 }
