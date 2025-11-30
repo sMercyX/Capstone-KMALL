@@ -53,14 +53,14 @@ export function useCartApi() {
   async function addCart(
     data: cartRequset
   ): Promise<ApiCreateResponse<cartResponse>> {
-    return http.postItem(`/api/cart/items`, data)
+    return http.postItem(`/cart/items`, data)
   }
 
   async function getCart(): Promise<ApiResponse<PaginatedCartData>> {
-    return http.getItems(`/api/cart`)
+    return http.getItems(`/cart`)
   }
   async function deleteItemCart(item_id:number): Promise<ApiResponse<deleteItemResponse>> {
-    return http.deleteItem(`/api/cart/items/${item_id}`)
+    return http.deleteItem(`/cart/items/${item_id}`)
   }
 
   return { addCart, getCart, deleteItemCart }

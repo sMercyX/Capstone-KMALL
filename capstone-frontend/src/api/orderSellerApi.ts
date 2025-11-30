@@ -72,27 +72,27 @@ export function useOrderSellerApi() {
     status: OrderStatusGroup
   ): Promise<ApiResponse<orderSellerResponse[]>> {
     return http.getItems(
-      `/api/stores/${store_id}/orders?status_group=${status}`
+      `/stores/${store_id}/orders?status_group=${status}`
     )
   }
 
   async function getOrderDetail(
     orderId: number
   ): Promise<ApiResponse<OrderDetailResponse>> {
-    return http.getItems(`/api/orders/${orderId}`)
+    return http.getItems(`/orders/${orderId}`)
   }
 
   async function updateOrderStatus(
     orderId: number,
     orderStatus: OrderStatusResquest
   ): Promise<ApiUpdatedResponse<orderSellerData>> {
-    return http.putItem(`/api/orders/${orderId}/status`, orderStatus)
+    return http.putItem(`/orders/${orderId}/status`, orderStatus)
   }
 
   async function cancelledOrder(
     orderId: number
   ): Promise<ApiUpdatedResponse<orderSellerData>> {
-    return http.postItem(`/api/orders/${orderId}/cancel`)
+    return http.postItem(`/orders/${orderId}/cancel`)
   }
 
   return {

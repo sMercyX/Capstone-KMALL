@@ -18,19 +18,19 @@ export function useCatagoriesApi() {
   async function getCatagoriesName(
     parent_id: number
   ): Promise<ApiResponse<CatagoriesResponse[]>> {
-    return http.getItems(`/api/categories?parent_id=${parent_id}`)
+    return http.getItems(`/categories?parent_id=${parent_id}`)
   }
 
   async function getCatagoriesSubName(): Promise<
     ApiResponse<CatagoriesResponse[]>
   > {
-    return http.getItems(`/api/categories?only_sub=true`)
+    return http.getItems(`/categories?only_sub=true`)
   }
 
   async function getCatagoriesDetail(
     id: number
   ): Promise<ApiResponse<CatagoriesResponse>> {
-    return http.getItems(`/api/categories/${id}/public`)
+    return http.getItems(`/categories/${id}/public`)
   }
 
   return { getCatagoriesName, getCatagoriesSubName, getCatagoriesDetail }

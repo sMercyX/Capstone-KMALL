@@ -51,18 +51,18 @@ export function useStoreApi() {
   async function addStore(
     data: addStoreData
   ): Promise<ApiCreateResponse<AddResponse>> {
-    return http.postItem(`/api/stores`, data)
+    return http.postItem(`/stores`, data)
   }
 
   async function getStore(): Promise<ApiResponse<addStoreData>> {
-    return http.getItems(`/api/stores/me`)
+    return http.getItems(`/stores/me`)
   }
 
   async function updateStore(
     store_id: number,
     data: updatedStoreData
   ): Promise<ApiUpdatedResponse<AddResponse>> {
-    return http.putItem(`/api/stores/${store_id}`, data)
+    return http.putItem(`/stores/${store_id}`, data)
   }
 
   async function getStoreProducts(
@@ -71,7 +71,7 @@ export function useStoreApi() {
     pageSize: number
   ): Promise<PaginatedResponse<storeProductDataRequset>> {
     return http.getItems(
-      `/api/stores/${store_id}/products?page=${pageIndex}&limit=${pageSize}`
+      `/stores/${store_id}/products?page=${pageIndex}&limit=${pageSize}`
     )
   }
 

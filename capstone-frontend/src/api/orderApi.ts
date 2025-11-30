@@ -30,7 +30,7 @@ export function useOrderApi() {
   async function getOrdersByStatus(
     path: OrderStatusGroup
   ): Promise<ApiResponse<orderResponse[]>> {
-    return http.getItems(`/api/orders?status_group=${path}`)
+    return http.getItems(`/orders?status_group=${path}`)
   }
 
   return { getOrdersByStatus }

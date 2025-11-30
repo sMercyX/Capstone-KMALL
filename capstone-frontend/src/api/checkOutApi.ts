@@ -46,7 +46,7 @@ export function useCheckkOutApi() {
   async function checkOutOrder(
     data: orderCreatedRequest
   ): Promise<ApiCreateResponse<orderCreatedResponse>> {
-    return http.postItem(`/api/checkout/confirm`, data)
+    return http.postItem(`/checkout/confirm`, data)
   }
 
   return { checkOutOrder }

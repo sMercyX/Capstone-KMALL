@@ -60,16 +60,16 @@ export function useProductApi() {
     const q = encodeURIComponent(category)
 
     return http.getItems(
-      `/api/products/public?q=${q}&category_id=${categoryId}&page=${pageIndex}&limit=${limit}`
+      `/products/public?q=${q}&category_id=${categoryId}&page=${pageIndex}&limit=${limit}`
     )
   }
 
   async function getProductBySlug(slug: string) {
-    return http.getItems(`/api/products/public/${slug}`)
+    return http.getItems(`/products/public/${slug}`)
   }
 
   async function getProductsByStore(storeId: number) {
-    return http.getItems(`/api/products/public?store_id=${storeId}`)
+    return http.getItems(`/products/public?store_id=${storeId}`)
   }
   
   async function getProductsByParentId(
@@ -78,18 +78,18 @@ export function useProductApi() {
     pageIndex: number
   ): Promise<CategoryListResponse> {
     return http.getItems(
-      `/api/products/public?parent_category_id=${categoryId}&limit=${limit}&page=${pageIndex}`
+      `/products/public?parent_category_id=${categoryId}&limit=${limit}&page=${pageIndex}`
     )
   }
   
   async function addProduct(
     data: AddProductRequest
   ): Promise<ApiCreateResponse<Product>> {
-    return http.postItem(`/api/products`, data)
+    return http.postItem(`/products`, data)
   }
 
   async function getProduct(storeId: number) {
-    return http.getItems(`/api/products/${storeId}/public`)
+    return http.getItems(`/products/${storeId}/public`)
   }
 
 
