@@ -6,6 +6,7 @@ networks:
 
 volumes:
   db_data:
+  redis_data:
 
 services:
   kong:
@@ -37,20 +38,18 @@ services:
     container_name: capstone-redis
     restart: unless-stopped
     volumes:
-      - ./capstone-redis-data:/data
-    command: ["redis-server", "--appendonly", "yes"]
-    ports:
-      - "6379:6379"
+      - redis_data:/data
     networks:
       - capstone_net
+
 
 
   oauth2-proxy:
     image: quay.io/oauth2-proxy/oauth2-proxy:v7.6.0
     container_name: capstone-oauth2-proxy
     restart: unless-stopped
-    ports:
-      - "4180:4180"
+    # ports:
+    #   - "4180:4180"
     env_file:
       - ./capstone-oauth2-proxy/.env
     networks:
