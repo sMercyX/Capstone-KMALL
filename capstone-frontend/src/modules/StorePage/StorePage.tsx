@@ -3,8 +3,7 @@ import { useParams } from "react-router-dom"
 import Card from "../../components/Card/Card"
 import StoreInfoCard from "../../components/Card/StoreInfoCard"
 import ProductCard from "../../components/Card/ProductCard"
-import { useStoreApi } from "../../api/storeApi"
-import { type Product } from "../../api/productApi"
+import { useProductApi, type Product } from "../../api/productApi"
 
 // ===== Sub-components =====
 // function StoreTabs() {
@@ -54,7 +53,7 @@ export default function StorePage() {
   const { id } = useParams<{ id: string }>()
   const storeId = Number(id)
   
-  const { getStoreProducts } = useStoreApi()
+  const { getProductsStoreByStoreId } = useProductApi()
   const [products, setProducts] = useState<Product[]>([])
   const [isLoading, setIsLoading] = useState(false)
 
@@ -65,15 +64,9 @@ export default function StorePage() {
       try {
         setIsLoading(true)
         // Fetch products (page 1, limit 100 for now)
-        const res = await getStoreProducts(storeId, 1, 100)
+        const res = await getProductsStoreByStoreId(storeId, 100, 1)
         
-        // Map storeProductDataRequset to Product
-        const mappedProducts: Product[] = res.data.items.map(item => ({
-            ...item,
-            category_id: Number(item.category_id)
-        }))
-        
-        setProducts(mappedProducts)
+        setProducts(res.data.items)
       } catch (err) {
         console.error("Failed to fetch store products:", err)
       } finally {

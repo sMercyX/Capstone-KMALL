@@ -32,6 +32,7 @@ export interface Product {
   updated_at: string
   is_active: "YES" | "NO"
   store_id: number
+  store_name: string
   category_id: number
 }
 export interface AddProductRequest {
@@ -105,6 +106,15 @@ export function useProductApi() {
       `/api/products/public?parent_category_id=${categoryId}&limit=${limit}&page=${pageIndex}`
     )
   }
+  async function getProductsStoreByStoreId(
+    storeId: number,
+    limit: number,
+    pageIndex: number
+  ): Promise<CategoryListResponse> {
+    return http.getItems(
+      `/api/products/public?store_id=${storeId}&limit=${limit}&page=${pageIndex}`
+    )
+  }
 
   async function addProduct(
     data: AddProductRequest
@@ -166,6 +176,7 @@ export function useProductApi() {
     getProductBySlug,
     getProductsByStore,
     getProductsByParentId,
+    getProductsStoreByStoreId,
     addProduct,
     getProduct,
     editProduct,

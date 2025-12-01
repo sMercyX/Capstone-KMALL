@@ -35,7 +35,7 @@ export default function ProductCard({ product }: ProductCardProps) {
         <h3 className="text-sm font-semibold line-clamp-1">{product.name}</h3>
 
         {/* BE ยังไม่มีชื่อร้าน ใช้ข้อความ fix */}
-        <p className="text-xs text-gray-500 line-clamp-1">ร้านค้าทั่วไป</p>
+        <p className="text-xs text-gray-500 line-clamp-1">{product.store_name}</p>
 
         <p className="pt-1 font-semibold text-rose-600">
           {product.price ? `${product.price} บาท` : "—"}
