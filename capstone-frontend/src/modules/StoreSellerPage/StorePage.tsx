@@ -22,7 +22,7 @@ export default function StorePage() {
   const tabs: SwitchTabItem[] = [
     { key: "store", label: "ร้านค้าของฉัน", href: "/store/me" },
     { key: "products", label: "สินค้า", href: "/store/products" },
-    { key: "add", label: "เพิ่มผลิตภัณฑ์ใหม่", href: "/store/add" },
+    { key: "add", label: "เพิ่มสินค้าใหม่", href: "/store/add" },
     { key: "orders", label: "คำสั่งซื้อ", href: "/store/orders" },
     { key: "settings", label: "การตั้งค่าร้านค้า", href: "/store/settings" },
   ]
