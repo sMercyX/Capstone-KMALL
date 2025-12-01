@@ -2,7 +2,7 @@ import { Filter, Check, ArrowUpDown } from "lucide-react"
 import { useState, useRef, useEffect } from "react"
 
 export type SortKey = "ASC" | "DESC"
-export type FilterKey = "ready_to_eat" | "snacks" | "drinks" | "healthy"
+export type FilterKey = string
 
 interface ToolbarProps {
   sort: SortKey
@@ -92,13 +92,8 @@ export default function Toolbar({
   onChangeSort,
   filter = [],
   onChangeFilter,
-}: ToolbarProps) {
-  const filterOptions = [
-    { label: "อาหารพร้อมทาน", value: "ready_to_eat" },
-    { label: "ขนมและเบเกอรี่", value: "snacks" },
-    { label: "เครื่องดื่ม", value: "drinks" },
-    { label: "อาหารเพื่อสุขภาพ", value: "healthy" },
-  ]
+  filterOptions = [],
+}: ToolbarProps & { filterOptions?: { label: string; value: string }[] }) {
 
   const sortOptions = [
     { label: "ราคาต่ำสุด", value: "ASC" },

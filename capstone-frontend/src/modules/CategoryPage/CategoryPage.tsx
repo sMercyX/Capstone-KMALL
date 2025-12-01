@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react"
 import { useParams } from "react-router-dom"
 import { useProductApi } from "../../api/productApi"
+import { useCatagoriesApi } from "../../api/catagoriesApi"
 import { useProductListStore } from "../../stores/catagoriesStore"
 import PageHeader from "./PageHeader"
 import Toolbar, { type SortKey, type FilterKey } from "./Toolbar"
@@ -32,6 +33,7 @@ export default function CategoryPage() {
 
   const [sort, setSort] = useState<SortKey>("ASC")
   const [filter, setFilter] = useState<FilterKey[]>([])
+  const [filterOptions, setFilterOptions] = useState<{ label: string; value: string }[]>([])
 
   const {
     items,
@@ -49,21 +51,44 @@ export default function CategoryPage() {
 
   // ใช้ getProductsByParentId แล้ว
   const { getProductsByParentId } = useProductApi()
+  const { getCatagoriesName } = useCatagoriesApi()
 
   // reset เมื่อเปลี่ยนหมวด
   useEffect(() => {
     reset()
     setPageIndex(1)
+    setFilter([])
   }, [routeCategory, reset, setPageIndex])
 
-  // ดึงข้อมูลอัตโนมัติเมื่อเข้าเพจ / เปลี่ยนหน้า / เปลี่ยนหมวด / เปลี่ยน sort
+  // Fetch filter options
+  useEffect(() => {
+    async function fetchCategories() {
+      try {
+        const res = await getCatagoriesName(apiCategoryId)
+        if (res.data) {
+          const options = res.data.map((cat) => ({
+            label: cat.name,
+            value: String(cat.id),
+          }))
+          setFilterOptions(options)
+        }
+      } catch (err) {
+        console.error("Failed to fetch categories:", err)
+      }
+    }
+    fetchCategories()
+  }, [apiCategoryId])
+
+  // ดึงข้อมูลอัตโนมัติเมื่อเข้าเพจ / เปลี่ยนหน้า / เปลี่ยนหมวด / เปลี่ยน sort / เปลี่ยน filter
   useEffect(() => {
     let ignore = false
 
     async function fetchData() {
       try {
         startLoading()
-        const res = await getProductsByParentId(apiCategoryId, pageSize, pageIndex, sort)
+        // Convert filter strings to numbers
+        const categoryIds = filter.map(Number)
+        const res = await getProductsByParentId(apiCategoryId, pageSize, pageIndex, sort, categoryIds)
         if (ignore) return
         setPageData(res.data)
         setError(null)
@@ -82,7 +107,8 @@ export default function CategoryPage() {
     apiCategoryId,
     pageIndex,
     pageSize,
-    sort
+    sort,
+    filter
   ])
 
   const safeTotal = typeof total === "number" ? total : 0
@@ -99,6 +125,7 @@ export default function CategoryPage() {
           onChangeSort={setSort}
           filter={filter}
           onChangeFilter={setFilter}
+          filterOptions={filterOptions}
         />
       </div>
 
