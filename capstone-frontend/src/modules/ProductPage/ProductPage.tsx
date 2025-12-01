@@ -185,6 +185,10 @@ export default function ProductPage() {
   }
 
   const handleIncreaseQty = () => {
+    if (qty >= 99) {
+      toast.warn("ซื้อได้แค่ 99 ชิ้นต่อ 1 สินค้า")
+      return
+    }
     setQty((prev) => prev + 1)
   }
 
