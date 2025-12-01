@@ -1,8 +1,10 @@
 // src/components/Store/StoreEditModal.tsx
 import { useEffect, useState } from "react"
-import { Info, Upload, X } from "lucide-react"
+import { Upload, X } from "lucide-react"
 import * as yup from "yup"
 import { toast } from "react-toastify"
+import { Input } from "../../../../components/Input/Input"
+import { Textarea } from "../../../../components/Input/Textarea"
 
 export type StoreEditForm = {
   name: string
@@ -47,6 +49,8 @@ export default function StoreEditModal({
   const [profileUrl, setProfileUrl] = useState("")
   const [fileName, setFileName] = useState("ยังไม่ได้เลือกไฟล์")
   const [logoFile, setLogoFile] = useState<File | null>(null)
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null)
+  const [errors, setErrors] = useState<{ name?: boolean; description?: boolean }>({})
 
   // lock scroll ตอน modal เปิด
   useEffect(() => {
@@ -68,12 +72,23 @@ export default function StoreEditModal({
     setLogoFile(null)
   }, [isOpen, initialName, initialDescription, initialProfileUrl])
 
+  // Cleanup preview URL on unmount
+  useEffect(() => {
+    return () => {
+      if (previewUrl) {
+        URL.revokeObjectURL(previewUrl)
+      }
+    }
+  }, [previewUrl])
+
   function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
 
     if (!file) {
       setLogoFile(null)
       setFileName("ยังไม่ได้เลือกไฟล์")
+      if (previewUrl) URL.revokeObjectURL(previewUrl)
+      setPreviewUrl(null)
       return
     }
 
@@ -83,16 +98,35 @@ export default function StoreEditModal({
       e.target.value = ""
       setLogoFile(null)
       setFileName("ยังไม่ได้เลือกไฟล์")
+      if (previewUrl) URL.revokeObjectURL(previewUrl)
+      setPreviewUrl(null)
+      return
+    }
+
+    // ✅ เช็คขนาดไฟล์ไม่เกิน 2MB
+    if (file.size > 2 * 1024 * 1024) {
+      toast.error("ขนาดไฟล์ต้องไม่เกิน 2MB")
+      e.target.value = ""
+      setLogoFile(null)
+      setFileName("ยังไม่ได้เลือกไฟล์")
+      if (previewUrl) URL.revokeObjectURL(previewUrl)
+      setPreviewUrl(null)
       return
     }
 
     setLogoFile(file)
     setFileName(file.name)
+
+    if (previewUrl) URL.revokeObjectURL(previewUrl)
+    const url = URL.createObjectURL(file)
+    setPreviewUrl(url)
   }
 
   // ✅ handler form + validate ด้วย Yup + แจ้ง error ด้วย toast
+  // ✅ handler form + validate ด้วย Yup + แจ้ง error ด้วย toast
   async function handleFormSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
+    setErrors({}) // Reset errors
 
     try {
       await storeEditSchema.validate(
@@ -101,8 +135,17 @@ export default function StoreEditModal({
       )
     } catch (err) {
       if (err instanceof yup.ValidationError) {
-        const msg = err.errors[0] ?? "กรุณาตรวจสอบข้อมูลให้ถูกต้อง"
-        toast.error(msg)
+        const newErrors: { name?: boolean; description?: boolean } = {}
+        let firstMsg = ""
+
+        err.inner.forEach((error) => {
+          if (error.path === "name") newErrors.name = true
+          if (error.path === "description") newErrors.description = true
+          if (!firstMsg) firstMsg = error.message
+        })
+
+        setErrors(newErrors)
+        toast.error(firstMsg)
       } else {
         toast.error("ข้อมูลไม่ถูกต้อง กรุณาลองใหม่อีกครั้ง")
       }
@@ -143,16 +186,12 @@ export default function StoreEditModal({
           <form onSubmit={handleFormSubmit} className="space-y-6">
             {/* ชื่อร้าน */}
             <div className="space-y-1">
-              <label className="font-medium flex items-center gap-1">
-                ชื่อร้าน
-                <Info className="h-4 w-4 text-gray-400" />
-              </label>
-              <input
-                type="text"
+              <Input
+                label="ชื่อร้าน"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 maxLength={100}
-                className="w-full rounded-xl border px-4 py-2 focus:outline-none focus:ring-2 focus:ring-orange-500"
+                error={errors.name}
               />
               <p className="text-xs text-gray-500 text-right">
                 {name.length} / 100 ตัวอักษร
@@ -161,16 +200,14 @@ export default function StoreEditModal({
 
             {/* คำอธิบายร้าน */}
             <div className="space-y-1">
-              <label className="font-medium flex items-center gap-1">
-                คำอธิบายร้าน
-                <Info className="h-4 w-4 text-gray-400" />
-              </label>
-              <textarea
+              <Textarea
+                label="คำอธิบายร้าน"
                 rows={3}
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
                 maxLength={255}
-                className="w-full rounded-xl border px-4 py-2 focus:outline-none focus:ring-2 focus:ring-orange-500 resize-none"
+                error={errors.description}
+                className="resize-none"
               />
               <p className="text-xs text-gray-500 text-right">
                 {description.length} / 255 ตัวอักษร
@@ -181,12 +218,21 @@ export default function StoreEditModal({
             <div className="space-y-1">
               <label className="font-medium flex items-center gap-1">
                 โลโก้ร้าน
-                <Info className="h-4 w-4 text-gray-400" />
               </label>
 
-              <label className="flex flex-col items-center justify-center cursor-pointer border border-dashed rounded-xl py-6 hover:bg-gray-50 transition">
-                <Upload className="h-6 w-6 text-gray-500" />
-                <span className="mt-1 text-sm text-gray-600">Upload Image</span>
+              <label className="flex flex-col bg-white items-center justify-center cursor-pointer border border-dashed rounded-xl py-6 hover:bg-gray-50 transition relative overflow-hidden">
+                {previewUrl || profileUrl ? (
+                  <img 
+                    src={previewUrl || profileUrl} 
+                    alt="Preview" 
+                    className="h-32 w-32 object-cover rounded-full mb-2 border"
+                  />
+                ) : (
+                  <Upload className="h-6 w-6 text-gray-500" />
+                )}
+                <span className="mt-1 text-sm text-gray-600">
+                  {previewUrl || profileUrl ? "Change Image" : "Upload Image"}
+                </span>
                 <input
                   type="file"
                   className="hidden"
