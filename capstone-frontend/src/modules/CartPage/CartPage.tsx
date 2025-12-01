@@ -1,7 +1,7 @@
 // src/pages/cart/CartPage.tsx
 import { useEffect, useState } from "react"
 import {
-  Heart,
+  // Heart,
   Minus,
   Plus,
   ShoppingCart,
@@ -103,9 +103,9 @@ function CartItemRow({
           {item.subtotal > 0 ? `${formatPrice(item.subtotal)} บาท` : "—"}
         </p>
         <div className="flex items-center gap-2">
-          <button className="flex h-10 w-10 items-center justify-center rounded-full border border-gray-200 bg-white text-gray-600 shadow-sm hover:border-orange-300 hover:text-[#f15a24]">
+          {/* <button className="flex h-10 w-10 items-center justify-center rounded-full border border-gray-200 bg-white text-gray-600 shadow-sm hover:border-orange-300 hover:text-[#f15a24]">
             <Heart className="h-5 w-5" />
-          </button>
+          </button> */}
           <button
             className="flex h-10 w-10 items-center justify-center rounded-full bg-[#d73c30] text-white shadow-sm hover:bg-[#bf3228]"
             onClick={() => onDelete(item.id)}
