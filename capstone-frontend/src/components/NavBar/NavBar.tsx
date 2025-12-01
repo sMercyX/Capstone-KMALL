@@ -7,6 +7,7 @@ import { useCartStore } from "../../stores/cartStore"
 import CartDropdown from "./CartDropdown"
 import UserDropdown from "./UserDropdown"
 import kmallLogo from "../../assets/kmutt.svg"
+import kmallText from "../../assets/kmutt-text.svg"
 
 export default function Navbar() {
   const [isUserOpen, setIsUserOpen] = useState(false)
@@ -41,18 +42,23 @@ export default function Navbar() {
       <nav className="max-w-[calc(100%-110px)] mx-auto flex items-center justify-between px-6 py-3 shadow-lg shadow-blue-50 bg-[var(--color-bg)] rounded-full ">
         {/* LEFT: Logo */}
         <div className="flex items-center gap-3">
-          <Link to="/dashboard" className="text-2xl font-bold text-orange-600">
-            KMALL
+          <Link to="/dashboard" className="cursor-pointer">
+            <img
+              src={kmallText}
+              alt="KMALL"
+              className="h-8 w-auto"
+            />
           </Link>
-          <img
-        src={kmallLogo}
-        alt="KMALL"
-        className="h-8 w-8"
-        style={{
-        filter:
-          "invert(44%) sepia(94%) saturate(3561%) hue-rotate(5deg) brightness(101%) contrast(101%)",
-        }}
-      />
+        <div className="w-px h-8 bg-orange-500" />
+            <img
+            src={kmallLogo}
+            alt="KMALL"
+            className="h-8 w-8"
+            style={{
+              filter:
+                "invert(44%) sepia(94%) saturate(3561%) hue-rotate(5deg) brightness(101%) contrast(101%)",
+              }}
+            />
         </div>
 
         {/* CENTER: Search */}
