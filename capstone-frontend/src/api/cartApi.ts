@@ -70,7 +70,7 @@ export function useCartApi() {
     product_id:number,
     data: cartUpdatedRequset
   ): Promise<ApiUpdatedResponse<cartUpdatedResponse>> {
-    return http.putItem(`/cart/items/${product_id}`, data)
+    return http.putItem(`/api/cart/items/${product_id}`, data)
   }
 
   return { addCart, getCart, deleteItemCart, updateCart }

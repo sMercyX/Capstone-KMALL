@@ -7,8 +7,7 @@ import {
   ShoppingCart,
 } from "lucide-react"
 import { toast } from "react-toastify"
-import axios from "axios"
-import { useProductApi, type productPictureResponse, type Product } from "../../api/productApi"
+import { useProductApi, type productPictureResponse } from "../../api/productApi"
 import { useProductStore } from "../../stores/productStore"
 import { useCartStore } from "../../stores/cartStore"
 import Card from "../../components/Card/Card"
@@ -83,10 +82,10 @@ export default function ProductPage() {
         ])
 
         if (!cancelled) {
-          setProduct(productRes.data as Product)
+          setProduct(productRes.data as any)
           setImages(imageRes.data || [])
         }
-      } catch {
+      } catch (err) {
         if (!cancelled) setError("ไม่สามารถโหลดสินค้าได้")
       }
     }
@@ -117,10 +116,9 @@ export default function ProductPage() {
       setCart(res.data)
 
       // TODO: toast success ถ้าต้องการ
-
-    } catch (err: unknown) {
+    } catch (err: any) {
       console.error(err)
-      if (axios.isAxiosError(err) && err.response?.status === 403) {
+      if (err.response?.status === 403) {
         toast.error("ไม่สามารถซื้อสินค้าจากร้านตัวเองได้")
       } else {
         toast.error("ไม่สามารถเพิ่มสินค้าในตะกร้าได้")
@@ -157,12 +155,20 @@ export default function ProductPage() {
   }
 
 
+//   const thumbnailPaths = [
+//     product.image_url,
+//     ...(product.images?.map((img) => img.image_url) ?? []),
+//   ].filter(Boolean) as string[]
+
+// // แปลง path ให้เป็น full URL ด้วย resolveImageUrl
+//   const thumbnails = thumbnailPaths.map((path) => resolveImageUrl(path))
+
 
 
   const displayImages = images.length > 0 
-    ? images.map(img => resolveImageUrl(img.image_url))
+    ? images.map(img => `http://localhost:8000${img.image_url}`)
     : product?.image_url 
-        ? [resolveImageUrl(product.image_url)]
+        ? [`http://localhost:8000${product.image_url}`] 
         : ["/images/default-store.png"]
 
 

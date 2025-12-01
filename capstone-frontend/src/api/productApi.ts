@@ -86,16 +86,16 @@ export function useProductApi() {
     const q = encodeURIComponent(category)
 
     return http.getItems(
-      `/products/public?q=${q}&category_id=${categoryId}&page=${pageIndex}&limit=${limit}&price=${price}  `
+      `/api/products/public?q=${q}&category_id=${categoryId}&page=${pageIndex}&limit=${limit}&price=${price}  `
     )
   }
 
   async function getProductBySlug(slug: string) {
-    return http.getItems(`/products/public/${slug}`)
+    return http.getItems(`/api/products/public/${slug}`)
   }
 
   async function getProductsByStore(storeId: number) {
-    return http.getItems(`/products/public?store_id=${storeId}`)
+    return http.getItems(`/api/products/public?store_id=${storeId}`)
   }
 
   async function getProductsByParentId(
@@ -105,7 +105,7 @@ export function useProductApi() {
     price?: string,
     categoryIds?: number[]
   ): Promise<CategoryListResponse> {
-    let url = `/products/public?parent_category_id=${categoryId}&limit=${limit}&page=${pageIndex}`
+    let url = `/api/products/public?parent_category_id=${categoryId}&limit=${limit}&page=${pageIndex}`
     if (price) {
       url += `&price=${price}`
     }
@@ -122,29 +122,29 @@ export function useProductApi() {
     pageIndex: number
   ): Promise<CategoryListResponse> {
     return http.getItems(
-      `/products/public?store_id=${storeId}&limit=${limit}&page=${pageIndex}`
+      `/api/products/public?store_id=${storeId}&limit=${limit}&page=${pageIndex}`
     )
   }
 
   async function addProduct(
     data: AddProductRequest
   ): Promise<ApiCreateResponse<Product>> {
-    return http.postItem(`/products`, data)
+    return http.postItem(`/api/products`, data)
   }
 
   async function getProduct(store_id: number) {
-    return http.getItems(`/products/${store_id}/public`)
+    return http.getItems(`/api/products/${store_id}/public`)
   }
   
   async function editProduct(
     product_id: number,
     data: EditProductRequest
   ): Promise<ApiUpdatedResponse<Product>> {
-    return http.putItem(`/products/${product_id}`, data)
+    return http.putItem(`/api/products/${product_id}`, data)
   }
   
   async function deleteProduct(product_id: number) {
-    return http.deleteItem(`/products/${product_id}`)
+    return http.deleteItem(`/api/products/${product_id}`)
   }
 
   async function addImageProduct(
@@ -156,7 +156,7 @@ export function useProductApi() {
       formData.append("file", file)
     })
     return http.postItem(
-      `/products/${product_id}/images/upload`,
+      `/api/products/${product_id}/images/upload`,
       formData 
     )
   }
@@ -165,19 +165,19 @@ export function useProductApi() {
     image_id: number,
     data: productPictureEditRequest
   ): Promise<ApiUpdatedResponse<productPictureResponse>> {
-    return http.putItem(`/product-images/${image_id}`, data)
+    return http.putItem(`/api/product-images/${image_id}`, data)
   }
 
   async function getProductImage(
     productId: number
   ): Promise<ApiResponse<productPictureResponse[]>> {
-    return http.getItems(`/products/${productId}/images`)
+    return http.getItems(`/api/products/${productId}/images`)
   }
 
   async function deleteProductImage(
     imageId: number
   ): Promise<ApiResponse<any>> {
-    return http.deleteItem(`/product-images/${imageId}`)
+    return http.deleteItem(`/api/product-images/${imageId}`)
   }
   
 
