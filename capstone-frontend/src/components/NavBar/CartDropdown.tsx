@@ -1,8 +1,10 @@
 import { useEffect, useRef, useState } from "react"
 import { useNavigate } from "react-router-dom"
 import { ShoppingCart, X } from "lucide-react"
+import { toast } from "react-toastify"
 import { useCartApi } from "../../api/cartApi"
 import { useCartStore } from "../../stores/cartStore"
+import ConfirmationModal from "../Modal/ConfirmationModal"
 
 
 
@@ -14,6 +16,8 @@ type Props = {
 
 export default function CartDropdown({ isOpen, onToggle, onClose }: Props) {
   const [deletingId, setDeletingId] = useState<number | null>(null)
+  const [isConfirmModalOpen, setIsConfirmModalOpen] = useState(false)
+  const [itemToDelete, setItemToDelete] = useState<number | null>(null)
   const dropdownRef = useRef<HTMLDivElement | null>(null)
 
   const navigate = useNavigate()
@@ -63,17 +67,27 @@ export default function CartDropdown({ isOpen, onToggle, onClose }: Props) {
   }, [isOpen, onClose])
 
 
-  async function handleDeleteItem(id: number) {
+  async function handleDeleteClick(id: number) {
+    setItemToDelete(id)
+    setIsConfirmModalOpen(true)
+  }
+
+  async function handleConfirmDelete() {
+    if (!itemToDelete) return
+
     try {
-      setDeletingId(id)
-      await deleteItemCart(id)
+      setDeletingId(itemToDelete)
+      await deleteItemCart(itemToDelete)
       const res = await getCart()
       setCart(res.data)
+      toast.success("ลบสินค้าออกจากตะกร้าเรียบร้อยแล้ว")
     } catch (err) {
       console.error("Failed to delete cart item", err)
       setCartError("ลบสินค้าไม่สำเร็จ")
     } finally {
       setDeletingId(null)
+      setItemToDelete(null)
+      setIsConfirmModalOpen(false)
     }
   }
 
@@ -171,7 +185,7 @@ export default function CartDropdown({ isOpen, onToggle, onClose }: Props) {
 
                   <button
                     className="flex h-9 w-9 items-center justify-center rounded-full bg-orange-500 shadow-md shadow-orange-200 disabled:opacity-50 disabled:cursor-not-allowed"
-                    onClick={() => handleDeleteItem(item.id)}
+                    onClick={() => handleDeleteClick(item.id)}
                     disabled={deletingId === item.id}
                   >
                     <X className="h-4 w-4 text-white" />
@@ -205,6 +219,17 @@ export default function CartDropdown({ isOpen, onToggle, onClose }: Props) {
           </div>
         </div>
       )}
+      {/* Modal Confirm Delete */}
+      <ConfirmationModal
+        isOpen={isConfirmModalOpen}
+        title="ลบสินค้าออกจากตะกร้า?"
+        message="คุณต้องการลบสินค้านี้ออกจากตะกร้าใช่หรือไม่?"
+        confirmText="ลบสินค้า"
+        cancelText="ยกเลิก"
+        onConfirm={handleConfirmDelete}
+        onClose={() => setIsConfirmModalOpen(false)}
+        variant="danger"
+      />
     </div>
   )
 }
