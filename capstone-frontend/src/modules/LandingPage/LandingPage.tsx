@@ -3,6 +3,8 @@ import { useNavigate } from "react-router-dom"
 import { useTranslation } from "react-i18next"
 import CircularGallery from "../../components/CircleGallery/CircleGallery"
 import { useAuth } from "../../auth/AuthContext"
+import kmallLogo from "../../assets/kmutt.svg"
+import kmallText from "../../assets/kmutt-text.svg"
 
 const LandingPage = () => {
   const { t } = useTranslation()
@@ -25,9 +27,23 @@ const LandingPage = () => {
     <div className="h-screen w-full flex flex-col justify-center items-center">
       {/* Header */}
       <header className="flex justify-between items-center p-6 max-w-7xl w-full">
-        <div className="font-bold text-2xl bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent transition-all duration-1000">
-          KMALL
-        </div>
+         <div className="flex items-center gap-3">
+                <img
+                  src={kmallText}
+                  alt="KMALL"
+                className="h-8 w-auto"
+                />
+            <div className="w-px h-8 bg-orange-500" />
+                <img
+                    src={kmallLogo}
+                    alt="KMALL"
+                    className="h-8 w-8"
+                    style={{
+                    filter:
+                        "invert(44%) sepia(94%) saturate(3561%) hue-rotate(5deg) brightness(101%) contrast(101%)",
+                }}
+            />
+            </div>
         <button
           className="px-6 py-2 text-slate-600 font-medium transition-all duration-300 hover:underline cursor-pointer"
           onClick={() => navigate("/")}
