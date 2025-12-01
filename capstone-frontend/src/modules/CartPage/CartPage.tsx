@@ -317,23 +317,28 @@ export default function CartPage() {
               ))}
             </div>
 
-            <div className="mt-10 flex justify-end pr-2">
-              <div className="flex items-baseline gap-2 text-right">
-                <p className="text-sm text-gray-600">
-                  รวม ({totalItems} สินค้า)
-                </p>
-                <span className="text-sm text-gray-700">:</span>
-                <p className="text-xl font-semibold text-[#d73c30]">
-                  {totalPrice > 0 ? `${formatPrice(totalPrice)} บาท` : "— บาท"}
-                </p>
-              </div>
-            </div>
+
           </>
         )}
       </section>
-      <Link to="/checkout" className="text-2xl font-bold text-orange-600">
-        ยืนยันรายาการคำสั่งซื้อ
-      </Link>
+      {/* Bottom Actions */}
+      {cart && uiStores.length > 0 && (
+        <div className="mt-8 flex items-center justify-end gap-6">
+          <div className="flex items-baseline gap-2">
+            <span className="text-sm text-gray-600">รวม ({totalItems} รายการ):</span>
+            <span className="text-2xl font-bold text-orange-600">
+              {formatPrice(totalPrice)} บาท
+            </span>
+          </div>
+          
+          <Link
+            to="/checkout"
+            className="rounded-full bg-orange-500 px-8 py-3 text-base font-semibold text-white! shadow-lg shadow-orange-200 transition-all hover:bg-orange-600 "
+          >
+            ยืนยันคำสั่งซื้อ
+          </Link>
+        </div>
+      )}
 
       <ConfirmationModal
         isOpen={isDeleteModalOpen}
