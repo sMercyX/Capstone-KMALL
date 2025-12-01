@@ -66,7 +66,6 @@ func Attach(r *gin.Engine, db *pgxpool.Pool, cfg config.Config) {
 	})
 
 	// static files (รูป)
-	r.Static("/api/uploads", "./uploads")
 
 	// ===== wiring repos & services =====
 	uRepo := user.NewRepo(db)
@@ -76,7 +75,7 @@ func Attach(r *gin.Engine, db *pgxpool.Pool, cfg config.Config) {
 	uSvc := user.NewService(uRepo, rSvc)
 
 	sRepo := store.NewRepo(db)
-	sSvc := store.NewService(sRepo, uSvc)
+	sSvc := store.NewService(sRepo, uSvc, uRepo)
 
 	cRepo := category.NewRepo(db)
 	cSvc := category.NewService(cRepo)
@@ -134,6 +133,8 @@ func Attach(r *gin.Engine, db *pgxpool.Pool, cfg config.Config) {
 		)
 		log.Println("[AUTH] Using direct OIDC auth (backend verifies token)")
 	}
+
+	v1.Static("/uploads", "./uploads")
 
 	// ---- debug headers ผ่าน chain เต็ม (ต้อง login) ----
 	v1.GET("/debug/headers", func(c *gin.Context) {

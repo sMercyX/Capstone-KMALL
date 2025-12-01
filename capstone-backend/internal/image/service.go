@@ -2,7 +2,6 @@ package images
 
 import (
 	"context"
-	"net/url"
 	"strings"
 
 	apperr "github.com/Perpasit/Capstone-KMALL/internal/apperr"
@@ -42,10 +41,15 @@ func validateURLStr(value string) error {
 	if len(value) > 255 {
 		return apperr.New(apperr.BadRequest, "image_url must be at most 255 characters")
 	}
-	if _, err := url.ParseRequestURI(value); err != nil {
-		return apperr.New(apperr.BadRequest, "image_url is not a valid URL")
+
+	// อนุญาตทั้ง absolute และ relative
+	if strings.HasPrefix(value, "http://") ||
+		strings.HasPrefix(value, "https://") ||
+		strings.HasPrefix(value, "/uploads/") {
+		return nil
 	}
-	return nil
+
+	return apperr.New(apperr.BadRequest, "image_url must be absolute URL or start with /uploads/")
 }
 
 func normalizeSortOrder(n int) int {
