@@ -67,6 +67,9 @@ export interface storeResponse {
   created_at: string
   updated_at: string
 }
+export interface storeDeleteResponse {
+  deleted: "YES" | "NO"
+}
 export function useStoreApi() {
   const http = useCrudApi()
 
@@ -126,6 +129,10 @@ export function useStoreApi() {
     return http.putItem(`/api/store-images/${image_id}`, data)
   }
 
+    async function deleteStore(store_id: number): Promise<ApiResponse<storeDeleteResponse>> {
+    return http.deleteItem(`/api/stores/${store_id}`)
+  }
+
   return {
     addStore,
     getStore,
@@ -135,5 +142,6 @@ export function useStoreApi() {
     addImageStore,
     editImageStore,
     getStoreDetail,
+    deleteStore,
   }
 }
