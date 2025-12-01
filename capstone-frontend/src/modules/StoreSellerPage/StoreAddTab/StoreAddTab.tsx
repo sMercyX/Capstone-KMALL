@@ -1,3 +1,4 @@
+
 // src/pages/Store/StoreAddTab/StoreAddTab.tsx
 import { useEffect, useRef, useState } from "react"
 import {
@@ -7,6 +8,9 @@ import {
   Trash2,
 } from "lucide-react"
 import { toast } from "react-toastify"
+
+import { Input } from "../../../components/Input/Input"
+import { Textarea } from "../../../components/Input/Textarea"
 
 import { useProductApi, type AddProductRequest, type productPictureResponse } from "../../../api/productApi"
 import { useStoreStore } from "../../../stores/storeStore"
@@ -29,6 +33,9 @@ export function StoreAddTab() {
 
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  
+  // Validation state
+  const [errors, setErrors] = useState<{ name?: boolean; price?: boolean; category?: boolean; description?: boolean; images?: boolean }>({})
 
   // ----- categories state -----
   const [categories, setCategories] = useState<CatagoriesResponse[]>([])
@@ -141,6 +148,7 @@ export function StoreAddTab() {
 
       if (index === mainIndex) {
         setMainIndex(0)
+        return next
       } else if (index < mainIndex) {
         setMainIndex((prevMain) => prevMain - 1)
       }
@@ -161,25 +169,49 @@ export function StoreAddTab() {
   // ---------- submit product ----------
   const handleSave = async () => {
     setError(null)
+    setErrors({}) // Reset errors
 
     if (!store?.id) {
       setError("ไม่พบร้านของคุณ กรุณารีเฟรชหน้า")
       return
     }
 
+    const newErrors: { name?: boolean; price?: boolean; category?: boolean; description?: boolean; images?: boolean } = {}
+    let hasError = false
+
     if (!name.trim()) {
-      setError("กรุณากรอกชื่อสินค้า")
-      return
+      newErrors.name = true
+      hasError = true
+      toast.error("กรุณากรอกชื่อสินค้า")
+    }
+
+    if (!description.trim()) {
+      newErrors.description = true
+      hasError = true
+      toast.error("กรุณากรอกคำอธิบายสินค้า")
     }
 
     const priceNumber = Number(price)
     if (Number.isNaN(priceNumber) || priceNumber <= 0) {
-      setError("กรุณากรอกราคาให้ถูกต้อง")
-      return
+      newErrors.price = true
+      hasError = true
+      toast.error("กรุณากรอกราคาให้ถูกต้อง")
     }
 
     if (!categoryId) {
-      setError("กรุณาเลือกหมวดหมู่สินค้า")
+      newErrors.category = true
+      hasError = true
+      toast.error("กรุณาเลือกหมวดหมู่สินค้า")
+    }
+
+    if (images.length === 0) {
+      newErrors.images = true
+      hasError = true
+      toast.error("กรุณาเพิ่มรูปภาพสินค้าอย่างน้อย 1 รูป")
+    }
+
+    if (hasError) {
+      setErrors(newErrors)
       return
     }
 
@@ -239,7 +271,9 @@ export function StoreAddTab() {
     <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
       {/* ===== LEFT: IMAGES ===== */}
       <div>
-        <div className="w-full aspect-square rounded-2xl bg-[#f8f8f8] border border-gray-200 flex items-center justify-center overflow-hidden">
+        <div className={`w-full aspect-square rounded-2xl bg-[#f8f8f8] border flex items-center justify-center overflow-hidden ${
+          errors.images ? "border-red-500" : "border-gray-200"
+        }`}>
           {mainImage ? (
             <img
               src={mainImage}
@@ -336,43 +370,31 @@ export function StoreAddTab() {
       {/* ===== RIGHT: FORM ===== */}
       <div className="flex flex-col justify-between">
         <div className="space-y-5">
-          <div>
-            <label className="block mb-1 text-sm font-semibold text-gray-800">
-              ชื่อสินค้า
-            </label>
-            <input
-              type="text"
-              placeholder="Product Name"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400"
-            />
-          </div>
+          <Input
+            label="ชื่อสินค้า"
+            placeholder="Product Name"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            error={errors.name}
+          />
 
-          <div>
-            <label className="block mb-1 text-sm font-semibold text-gray-800">
-              คำอธิบายสินค้า
-            </label>
-            <textarea
-              placeholder="Product Description"
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm h-28 resize-none focus:outline-none focus:ring-2 focus:ring-orange-400"
-            />
-          </div>
+          <Textarea
+            label="คำอธิบายสินค้า"
+            placeholder="Product Description"
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            className="h-28"
+            error={errors.description}
+          />
 
-          <div>
-            <label className="block mb-1 text-sm font-semibold text-gray-800">
-              ราคา
-            </label>
-            <input
-              type="number"
-              placeholder="Price"
-              value={price}
-              onChange={(e) => setPrice(e.target.value)}
-              className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400"
-            />
-          </div>
+          <Input
+            label="ราคา"
+            type="number"
+            placeholder="Price"
+            value={price}
+            onChange={(e) => setPrice(e.target.value)}
+            error={errors.price}
+          />
 
           {/* ===== หมวดหมู่ จาก API ===== */}
           <div>
@@ -383,7 +405,11 @@ export function StoreAddTab() {
               value={categoryId || ""}
               onChange={(e) => setCategoryId(Number(e.target.value))}
               disabled={loadingCategories || categories.length === 0}
-              className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 disabled:bg-gray-100 disabled:text-gray-400"
+              className={`w-full rounded-lg border px-3 py-2.5 text-sm focus:outline-none focus:ring-2 disabled:bg-gray-100 disabled:text-gray-400 bg-white ${
+                errors.category
+                  ? "border-red-500 focus:ring-red-400"
+                  : "border-gray-300  focus:ring-orange-400"
+              }`}
             >
               {loadingCategories && (
                 <option value="">กำลังโหลดหมวดหมู่...</option>
