@@ -47,15 +47,13 @@ export default function StoreOrdersTab() {
   } = useStoreOrderStore();
 
   const { getOrdersSellerByStatus } = useOrderSellerApi();
-  const { store, fetchStore } = useStoreStore();
+  const { store } = useStoreStore();
   const location = useLocation();
   const pathname = location.pathname;
 
   const activeKey = getActiveKeyFromPath(pathname);
 
-  useEffect(() => {
-    fetchStore();
-  }, [fetchStore]);
+ 
 
   useEffect(() => {
     if (!store?.id) return;

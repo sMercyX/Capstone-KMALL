@@ -1,5 +1,5 @@
 // src/pages/cart/CartPage.tsx
-import { useEffect } from "react"
+import { useEffect, useState } from "react"
 import {
   Heart,
   Minus,
@@ -11,6 +11,7 @@ import {
 import { useCartStore } from "../../stores/cartStore"
 import { useCartApi } from "../../api/cartApi"
 import { Link } from "react-router-dom"
+import ConfirmationModal from "../../components/Modal/ConfirmationModal"
 
 type CartItem = {
   id: number
@@ -50,9 +51,11 @@ function ToggleIcon({ checked }: { checked: boolean }) {
 function CartItemRow({
   item,
   onDelete,
+  onUpdateQuantity,
 }: {
   item: CartItem
   onDelete: (id: number) => void
+  onUpdateQuantity: (id: number, newQty: number) => void
 }) {
   return (
     <div className="flex items-center justify-between gap-4 py-4">
@@ -77,13 +80,19 @@ function CartItemRow({
 
       <div className="flex items-center justify-center">
         <div className="inline-flex items-center overflow-hidden rounded-full border border-gray-200 bg-white shadow-[0_3px_10px_rgba(0,0,0,0.12)]">
-          <button className="px-3 py-1.5 text-gray-500 hover:bg-gray-50 hover:text-[#f15a24]">
+          <button 
+            onClick={() => onUpdateQuantity(item.id, item.quantity - 1)}
+            className="px-3 py-1.5 text-gray-500 hover:bg-gray-50 hover:text-[#f15a24]"
+          >
             <Minus className="h-4 w-4" />
           </button>
           <span className="px-5 text-sm font-semibold text-gray-900">
             {item.quantity}
           </span>
-          <button className="px-3 py-1.5 text-gray-500 hover:bg-gray-50 hover:text-[#f15a24]">
+          <button 
+            onClick={() => onUpdateQuantity(item.id, item.quantity + 1)}
+            className="px-3 py-1.5 text-gray-500 hover:bg-gray-50 hover:text-[#f15a24]"
+          >
             <Plus className="h-4 w-4" />
           </button>
         </div>
@@ -112,9 +121,11 @@ function CartItemRow({
 function CartStoreBlock({
   store,
   onDeleteItem,
+  onUpdateQuantity,
 }: {
   store: CartStore
   onDeleteItem: (id: number) => void
+  onUpdateQuantity: (id: number, newQty: number) => void
 }) {
   const totalItems = store.items.reduce((sum, item) => sum + item.quantity, 0)
 
@@ -133,7 +144,12 @@ function CartStoreBlock({
 
       <div className="space-y-2">
         {store.items.map((item) => (
-          <CartItemRow key={item.id} item={item} onDelete={onDeleteItem} />
+          <CartItemRow 
+            key={item.id} 
+            item={item} 
+            onDelete={onDeleteItem} 
+            onUpdateQuantity={onUpdateQuantity}
+          />
         ))}
       </div>
     </div>
@@ -141,9 +157,12 @@ function CartStoreBlock({
 }
 
 export default function CartPage() {
-  const { getCart, deleteItemCart } = useCartApi()
+  const { getCart, deleteItemCart, updateCart } = useCartApi()
   const { cart, isLoading, error, startLoading, setCart, setError } =
     useCartStore()
+
+  const [deleteId, setDeleteId] = useState<number | null>(null)
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false)
 
   useEffect(() => {
     let cancelled = false
@@ -171,14 +190,39 @@ export default function CartPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  async function handleDeleteItem(id: number) {
+  function handleDeleteClick(id: number) {
+    setDeleteId(id)
+    setIsDeleteModalOpen(true)
+  }
+
+  async function confirmDelete() {
+    if (!deleteId) return
     try {
-      await deleteItemCart(id)
+      await deleteItemCart(deleteId)
+      const res = await getCart()
+      setCart(res.data)
+      setIsDeleteModalOpen(false)
+      setDeleteId(null)
+    } catch (err) {
+      console.error(err)
+      setError("ลบสินค้าไม่สำเร็จ")
+    }
+  }
+
+  async function handleUpdateQuantity(id: number, newQty: number) {
+    if (newQty === 0) {
+      handleDeleteClick(id)
+      return
+    }
+    if (newQty < 0) return
+
+    try {
+      await updateCart(id, { quantity: newQty })
       const res = await getCart()
       setCart(res.data)
     } catch (err) {
       console.error(err)
-      setError("ลบสินค้าไม่สำเร็จ")
+      setError("อัปเดตจำนวนไม่สำเร็จ")
     }
   }
 
@@ -267,7 +311,8 @@ export default function CartPage() {
                 <CartStoreBlock
                   key={store.id}
                   store={store}
-                  onDeleteItem={handleDeleteItem}
+                  onDeleteItem={handleDeleteClick}
+                  onUpdateQuantity={handleUpdateQuantity}
                 />
               ))}
             </div>
@@ -289,6 +334,17 @@ export default function CartPage() {
       <Link to="/checkout" className="text-2xl font-bold text-orange-600">
         ยืนยันรายาการคำสั่งซื้อ
       </Link>
+
+      <ConfirmationModal
+        isOpen={isDeleteModalOpen}
+        onClose={() => setIsDeleteModalOpen(false)}
+        onConfirm={confirmDelete}
+        title="ยืนยันการลบสินค้า"
+        message="คุณต้องการลบสินค้านี้ออกจากตะกร้าใช่หรือไม่?"
+        confirmText="ลบสินค้า"
+        cancelText="ยกเลิก"
+        variant="danger"
+      />
     </div>
   )
 }

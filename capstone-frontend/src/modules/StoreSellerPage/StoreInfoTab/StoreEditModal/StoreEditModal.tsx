@@ -1,5 +1,8 @@
+// src/components/Store/StoreEditModal.tsx
 import { useEffect, useState } from "react"
 import { Info, Upload, X } from "lucide-react"
+import * as yup from "yup"
+import { toast } from "react-toastify"
 
 export type StoreEditForm = {
   name: string
@@ -13,8 +16,23 @@ interface StoreEditModalProps {
   initialDescription: string
   initialProfileUrl: string
   onClose: () => void
-  onSubmit: (data: StoreEditForm) => void | Promise<void>
+  // ส่งทั้ง data + logoFile ออกไปให้ parent จัดการ
+  onSubmit: (data: StoreEditForm, file: File | null) => void | Promise<void>
 }
+
+// ✅ schema สำหรับแก้ไขร้าน: ชื่อ ≤ 100 ตัวอักษร, คำอธิบาย ≤ 255 ตัวอักษร
+const storeEditSchema = yup.object({
+  name: yup
+    .string()
+    .trim()
+    .required("กรุณากรอกชื่อร้าน")
+    .max(100, "ชื่อร้านต้องไม่เกิน 100 ตัวอักษร"),
+  description: yup
+    .string()
+    .trim()
+    .required("กรุณากรอกคำอธิบายร้าน")
+    .max(255, "คำอธิบายร้านต้องไม่เกิน 255 ตัวอักษร"),
+})
 
 export default function StoreEditModal({
   isOpen,
@@ -28,6 +46,7 @@ export default function StoreEditModal({
   const [description, setDescription] = useState("")
   const [profileUrl, setProfileUrl] = useState("")
   const [fileName, setFileName] = useState("ยังไม่ได้เลือกไฟล์")
+  const [logoFile, setLogoFile] = useState<File | null>(null)
 
   // lock scroll ตอน modal เปิด
   useEffect(() => {
@@ -39,36 +58,65 @@ export default function StoreEditModal({
     }
   }, [isOpen])
 
-  // sync ค่าเริ่มต้น
+  // sync ค่าเริ่มต้นทุกครั้งที่เปิด modal
   useEffect(() => {
     if (!isOpen) return
     setName(initialName || "")
     setDescription(initialDescription || "")
     setProfileUrl(initialProfileUrl || "")
     setFileName(initialProfileUrl || "ยังไม่ได้เลือกไฟล์")
+    setLogoFile(null)
   }, [isOpen, initialName, initialDescription, initialProfileUrl])
 
   function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
-    if (file) {
-      setFileName(file.name)
-      // TODO: เปลี่ยนเป็น URL จากระบบอัปโหลด
-      setProfileUrl(file.name)
-    } else {
+
+    if (!file) {
+      setLogoFile(null)
       setFileName("ยังไม่ได้เลือกไฟล์")
-      setProfileUrl("")
+      return
     }
+
+    // ✅ รับเฉพาะไฟล์ภาพ
+    if (!file.type.startsWith("image/")) {
+      toast.error("กรุณาอัปโหลดเฉพาะไฟล์รูปภาพ")
+      e.target.value = ""
+      setLogoFile(null)
+      setFileName("ยังไม่ได้เลือกไฟล์")
+      return
+    }
+
+    setLogoFile(file)
+    setFileName(file.name)
   }
 
-  // 👇 อันนี้คือ handler ที่ผูกกับ form โดยตรง
+  // ✅ handler form + validate ด้วย Yup + แจ้ง error ด้วย toast
   async function handleFormSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
 
-    await onSubmit({
-      name: name.trim(),
-      description: description.trim(),
-      profile_url: profileUrl,
-    })
+    try {
+      await storeEditSchema.validate(
+        { name, description },
+        { abortEarly: false }
+      )
+    } catch (err) {
+      if (err instanceof yup.ValidationError) {
+        const msg = err.errors[0] ?? "กรุณาตรวจสอบข้อมูลให้ถูกต้อง"
+        toast.error(msg)
+      } else {
+        toast.error("ข้อมูลไม่ถูกต้อง กรุณาลองใหม่อีกครั้ง")
+      }
+      return
+    }
+
+    await onSubmit(
+      {
+        name: name.trim(),
+        description: description.trim(),
+        profile_url: profileUrl,
+      },
+      logoFile
+    )
   }
 
   if (!isOpen) return null
@@ -92,7 +140,6 @@ export default function StoreEditModal({
             แก้ไขข้อมูลร้านค้า
           </h2>
 
-          {/* ✅ ผูกกับ handler ที่รับ FormEvent */}
           <form onSubmit={handleFormSubmit} className="space-y-6">
             {/* ชื่อร้าน */}
             <div className="space-y-1">
@@ -104,8 +151,12 @@ export default function StoreEditModal({
                 type="text"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
+                maxLength={100}
                 className="w-full rounded-xl border px-4 py-2 focus:outline-none focus:ring-2 focus:ring-orange-500"
               />
+              <p className="text-xs text-gray-500 text-right">
+                {name.length} / 100 ตัวอักษร
+              </p>
             </div>
 
             {/* คำอธิบายร้าน */}
@@ -118,8 +169,12 @@ export default function StoreEditModal({
                 rows={3}
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
+                maxLength={255}
                 className="w-full rounded-xl border px-4 py-2 focus:outline-none focus:ring-2 focus:ring-orange-500 resize-none"
               />
+              <p className="text-xs text-gray-500 text-right">
+                {description.length} / 255 ตัวอักษร
+              </p>
             </div>
 
             {/* โลโก้ร้าน */}
@@ -131,10 +186,12 @@ export default function StoreEditModal({
 
               <label className="flex flex-col items-center justify-center cursor-pointer border border-dashed rounded-xl py-6 hover:bg-gray-50 transition">
                 <Upload className="h-6 w-6 text-gray-500" />
-                <span className="mt-1 text-sm text-gray-600">Upload Files</span>
+                <span className="mt-1 text-sm text-gray-600">Upload Image</span>
                 <input
                   type="file"
                   className="hidden"
+                  accept="image/*"   // ✅ เฉพาะไฟล์ภาพ
+                  multiple={false}   // ✅ เลือกได้รูปเดียว
                   onChange={handleFileChange}
                 />
               </label>

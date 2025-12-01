@@ -1,6 +1,6 @@
 // api/productApi.ts
 import { useCrudApi } from "../utils/fetch"
-import type { ApiCreateResponse, PaginatedResponse } from "./responseType"
+import type { ApiCreateResponse, ApiUpdatedResponse, PaginatedResponse, ApiResponse } from "./responseType"
 
 export type CategoryType = "food" | "clothing" | "handmade-products"
 
@@ -21,12 +21,6 @@ export type CategoryType = "food" | "clothing" | "handmade-products"
 //   badge?: string
 //   category?: string
 // }
-export interface ProductImage {
-  product_image_id: number
-  image_url: string
-  sort_order: number
-  is_primary: boolean
-}
 
 export interface Product {
   id: number
@@ -38,9 +32,8 @@ export interface Product {
   updated_at: string
   is_active: "YES" | "NO"
   store_id: number
+  store_name: string
   category_id: number
-
-  images?: ProductImage[]
 }
 export interface AddProductRequest {
   name: string
@@ -56,6 +49,30 @@ export type ProductListResponse = PaginatedResponse<Product>
 
 export type CategoryListResponse = PaginatedResponse<Product>
 
+export interface productPictureResponse {
+  id: number
+  product_id: number
+  image_url: string
+  sort_order: number
+  is_primary: boolean
+  created_at: string
+  updated_at: string
+}
+
+export interface productPictureEditRequest {
+  is_primary: boolean
+}
+
+export interface EditProductRequest {
+  name: string
+  description: string
+  price: number
+  image_url: string
+  is_active: "YES" | "NO"
+  category_id: number
+}
+
+
 export function useProductApi() {
   const http = useCrudApi()
 
@@ -63,50 +80,120 @@ export function useProductApi() {
     category: CategoryType,
     pageIndex: number,
     limit: number,
-    categoryId: number
+    categoryId: number,
+    price: string
   ): Promise<ProductListResponse> {
     const q = encodeURIComponent(category)
 
     return http.getItems(
-      `/products/public?q=${q}&category_id=${categoryId}&page=${pageIndex}&limit=${limit}`
+      `/api/products/public?q=${q}&category_id=${categoryId}&page=${pageIndex}&limit=${limit}&price=${price}  `
     )
   }
 
   async function getProductBySlug(slug: string) {
-    return http.getItems(`/products/public/${slug}`)
+    return http.getItems(`/api/products/public/${slug}`)
   }
 
   async function getProductsByStore(storeId: number) {
-    return http.getItems(`/products/public?store_id=${storeId}`)
+    return http.getItems(`/api/products/public?store_id=${storeId}`)
   }
-  
+
   async function getProductsByParentId(
     categoryId: number,
+    limit: number,
+    pageIndex: number,
+    price?: string,
+    categoryIds?: number[]
+  ): Promise<CategoryListResponse> {
+    let url = `/api/products/public?parent_category_id=${categoryId}&limit=${limit}&page=${pageIndex}`
+    if (price) {
+      url += `&price=${price}`
+    }
+    if (categoryIds && categoryIds.length > 0) {
+      categoryIds.forEach((id) => {
+        url += `&category_id=${id}`
+      })
+    }
+    return http.getItems(url)
+  }
+  async function getProductsStoreByStoreId(
+    storeId: number,
     limit: number,
     pageIndex: number
   ): Promise<CategoryListResponse> {
     return http.getItems(
-      `/products/public?parent_category_id=${categoryId}&limit=${limit}&page=${pageIndex}`
+      `/api/products/public?store_id=${storeId}&limit=${limit}&page=${pageIndex}`
     )
   }
-  
+
   async function addProduct(
     data: AddProductRequest
   ): Promise<ApiCreateResponse<Product>> {
-    return http.postItem(`/products`, data)
+    return http.postItem(`/api/products`, data)
   }
 
-  async function getProduct(storeId: number) {
-    return http.getItems(`/products/${storeId}/public`)
+  async function getProduct(store_id: number) {
+    return http.getItems(`/api/products/${store_id}/public`)
+  }
+  
+  async function editProduct(
+    product_id: number,
+    data: EditProductRequest
+  ): Promise<ApiUpdatedResponse<Product>> {
+    return http.putItem(`/api/products/${product_id}`, data)
+  }
+  
+  async function deleteProduct(product_id: number) {
+    return http.deleteItem(`/api/products/${product_id}`)
   }
 
+  async function addImageProduct(
+    product_id: number,
+    files: File[]
+  ): Promise<ApiCreateResponse<productPictureResponse[]>> {
+    const formData = new FormData()
+    files.forEach((file) => {
+      formData.append("file", file)
+    })
+    return http.postItem(
+      `/api/products/${product_id}/images/upload`,
+      formData 
+    )
+  }
+
+  async function editImageProduct(
+    image_id: number,
+    data: productPictureEditRequest
+  ): Promise<ApiUpdatedResponse<productPictureResponse>> {
+    return http.putItem(`/api/product-images/${image_id}`, data)
+  }
+
+  async function getProductImage(
+    productId: number
+  ): Promise<ApiResponse<productPictureResponse[]>> {
+    return http.getItems(`/api/products/${productId}/images`)
+  }
+
+  async function deleteProductImage(
+    imageId: number
+  ): Promise<ApiResponse<any>> {
+    return http.deleteItem(`/api/product-images/${imageId}`)
+  }
+  
 
   return {
     getProductsByCategory,
     getProductBySlug,
     getProductsByStore,
     getProductsByParentId,
+    getProductsStoreByStoreId,
     addProduct,
-    getProduct
+    getProduct,
+    editProduct,
+    deleteProduct,
+    addImageProduct,
+    editImageProduct,
+    getProductImage,
+    deleteProductImage,
   }
 }

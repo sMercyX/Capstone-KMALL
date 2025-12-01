@@ -9,6 +9,7 @@ import StoreSettingsTab from "./StoreSettingTab"
 import { StoreAddTab } from "./StoreAddTab/StoreAddTab"
 import StoreProductsTab from "./StoreProductsTab/StoreProductsTab"
 import { useUserStore } from "../../stores/userStore"
+import { useStoreStore } from "../../stores/storeStore"
 import { useEffect } from "react"
 
 type StoreTabKey = "store" | "products" | "add" | "orders" | "settings"
@@ -42,11 +43,20 @@ export default function StorePage() {
   // 🔒 ถ้ามี role seller อยู่แล้ว ห้ามเข้าหน้านี้ → เด้งไป /store/me
   const hasSellerRole = !roles?.some((r) => r.toLowerCase() === "seller")
 
+  const { store, fetchStore } = useStoreStore()
+
   useEffect(() => {
     if (hasSellerRole) {
       navigate("/store/register", { replace: true })
     }
   }, [hasSellerRole, navigate])
+
+  // Fetch store if not loaded
+  useEffect(() => {
+    if (!store?.id) {
+      fetchStore()
+    }
+  }, [store?.id, fetchStore])
 
   return (
     <div className="max-w-6xl mx-auto py-10">

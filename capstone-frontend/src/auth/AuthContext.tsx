@@ -130,6 +130,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   }
 
   const logout = () => {
+
     console.log("[AUTH] logoutRedirect() called")
     setUser(null)
     clearUserStore()
@@ -139,6 +140,17 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     msalInstance.logoutRedirect().catch((e) => {
       console.error("logoutRedirect error:", e)
     })
+
+    // const appLogout = import.meta.env.VITE_AUTH_LOGOUT
+    // const msLogout = import.meta.env.VITE_MS_LOGOUT
+    // const feBase = import.meta.env.VITE_FE_BASE
+
+    // if (appLogout && msLogout && feBase) {
+    //   window.location.assign(`${appLogout}?rd=${feBase}`)
+    // } else {
+    //   window.location.assign(`${appLogout}?rd=${feBase}`)
+    // }
+
   }
 
   const hasRole = (...roles: string[]) => {
