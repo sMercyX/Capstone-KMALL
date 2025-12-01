@@ -224,7 +224,7 @@ export default function StoreOrderDetailPage() {
         {order && !loading && !error && (
           <>
             {/* 2 คอลัมน์ */}
-            <div className=" gap-4 mb-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
               {/* ซ้าย */}
               <div className="space-y-4">
                 <div className="rounded-2xl bg-white px-4 py-3 min-h-[96px]">
@@ -253,12 +253,12 @@ export default function StoreOrderDetailPage() {
               </div>
 
               {/* ขวา */}
-              {/* <div>
+              <div>
                 <div className="rounded-2xl bg-white px-4 py-3 min-h-[180px]">
                   <p className="font-semibold mb-1">จุดนัดรับ</p>
                   <p className="text-sm text-gray-700">LX ชั้น 1</p>
                 </div>
-              </div> */}
+              </div>
             </div>
 
             {/* ปุ่ม Reject / Accept */}

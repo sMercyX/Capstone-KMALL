@@ -12,8 +12,6 @@
   "dependencies": {
     "@azure/msal-browser": "^4.26.2",
     "@tailwindcss/vite": "^4.1.11",
-    "axios": "^1.13.2",
-    "date-fns": "^4.1.0",
     "i18next": "^25.3.4",
     "jwt-decode": "^4.0.0",
     "lucide-react": "^0.553.0",

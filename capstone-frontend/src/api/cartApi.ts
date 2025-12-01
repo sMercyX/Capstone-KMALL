@@ -3,22 +3,18 @@ import { useCrudApi } from "../utils/fetch"
 import type {
   ApiCreateResponse,
   ApiResponse,
-  ApiUpdatedResponse,
 } from "./responseType"
 
 export interface cartRequset {
   product_id: number
   quantity: number
 }
-export interface cartUpdatedRequset {
-  quantity: number
-}
-export interface cartUpdatedResponse {
-  id: number
-  cart_id: number
-  product_id: number
-  quantity: number
-}
+// export interface cartResponse {
+//   id: number
+//   cart_id: number
+//   product_id: number
+//   quantity: number
+// }
 export interface cartResponse {
   cart_id: number
   id: number
@@ -59,19 +55,13 @@ export function useCartApi() {
   ): Promise<ApiCreateResponse<cartResponse>> {
     return http.postItem(`/cart/items`, data)
   }
-  
+
   async function getCart(): Promise<ApiResponse<PaginatedCartData>> {
     return http.getItems(`/cart`)
   }
   async function deleteItemCart(item_id:number): Promise<ApiResponse<deleteItemResponse>> {
     return http.deleteItem(`/cart/items/${item_id}`)
   }
-  async function updateCart(
-    product_id:number,
-    data: cartUpdatedRequset
-  ): Promise<ApiUpdatedResponse<cartUpdatedResponse>> {
-    return http.putItem(`/api/cart/items/${product_id}`, data)
-  }
 
-  return { addCart, getCart, deleteItemCart, updateCart }
+  return { addCart, getCart, deleteItemCart }
 }

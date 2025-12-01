@@ -40,14 +40,11 @@ const contextMap: Record<OrderTabKey, OrderStatusContext> = {
 
 function OrderListHeader() {
   return (
-    <div className="flex items-center gap-6 px-6 pb-3 text-center text-xs md:text-sm font-medium text-gray-500">
-      <div className="w-14 flex-shrink-0"></div>
-      <div className="flex-1 grid grid-cols-4">
-        <span>หมายเลขคำสั่งซื้อ</span>
-        <span>วันที่สั่งซื้อ</span>
-        <span>ยอดรวมทั้งหมด</span>
-        <span>สถานะคำสั่งซื้อ</span>
-      </div>
+    <div className="grid grid-cols-4 px-6 pb-3 text-center text-xs md:text-sm font-medium text-gray-500">
+      <span>หมายเลขคำสั่งซื้อ</span>
+      <span>วันที่สั่งซื้อ</span>
+      <span>ยอดรวมทั้งหมด</span>
+      <span>สถานะคำสั่งซื้อ</span>
     </div>
   )
 }
@@ -121,19 +118,17 @@ export default function OrderPage() {
         </p>
       </div>
 
-      <div className="border-b border-gray-200 mb-6"></div>
-
       <div className="space-y-3">
         <OrderListHeader />
 
         {isLoading && (
-          <p className="text-center text-sm text-gray-500 mt-6">กำลังโหลด...</p>
+          <p className="text-center text-sm text-gray-500">กำลังโหลด...</p>
         )}
 
-        {error && <p className="text-center text-sm text-red-500 mt-6">{error}</p>}
+        {error && <p className="text-center text-sm text-red-500">{error}</p>}
 
         {!isLoading && !error && orders.length === 0 && (
-          <p className="text-center text-sm text-gray-500 mt-6">
+          <p className="text-center text-sm text-gray-500">
             ยังไม่มีคำสั่งซื้อในหมวดนี้
           </p>
         )}

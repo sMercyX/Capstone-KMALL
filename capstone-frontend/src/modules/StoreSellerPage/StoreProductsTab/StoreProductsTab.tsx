@@ -1,37 +1,28 @@
-import { useEffect, useState } from "react"
+// src/pages/Store/StoreProductsTab/StoreProductsTab.tsx
+import { useEffect } from "react"
 import { Pencil, Trash2 } from "lucide-react"
 import Pagination from "../../../components/Pagination/Pagination"
-import { useProductApi } from "../../../api/productApi"
-import { useStoreApi, type storeProductDataRequset } from "../../../api/storeApi"
+import { useStoreApi } from "../../../api/storeApi"
 import { useStoreStore } from "../../../stores/storeStore"
 import { useStoreProductStore } from "./storeProductStore"
-import StoreEditProductModal from "./StoreEditProductModal"
-import ConfirmationModal from "../../../components/Modal/ConfirmationModal"
 
 export default function StoreProductsTab() {
   const { getStoreProducts } = useStoreApi()
-  const store = useStoreStore((s) => s.store)
+  const { store } = useStoreStore() // ต้องมี store.id จาก /api/stores/me
 
   const {
     items,
-    total,
     pageIndex,
     pageSize,
+    total,
     isLoading,
     error,
-    setPageData,
     setPageIndex,
     startLoading,
+    setPageData,
     setError,
     reset,
   } = useStoreProductStore()
-
-  const [isEditOpen, setIsEditOpen] = useState(false)
-  const [editProduct, setEditProduct] = useState<storeProductDataRequset | null>(
-    null
-  )
-
-  const [refreshKey, setRefreshKey] = useState(0)
 
   // เปลี่ยนร้าน → รีเซ็ต pagination
   useEffect(() => {
@@ -70,83 +61,21 @@ export default function StoreProductsTab() {
     // ❗ อย่าใส่ getStoreProducts / startLoading / setPageData / setError
     //    เพราะเป็นฟังก์ชันจาก hook ที่ reference เปลี่ยนทุก render
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [store?.id, pageIndex, pageSize, refreshKey])
+  }, [store?.id, pageIndex, pageSize])
 
   const totalPages = Math.max(1, Math.ceil(total / pageSize))
 
-  const { editProduct: updateProduct, deleteProduct } = useProductApi()
-
-  const toggleActive = async (id: number, current: "YES" | "NO") => {
-    const product = items.find((p) => p.id === id)
-    if (!product) return
-
-    const newStatus = current === "YES" ? "NO" : "YES"
-
-    try {
-      // Optimistic update
-      const nextItems = items.map((p) =>
-        p.id === id ? { ...p, is_active: newStatus } : p
-      )
-      setPageData({
-        items: nextItems,
-        pageIndex,
-        pageSize,
-        total,
-      })
-
-      await updateProduct(id, {
-        name: product.name!,
-        description: product.description!,
-        price: product.price!,
-        image_url: product.image_url!,
-        category_id: Number(product.category_id),
-        is_active: newStatus,
-      })
-    } catch (err) {
-      console.error("Failed to toggle active status:", err)
-      // Revert on error
-      const revertedItems = items.map((p) =>
-        p.id === id ? { ...p, is_active: current } : p
-      )
-      setPageData({
-        items: revertedItems,
-        pageIndex,
-        pageSize,
-        total,
-      })
-    }
+  const toggleActive = (id: number, current: "YES" | "NO") => {
+    // TODO: ไว้ต่อ API เปลี่ยน is_active ทีหลัง
+    console.log("toggle active", id, current)
   }
 
-  const handleOpenEdit = (product: storeProductDataRequset) => {
-    setEditProduct(product)
-    setIsEditOpen(true)
+  const handleEdit = (id: number) => {
+    console.log("edit product", id)
   }
 
-  const handleCloseEdit = () => {
-    setIsEditOpen(false)
-    setEditProduct(null)
-  }
-
-  const handleEditSuccess = () => {
-    setRefreshKey((prev) => prev + 1)
-  }
-
-  const [deleteId, setDeleteId] = useState<number | null>(null)
-
-  const handleDeleteClick = (id: number) => {
-    setDeleteId(id)
-  }
-
-  const handleConfirmDelete = async () => {
-    if (!deleteId) return
-    try {
-      await deleteProduct(deleteId)
-      setRefreshKey((prev) => prev + 1)
-      setDeleteId(null)
-    } catch (err) {
-      console.error("Failed to delete product:", err)
-      alert("ลบสินค้าไม่สำเร็จ กรุณาลองใหม่")
-    }
+  const handleDelete = (id: number) => {
+    console.log("delete product", id)
   }
 
   return (
@@ -179,23 +108,14 @@ export default function StoreProductsTab() {
               >
                 {/* รูป + รายละเอียด */}
                 <div className="flex items-start gap-4">
-                  {/* <img
+                  <img
                     src={
                       product.image_url ||
                       "https://via.placeholder.com/150?text=Product"
                     }
                     alt={product.name}
                     className="w-20 h-20 md:w-24 md:h-24 rounded-lg object-cover flex-shrink-0"
-                  /> */}
-                  <img
-            src={
-              product.image_url
-                ? `http://localhost:8000${product.image_url}`
-                : "/images/default-store.png"
-            }
-            alt={product.name}
-            className="w-20 h-20 md:w-24 md:h-24 rounded-lg object-cover flex-shrink-0"
-          />
+                  />
 
                   <div className="space-y-1">
                     <p className="font-semibold text-sm md:text-base">
@@ -214,13 +134,13 @@ export default function StoreProductsTab() {
                 <div className="flex items-center justify-between md:justify-end gap-6 md:min-w-[220px]">
                   <div className="flex items-center gap-3">
                     <button
-                      onClick={() => handleOpenEdit(product)}
+                      onClick={() => handleEdit(product.id)}
                       className="w-9 h-9 rounded-full bg-gray-100 flex items-center justify-center hover:bg-gray-200"
                     >
                       <Pencil className="w-4 h-4 text-gray-700" />
                     </button>
                     <button
-                      onClick={() => handleDeleteClick(product.id)}
+                      onClick={() => handleDelete(product.id)}
                       className="w-9 h-9 rounded-full bg-gray-100 flex items-center justify-center hover:bg-red-100"
                     >
                       <Trash2 className="w-4 h-4 text-gray-700" />
@@ -264,25 +184,6 @@ export default function StoreProductsTab() {
         totalPages={totalPages}
         onPageChange={setPageIndex}
         className="mt-6"
-      />
-
-      {isEditOpen && editProduct && (
-        <StoreEditProductModal
-          isOpen={isEditOpen}
-          onClose={handleCloseEdit}
-          product={editProduct}
-          onSuccess={handleEditSuccess}
-        />
-      )}
-
-      <ConfirmationModal
-        isOpen={!!deleteId}
-        onClose={() => setDeleteId(null)}
-        onConfirm={handleConfirmDelete}
-        title="ยืนยันการลบสินค้า"
-        message="คุณต้องการลบสินค้านี้ใช่หรือไม่? การกระทำนี้ไม่สามารถเรียกคืนได้"
-        confirmText="ลบสินค้า"
-        variant="danger"
       />
     </>
   )

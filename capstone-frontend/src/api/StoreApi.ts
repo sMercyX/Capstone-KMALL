@@ -45,31 +45,6 @@ export interface storeProductDataRequset {
   category_id: string
 }
 
-export interface storePictureResponse {
-  id: number
-  store_id: number
-  image_url: string
-  sort_order: number
-  is_primary: boolean
-  created_at: string
-  updated_at: string
-}
-export interface storePictureEditRequest {
-  is_primary: boolean
-}
-export interface storeResponse {
-  id: number
-  name: string
-  description: string
-  is_active: "YES" | "NO"
-  user_id: string
-  profile_url: string
-  created_at: string
-  updated_at: string
-}
-export interface storeDeleteResponse {
-  deleted: "YES" | "NO"
-}
 export function useStoreApi() {
   const http = useCrudApi()
 
@@ -81,10 +56,6 @@ export function useStoreApi() {
 
   async function getStore(): Promise<ApiResponse<addStoreData>> {
     return http.getItems(`/stores/me`)
-  }
-  
-  async function getStoreDetail(store_id: number): Promise<ApiResponse<storeResponse>> {
-    return http.getItems(`/api/stores/${store_id}/public`)
   }
 
   async function updateStore(
@@ -104,44 +75,5 @@ export function useStoreApi() {
     )
   }
 
-  async function getImageStore(
-    storeId: number
-  ): Promise<ApiResponse<storePictureResponse>> {
-    return http.getItems(`/api/stores/${storeId}/images`)
-  }
-
-  async function addImageStore(
-    store_id: number,
-    file: File
-  ): Promise<ApiCreateResponse<storePictureResponse>> {
-    const formData = new FormData()
-    formData.append("file", file)
-    return http.postItem(
-      `/api/stores/${store_id}/images/upload`,
-      formData as any
-    )
-  }
-
-  async function editImageStore(
-    image_id: number,
-    data: storePictureEditRequest
-  ): Promise<ApiUpdatedResponse<storePictureResponse>> {
-    return http.putItem(`/api/store-images/${image_id}`, data)
-  }
-
-    async function deleteStore(store_id: number): Promise<ApiResponse<storeDeleteResponse>> {
-    return http.deleteItem(`/api/stores/${store_id}`)
-  }
-
-  return {
-    addStore,
-    getStore,
-    updateStore,
-    getStoreProducts,
-    getImageStore,
-    addImageStore,
-    editImageStore,
-    getStoreDetail,
-    deleteStore,
-  }
+  return { addStore, getStore, updateStore, getStoreProducts }
 }

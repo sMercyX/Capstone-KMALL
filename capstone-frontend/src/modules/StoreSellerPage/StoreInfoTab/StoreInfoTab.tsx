@@ -1,88 +1,53 @@
 // src/pages/Store/StoreInfoTab.tsx
-import { useState } from "react"
-import { toast } from "react-toastify"
-
-import { useStoreApi, type storePictureResponse } from "../../../api/storeApi"
+import { useEffect, useState } from "react"
+import { useStoreApi } from "../../../api/storeApi"
 import { useStoreStore } from "../../../stores/storeStore"
 import type { StoreEditForm } from "./StoreEditModal/StoreEditModal"
 import StoreEditModal from "./StoreEditModal/StoreEditModal"
 
 export default function StoreInfoTab() {
-  const { updateStore, addImageStore, editImageStore } = useStoreApi()
-  const { store, loading, error, updateStoreData } = useStoreStore()
+  const { updateStore } = useStoreApi()
+
+  const { store, loading, error, fetchStore, updateStoreData } = useStoreStore()
 
   const [isModalOpen, setIsModalOpen] = useState(false)
 
-  
+  // โหลดข้อมูลร้านตอนเข้าแท็บนี้ครั้งแรก
+  useEffect(() => {
+    fetchStore()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   if (loading) return <p className="text-center">กำลังโหลดข้อมูลร้าน...</p>
   if (error) return <p className="text-center text-red-500">{error}</p>
   if (!store) return <p className="text-center text-red-500">ไม่พบข้อมูลร้าน</p>
 
   // เวลากด "บันทึก" จาก Modal
-  async function handleSubmitEdit(data: StoreEditForm, logoFile: File | null) {
+  async function handleSubmitEdit(data: StoreEditForm) {
     try {
-      let primaryImageUrl = store!.profile_url ?? ""
-      let imageError = false
-
-      // 1) ถ้ามีไฟล์โลโก้ใหม่ → upload ก่อน
-      if (logoFile) {
-        try {
-          const uploadRes = await addImageStore(store!.id, logoFile)
-          // 🔴 จริง ๆ data เป็น Array(1) → ต้องอ่าน index 0
-          const list = (uploadRes as any).data as storePictureResponse[] | storePictureResponse
-
-          const uploaded = Array.isArray(list) ? list[0] : list
-
-          if (uploaded && uploaded.id) {
-            // 2) set รูปนี้เป็น primary
-            const editRes = await editImageStore(uploaded.id, {
-              is_primary: true,
-            })
-            const edited = (editRes as any).data as storePictureResponse
-
-            if (edited?.image_url) {
-              primaryImageUrl = edited.image_url
-            } else if (uploaded.image_url) {
-              // fallback ถ้า backend ไม่ส่ง image_url ใหม่
-              primaryImageUrl = uploaded.image_url
-            }
-          }
-        } catch (uploadErr) {
-          imageError = true
-          toast.error("อัปโหลดโลโก้ใหม่ไม่สำเร็จ")
-        }
-      }
-
-      // 3) update ข้อมูลร้าน + profile_url ให้ใช้รูปใหม่ (ถ้ามี)
       const res = await updateStore(store!.id, {
         name: data.name,
         description: data.description,
-        profile_url: primaryImageUrl,
+        profile_url: data.profile_url ?? "",
         is_active: "YES",
       })
 
-      const updatedStore = (res as any).data as {
-        name?: string
-        description?: string
-        profile_url?: string
-      }
+      console.log("UPDATED STORE:", res)
 
-      // 4) อัปเดต global store ฝั่ง FE
-      updateStoreData({
-        name: updatedStore?.name ?? data.name,
-        description: updatedStore?.description ?? data.description,
-        profile_url:
-          updatedStore?.profile_url ?? primaryImageUrl ?? store!.profile_url,
-      })
-
-      if (!imageError) {
-        toast.success("แก้ไขข้อมูลร้านค้าสำเร็จแล้ว!")
+      // อัปเดตค่าใน global store (FE)
+      const updated = (res as any).data
+      if (updated) {
+        updateStoreData({
+          name: updated.name,
+          description: updated.description,
+          profile_url: updated.profile_url,
+        })
       }
 
       setIsModalOpen(false)
     } catch (err) {
-      toast.error("ไม่สามารถแก้ไขข้อมูลร้านได้ กรุณาลองใหม่อีกครั้ง")
+      console.error("update store failed:", err)
+      // จะเพิ่ม toast หรือ error message เพิ่มเติมก็ได้
     }
   }
 
@@ -115,11 +80,7 @@ export default function StoreInfoTab() {
         <div className="flex flex-col items-center justify-start">
           <p className="font-semibold mb-2">โลโก้ร้าน</p>
           <img
-            src={
-              store.profile_url
-                ? `http://localhost:8000${store.profile_url}`
-                : "/images/default-store.png"
-            }
+            src={store.profile_url || "/images/default-store.png"}
             alt="store-logo"
             className="w-40 h-40 object-cover rounded-full border shadow"
           />

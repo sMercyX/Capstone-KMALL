@@ -4,21 +4,18 @@
 export interface ApiResponse<T> {
   code: number;
   status: string;
-  message?: string;
   data: T;
 }
 export interface ApiCreateResponse<T> {
   code: number;
   created: boolean;
   status: string;
-  message?: string;
   data: T;
 }
 export interface ApiUpdatedResponse<T> {
   code: number;
   updated: boolean;
   status: string;
-  message?: string;
   data: T;
 }
 
