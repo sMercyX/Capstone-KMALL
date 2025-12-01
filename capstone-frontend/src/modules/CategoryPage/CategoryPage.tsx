@@ -1,9 +1,9 @@
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useState } from "react"
 import { useParams } from "react-router-dom"
 import { useProductApi } from "../../api/productApi"
 import { useProductListStore } from "../../stores/catagoriesStore"
-import PageHeader from "./Category/PageHeader"
-import Toolbar, { type SortKey } from "./Category/Toolbar"
+import PageHeader from "./PageHeader"
+import Toolbar, { type SortKey, type FilterKey } from "./Toolbar"
 import ProductGrid from "../../components/Product/ProductGrid"
 import Pagination from "../../components/Pagination/Pagination"
 
@@ -30,7 +30,8 @@ export default function CategoryPage() {
 
   const apiCategoryId = mapCategoryId(routeCategory)
 
-  const [sort, setSort] = useState<SortKey>("popular")
+  const [sort, setSort] = useState<SortKey>("ASC")
+  const [filter, setFilter] = useState<FilterKey[]>([])
 
   const {
     items,
@@ -55,14 +56,14 @@ export default function CategoryPage() {
     setPageIndex(1)
   }, [routeCategory, reset, setPageIndex])
 
-  // ดึงข้อมูลอัตโนมัติเมื่อเข้าเพจ / เปลี่ยนหน้า / เปลี่ยนหมวด
+  // ดึงข้อมูลอัตโนมัติเมื่อเข้าเพจ / เปลี่ยนหน้า / เปลี่ยนหมวด / เปลี่ยน sort
   useEffect(() => {
     let ignore = false
 
     async function fetchData() {
       try {
         startLoading()
-        const res = await getProductsByParentId(apiCategoryId, pageSize, pageIndex)
+        const res = await getProductsByParentId(apiCategoryId, pageSize, pageIndex, sort)
         if (ignore) return
         setPageData(res.data)
         setError(null)
@@ -81,24 +82,8 @@ export default function CategoryPage() {
     apiCategoryId,
     pageIndex,
     pageSize,
+    sort
   ])
-
-  // sort ฝั่ง FE
-  const sortedItems = useMemo(() => {
-    const copy = Array.isArray(items) ? [...items] : []
-
-    switch (sort) {
-      case "price-asc":
-        return copy.sort((a, b) => (a.price ?? 0) - (b.price ?? 0))
-      case "price-desc":
-        return copy.sort((a, b) => (b.price ?? 0) - (a.price ?? 0))
-      case "rating":
-        // ตอนนี้ rating fix ไว้ ยังไม่มี field จาก BE
-        return copy
-      default:
-        return copy
-    }
-  }, [items, sort])
 
   const safeTotal = typeof total === "number" ? total : 0
   const safeSize = typeof pageSize === "number" ? pageSize : 1
@@ -110,9 +95,10 @@ export default function CategoryPage() {
 
       <div className="mt-6">
         <Toolbar
-          total={safeTotal || sortedItems.length}
           sort={sort}
           onChangeSort={setSort}
+          filter={filter}
+          onChangeFilter={setFilter}
         />
       </div>
 
@@ -124,12 +110,12 @@ export default function CategoryPage() {
         ) : error ? (
           <div className="py-10 text-center text-red-500">{error}</div>
         ) : (
-          <ProductGrid items={sortedItems} />
+          <ProductGrid items={items} />
         )}
       </div>
 
       {/* แสดง pagination เฉพาะตอนมีของ */}
-      {sortedItems.length > 0 && (
+      {items.length > 0 && (
         <Pagination
           currentPage={pageIndex}
           totalPages={totalPages}

@@ -80,12 +80,13 @@ export function useProductApi() {
     category: CategoryType,
     pageIndex: number,
     limit: number,
-    categoryId: number
+    categoryId: number,
+    price: string
   ): Promise<ProductListResponse> {
     const q = encodeURIComponent(category)
 
     return http.getItems(
-      `/api/products/public?q=${q}&category_id=${categoryId}&page=${pageIndex}&limit=${limit}`
+      `/api/products/public?q=${q}&category_id=${categoryId}&page=${pageIndex}&limit=${limit}&price=${price}  `
     )
   }
 
@@ -100,11 +101,14 @@ export function useProductApi() {
   async function getProductsByParentId(
     categoryId: number,
     limit: number,
-    pageIndex: number
+    pageIndex: number,
+    price?: string
   ): Promise<CategoryListResponse> {
-    return http.getItems(
-      `/api/products/public?parent_category_id=${categoryId}&limit=${limit}&page=${pageIndex}`
-    )
+    let url = `/api/products/public?parent_category_id=${categoryId}&limit=${limit}&page=${pageIndex}`
+    if (price) {
+      url += `&price=${price}`
+    }
+    return http.getItems(url)
   }
   async function getProductsStoreByStoreId(
     storeId: number,
