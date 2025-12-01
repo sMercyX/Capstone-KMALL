@@ -37,14 +37,16 @@ type Service interface {
 }
 
 type service struct {
-	repo    Repo
-	userSvc user.Service
+	repo     Repo
+	userSvc  user.Service
+	userRepo user.Repo
 }
 
-func NewService(r Repo, us user.Service) Service {
+func NewService(r Repo, us user.Service, ur user.Repo) Service {
 	return &service{
-		repo:    r,
-		userSvc: us,
+		repo:     r,
+		userSvc:  us,
+		userRepo: ur,
 	}
 }
 
@@ -203,10 +205,25 @@ func (s *service) Update(ctx context.Context, id int64, in UpdateInput) (Store, 
 
 	return s.repo.Update(ctx, id, UpdateParams(in))
 }
-
 func (s *service) Delete(ctx context.Context, id int64) error {
-	if id <= 0 {
-		return apperr.New(apperr.BadRequest, "invalid id")
+	st, err := s.repo.Get(ctx, id)
+	if err != nil {
+		return err
 	}
-	return s.repo.Delete(ctx, id)
+
+	if err := s.repo.Delete(ctx, id); err != nil {
+		return err
+	}
+
+	sellerRoleID := int64(2) // ตรวจสอบจริงใน DB
+
+	if err := s.userRepo.RemoveUserRoles(
+		ctx,
+		st.UserID.String(),
+		[]int64{sellerRoleID},
+	); err != nil {
+		return err
+	}
+
+	return nil
 }

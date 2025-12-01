@@ -42,7 +42,7 @@ func Attach(r *gin.Engine, db *pgxpool.Pool, cfg config.Config) {
 	uSvc := user.NewService(uRepo, rSvc)
 
 	sRepo := store.NewRepo(db)
-	sSvc := store.NewService(sRepo, uSvc)
+	sSvc := store.NewService(sRepo, uSvc, uRepo)
 
 	cRepo := category.NewRepo(db)
 	cSvc := category.NewService(cRepo)
