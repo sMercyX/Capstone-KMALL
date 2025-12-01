@@ -32,16 +32,37 @@ type CreateParams struct {
 	IsActive    string  `json:"is_active"`
 }
 
-// ===== Create Store =====
 func (r *repo) Create(ctx context.Context, userID string, in CreateParams) (Store, error) {
 	in.IsActive = strings.ToUpper(strings.TrimSpace(in.IsActive))
 	if in.IsActive == "" {
 		in.IsActive = "YES"
 	}
 
-	// ตรวจสอบว่าผู้ใช้มีร้านแล้วหรือยัง
-	var existsID int
+	// ---- 1) เช็คว่าชื่อร้านซ้ำหรือไม่ ----
+	storeName := strings.TrimSpace(in.Name)
+	if storeName == "" {
+		return Store{}, apperr.New(apperr.BadRequest, "store name is required")
+	}
+
+	var dupID int64
 	err := r.db.QueryRow(ctx, `
+		SELECT store_id 
+		FROM stores 
+		WHERE store_name = $1
+		LIMIT 1;
+	`, storeName).Scan(&dupID)
+
+	if err == nil {
+		// เจอชื่อร้านซ้ำ
+		return Store{}, apperr.New(apperr.BadRequest, "store name already exists")
+	} else if !errors.Is(err, pgx.ErrNoRows) {
+		// error อื่นจาก DB
+		return Store{}, apperr.Wrap(apperr.Internal, err, "check duplicate store name failed")
+	}
+
+	// ---- 2) เช็คว่าผู้ใช้นี้มีร้านอยู่แล้วหรือยัง ----
+	var existsID int
+	err = r.db.QueryRow(ctx, `
 		SELECT store_id FROM stores WHERE user_id = $1 LIMIT 1;
 	`, userID).Scan(&existsID)
 
@@ -51,22 +72,28 @@ func (r *repo) Create(ctx context.Context, userID string, in CreateParams) (Stor
 		return Store{}, apperr.Wrap(apperr.Internal, err, "check existing store failed")
 	}
 
+	// ---- 3) Insert ร้านใหม่ ----
 	var s Store
 	err = r.db.QueryRow(ctx, `
 		INSERT INTO stores (store_name, store_desc, profile_url, is_active, user_id)
 		VALUES ($1, $2, $3, $4, $5)
 		RETURNING store_id, store_name, store_desc, profile_url, is_active,
 		          created_at, updated_at, user_id;
-	`, in.Name, in.Description, in.ProfileURL, in.IsActive, userID).
+	`, storeName, in.Description, in.ProfileURL, in.IsActive, userID).
 		Scan(&s.ID, &s.Name, &s.Description, &s.ProfileURL, &s.IsActive,
 			&s.CreatedAt, &s.UpdatedAt, &s.UserID)
 
 	if err != nil {
-		if pgErr, ok := err.(*pgconn.PgError); ok && pgErr.Code == "23505" {
-			return Store{}, apperr.New(apperr.Conflict, "user already owns a store")
+		var pgErr *pgconn.PgError
+		if errors.As(err, &pgErr) {
+			// กันเผื่อยังมี UNIQUE constraint อื่นยิง 23505 มาอีก
+			if pgErr.Code == "23505" {
+				return Store{}, apperr.New(apperr.BadRequest, "store name already exists")
+			}
 		}
 		return Store{}, apperr.Wrap(apperr.Internal, err, "insert store failed")
 	}
+
 	return s, nil
 }
 
@@ -168,7 +195,33 @@ type UpdateParams struct {
 	IsActive    *string
 }
 
+// ===== Update Store =====
 func (r *repo) Update(ctx context.Context, id int64, in UpdateParams) (Store, error) {
+
+	// -------------------------------------------------
+	// 1) ถ้ามีการอัปเดตชื่อร้าน ตรวจสอบว่าซ้ำหรือไม่
+	// -------------------------------------------------
+	if in.Name != nil {
+		var exists int64
+		err := r.db.QueryRow(ctx, `
+			SELECT store_id 
+			FROM stores 
+			WHERE store_name = $1 AND store_id <> $2
+			LIMIT 1;
+		`, *in.Name, id).Scan(&exists)
+
+		if err == nil {
+			// เจอชื่อร้านซ้ำ
+			return Store{}, apperr.New(apperr.BadRequest, "store name already exists")
+		} else if !errors.Is(err, pgx.ErrNoRows) {
+			// error อื่น
+			return Store{}, apperr.Wrap(apperr.Internal, err, "check duplicate store name failed")
+		}
+	}
+
+	// -------------------------------------------------
+	// 2) ทำการ UPDATE จริง
+	// -------------------------------------------------
 	var s Store
 	err := r.db.QueryRow(ctx, `
 		UPDATE stores
@@ -183,12 +236,14 @@ func (r *repo) Update(ctx context.Context, id int64, in UpdateParams) (Store, er
 	`, id, in.Name, in.Description, in.ProfileURL, in.IsActive).
 		Scan(&s.ID, &s.Name, &s.Description, &s.ProfileURL,
 			&s.IsActive, &s.CreatedAt, &s.UpdatedAt, &s.UserID)
+
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return Store{}, apperr.New(apperr.NotFound, "store not found")
 		}
 		return Store{}, apperr.Wrap(apperr.Internal, err, "update store failed")
 	}
+
 	return s, nil
 }
 
