@@ -15,10 +15,13 @@ import { useCartApi } from "../../api/cartApi"
 // import { resolveImageUrl } from "../../utils/resolve"
 import StoreInfoCard from "../../components/Card/StoreInfoCard"
 import { handleApiError } from "../../utils/handleApiError"
+import ConfirmationModal from "../../components/Modal/ConfirmationModal"
 
 
 // ====== UI Helpers ======
 // function RatingStarsFixed() {
+//   const full = 4
+//   const empty = 1
 //   const full = 4
 //   const empty = 1
 
@@ -49,7 +52,7 @@ export default function ProductPage() {
     reset,
   } = useProductStore()
 
-  const { addCart, getCart } = useCartApi()
+  const { addCart, getCart, clearCart } = useCartApi()
   const {
     cart,
     startLoading: startCartLoading,
@@ -57,6 +60,7 @@ export default function ProductPage() {
   } = useCartStore()
 
   const [qty, setQty] = useState(1)
+  const [isConfirmModalOpen, setIsConfirmModalOpen] = useState(false)
   
   // ... (existing state)
   const [activeImageIndex, setActiveImageIndex] = useState(0)
@@ -107,6 +111,17 @@ export default function ProductPage() {
     if (!product) return
 
     try {
+      // 1) เช็คว่ามีสินค้าในตะกร้าหรือไม่
+      if (cart && cart.items.length > 0) {
+        // สมมติว่าในตะกร้ามีสินค้าจากร้านเดียวกันหมด (หรือเช็คตัวแรก)
+        const firstItem = cart.items[0]
+        if (firstItem.store_id !== product.store_id) {
+          // คนละร้าน -> เปิด Modal ถาม
+          setIsConfirmModalOpen(true)
+          return
+        }
+      }
+
       // Check existing quantity in cart
       const existingItem = cart?.items.find(item => item.product_id === product.id)
       const currentQty = existingItem ? existingItem.quantity : 0
@@ -127,6 +142,31 @@ export default function ProductPage() {
       setCart(res.data)
 
       toast.success("เพิ่มสินค้าลงตะกร้าเรียบร้อยแล้ว")
+    } catch (err) {
+      handleApiError(err)
+    }
+  }
+
+  const handleConfirmClearCart = async () => {
+    if (!product) return
+    try {
+      setIsConfirmModalOpen(false)
+      startCartLoading()
+
+      // 1. ล้างตะกร้า
+      await clearCart()
+
+      // 2. เพิ่มสินค้าใหม่
+      await addCart({
+        product_id: product.id,
+        quantity: qty,
+      })
+
+      // 3. โหลดตะกร้าใหม่
+      const res = await getCart()
+      setCart(res.data)
+
+      toast.success("ล้างตะกร้าและเพิ่มสินค้าเรียบร้อยแล้ว")
     } catch (err) {
       handleApiError(err)
     }
@@ -325,6 +365,17 @@ export default function ProductPage() {
       {/* แถบข้อมูลร้านด้านล่าง */}
       {/* แถบข้อมูลร้านด้านล่าง */}
       {product?.store_id && <StoreInfoCard storeId={product.store_id} />}
+
+      <ConfirmationModal
+        isOpen={isConfirmModalOpen}
+        title="เปลี่ยนร้านค้า?"
+        message="สินค้าที่คุณเลือกมาจากร้านค้าที่ต่างกัน หากคุณดำเนินการต่อ สินค้าในตะกร้าของคุณจะถูกลบออก คุณต้องการดำเนินการต่อหรือไม่?"
+        confirmText="ตกลง, ล้างตะกร้า"
+        cancelText="ยกเลิก"
+        onConfirm={handleConfirmClearCart}
+        onClose={() => setIsConfirmModalOpen(false)}
+        variant="danger"
+      />
     </main>
   )
 }

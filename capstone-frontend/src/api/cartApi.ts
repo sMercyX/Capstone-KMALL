@@ -73,5 +73,9 @@ export function useCartApi() {
     return http.putItem(`/cart/items/${product_id}`, data)
   }
 
-  return { addCart, getCart, deleteItemCart, updateCart }
+  async function clearCart(): Promise<ApiResponse<{ cleared: boolean }>> {
+    return http.deleteItem(`/cart`)
+  }
+
+  return { addCart, getCart, deleteItemCart, updateCart, clearCart }
 }
