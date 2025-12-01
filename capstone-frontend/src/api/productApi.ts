@@ -21,6 +21,12 @@ export type CategoryType = "food" | "clothing" | "handmade-products"
 //   badge?: string
 //   category?: string
 // }
+export interface ProductImage {
+  product_image_id: number
+  image_url: string
+  sort_order: number
+  is_primary: boolean
+}
 
 export interface Product {
   id: number
@@ -33,6 +39,8 @@ export interface Product {
   is_active: "YES" | "NO"
   store_id: number
   category_id: number
+
+  images?: ProductImage[]
 }
 export interface AddProductRequest {
   name: string

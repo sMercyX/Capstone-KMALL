@@ -13,6 +13,7 @@ import { useProductStore } from "../../stores/productStore"
 import { useCartStore } from "../../stores/cartStore"
 import Card from "../../components/Card/Card"
 import { useCartApi } from "../../api/cartApi"
+import { resolveImageUrl } from "../../utils/resolve"
 
 // ====== UI Helpers ======
 function RatingStarsFixed() {
@@ -141,15 +142,24 @@ export default function ProductPage() {
     )
   }
 
-  const thumbnails = [
+  // const thumbnails = [
+  //   product.image_url,
+  //   product.image_url,
+  //   product.image_url,
+  // ].filter(Boolean)
+  // รวม path จาก image_url หลัก + images (ถ้ามี)
+  const thumbnailPaths = [
     product.image_url,
-    product.image_url,
-    product.image_url,
-  ].filter(Boolean)
+    ...(product.images?.map((img) => img.image_url) ?? []),
+  ].filter(Boolean) as string[]
 
+// แปลง path ให้เป็น full URL ด้วย resolveImageUrl
+  const thumbnails = thumbnailPaths.map((path) => resolveImageUrl(path))
+
+// main image
   const mainImage =
     thumbnails[activeImageIndex] ||
-    product.image_url ||
+    thumbnails[0] ||
     "https://via.placeholder.com/800"
 
   const handlePrevThumb = () => {
