@@ -10,6 +10,7 @@ import {
 import { toast } from "react-toastify"
 
 import { Input } from "../../../components/Input/Input"
+import { handleApiError } from "../../../utils/handleApiError"
 import { Textarea } from "../../../components/Input/Textarea"
 
 import { useProductApi, type AddProductRequest, type productPictureResponse } from "../../../api/productApi"
@@ -260,8 +261,7 @@ export function StoreAddTab() {
       setMainIndex(0)
       toast.success("เพิ่มสินค้าเรียบร้อยแล้ว")
     } catch (err) {
-      console.error(err)
-      setError("เพิ่มสินค้าไม่สำเร็จ กรุณาลองใหม่อีกครั้ง")
+      handleApiError(err)
     } finally {
       setIsSubmitting(false)
     }

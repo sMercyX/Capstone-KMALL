@@ -1,78 +1,83 @@
 // src/api/fetch.ts
+import axios, { type AxiosRequestConfig, type AxiosInstance } from "axios";
 import { API_BASE } from "../config";
 
 type AuthMode = "auto" | "required" | "none";
 
 type ExtraOptions = {
   auth?: AuthMode;
-  headers?: HeadersInit;
-  credentials?: RequestCredentials;
-};
+} & AxiosRequestConfig;
 
 function isFormData(body: unknown): body is FormData {
   return typeof FormData !== "undefined" && body instanceof FormData;
 }
 
 export function useHttpClient(baseUrl: string) {
-  async function fetchData(
+  const client: AxiosInstance = axios.create({
+    baseURL: baseUrl,
+    headers: {
+      "Content-Type": "application/json",
+    },
+    withCredentials: true, // Default to include cookies
+  });
+
+  async function request(
     path: string,
-    options: RequestInit & ExtraOptions = {}
+    options: ExtraOptions = {}
   ) {
-    const { auth = "auto", headers = {}, credentials, ...rest } = options;
+    const { auth = "auto", ...config } = options;
 
-    const url = new URL(path, baseUrl);
-    const h = new Headers(headers);
-
-    // ตั้ง Content-Type ให้อัตโนมัติถ้าเป็น JSON
-    if (rest.body && !h.has("Content-Type") && !isFormData(rest.body)) {
-      h.set("Content-Type", "application/json");
+    // Adjust withCredentials based on auth mode if needed
+    // In the original fetch, auth="none" meant credentials="same-origin" (no cookies for cross-origin)
+    // auth="auto" or "required" meant "include"
+    // Axios withCredentials: true sends cookies. false doesn't.
+    if (auth === "none") {
+        config.withCredentials = false;
     }
 
-    // ส่ง cookie ไปให้ BE (ถ้าใช้ auth!=none)
-    const finalCredentials: RequestCredentials | undefined =
-      credentials ?? (auth === "none" ? "same-origin" : "include");
-
-    const res = await fetch(url, {
-      ...rest,
-      headers: h,
-      credentials: finalCredentials,
-    });
-
-    if (res.status === 401 && auth === "required") {
-      const err = new Error("Unauthorized");
-      // @ts-expect-error
-      err.code = 401;
-      throw err;
+    try {
+      const response = await client.request({
+        url: path,
+        ...config,
+      });
+      return response.data;
+    } catch (error: unknown) {
+      if (axios.isAxiosError(error)) {
+        if (error.response?.status === 401 && auth === "required") {
+             // Handle 401 specific logic if needed, or just let it throw
+             // The original code threw a custom error with code 401
+             // We can just let the AxiosError propagate, handleApiError will catch it
+        }
+      }
+      throw error;
     }
-
-    if (!res.ok) {
-      throw new Error(`HTTP error! Status: ${res.status}`);
-    }
-
-    const ct = res.headers.get("content-type");
-    if (ct && ct.includes("application/json")) return res.json();
-    return res.text();
   }
 
   const getItems = (url: string, opt: ExtraOptions = {}) =>
-    fetchData(url, { method: "GET", ...opt });
+    request(url, { method: "GET", ...opt });
 
-  const postItem = (url: string, item?: unknown, opt: ExtraOptions = {}) =>
-    fetchData(url, {
+  const postItem = (url: string, item?: unknown, opt: ExtraOptions = {}) => {
+    const isForm = isFormData(item);
+    return request(url, {
       method: "POST",
-      body: isFormData(item) ? (item as any) : JSON.stringify(item ?? {}),
+      data: item,
+      headers: isForm ? { "Content-Type": "multipart/form-data" } : undefined,
       ...opt,
     });
+  };
 
-  const putItem = (url: string, item: unknown, opt: ExtraOptions = {}) =>
-    fetchData(url, {
+  const putItem = (url: string, item: unknown, opt: ExtraOptions = {}) => {
+    const isForm = isFormData(item);
+    return request(url, {
       method: "PUT",
-      body: isFormData(item) ? (item as any) : JSON.stringify(item ?? {}),
+      data: item,
+      headers: isForm ? { "Content-Type": "multipart/form-data" } : undefined,
       ...opt,
     });
+  };
 
   const deleteItem = (url: string, opt: ExtraOptions = {}) =>
-    fetchData(url, { method: "DELETE", ...opt });
+    request(url, { method: "DELETE", ...opt });
 
   return { getItems, postItem, putItem, deleteItem };
 }
@@ -80,8 +85,8 @@ export function useHttpClient(baseUrl: string) {
 // ใช้ที่อื่นเรียกแบบนี้
 export function useCrudApi() {
   const baseUrl =
-    (import.meta as any)?.env?.VITE_API_BASE ||
-    (process.env as any)?.NEXT_PUBLIC_BASE_URL ||
+    (import.meta as unknown as { env: { VITE_API_BASE: string } })?.env?.VITE_API_BASE ||
+    (process.env as unknown as { NEXT_PUBLIC_BASE_URL: string })?.NEXT_PUBLIC_BASE_URL ||
     API_BASE ||
     "";
   return useHttpClient(baseUrl);

@@ -1,3 +1,4 @@
+import { createPortal } from "react-dom"
 import { X, AlertTriangle } from "lucide-react"
 
 interface ConfirmationModalProps {
@@ -52,7 +53,7 @@ export default function ConfirmationModal({
 
   const styles = getVariantStyles()
 
-  return (
+  return createPortal(
     <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 backdrop-blur-sm px-4 animate-in fade-in duration-200">
       <div className="w-full max-w-md transform overflow-hidden rounded-2xl bg-white p-6 text-left align-middle shadow-xl transition-all animate-in zoom-in-95 duration-200 scale-100">
         
@@ -100,6 +101,7 @@ export default function ConfirmationModal({
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   )
 }
