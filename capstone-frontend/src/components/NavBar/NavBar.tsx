@@ -6,6 +6,7 @@ import { useCartApi } from "../../api/cartApi"
 import { useCartStore } from "../../stores/cartStore"
 import CartDropdown from "./CartDropdown"
 import UserDropdown from "./UserDropdown"
+import kmallLogo from "../../assets/kmutt.svg"
 
 export default function Navbar() {
   const [isUserOpen, setIsUserOpen] = useState(false)
@@ -43,7 +44,15 @@ export default function Navbar() {
           <Link to="/dashboard" className="text-2xl font-bold text-orange-600">
             KMALL
           </Link>
-          <img src="/kmutt-logo.png" alt="KMUTT" className="h-8 w-8" />
+          <img
+        src={kmallLogo}
+        alt="KMALL"
+        className="h-8 w-8"
+        style={{
+        filter:
+          "invert(44%) sepia(94%) saturate(3561%) hue-rotate(5deg) brightness(101%) contrast(101%)",
+        }}
+      />
         </div>
 
         {/* CENTER: Search */}
