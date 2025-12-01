@@ -41,25 +41,25 @@ export default function Navbar() {
     <header className="sticky top-4 z-50 w-full bg-[--color-primary]">
       <nav className="max-w-[calc(100%-110px)] mx-auto flex items-center justify-between px-6 py-3 shadow-lg shadow-blue-50 bg-[var(--color-bg)] rounded-full ">
         {/* LEFT: Logo */}
-        <div className="flex items-center gap-3">
-          <Link to="/dashboard" className="cursor-pointer">
-            <img
-              src={kmallText}
-              alt="KMALL"
-              className="h-8 w-auto"
+        <Link to="/dashboard" className="cursor-pointer">
+            <div className="flex items-center gap-3">
+                <img
+                  src={kmallText}
+                  alt="KMALL"
+                className="h-8 w-auto"
+                />
+            <div className="w-px h-8 bg-orange-500" />
+                <img
+                    src={kmallLogo}
+                    alt="KMALL"
+                    className="h-8 w-8"
+                    style={{
+                    filter:
+                        "invert(44%) sepia(94%) saturate(3561%) hue-rotate(5deg) brightness(101%) contrast(101%)",
+                }}
             />
-          </Link>
-        <div className="w-px h-8 bg-orange-500" />
-            <img
-            src={kmallLogo}
-            alt="KMALL"
-            className="h-8 w-8"
-            style={{
-              filter:
-                "invert(44%) sepia(94%) saturate(3561%) hue-rotate(5deg) brightness(101%) contrast(101%)",
-              }}
-            />
-        </div>
+            </div>
+        </Link>
 
         {/* CENTER: Search */}
         {/* <div className="flex justify-center w-[50%]">
