@@ -84,7 +84,7 @@ export function useStoreApi() {
   }
   
   async function getStoreDetail(store_id: number): Promise<ApiResponse<storeResponse>> {
-    return http.getItems(`/api/stores/${store_id}/public`)
+    return http.getItems(`/stores/${store_id}/public`)
   }
 
   async function updateStore(
@@ -107,7 +107,7 @@ export function useStoreApi() {
   async function getImageStore(
     storeId: number
   ): Promise<ApiResponse<storePictureResponse>> {
-    return http.getItems(`/api/stores/${storeId}/images`)
+    return http.getItems(`/stores/${storeId}/images`)
   }
 
   async function addImageStore(
@@ -117,7 +117,7 @@ export function useStoreApi() {
     const formData = new FormData()
     formData.append("file", file)
     return http.postItem(
-      `/api/stores/${store_id}/images/upload`,
+      `/stores/${store_id}/images/upload`,
       formData as any
     )
   }
@@ -126,11 +126,11 @@ export function useStoreApi() {
     image_id: number,
     data: storePictureEditRequest
   ): Promise<ApiUpdatedResponse<storePictureResponse>> {
-    return http.putItem(`/api/store-images/${image_id}`, data)
+    return http.putItem(`/store-images/${image_id}`, data)
   }
 
-    async function deleteStore(store_id: number): Promise<ApiResponse<storeDeleteResponse>> {
-    return http.deleteItem(`/api/stores/${store_id}`)
+  async function deleteStore(store_id: number): Promise<ApiResponse<storeDeleteResponse>> {
+    return http.deleteItem(`/stores/${store_id}`)
   }
 
   return {
