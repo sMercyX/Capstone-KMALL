@@ -12,7 +12,7 @@ import { useProductStore } from "../../stores/productStore"
 import { useCartStore } from "../../stores/cartStore"
 import Card from "../../components/Card/Card"
 import { useCartApi } from "../../api/cartApi"
-import { resolveImageUrl } from "../../utils/resolve"
+// import { resolveImageUrl } from "../../utils/resolve"
 import StoreInfoCard from "../../components/Card/StoreInfoCard"
 
 
