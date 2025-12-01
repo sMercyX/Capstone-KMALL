@@ -145,7 +145,21 @@ export default function StoreEditProductModal({
     const selectedFiles = e.target.files
     if (!selectedFiles || selectedFiles.length === 0) return
 
-    const newItems: ImageItem[] = Array.from(selectedFiles).map((file) => ({
+    const validFiles: File[] = []
+    Array.from(selectedFiles).forEach((file) => {
+      if (file.size > 2 * 1024 * 1024) {
+        toast.error(`ไฟล์ ${file.name} มีขนาดเกิน 2MB`)
+        return
+      }
+      validFiles.push(file)
+    })
+
+    if (validFiles.length === 0) {
+      e.target.value = ""
+      return
+    }
+
+    const newItems: ImageItem[] = validFiles.map((file) => ({
       type: "NEW",
       url: URL.createObjectURL(file),
       file,

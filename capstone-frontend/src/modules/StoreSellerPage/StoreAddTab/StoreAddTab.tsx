@@ -6,6 +6,7 @@ import {
   ChevronRight,
   Trash2,
 } from "lucide-react"
+import { toast } from "react-toastify"
 
 import { useProductApi, type AddProductRequest, type productPictureResponse } from "../../../api/productApi"
 import { useStoreStore } from "../../../stores/storeStore"
@@ -89,8 +90,22 @@ export function StoreAddTab() {
     const selectedFiles = e.target.files
     if (!selectedFiles || selectedFiles.length === 0) return
 
-    const newFiles = Array.from(selectedFiles)
-    const newUrls = newFiles.map((file) => URL.createObjectURL(file))
+    const newFiles: File[] = []
+    const newUrls: string[] = []
+
+    Array.from(selectedFiles).forEach((file) => {
+      if (file.size > 2 * 1024 * 1024) {
+        toast.error(`ไฟล์ ${file.name} มีขนาดเกิน 2MB`)
+        return
+      }
+      newFiles.push(file)
+      newUrls.push(URL.createObjectURL(file))
+    })
+
+    if (newFiles.length === 0) {
+      e.target.value = ""
+      return
+    }
 
     setFiles((prev) => [...prev, ...newFiles])
     setImages((prev) => {
@@ -211,7 +226,7 @@ export function StoreAddTab() {
       setImages([])
       setFiles([])
       setMainIndex(0)
-      alert("เพิ่มสินค้าเรียบร้อยแล้ว")
+      toast.success("เพิ่มสินค้าเรียบร้อยแล้ว")
     } catch (err) {
       console.error(err)
       setError("เพิ่มสินค้าไม่สำเร็จ กรุณาลองใหม่อีกครั้ง")
@@ -238,7 +253,7 @@ export function StoreAddTab() {
           )}
         </div>
 
-        <div className="mt-5 flex items-center gap-3">
+        <div className="mt-5 flex items-center gap-3 justify-center">
           <button
             type="button"
             onClick={() => scrollThumbs("left")}
