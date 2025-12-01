@@ -185,7 +185,7 @@ export default function ProductPage() {
   }
 
   return (
-    <main className="max-w-6xl mx-auto px-4 py-8 md:py-10">
+    <main className="max-w-6xl mx-auto px-4 py-8 md:py-10 space-y-6">
       {/* ... (back button) */}
       
       <Card className="rounded-3xl px-6 py-6 md:px-10 md:py-8">

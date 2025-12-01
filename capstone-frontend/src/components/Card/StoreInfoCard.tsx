@@ -43,7 +43,7 @@ export default function StoreInfoCard({ storeId }: StoreInfoCardProps) {
   }
 
   return (
-    <Card className="mt-8 flex flex-wrap items-center justify-between gap-4 rounded-3xl px-6 py-4">
+    <Card className=" flex flex-wrap items-center justify-between gap-4 rounded-3xl px-6 py-4">
       <div className="flex items-center gap-3">
         <div className="h-12 w-12 rounded-full bg-gray-200 overflow-hidden">
              <img

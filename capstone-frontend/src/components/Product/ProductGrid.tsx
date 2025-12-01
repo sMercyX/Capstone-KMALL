@@ -1,5 +1,5 @@
 import { type Product } from "../../api/productApi"
-import ProductCard from "./ProductCard"
+import ProductCard from "../Card/ProductCard"
 
 interface ProductGridProps {
   items: Product[]
