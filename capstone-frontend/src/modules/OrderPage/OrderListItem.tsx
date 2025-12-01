@@ -1,5 +1,6 @@
 // src/components/Order/OrderListItem.tsx
 import { Check, Coffee, Loader2, X } from "lucide-react"
+import { formatThaiDate } from "../../utils/dateFormatter"
 
 export type OrderStatusContext = "ongoing" | "completed" | "canceled"
 
@@ -54,6 +55,7 @@ export default function OrderListItem({
   onClick,
 }: OrderListItemProps) {
   const { order } = data
+  const orderDate = formatThaiDate(order.order_date)
 
   return (
     <button
@@ -73,7 +75,7 @@ export default function OrderListItem({
         {/* ข้อมูลคำสั่งซื้อ */}
         <div className="flex-1 grid grid-cols-4 items-center text-center text-sm md:text-base">
           <div className="font-medium">#{order.order_id}</div>
-          <div>{order.order_date}</div>
+          <div>{orderDate}</div>
           <div>{order.total_price.toLocaleString()} บาท</div>
           <div className="font-semibold uppercase">{order.status}</div>
         </div>
