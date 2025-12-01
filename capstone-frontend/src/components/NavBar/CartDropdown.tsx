@@ -1,8 +1,10 @@
-import { useEffect, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { useNavigate } from "react-router-dom"
 import { ShoppingCart, X } from "lucide-react"
 import { useCartApi } from "../../api/cartApi"
 import { useCartStore } from "../../stores/cartStore"
+
+
 
 type Props = {
   isOpen: boolean
@@ -12,6 +14,7 @@ type Props = {
 
 export default function CartDropdown({ isOpen, onToggle, onClose }: Props) {
   const [deletingId, setDeletingId] = useState<number | null>(null)
+  const dropdownRef = useRef<HTMLDivElement | null>(null)
 
   const navigate = useNavigate()
   const { getCart, deleteItemCart } = useCartApi()
@@ -42,6 +45,23 @@ export default function CartDropdown({ isOpen, onToggle, onClose }: Props) {
       }
     })()
   }, [isOpen, cart, cartLoading, getCart, setCart, setCartError, startCartLoading])
+
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+        onClose()
+      }
+    }
+
+    if (isOpen) {
+      document.addEventListener("mousedown", handleClickOutside)
+    }
+
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside)
+    }
+  }, [isOpen, onClose])
+
 
   async function handleDeleteItem(id: number) {
     try {
@@ -77,7 +97,7 @@ export default function CartDropdown({ isOpen, onToggle, onClose }: Props) {
       </button>
 
       {isOpen && (
-        <div className="absolute right-0 mt-3 w-[360px] rounded-3xl bg-white shadow-xl border border-orange-200 p-5 z-50">
+        <div ref={dropdownRef} className="absolute right-0 mt-3 w-[360px] rounded-3xl bg-white shadow-xl border border-orange-200 p-5 z-50">
           {/* Header */}
           <div className="flex items-center justify-between mb-3">
             <div className="flex items-center gap-2">
