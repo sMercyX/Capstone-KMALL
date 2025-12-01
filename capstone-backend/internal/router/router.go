@@ -66,7 +66,7 @@ func Attach(r *gin.Engine, db *pgxpool.Pool, cfg config.Config) {
 	})
 
 	// static files (รูป)
-	r.Static("/static", "./uploads")
+	r.Static("/api/uploads", "./uploads")
 
 	// ===== wiring repos & services =====
 	uRepo := user.NewRepo(db)

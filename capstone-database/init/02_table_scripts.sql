@@ -48,7 +48,8 @@ CREATE TABLE IF NOT EXISTS stores (
   CONSTRAINT fk_stores_users1 FOREIGN KEY (user_id)
     REFERENCES users (user_id)
     ON DELETE NO ACTION
-    ON UPDATE NO ACTION
+    ON UPDATE NO ACTION,
+  CONSTRAINT uq_stores_store_name UNIQUE (store_name)
 );
 
 -- ========= CATEGORIES =========
@@ -87,7 +88,8 @@ CREATE TABLE IF NOT EXISTS products (
   CONSTRAINT fk_products_categories1 FOREIGN KEY (category_id)
     REFERENCES categories (category_id)
     ON DELETE NO ACTION
-    ON UPDATE NO ACTION
+    ON UPDATE NO ACTION,
+  CONSTRAINT uq_products_name UNIQUE (name)
 );
 
 -- ========= ORDERS =========

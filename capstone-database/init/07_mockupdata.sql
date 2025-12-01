@@ -1,4 +1,5 @@
 -- NOTE: This is mockup dev data for testing and demo only. Not for production use.
+TRUNCATE product_images, products, store_images, stores RESTART IDENTITY CASCADE;
 
 -- ========= DEV DEMO USERS =========
 INSERT INTO users (user_id, kms_id, email, display_name)
@@ -80,47 +81,47 @@ WHERE u.kms_id = 'dev-seller-3'
 -- BKK Snack & Drink Bar
 INSERT INTO store_images (store_id, image_url, sort_order, is_primary)
 SELECT s.store_id,
-       '/static/dev/stores/bkk-snack/profile-1.jpg',
+       '/uploads/stores/' || s.store_id || '/profile-1.jpg',
        1,
        TRUE
 FROM stores s
 WHERE s.store_name = 'BKK Snack & Drink Bar'
 ON CONFLICT (store_id, sort_order) DO NOTHING;
 
-UPDATE stores
-SET profile_url = '/static/dev/stores/bkk-snack/profile-1.jpg'
-WHERE store_name = 'BKK Snack & Drink Bar'
-  AND profile_url IS NULL;
+UPDATE stores s
+SET profile_url = '/uploads/stores/' || s.store_id || '/profile-1.jpg'
+WHERE s.store_name = 'BKK Snack & Drink Bar'
+  AND s.profile_url IS NULL;
 
 -- Campus Clothing Studio
 INSERT INTO store_images (store_id, image_url, sort_order, is_primary)
 SELECT s.store_id,
-       '/static/dev/stores/campus-clothing/profile-1.jpg',
+       '/uploads/stores/' || s.store_id || '/profile-1.jpg',
        1,
        TRUE
 FROM stores s
 WHERE s.store_name = 'Campus Clothing Studio'
 ON CONFLICT (store_id, sort_order) DO NOTHING;
 
-UPDATE stores
-SET profile_url = '/static/dev/stores/campus-clothing/profile-1.jpg'
-WHERE store_name = 'Campus Clothing Studio'
-  AND profile_url IS NULL;
+UPDATE stores s
+SET profile_url = '/uploads/stores/' || s.store_id || '/profile-1.jpg'
+WHERE s.store_name = 'Campus Clothing Studio'
+  AND s.profile_url IS NULL;
 
 -- Local Craft Studio
 INSERT INTO store_images (store_id, image_url, sort_order, is_primary)
 SELECT s.store_id,
-       '/static/dev/stores/local-craft/profile-1.jpg',
+       '/uploads/stores/' || s.store_id || '/profile-1.jpg',
        1,
        TRUE
 FROM stores s
 WHERE s.store_name = 'Local Craft Studio'
 ON CONFLICT (store_id, sort_order) DO NOTHING;
 
-UPDATE stores
-SET profile_url = '/static/dev/stores/local-craft/profile-1.jpg'
-WHERE store_name = 'Local Craft Studio'
-  AND profile_url IS NULL;
+UPDATE stores s
+SET profile_url = '/uploads/stores/' || s.store_id || '/profile-1.jpg'
+WHERE s.store_name = 'Local Craft Studio'
+  AND s.profile_url IS NULL;
 
 -- ========= FOOD PRODUCTS (BKK Snack & Drink Bar) =========
 -- Snacks & Bakery
@@ -197,59 +198,6 @@ WHERE s.store_name = 'BKK Snack & Drink Bar'
       AND p.store_id = s.store_id
   );
 
--- ========= FOOD PRODUCT IMAGES =========
-INSERT INTO product_images (product_id, image_url, sort_order, is_primary)
-SELECT p.product_id,
-       '/static/dev/products/snacks-bakery/chocolate-brownie-1.jpg',
-       1,
-       TRUE
-FROM products p
-JOIN stores s ON s.store_id = p.store_id
-JOIN categories c ON c.category_id = p.category_id
-WHERE s.store_name = 'BKK Snack & Drink Bar'
-  AND c.slug = 'snacks-bakery'
-  AND p.name = 'Chocolate Brownie'
-ON CONFLICT (product_id, sort_order) DO NOTHING;
-
-INSERT INTO product_images (product_id, image_url, sort_order, is_primary)
-SELECT p.product_id,
-       '/static/dev/products/snacks-bakery/butter-croissant-1.jpg',
-       1,
-       TRUE
-FROM products p
-JOIN stores s ON s.store_id = p.store_id
-JOIN categories c ON c.category_id = p.category_id
-WHERE s.store_name = 'BKK Snack & Drink Bar'
-  AND c.slug = 'snacks-bakery'
-  AND p.name = 'Butter Croissant'
-ON CONFLICT (product_id, sort_order) DO NOTHING;
-
-INSERT INTO product_images (product_id, image_url, sort_order, is_primary)
-SELECT p.product_id,
-       '/static/dev/products/beverages-drinks/iced-latte-1.jpg',
-       1,
-       TRUE
-FROM products p
-JOIN stores s ON s.store_id = p.store_id
-JOIN categories c ON c.category_id = p.category_id
-WHERE s.store_name = 'BKK Snack & Drink Bar'
-  AND c.slug = 'beverages-drinks'
-  AND p.name = 'Iced Latte'
-ON CONFLICT (product_id, sort_order) DO NOTHING;
-
-INSERT INTO product_images (product_id, image_url, sort_order, is_primary)
-SELECT p.product_id,
-       '/static/dev/products/beverages-drinks/mixed-berry-smoothie-1.jpg',
-       1,
-       TRUE
-FROM products p
-JOIN stores s ON s.store_id = p.store_id
-JOIN categories c ON c.category_id = p.category_id
-WHERE s.store_name = 'BKK Snack & Drink Bar'
-  AND c.slug = 'beverages-drinks'
-  AND p.name = 'Mixed Berry Smoothie'
-ON CONFLICT (product_id, sort_order) DO NOTHING;
-
 -- ========= CLOTHING PRODUCTS (Campus Clothing Studio) =========
 -- T-Shirt
 INSERT INTO products (name, product_desc, price, image_url, is_active, store_id, category_id)
@@ -324,59 +272,6 @@ WHERE s.store_name = 'Campus Clothing Studio'
     WHERE p.name = 'Lightweight Windbreaker'
       AND p.store_id = s.store_id
   );
-
--- ========= CLOTHING PRODUCT IMAGES =========
-INSERT INTO product_images (product_id, image_url, sort_order, is_primary)
-SELECT p.product_id,
-       '/static/dev/products/t-shirt/kmall-white-1.jpg',
-       1,
-       TRUE
-FROM products p
-JOIN stores s ON s.store_id = p.store_id
-JOIN categories c ON c.category_id = p.category_id
-WHERE s.store_name = 'Campus Clothing Studio'
-  AND c.slug = 't-shirt'
-  AND p.name = 'KMALL White T-Shirt'
-ON CONFLICT (product_id, sort_order) DO NOTHING;
-
-INSERT INTO product_images (product_id, image_url, sort_order, is_primary)
-SELECT p.product_id,
-       '/static/dev/products/t-shirt/coding-life-1.jpg',
-       1,
-       TRUE
-FROM products p
-JOIN stores s ON s.store_id = p.store_id
-JOIN categories c ON c.category_id = p.category_id
-WHERE s.store_name = 'Campus Clothing Studio'
-  AND c.slug = 't-shirt'
-  AND p.name = 'Graphic T-Shirt – Coding Life'
-ON CONFLICT (product_id, sort_order) DO NOTHING;
-
-INSERT INTO product_images (product_id, image_url, sort_order, is_primary)
-SELECT p.product_id,
-       '/static/dev/products/hoodies-outerwear/black-zip-hoodie-1.jpg',
-       1,
-       TRUE
-FROM products p
-JOIN stores s ON s.store_id = p.store_id
-JOIN categories c ON c.category_id = p.category_id
-WHERE s.store_name = 'Campus Clothing Studio'
-  AND c.slug = 'hoodies-outerwear'
-  AND p.name = 'Black Zip Hoodie'
-ON CONFLICT (product_id, sort_order) DO NOTHING;
-
-INSERT INTO product_images (product_id, image_url, sort_order, is_primary)
-SELECT p.product_id,
-       '/static/dev/products/hoodies-outerwear/lightweight-windbreaker-1.jpg',
-       1,
-       TRUE
-FROM products p
-JOIN stores s ON s.store_id = p.store_id
-JOIN categories c ON c.category_id = p.category_id
-WHERE s.store_name = 'Campus Clothing Studio'
-  AND c.slug = 'hoodies-outerwear'
-  AND p.name = 'Lightweight Windbreaker'
-ON CONFLICT (product_id, sort_order) DO NOTHING;
 
 -- ========= HANDMADE PRODUCTS (Local Craft Studio) =========
 -- Keychain
@@ -453,10 +348,116 @@ WHERE s.store_name = 'Local Craft Studio'
       AND p.store_id = s.store_id
   );
 
+-- ========= FOOD PRODUCT IMAGES =========
+INSERT INTO product_images (product_id, image_url, sort_order, is_primary)
+SELECT p.product_id,
+       '/uploads/products/' || p.product_id || '/chocolate-brownie-1.jpg',
+       1,
+       TRUE
+FROM products p
+JOIN stores s ON s.store_id = p.store_id
+JOIN categories c ON c.category_id = p.category_id
+WHERE s.store_name = 'BKK Snack & Drink Bar'
+  AND c.slug = 'snacks-bakery'
+  AND p.name = 'Chocolate Brownie'
+ON CONFLICT (product_id, sort_order) DO NOTHING;
+
+INSERT INTO product_images (product_id, image_url, sort_order, is_primary)
+SELECT p.product_id,
+       '/uploads/products/' || p.product_id || '/butter-croissant-1.jpg',
+       1,
+       TRUE
+FROM products p
+JOIN stores s ON s.store_id = p.store_id
+JOIN categories c ON c.category_id = p.category_id
+WHERE s.store_name = 'BKK Snack & Drink Bar'
+  AND c.slug = 'snacks-bakery'
+  AND p.name = 'Butter Croissant'
+ON CONFLICT (product_id, sort_order) DO NOTHING;
+
+INSERT INTO product_images (product_id, image_url, sort_order, is_primary)
+SELECT p.product_id,
+       '/uploads/products/' || p.product_id || '/iced-latte-1.jpg',
+       1,
+       TRUE
+FROM products p
+JOIN stores s ON s.store_id = p.store_id
+JOIN categories c ON c.category_id = p.category_id
+WHERE s.store_name = 'BKK Snack & Drink Bar'
+  AND c.slug = 'beverages-drinks'
+  AND p.name = 'Iced Latte'
+ON CONFLICT (product_id, sort_order) DO NOTHING;
+
+INSERT INTO product_images (product_id, image_url, sort_order, is_primary)
+SELECT p.product_id,
+       '/uploads/products/' || p.product_id || '/mixed-berry-smoothie-1.jpg',
+       1,
+       TRUE
+FROM products p
+JOIN stores s ON s.store_id = p.store_id
+JOIN categories c ON c.category_id = p.category_id
+WHERE s.store_name = 'BKK Snack & Drink Bar'
+  AND c.slug = 'beverages-drinks'
+  AND p.name = 'Mixed Berry Smoothie'
+ON CONFLICT (product_id, sort_order) DO NOTHING;
+
+-- ========= CLOTHING PRODUCT IMAGES =========
+INSERT INTO product_images (product_id, image_url, sort_order, is_primary)
+SELECT p.product_id,
+       '/uploads/products/' || p.product_id || '/kmall-white-1.jpg',
+       1,
+       TRUE
+FROM products p
+JOIN stores s ON s.store_id = p.store_id
+JOIN categories c ON c.category_id = p.category_id
+WHERE s.store_name = 'Campus Clothing Studio'
+  AND c.slug = 't-shirt'
+  AND p.name = 'KMALL White T-Shirt'
+ON CONFLICT (product_id, sort_order) DO NOTHING;
+
+INSERT INTO product_images (product_id, image_url, sort_order, is_primary)
+SELECT p.product_id,
+       '/uploads/products/' || p.product_id || '/coding-life-1.jpg',
+       1,
+       TRUE
+FROM products p
+JOIN stores s ON s.store_id = p.store_id
+JOIN categories c ON c.category_id = p.category_id
+WHERE s.store_name = 'Campus Clothing Studio'
+  AND c.slug = 't-shirt'
+  AND p.name = 'Graphic T-Shirt – Coding Life'
+ON CONFLICT (product_id, sort_order) DO NOTHING;
+
+INSERT INTO product_images (product_id, image_url, sort_order, is_primary)
+SELECT p.product_id,
+       '/uploads/products/' || p.product_id || '/black-zip-hoodie-1.jpg',
+       1,
+       TRUE
+FROM products p
+JOIN stores s ON s.store_id = p.store_id
+JOIN categories c ON c.category_id = p.category_id
+WHERE s.store_name = 'Campus Clothing Studio'
+  AND c.slug = 'hoodies-outerwear'
+  AND p.name = 'Black Zip Hoodie'
+ON CONFLICT (product_id, sort_order) DO NOTHING;
+
+INSERT INTO product_images (product_id, image_url, sort_order, is_primary)
+SELECT p.product_id,
+       '/uploads/products/' || p.product_id || '/lightweight-windbreaker-1.jpg',
+       1,
+       TRUE
+FROM products p
+JOIN stores s ON s.store_id = p.store_id
+JOIN categories c ON c.category_id = p.category_id
+WHERE s.store_name = 'Campus Clothing Studio'
+  AND c.slug = 'hoodies-outerwear'
+  AND p.name = 'Lightweight Windbreaker'
+ON CONFLICT (product_id, sort_order) DO NOTHING;
+
 -- ========= HANDMADE PRODUCT IMAGES =========
 INSERT INTO product_images (product_id, image_url, sort_order, is_primary)
 SELECT p.product_id,
-       '/static/dev/products/keychain/kmall-logo-1.jpg',
+       '/uploads/products/' || p.product_id || '/kmall-logo-1.jpg',
        1,
        TRUE
 FROM products p
@@ -469,7 +470,7 @@ ON CONFLICT (product_id, sort_order) DO NOTHING;
 
 INSERT INTO product_images (product_id, image_url, sort_order, is_primary)
 SELECT p.product_id,
-       '/static/dev/products/keychain/cute-cat-1.jpg',
+       '/uploads/products/' || p.product_id || '/cute-cat-1.jpg',
        1,
        TRUE
 FROM products p
@@ -482,7 +483,7 @@ ON CONFLICT (product_id, sort_order) DO NOTHING;
 
 INSERT INTO product_images (product_id, image_url, sort_order, is_primary)
 SELECT p.product_id,
-       '/static/dev/products/handmade-bags/canvas-tote-local-1.jpg',
+       '/uploads/products/' || p.product_id || '/canvas-tote-local-1.jpg',
        1,
        TRUE
 FROM products p
@@ -495,7 +496,7 @@ ON CONFLICT (product_id, sort_order) DO NOTHING;
 
 INSERT INTO product_images (product_id, image_url, sort_order, is_primary)
 SELECT p.product_id,
-       '/static/dev/products/handmade-bags/mini-woven-handbag-1.jpg',
+       '/uploads/products/' || p.product_id || '/mini-woven-handbag-1.jpg',
        1,
        TRUE
 FROM products p
@@ -506,10 +507,12 @@ WHERE s.store_name = 'Local Craft Studio'
   AND p.name = 'Mini Woven Handbag'
 ON CONFLICT (product_id, sort_order) DO NOTHING;
 
--- Extra images for FOOD products (BKK Snack & Drink Bar)
+-- ========= EXTRA PRODUCT IMAGES (2nd images) =========
+
+-- FOOD
 INSERT INTO product_images (product_id, image_url, sort_order, is_primary)
 SELECT p.product_id,
-       '/static/dev/products/snacks-bakery/chocolate-brownie-2.jpg',
+       '/uploads/products/' || p.product_id || '/chocolate-brownie-2.jpg',
        2,
        FALSE
 FROM products p
@@ -522,7 +525,7 @@ ON CONFLICT (product_id, sort_order) DO NOTHING;
 
 INSERT INTO product_images (product_id, image_url, sort_order, is_primary)
 SELECT p.product_id,
-       '/static/dev/products/snacks-bakery/butter-croissant-2.jpg',
+       '/uploads/products/' || p.product_id || '/butter-croissant-2.jpg',
        2,
        FALSE
 FROM products p
@@ -535,7 +538,7 @@ ON CONFLICT (product_id, sort_order) DO NOTHING;
 
 INSERT INTO product_images (product_id, image_url, sort_order, is_primary)
 SELECT p.product_id,
-       '/static/dev/products/beverages-drinks/iced-latte-2.jpg',
+       '/uploads/products/' || p.product_id || '/iced-latte-2.jpg',
        2,
        FALSE
 FROM products p
@@ -548,7 +551,7 @@ ON CONFLICT (product_id, sort_order) DO NOTHING;
 
 INSERT INTO product_images (product_id, image_url, sort_order, is_primary)
 SELECT p.product_id,
-       '/static/dev/products/beverages-drinks/mixed-berry-smoothie-2.jpg',
+       '/uploads/products/' || p.product_id || '/mixed-berry-smoothie-2.jpg',
        2,
        FALSE
 FROM products p
@@ -559,10 +562,10 @@ WHERE s.store_name = 'BKK Snack & Drink Bar'
   AND p.name = 'Mixed Berry Smoothie'
 ON CONFLICT (product_id, sort_order) DO NOTHING;
 
--- Extra images for CLOTHING products (Campus Clothing Studio)
+-- CLOTHING
 INSERT INTO product_images (product_id, image_url, sort_order, is_primary)
 SELECT p.product_id,
-       '/static/dev/products/t-shirt/kmall-white-2.jpg',
+       '/uploads/products/' || p.product_id || '/kmall-white-2.jpg',
        2,
        FALSE
 FROM products p
@@ -575,7 +578,7 @@ ON CONFLICT (product_id, sort_order) DO NOTHING;
 
 INSERT INTO product_images (product_id, image_url, sort_order, is_primary)
 SELECT p.product_id,
-       '/static/dev/products/t-shirt/coding-life-2.jpg',
+       '/uploads/products/' || p.product_id || '/coding-life-2.jpg',
        2,
        FALSE
 FROM products p
@@ -588,7 +591,7 @@ ON CONFLICT (product_id, sort_order) DO NOTHING;
 
 INSERT INTO product_images (product_id, image_url, sort_order, is_primary)
 SELECT p.product_id,
-       '/static/dev/products/hoodies-outerwear/black-zip-hoodie-2.jpg',
+       '/uploads/products/' || p.product_id || '/black-zip-hoodie-2.jpg',
        2,
        FALSE
 FROM products p
@@ -601,7 +604,7 @@ ON CONFLICT (product_id, sort_order) DO NOTHING;
 
 INSERT INTO product_images (product_id, image_url, sort_order, is_primary)
 SELECT p.product_id,
-       '/static/dev/products/hoodies-outerwear/lightweight-windbreaker-2.jpg',
+       '/uploads/products/' || p.product_id || '/lightweight-windbreaker-2.jpg',
        2,
        FALSE
 FROM products p
@@ -612,10 +615,10 @@ WHERE s.store_name = 'Campus Clothing Studio'
   AND p.name = 'Lightweight Windbreaker'
 ON CONFLICT (product_id, sort_order) DO NOTHING;
 
--- Extra images for HANDMADE products (Local Craft Studio)
+-- HANDMADE
 INSERT INTO product_images (product_id, image_url, sort_order, is_primary)
 SELECT p.product_id,
-       '/static/dev/products/keychain/kmall-logo-2.jpg',
+       '/uploads/products/' || p.product_id || '/kmall-logo-2.jpg',
        2,
        FALSE
 FROM products p
@@ -628,7 +631,7 @@ ON CONFLICT (product_id, sort_order) DO NOTHING;
 
 INSERT INTO product_images (product_id, image_url, sort_order, is_primary)
 SELECT p.product_id,
-       '/static/dev/products/keychain/cute-cat-2.jpg',
+       '/uploads/products/' || p.product_id || '/cute-cat-2.jpg',
        2,
        FALSE
 FROM products p
@@ -641,7 +644,7 @@ ON CONFLICT (product_id, sort_order) DO NOTHING;
 
 INSERT INTO product_images (product_id, image_url, sort_order, is_primary)
 SELECT p.product_id,
-       '/static/dev/products/handmade-bags/canvas-tote-local-2.jpg',
+       '/uploads/products/' || p.product_id || '/canvas-tote-local-2.jpg',
        2,
        FALSE
 FROM products p
@@ -654,7 +657,7 @@ ON CONFLICT (product_id, sort_order) DO NOTHING;
 
 INSERT INTO product_images (product_id, image_url, sort_order, is_primary)
 SELECT p.product_id,
-       '/static/dev/products/handmade-bags/mini-woven-handbag-2.jpg',
+       '/uploads/products/' || p.product_id || '/mini-woven-handbag-2.jpg',
        2,
        FALSE
 FROM products p

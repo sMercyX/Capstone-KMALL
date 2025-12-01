@@ -349,9 +349,9 @@ func (h *Handler) uploadStoreImage(c *gin.Context) {
 			return
 		}
 
-		// URL ให้ FE เรียกผ่าน /static/*
+		// URL ให้ FE เรียกผ่าน /uploads/*
 		relPath := filepath.ToSlash(filepath.Join("stores", strconv.FormatInt(storeID, 10), filename))
-		imageURL := "/static/" + relPath
+		imageURL := "/uploads/" + relPath
 
 		// sort_order: ต่อจาก baseSort
 		sortOrder := baseSort + i + 1
@@ -451,7 +451,7 @@ func (h *Handler) deleteStoreImage(c *gin.Context) {
 	}
 
 	if img.ImageURL != "" {
-		relPath := strings.TrimPrefix(img.ImageURL, "/static/")
+		relPath := strings.TrimPrefix(img.ImageURL, "/uploads/")
 		if relPath != "" {
 			fsPath := filepath.Join("uploads", relPath)
 			if err := os.Remove(fsPath); err != nil && !os.IsNotExist(err) {
@@ -616,7 +616,7 @@ func (h *Handler) uploadProductImage(c *gin.Context) {
 
 		// URL สำหรับ FE
 		relPath := filepath.ToSlash(filepath.Join("products", strconv.FormatInt(productID, 10), filename))
-		imageURL := "/static/" + relPath
+		imageURL := "/uploads/" + relPath
 
 		// sort_order: ต่อจาก baseSort / maxSort
 		sortOrder := baseSort + i + 1
@@ -715,7 +715,7 @@ func (h *Handler) deleteProductImage(c *gin.Context) {
 	}
 
 	if img.ImageURL != "" {
-		relPath := strings.TrimPrefix(img.ImageURL, "/static/")
+		relPath := strings.TrimPrefix(img.ImageURL, "/uploads/")
 		if relPath != "" {
 			fsPath := filepath.Join("uploads", relPath)
 			if err := os.Remove(fsPath); err != nil && !os.IsNotExist(err) {
