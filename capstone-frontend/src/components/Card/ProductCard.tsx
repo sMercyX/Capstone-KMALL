@@ -1,5 +1,6 @@
 import { Link } from "react-router-dom"
 import { type Product } from "../../api/productApi"
+import { resolveImageUrl } from "../../utils/resolve"
 // import RatingStars from "../Rating/RatingStars"
 
 interface ProductCardProps {
@@ -14,11 +15,7 @@ export default function ProductCard({ product }: ProductCardProps) {
     >
       <div className="relative aspect-[4/3] overflow-hidden">
         <img
-          src={
-            product.image_url
-              ? `http://localhost:8000${product.image_url}`
-              : "/images/default-store.png"
-          }
+          src={resolveImageUrl(product.image_url)}
           alt={product.name}
           className="h-full w-full object-cover transition duration-300 group-hover:scale-[1.04]"
         />

@@ -1,14 +1,15 @@
 // src/components/Card/CategoriesCard.tsx
 import { useEffect, useState } from "react"
 import { Link } from "react-router-dom"
+import { Utensils, Shirt, Hammer, Package } from "lucide-react"
 import { useCatagoriesApi, type CatagoriesResponse } from "../../api/catagoriesApi"
 
 
-// map slug -> icon
-const CATEGORY_IMAGE_MAP: Record<string, string> = {
-  food: "/assets/cat-food.png",
-  clothing: "/assets/cat-shirt.png",
-  "handmade-products": "/assets/cat-gadget.png",
+// map slug -> Icon Component
+const CATEGORY_ICON_MAP: Record<string, React.ElementType> = {
+  food: Utensils,
+  clothing: Shirt,
+  "handmade-products": Hammer,
 }
 
 // map name อังกฤษ -> ไทย (จะใช้/ไม่ใช้ก็ได้)
@@ -19,7 +20,7 @@ const CATEGORY_NAME_MAP: Record<string, string> = {
 }
 
 function SingleCategoryCard({ item }: { item: CatagoriesResponse }) {
-  const image = CATEGORY_IMAGE_MAP[item.slug] ?? "/assets/cat-default.png"
+  const Icon = CATEGORY_ICON_MAP[item.slug] ?? Package
   const displayName = CATEGORY_NAME_MAP[item.name] ?? item.name
 
   return (
@@ -28,11 +29,7 @@ function SingleCategoryCard({ item }: { item: CatagoriesResponse }) {
       className="group w-full max-w-[160px] rounded-2xl border border-orange-200 bg-white shadow-[0_8px_20px_rgba(255,102,0,0.15)] px-5 py-4 text-center hover:-translate-y-0.5 transition"
     >
       <div className="mx-auto h-16 w-16 rounded-full bg-orange-50 grid place-items-center overflow-hidden">
-        <img
-          src={image}
-          alt={displayName}
-          className="h-12 w-12 object-contain"
-        />
+        <Icon className="h-8 w-8 text-orange-500" />
       </div>
       <div className="mt-3 font-medium text-gray-800">{displayName}</div>
     </Link>
@@ -58,12 +55,13 @@ export default function CategoriesCard() {
 
         // สมมติ ApiResponse มี field data
         setItems(res.data ?? [])
-      } catch (err) {
+      } catch {
         if (!isMounted) return
         setError("ไม่สามารถโหลดหมวดหมู่ได้")
       } finally {
-        if (!isMounted) return
-        setLoading(false)
+        if (isMounted) {
+          setLoading(false)
+        }
       }
     }
 
