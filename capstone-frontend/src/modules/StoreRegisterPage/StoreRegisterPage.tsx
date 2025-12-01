@@ -10,6 +10,7 @@ import Card from "../../components/Card/Card"
 import { useStoreApi } from "../../api/storeApi"
 import { useUserStore } from "../../stores/userStore"
 import StoreAgreementModal from "../../components/Policies/StoreAgreementModal"
+import { handleApiError } from "../../utils/handleApiError"
 
 // ✅ Yup schema: ชื่อร้านไม่เกิน 20 ตัวอักษร, คำอธิบายไม่เกิน 200 ตัวอักษร
 const storeRegisterSchema = yup.object({
@@ -186,9 +187,7 @@ export default function StoreRegisterPage() {
       toast.success("เปิดร้านค้าสำเร็จแล้ว!")
       navigate("/store/me")
     } catch (err) {
-      console.error(err)
-      const msg = "สร้างร้านค้าไม่สำเร็จ กรุณาลองใหม่อีกครั้ง"
-      toast.error(msg)
+      handleApiError(err)
     } finally {
       setIsSubmitting(false)
     }

@@ -6,6 +6,7 @@ import { useStoreApi, type storePictureResponse } from "../../../api/storeApi"
 import { useStoreStore } from "../../../stores/storeStore"
 import type { StoreEditForm } from "./StoreEditModal/StoreEditModal"
 import StoreEditModal from "./StoreEditModal/StoreEditModal"
+import { handleApiError } from "../../../utils/handleApiError"
 
 export default function StoreInfoTab() {
   const { updateStore, addImageStore, editImageStore } = useStoreApi()
@@ -48,7 +49,7 @@ export default function StoreInfoTab() {
               primaryImageUrl = uploaded.image_url
             }
           }
-        } catch (uploadErr) {
+        } catch (_uploadErr) {
           imageError = true
           toast.error("อัปโหลดโลโก้ใหม่ไม่สำเร็จ")
         }
@@ -82,7 +83,7 @@ export default function StoreInfoTab() {
 
       setIsModalOpen(false)
     } catch (err) {
-      toast.error("ไม่สามารถแก้ไขข้อมูลร้านได้ กรุณาลองใหม่อีกครั้ง")
+      handleApiError(err)
     }
   }
 
