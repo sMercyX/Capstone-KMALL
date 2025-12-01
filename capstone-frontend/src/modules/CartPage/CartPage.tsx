@@ -221,6 +221,11 @@ export default function CartPage() {
     }
     if (newQty < 0) return
 
+    if (newQty > 99) {
+      toast.warn("ซื้อได้แค่ 99 ชิ้นต่อ 1 สินค้า")
+      return
+    }
+
     try {
       await updateCart(id, { quantity: newQty })
       const res = await getCart()
