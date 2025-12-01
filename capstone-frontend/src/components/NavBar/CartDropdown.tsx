@@ -172,12 +172,16 @@ export default function CartDropdown({ isOpen, onToggle, onClose }: Props) {
               </div>
             )} */}
 
-            <button
+            
+            {
+              (cart && cart.items.length > 0) && (
+                <button
               onClick={handleGoToCart}
               className="w-full rounded-full bg-orange-500 py-2.5 text-sm font-semibold text-white shadow-md hover:bg-orange-600"
             >
               ดูตะกร้าของฉัน
             </button>
+              )}
           </div>
         </div>
       )}
