@@ -162,7 +162,7 @@ export default function CartDropdown({ isOpen, onToggle, onClose }: Props) {
 
           {/* Footer */}
           <div className="mt-5 flex flex-col items-center gap-3">
-            {totalQuantity > 0 && (
+            {/* {totalQuantity > 0 && (
               <div className="text-sm text-gray-600">
                 รวมทั้งหมด{" "}
                 <span className="font-semibold text-gray-900">
@@ -170,7 +170,7 @@ export default function CartDropdown({ isOpen, onToggle, onClose }: Props) {
                 </span>{" "}
                 รายการ
               </div>
-            )}
+            )} */}
 
             <button
               onClick={handleGoToCart}
