@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react"
 import { useNavigate } from "react-router-dom"
-import { ShoppingCart, Check, X } from "lucide-react"
+import { ShoppingCart, X } from "lucide-react"
 import { useCartApi } from "../../api/cartApi"
 import { useCartStore } from "../../stores/cartStore"
 
@@ -123,10 +123,6 @@ export default function CartDropdown({ isOpen, onToggle, onClose }: Props) {
                   key={item.id}
                   className="flex items-center gap-3 text-sm"
                 >
-                  {/* Checkbox (fix เป็นเลือกทั้งหมดก่อน) */}
-                  <div className="flex h-5 w-5 items-center justify-center rounded-md border border-orange-500 bg-orange-500">
-                    <Check className="h-3 w-3 text-white" />
-                  </div>
 
                   {/* IMG */}
                   <div className="h-16 w-16 rounded-lg bg-gray-200 overflow-hidden">
