@@ -51,6 +51,7 @@ export default function ProductPage() {
 
   const { addCart, getCart } = useCartApi()
   const {
+    cart,
     startLoading: startCartLoading,
     setCart,
   } = useCartStore()
@@ -106,6 +107,15 @@ export default function ProductPage() {
     if (!product) return
 
     try {
+      // Check existing quantity in cart
+      const existingItem = cart?.items.find(item => item.product_id === product.id)
+      const currentQty = existingItem ? existingItem.quantity : 0
+      
+      if (currentQty + qty > 99) {
+        toast.warn(`คุณมีสินค้านี้ในตะกร้าแล้ว ${currentQty} ชิ้น รวมกับที่เลือก ${qty} ชิ้น เกินลิมิต 99 ชิ้น`)
+        return
+      }
+
       startCartLoading()
 
       await addCart({
