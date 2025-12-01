@@ -18,23 +18,44 @@ ON CONFLICT (slug) DO NOTHING;
 
 
 -- sql seed subcategories
--- Snacks & Bakery → child of Food
+-- Food: Snacks & Bakery
 INSERT INTO categories (name, slug, parent_id, sort_order, is_active)
 SELECT 'Snacks & Bakery', 'snacks-bakery', c.category_id, 1, 'YES'
 FROM categories c
 WHERE c.slug = 'food'
 ON CONFLICT (slug) DO NOTHING;
 
--- T-Shirt → child of Clothing
+-- Food: Beverages & Drinks
+INSERT INTO categories (name, slug, parent_id, sort_order, is_active)
+SELECT 'Beverages & Drinks', 'beverages-drinks', c.category_id, 2, 'YES'
+FROM categories c
+WHERE c.slug = 'food'
+ON CONFLICT (slug) DO NOTHING;
+
+-- Clothing: T-Shirt 
 INSERT INTO categories (name, slug, parent_id, sort_order, is_active)
 SELECT 'T-Shirt', 't-shirt', c.category_id, 1, 'YES'
 FROM categories c
 WHERE c.slug = 'clothing'
 ON CONFLICT (slug) DO NOTHING;
 
--- Keychain → child of Handmade Products
+-- Clothing: Hoodies & Outerwear
+INSERT INTO categories (name, slug, parent_id, sort_order, is_active)
+SELECT 'Hoodies & Outerwear', 'hoodies-outerwear', c.category_id, 2, 'YES'
+FROM categories c
+WHERE c.slug = 'clothing'
+ON CONFLICT (slug) DO NOTHING;
+
+-- Handmade: Keychain
 INSERT INTO categories (name, slug, parent_id, sort_order, is_active)
 SELECT 'Keychain', 'keychain', c.category_id, 1, 'YES'
+FROM categories c
+WHERE c.slug = 'handmade-products'
+ON CONFLICT (slug) DO NOTHING;
+
+-- Handmade: Handmade Bags
+INSERT INTO categories (name, slug, parent_id, sort_order, is_active)
+SELECT 'Handmade Bags', 'handmade-bags', c.category_id, 2, 'YES'
 FROM categories c
 WHERE c.slug = 'handmade-products'
 ON CONFLICT (slug) DO NOTHING;

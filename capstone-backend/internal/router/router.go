@@ -90,19 +90,50 @@ func Attach(r *gin.Engine, db *pgxpool.Pool, cfg config.Config) {
 	oRepo := order.NewRepo(db)
 	oSvc := order.NewService(oRepo, cartSvc, pSvc)
 
-	v1 := r.Group("/api",
-		apiLogger(),
-		auth.AuthMiddleware(),
-		middleware.OIDCUser(),
-		middleware.EnsureUser(func(ctx context.Context, oid, email, name string) (string, error) {
-			u, err := uSvc.UpsertAndEnsureBuyer(ctx, oid, email, name)
-			if err != nil {
-				return "", err
-			}
-			return u.ID, nil
-		}),
-	)
-	log.Println("[AUTH] Using direct OIDC auth (backend verifies token)")
+	// v1 := r.Group("/api",
+	// 	apiLogger(),
+	// 	auth.AuthMiddleware(),
+	// 	middleware.OIDCUser(),
+	// 	middleware.EnsureUser(func(ctx context.Context, oid, email, name string) (string, error) {
+	// 		u, err := uSvc.UpsertAndEnsureBuyer(ctx, oid, email, name)
+	// 		if err != nil {
+	// 			return "", err
+	// 		}
+	// 		return u.ID, nil
+	// 	}),
+	// )
+	// log.Println("[AUTH] Using direct OIDC auth (backend verifies token)")
+
+	var v1 *gin.RouterGroup
+
+	if cfg.DevFakeAuth {
+		v1 = r.Group("/api",
+			apiLogger(),
+			middleware.DevMockUser(),
+			middleware.EnsureUser(func(ctx context.Context, oid, email, name string) (string, error) {
+				u, err := uSvc.UpsertAndEnsureBuyer(ctx, oid, email, name)
+				if err != nil {
+					return "", err
+				}
+				return u.ID, nil
+			}),
+		)
+		log.Println("[AUTH] DEV MODE: using DevMockUser (no token verify)")
+	} else {
+		v1 = r.Group("/api",
+			apiLogger(),
+			auth.AuthMiddleware(),
+			middleware.OIDCUser(),
+			middleware.EnsureUser(func(ctx context.Context, oid, email, name string) (string, error) {
+				u, err := uSvc.UpsertAndEnsureBuyer(ctx, oid, email, name)
+				if err != nil {
+					return "", err
+				}
+				return u.ID, nil
+			}),
+		)
+		log.Println("[AUTH] Using direct OIDC auth (backend verifies token)")
+	}
 
 	// ---- debug headers ผ่าน chain เต็ม (ต้อง login) ----
 	v1.GET("/debug/headers", func(c *gin.Context) {

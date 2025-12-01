@@ -87,3 +87,15 @@ func firstEmail(list []string) string {
 	}
 	return list[0]
 }
+
+func DevMockUser() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		u := &UpstreamUser{
+			UID:   "dev-oid-123",
+			Email: "devuser@kmutt.ac.th",
+			Name:  "Dev User",
+		}
+		c.Set(CtxUpstreamUser, u)
+		c.Next()
+	}
+}

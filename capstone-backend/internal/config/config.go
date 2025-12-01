@@ -13,6 +13,7 @@ type Config struct {
 
 	// Auth mode switch
 	TrustUpstreamAuth bool
+	DevFakeAuth       bool
 
 	// Azure OIDC
 	TenantID     string
@@ -71,6 +72,7 @@ func Load() Config {
 		Port:              port,
 		DatabaseURL:       must("DATABASE_URL"),
 		TrustUpstreamAuth: trustUpstream,
+		DevFakeAuth:       getBool("DEV_FAKE_AUTH", false),
 
 		JWTIssuer:       os.Getenv("JWT_ISSUER"),
 		JWTAudience:     os.Getenv("JWT_AUDIENCE"),
