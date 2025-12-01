@@ -1,6 +1,6 @@
 import { Link } from "react-router-dom"
 import { type Product } from "../../api/productApi"
-import RatingStars from "../Rating/RatingStars"
+// import RatingStars from "../Rating/RatingStars"
 
 interface ProductCardProps {
   product: Product
@@ -27,11 +27,10 @@ export default function ProductCard({ product }: ProductCardProps) {
       </div>
 
       <div className="px-3 pb-3 pt-2 space-y-2">
-        <div className="flex items-center gap-2">
-          {/* ⭐ fixed rating ไว้ก่อน */}
+        {/* <div className="flex items-center gap-2">
           <RatingStars rating={4} />
           <span className="text-xs text-gray-500">(120)</span>
-        </div>
+        </div> */}
 
         <h3 className="text-sm font-semibold line-clamp-1">{product.name}</h3>
 
