@@ -1,7 +1,7 @@
 // src/components/Card/CategoriesCard.tsx
 import { useEffect, useState } from "react"
 import { Link } from "react-router-dom"
-import { Utensils, Shirt, Hammer, Package } from "lucide-react"
+import { Utensils, Shirt, Package } from "lucide-react"
 import { useCatagoriesApi, type CatagoriesResponse } from "../../api/catagoriesApi"
 
 
@@ -9,7 +9,7 @@ import { useCatagoriesApi, type CatagoriesResponse } from "../../api/catagoriesA
 const CATEGORY_ICON_MAP: Record<string, React.ElementType> = {
   food: Utensils,
   clothing: Shirt,
-  "handmade-products": Hammer,
+  "handmade-products": Package ,
 }
 
 // map name อังกฤษ -> ไทย (จะใช้/ไม่ใช้ก็ได้)
@@ -26,12 +26,12 @@ function SingleCategoryCard({ item }: { item: CatagoriesResponse }) {
   return (
     <Link
       to={`/categories/${item.slug}`}
-      className="group w-full max-w-[160px] rounded-2xl border border-orange-200 bg-white shadow-[0_8px_20px_rgba(255,102,0,0.15)] px-5 py-4 text-center hover:-translate-y-0.5 transition"
+      className="group w-full max-w-[240px] rounded-3xl border border-orange-200 bg-white shadow-[0_8px_20px_rgba(255,102,0,0.15)] px-8 py-6 text-center hover:-translate-y-1 transition duration-300"
     >
-      <div className="mx-auto h-16 w-16 rounded-full bg-orange-50 grid place-items-center overflow-hidden">
-        <Icon className="h-8 w-8 text-orange-500" />
+      <div className="mx-auto h-24 w-24 rounded-full bg-orange-50 grid place-items-center overflow-hidden mb-4">
+        <Icon className="h-12 w-12 text-orange-500" />
       </div>
-      <div className="mt-3 font-medium text-gray-800">{displayName}</div>
+      <div className="font-semibold text-lg text-gray-800">{displayName}</div>
     </Link>
   )
 }
@@ -79,10 +79,10 @@ export default function CategoriesCard() {
         {Array.from({ length: 3 }).map((_, i) => (
           <div
             key={i}
-            className="w-full max-w-[160px] rounded-2xl border border-orange-100 bg-white px-5 py-4"
+            className="w-full max-w-[240px] rounded-3xl border border-orange-100 bg-white px-8 py-6"
           >
-            <div className="mx-auto h-16 w-16 rounded-full bg-orange-50 animate-pulse" />
-            <div className="mt-3 h-4 w-20 mx-auto rounded-full bg-gray-100 animate-pulse" />
+            <div className="mx-auto h-24 w-24 rounded-full bg-orange-50 animate-pulse mb-4" />
+            <div className="h-6 w-32 mx-auto rounded-full bg-gray-100 animate-pulse" />
           </div>
         ))}
       </div>
