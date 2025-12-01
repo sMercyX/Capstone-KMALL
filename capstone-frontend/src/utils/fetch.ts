@@ -61,7 +61,27 @@ export function useHttpClient(baseUrl: string) {
     }
 
     if (!res.ok) {
-      throw new Error(`HTTP error! Status: ${res.status}`);
+      let errorData: any
+      try {
+        const ct = res.headers.get("content-type")
+        if (ct && ct.includes("application/json")) {
+          errorData = await res.json()
+        } else {
+          errorData = await res.text()
+        }
+      } catch (e) {
+        errorData = null
+      }
+
+      const error = new Error(
+        (errorData && errorData.message) || `HTTP error! Status: ${res.status}`
+      )
+      // Attach response data to error object to mimic AxiosError structure
+      ;(error as any).response = {
+        status: res.status,
+        data: errorData,
+      }
+      throw error
     }
 
     const ct = res.headers.get("content-type");

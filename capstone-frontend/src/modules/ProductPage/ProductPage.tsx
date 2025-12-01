@@ -7,13 +7,14 @@ import {
   ShoppingCart,
 } from "lucide-react"
 import { toast } from "react-toastify"
-import { useProductApi, type productPictureResponse } from "../../api/productApi"
+import { useProductApi, type productPictureResponse, type Product } from "../../api/productApi"
 import { useProductStore } from "../../stores/productStore"
 import { useCartStore } from "../../stores/cartStore"
 import Card from "../../components/Card/Card"
 import { useCartApi } from "../../api/cartApi"
 // import { resolveImageUrl } from "../../utils/resolve"
 import StoreInfoCard from "../../components/Card/StoreInfoCard"
+import { handleApiError } from "../../utils/handleApiError"
 
 
 // ====== UI Helpers ======
@@ -82,10 +83,10 @@ export default function ProductPage() {
         ])
 
         if (!cancelled) {
-          setProduct(productRes.data as any)
+          setProduct(productRes.data as Product)
           setImages(imageRes.data || [])
         }
-      } catch (err) {
+      } catch {
         if (!cancelled) setError("ไม่สามารถโหลดสินค้าได้")
       }
     }
@@ -115,14 +116,9 @@ export default function ProductPage() {
       const res = await getCart()
       setCart(res.data)
 
-      // TODO: toast success ถ้าต้องการ
-    } catch (err: any) {
-      console.error(err)
-      if (err.response?.status === 403) {
-        toast.error("ไม่สามารถซื้อสินค้าจากร้านตัวเองได้")
-      } else {
-        toast.error("ไม่สามารถเพิ่มสินค้าในตะกร้าได้")
-      }
+      toast.success("เพิ่มสินค้าลงตะกร้าเรียบร้อยแล้ว")
+    } catch (err) {
+      handleApiError(err)
     }
   }
 

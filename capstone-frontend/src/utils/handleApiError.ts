@@ -1,26 +1,33 @@
 import { toast } from "react-toastify"
-import { AxiosError } from "axios"
-import type { ApiResponse } from "../api/responseType"
+// import { AxiosError } from "axios"
+// import type { ApiResponse } from "../api/responseType"
+
+interface BackendError {
+  message?: string
+  error?: string
+  detail?: string
+}
 
 export const handleApiError = (error: unknown) => {
   let message = "เกิดข้อผิดพลาดที่ไม่ทราบสาเหตุ กรุณาลองใหม่อีกครั้ง"
 
-  if (error instanceof AxiosError) {
-    // Check if the error response has data matching our ApiResponse structure
-    const data = error.response?.data as ApiResponse<unknown> | undefined
-    
-    if (data && data.message) {
-      message = data.message
-    } else if (error.message) {
-        // Fallback to axios error message if no specific backend message
-        // But usually backend message is preferred. 
-        // If it's a network error, error.message might be "Network Error"
-        message = error.message
+  const err = error as any
+  const data = err?.response?.data as BackendError | string | undefined
+
+  // Prioritize backend error message
+  if (data) {
+    if (typeof data === "string") {
+      message = data
+    } else {
+      if (data.message) {
+        message = data.message
+      } else if (data.error) {
+        message = data.error // Some backends use 'error'
+      }
     }
-  } else if (error instanceof Error) {
-    message = error.message
-  } else if (typeof error === "string") {
-    message = error
+  } else if (err?.message) {
+    // Fallback to error message
+    message = err.message
   }
 
   toast.error(message, {
