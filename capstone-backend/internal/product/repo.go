@@ -212,6 +212,12 @@ func (r *repo) ListPublic(
 	limit, page int,
 	priceSort string,
 ) ([]Product, int64, error) {
+	if limit <= 0 {
+		limit = 20
+	}
+	if page <= 0 {
+		page = 1
+	}
 	offset := (page - 1) * limit
 	q = strings.TrimSpace(strings.ToLower(q))
 
@@ -222,15 +228,23 @@ func (r *repo) ListPublic(
     `
 
 	selectQuery := `
-        SELECT p.product_id, p.name, p.product_desc, p.price, p.image_url,
-               p.created_at, p.updated_at, p.is_active, p.store_id, p.category_id
+        SELECT 
+            p.product_id,
+            p.name,
+            p.product_desc,
+            p.price,
+            p.image_url,
+            p.created_at,
+            p.updated_at,
+            p.is_active,
+            p.store_id,
+            p.category_id,
+            s.store_name
     ` + base
 
 	countQuery := `SELECT COUNT(*) ` + base
 
 	args := []any{}
-
-	// ----- Filters (ใช้กับทั้ง select และ count) -----
 
 	if q != "" {
 		cond := " AND LOWER(p.name) LIKE '%' || $" + strconv.Itoa(len(args)+1) + " || '%' "
@@ -272,7 +286,6 @@ func (r *repo) ListPublic(
 		args = append(args, *storeID)
 	}
 
-	// ----- orderBy / limit / offset สำหรับ select เท่านั้น -----
 	orderBy := "p.created_at DESC, p.product_id ASC"
 	switch priceSort {
 	case "asc":
@@ -287,13 +300,11 @@ func (r *repo) ListPublic(
 
 	argsWithPage := append(append([]any{}, args...), limit, offset)
 
-	// ----- ดึง total count -----
 	var total int64
 	if err := r.db.QueryRow(ctx, countQuery, args...).Scan(&total); err != nil {
 		return nil, 0, apperr.Wrap(apperr.Internal, err, "count public products failed")
 	}
 
-	// ----- ดึง data ตามหน้า -----
 	rows, err := r.db.Query(ctx, selectQuery, argsWithPage...)
 	if err != nil {
 		return nil, 0, apperr.Wrap(apperr.Internal, err, "public list failed")
@@ -304,8 +315,17 @@ func (r *repo) ListPublic(
 	for rows.Next() {
 		var p Product
 		if err := rows.Scan(
-			&p.ID, &p.Name, &p.Description, &p.Price, &p.ImageURL,
-			&p.CreatedAt, &p.UpdatedAt, &p.IsActive, &p.StoreID, &p.CategoryID,
+			&p.ID,
+			&p.Name,
+			&p.Description,
+			&p.Price,
+			&p.ImageURL,
+			&p.CreatedAt,
+			&p.UpdatedAt,
+			&p.IsActive,
+			&p.StoreID,
+			&p.CategoryID,
+			&p.StoreName,
 		); err != nil {
 			return nil, 0, apperr.Wrap(apperr.Internal, err, "scan product failed")
 		}
