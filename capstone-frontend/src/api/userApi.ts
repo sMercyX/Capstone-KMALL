@@ -55,7 +55,7 @@ export function useUserApi() {
 
   // ดึง /api/users/me แล้ว map ให้เป็น User ที่พร้อมใช้ใน FE
   async function getMe(): Promise<User> {
-    const resp = await http.getItems(`/api/users/me`)
+    const resp = await http.getItems(`/users/me`)
 
     return mapUser(resp as GetUserResponse)
   }
