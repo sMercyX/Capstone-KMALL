@@ -95,9 +95,12 @@ type orderBuyerDTO struct {
 }
 
 type orderDetailResp struct {
-	Order Order          `json:"order"`
-	Items []OrderItem    `json:"items"`
-	Buyer *orderBuyerDTO `json:"buyer,omitempty"` // null / ไม่ส่ง ถ้าไม่ใช่ seller/admin
+	Order      Order          `json:"order"`
+	Items      []OrderItem    `json:"items"`
+	StoreName  string         `json:"store_name"`
+	SellerName string         `json:"seller_name"`
+	BuyerName  string         `json:"buyer_name"`
+	Buyer      *orderBuyerDTO `json:"buyer,omitempty"`
 }
 
 type buyerOrderDTO struct {
@@ -237,7 +240,9 @@ func (h *Handler) getOrder(c *gin.Context) {
 		return
 	}
 
-	result, err := h.svc.GetOrderWithItems(c.Request.Context(), id)
+	ctx := c.Request.Context()
+
+	result, err := h.svc.GetOrderWithItems(ctx, id)
 	if err != nil {
 		c.Error(err)
 		return
@@ -261,26 +266,40 @@ func (h *Handler) getOrder(c *gin.Context) {
 		return
 	}
 
+	st, err := h.storeSvc.Get(ctx, int64(order.StoreID))
+	if err != nil {
+		c.Error(err)
+		return
+	}
+
+	sellerUser, err := h.userSvc.Get(ctx, st.UserID.String())
+	if err != nil {
+		c.Error(err)
+		return
+	}
+
+	buyerUser, err := h.userSvc.Get(ctx, order.UserID)
+	if err != nil {
+		c.Error(err)
+		return
+	}
+
 	var buyerDTO *orderBuyerDTO
-
 	if isStoreOwner || isAdmin {
-		u, err := h.userSvc.Get(c.Request.Context(), order.UserID)
-		if err != nil {
-			c.Error(err)
-			return
-		}
-
 		buyerDTO = &orderBuyerDTO{
-			ID:          u.ID,
-			DisplayName: u.DisplayName,
-			Email:       u.Email,
+			ID:          buyerUser.ID,
+			DisplayName: buyerUser.DisplayName,
+			Email:       buyerUser.Email,
 		}
 	}
 
 	resp := orderDetailResp{
-		Order: result.Order,
-		Items: result.Items,
-		Buyer: buyerDTO,
+		Order:      result.Order,
+		Items:      result.Items,
+		StoreName:  st.Name,
+		SellerName: sellerUser.DisplayName,
+		BuyerName:  buyerUser.DisplayName,
+		Buyer:      buyerDTO,
 	}
 
 	respond.OK(c, apperr.OK, resp)
