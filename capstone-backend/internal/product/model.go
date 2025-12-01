@@ -15,5 +15,4 @@ type Product struct {
 	IsActive    string    `db:"is_active"   json:"is_active"`
 	StoreID     int       `db:"store_id"    json:"store_id"`
 	CategoryID  int       `db:"category_id" json:"category_id"`
-	StoreName   string    `db:"store_name" json:"store_name"`
 }
