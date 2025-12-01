@@ -363,8 +363,7 @@ export default function ProductPage() {
       </Card>
 
       {/* แถบข้อมูลร้านด้านล่าง */}
-      {/* แถบข้อมูลร้านด้านล่าง */}
-      {product?.store_id && <StoreInfoCard storeId={product.store_id} />}
+      {product?.store_id && <StoreInfoCard storeId={product.store_id} disableViewButton={false} />}
 
       <ConfirmationModal
         isOpen={isConfirmModalOpen}

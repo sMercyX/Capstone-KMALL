@@ -83,7 +83,7 @@ export default function StorePage() {
 
   return (
     <Card className="max-w-6xl mx-auto ">
-      <StoreInfoCard storeId={storeId} />
+      <StoreInfoCard storeId={storeId} disableViewButton={true}/>
       
       <div className="px-6">
         

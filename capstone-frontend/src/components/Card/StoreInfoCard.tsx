@@ -4,11 +4,17 @@ import Card from "./Card"
 import { Link } from "react-router-dom"
 import { resolveImageUrl } from "../../utils/resolve"
 
+
 interface StoreInfoCardProps {
   storeId: number
+  disableViewButton?: boolean
 }
 
-export default function StoreInfoCard({ storeId }: StoreInfoCardProps) {
+
+export default function StoreInfoCard({
+  storeId,
+  disableViewButton = false,
+}: StoreInfoCardProps) {
   const { getStoreDetail } = useStoreApi()
   const [store, setStore] = useState<addStoreData | null>(null)
   const [isLoading, setIsLoading] = useState(false)
@@ -68,6 +74,15 @@ export default function StoreInfoCard({ storeId }: StoreInfoCardProps) {
             ดูร้านค้า
           </button>
         </Link>
+
+        {!disableViewButton && (
+      <Link to={`/store/${storeId}`} className="flex gap-3">
+        <button className="rounded-full bg-orange-500 px-5 py-2 text-sm font-semibold text-white hover:bg-orange-600 transition">
+          ดูร้านค้า
+        </button>
+      </Link>
+        )}
+
     </Card>
   )
 }
