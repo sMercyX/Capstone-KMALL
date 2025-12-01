@@ -7,7 +7,9 @@ import { useStoreStore } from "../../../stores/storeStore"
 import { useStoreProductStore } from "./storeProductStore"
 import StoreEditProductModal from "./StoreEditProductModal"
 import ConfirmationModal from "../../../components/Modal/ConfirmationModal"
+import { toast } from "react-toastify"
 import { resolveImageUrl } from "../../../utils/resolve"
+import { handleApiError } from "../../../utils/handleApiError"
 
 export default function StoreProductsTab() {
   const { getStoreProducts } = useStoreApi()
@@ -144,9 +146,9 @@ export default function StoreProductsTab() {
       await deleteProduct(deleteId)
       setRefreshKey((prev) => prev + 1)
       setDeleteId(null)
+      toast.success("ลบสินค้าเรียบร้อยแล้ว")
     } catch (err) {
-      console.error("Failed to delete product:", err)
-      alert("ลบสินค้าไม่สำเร็จ กรุณาลองใหม่")
+      handleApiError(err)
     }
   }
 
