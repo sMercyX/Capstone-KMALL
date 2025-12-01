@@ -4,7 +4,6 @@ import { useNavigate, useParams } from "react-router-dom"
 import {
   ChevronLeft,
   ChevronRight,
-  Star,
   ShoppingCart,
 } from "lucide-react"
 import { toast } from "react-toastify"
@@ -16,21 +15,21 @@ import { useCartApi } from "../../api/cartApi"
 import StoreInfoCard from "../../components/Card/StoreInfoCard"
 
 // ====== UI Helpers ======
-function RatingStarsFixed() {
-  const full = 4
-  const empty = 1
+// function RatingStarsFixed() {
+//   const full = 4
+//   const empty = 1
 
-  return (
-    <div className="flex items-center gap-0.5 text-amber-500">
-      {Array.from({ length: full }).map((_, i) => (
-        <Star key={`f-${i}`} className="h-5 w-5 fill-current" />
-      ))}
-      {Array.from({ length: empty }).map((_, i) => (
-        <Star key={`e-${i}`} className="h-5 w-5" />
-      ))}
-    </div>
-  )
-}
+//   return (
+//     <div className="flex items-center gap-0.5 text-amber-500">
+//       {Array.from({ length: full }).map((_, i) => (
+//         <Star key={`f-${i}`} className="h-5 w-5 fill-current" />
+//       ))}
+//       {Array.from({ length: empty }).map((_, i) => (
+//         <Star key={`e-${i}`} className="h-5 w-5" />
+//       ))}
+//     </div>
+//   )
+// }
 
 export default function ProductPage() {
   const { id } = useParams<{ id: string }>()
@@ -255,11 +254,11 @@ export default function ProductPage() {
             <h1 className="text-2xl md:text-3xl font-bold leading-tight">
               {product.name}
             </h1>
-
+{/* 
             <div className="flex items-center gap-3 text-gray-700">
               <RatingStarsFixed />
               <span className="text-sm">288 reviews</span>
-            </div>
+            </div> */}
 
             <p className="text-2xl md:text-3xl font-bold text-gray-900">
               {product.price ? `${product.price} บาท` : "—"}
