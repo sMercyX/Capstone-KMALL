@@ -39,7 +39,11 @@ func (r *repo) Create(ctx context.Context, userID string, in CreateParams) (Stor
 		in.IsActive = "YES"
 	}
 
-	// ตรวจสอบว่าผู้ใช้มีร้านแล้วหรือยัง
+	in.Name = strings.TrimSpace(in.Name)
+	if in.Name == "" {
+		return Store{}, apperr.New(apperr.BadRequest, "store name is required")
+	}
+
 	var existsID int
 	err := r.db.QueryRow(ctx, `
 		SELECT store_id FROM stores WHERE user_id = $1 LIMIT 1;
@@ -49,6 +53,20 @@ func (r *repo) Create(ctx context.Context, userID string, in CreateParams) (Stor
 		return Store{}, apperr.New(apperr.Conflict, "user already owns a store")
 	} else if !errors.Is(err, pgx.ErrNoRows) {
 		return Store{}, apperr.Wrap(apperr.Internal, err, "check existing store failed")
+	}
+
+	var dupID int64
+	err = r.db.QueryRow(ctx, `
+		SELECT store_id
+		FROM stores
+		WHERE LOWER(store_name) = LOWER($1)
+		LIMIT 1;
+	`, in.Name).Scan(&dupID)
+
+	if err == nil {
+		return Store{}, apperr.New(apperr.Conflict, "store name already exists")
+	} else if !errors.Is(err, pgx.ErrNoRows) {
+		return Store{}, apperr.Wrap(apperr.Internal, err, "check duplicate store name failed")
 	}
 
 	var s Store
@@ -63,7 +81,7 @@ func (r *repo) Create(ctx context.Context, userID string, in CreateParams) (Stor
 
 	if err != nil {
 		if pgErr, ok := err.(*pgconn.PgError); ok && pgErr.Code == "23505" {
-			return Store{}, apperr.New(apperr.Conflict, "user already owns a store")
+			return Store{}, apperr.New(apperr.Conflict, "store already exists")
 		}
 		return Store{}, apperr.Wrap(apperr.Internal, err, "insert store failed")
 	}
@@ -169,6 +187,30 @@ type UpdateParams struct {
 }
 
 func (r *repo) Update(ctx context.Context, id int64, in UpdateParams) (Store, error) {
+	if in.Name != nil {
+		name := strings.TrimSpace(*in.Name)
+		if name == "" {
+			return Store{}, apperr.New(apperr.BadRequest, "store name cannot be empty")
+		}
+
+		var dupID int64
+		err := r.db.QueryRow(ctx, `
+			SELECT store_id
+			FROM stores
+			WHERE LOWER(store_name) = LOWER($1)
+			  AND store_id <> $2   -- ไม่รวมร้านตัวเอง
+			LIMIT 1;
+		`, name, id).Scan(&dupID)
+
+		if err == nil {
+			return Store{}, apperr.New(apperr.Conflict, "store name already exists")
+		} else if !errors.Is(err, pgx.ErrNoRows) {
+			return Store{}, apperr.Wrap(apperr.Internal, err, "check duplicate store name failed")
+		}
+
+		in.Name = &name
+	}
+
 	var s Store
 	err := r.db.QueryRow(ctx, `
 		UPDATE stores
@@ -183,9 +225,13 @@ func (r *repo) Update(ctx context.Context, id int64, in UpdateParams) (Store, er
 	`, id, in.Name, in.Description, in.ProfileURL, in.IsActive).
 		Scan(&s.ID, &s.Name, &s.Description, &s.ProfileURL,
 			&s.IsActive, &s.CreatedAt, &s.UpdatedAt, &s.UserID)
+
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return Store{}, apperr.New(apperr.NotFound, "store not found")
+		}
+		if pgErr, ok := err.(*pgconn.PgError); ok && pgErr.Code == "23505" {
+			return Store{}, apperr.New(apperr.Conflict, "store name already exists")
 		}
 		return Store{}, apperr.Wrap(apperr.Internal, err, "update store failed")
 	}
