@@ -1,9 +1,11 @@
 import { useState, useEffect } from "react"
-import { Info, Upload } from "lucide-react"
+import { Upload } from "lucide-react"
 import { useNavigate } from "react-router-dom"
 import * as yup from "yup"
 import { toast } from "react-toastify"
 
+import { Input } from "../../components/Input/Input"
+import { Textarea } from "../../components/Input/Textarea"
 import Card from "../../components/Card/Card"
 import { useStoreApi } from "../../api/storeApi"
 import { useUserStore } from "../../stores/userStore"
@@ -15,12 +17,12 @@ const storeRegisterSchema = yup.object({
     .string()
     .trim()
     .required("กรุณากรอกชื่อร้าน")
-    .max(100, "ชื่อร้านต้องไม่เกิน 20 ตัวอักษร"),
+    .max(100, "ชื่อร้านต้องไม่เกิน 100 ตัวอักษร"),
   description: yup
     .string()
     .trim()
     .required("กรุณากรอกคำอธิบายร้าน")
-    .max(255, "คำอธิบายร้านต้องไม่เกิน 200 ตัวอักษร"),
+    .max(255, "คำอธิบายร้านต้องไม่เกิน 255 ตัวอักษร"),
   agreeTerms: yup
     .boolean()
     .oneOf([true], "กรุณายอมรับ KMALL terms & policies"),
@@ -40,6 +42,9 @@ export default function StoreRegisterPage() {
   const [description, setDescription] = useState("")
   const [fileName, setFileName] = useState("Nothing selected.")
   const [logoFile, setLogoFile] = useState<File | null>(null) // 👈 เก็บไฟล์จริง ๆ
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null)
+
+  const [errors, setErrors] = useState<{ name?: boolean; description?: boolean }>({})
 
   const [agreeTerms, setAgreeTerms] = useState(false)
   const [agreeRules, setAgreeRules] = useState(false)
@@ -56,12 +61,23 @@ export default function StoreRegisterPage() {
     }
   }, [hasSellerRole, navigate])
 
+  // Cleanup preview URL on unmount
+  useEffect(() => {
+    return () => {
+      if (previewUrl) {
+        URL.revokeObjectURL(previewUrl)
+      }
+    }
+  }, [previewUrl])
+
   function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
 
     if (!file) {
       setFileName("Nothing selected.")
       setLogoFile(null)
+      if (previewUrl) URL.revokeObjectURL(previewUrl)
+      setPreviewUrl(null)
       return
     }
 
@@ -70,18 +86,34 @@ export default function StoreRegisterPage() {
       toast.error("กรุณาอัปโหลดเฉพาะไฟล์รูปภาพ")
       setFileName("Nothing selected.")
       setLogoFile(null)
+      if (previewUrl) URL.revokeObjectURL(previewUrl)
+      setPreviewUrl(null)
+      e.target.value = ""
+      return
+    }
+
+    // ✅ เช็คขนาดไฟล์ไม่เกิน 2MB
+    if (file.size > 2 * 1024 * 1024) {
+      toast.error("ขนาดไฟล์ต้องไม่เกิน 2MB")
+      setFileName("Nothing selected.")
+      setLogoFile(null)
+      if (previewUrl) URL.revokeObjectURL(previewUrl)
+      setPreviewUrl(null)
       e.target.value = ""
       return
     }
 
     setFileName(file.name)
     setLogoFile(file)
-    // profileUrl จริง ๆ จะได้จาก backend หลัง upload เสร็จ
-    // ตอนสร้าง store ครั้งแรกส่ง "" ไปก่อนได้
+    
+    if (previewUrl) URL.revokeObjectURL(previewUrl)
+    const url = URL.createObjectURL(file)
+    setPreviewUrl(url)
   }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
+    setErrors({}) // Reset errors
 
     // ✅ validate ด้วย yup ก่อน
     try {
@@ -96,8 +128,17 @@ export default function StoreRegisterPage() {
       )
     } catch (err) {
       if (err instanceof yup.ValidationError) {
-        const msg = err.errors[0] ?? "กรุณาตรวจสอบข้อมูลให้ถูกต้อง"
-        toast.error(msg)
+        const newErrors: { name?: boolean; description?: boolean } = {}
+        let firstMsg = ""
+
+        err.inner.forEach((error) => {
+          if (error.path === "name") newErrors.name = true
+          if (error.path === "description") newErrors.description = true
+          if (!firstMsg) firstMsg = error.message
+        })
+
+        setErrors(newErrors)
+        toast.error(firstMsg)
         return
       }
       const msg = "ข้อมูลไม่ถูกต้อง กรุณาลองใหม่"
@@ -178,17 +219,13 @@ export default function StoreRegisterPage() {
 
             {/* ชื่อร้าน */}
             <div className="space-y-1">
-              <label className="font-medium flex items-center gap-1">
-                ชื่อร้าน
-                <Info className="h-4 w-4 text-gray-400" />
-              </label>
-              <input
-                type="text"
+              <Input
+                label="ชื่อร้าน"
                 placeholder="Store Name"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 maxLength={100}
-                className="w-full rounded-xl border px-4 py-2 focus:outline-none focus:ring-2 focus:ring-orange-500"
+                error={errors.name}
               />
               <p className="text-xs text-gray-500 text-right">
                 {name.length} / 100 ตัวอักษร
@@ -197,17 +234,15 @@ export default function StoreRegisterPage() {
 
             {/* คำอธิบายร้าน */}
             <div className="space-y-1">
-              <label className="font-medium flex items-center gap-1">
-                คำอธิบายร้าน
-                <Info className="h-4 w-4 text-gray-400" />
-              </label>
-              <textarea
+              <Textarea
+                label="คำอธิบายร้าน"
                 placeholder="Store Description"
                 rows={3}
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
                 maxLength={255}
-                className="w-full rounded-xl border px-4 py-2 focus:outline-none focus:ring-2 focus:ring-orange-500 resize-none"
+                error={errors.description}
+                className="resize-none"
               />
               <p className="text-xs text-gray-500 text-right">
                 {description.length} / 255 ตัวอักษร
@@ -218,12 +253,22 @@ export default function StoreRegisterPage() {
             <div className="space-y-1">
               <label className="font-medium flex items-center gap-1">
                 โลโก้ร้าน
-                <Info className="h-4 w-4 text-gray-400" />
+                {/* <Info className="h-4 w-4 text-gray-400" /> */}
               </label>
 
-              <label className="flex flex-col items-center justify-center cursor-pointer border border-dashed rounded-xl py-6 hover:bg-gray-50 transition">
-                <Upload className="h-6 w-6 text-gray-500" />
-                <span className="mt-1 text-sm text-gray-600">Upload Image</span>
+              <label className="flex flex-col bg-white items-center justify-center cursor-pointer border border-dashed rounded-xl py-6 hover:bg-gray-50 transition relative overflow-hidden">
+                {previewUrl ? (
+                  <img 
+                    src={previewUrl} 
+                    alt="Preview" 
+                    className="h-32 w-32 object-cover rounded-full mb-2 border"
+                  />
+                ) : (
+                  <Upload className="h-6 w-6 text-gray-500" />
+                )}
+                <span className="mt-1 text-sm text-gray-600">
+                  {previewUrl ? "Change Image" : "Upload Image"}
+                </span>
                 <input
                   type="file"
                   className="hidden"
@@ -277,7 +322,7 @@ export default function StoreRegisterPage() {
               <button
                 type="submit"
                 disabled={isSubmitting}
-                className="w-full rounded-full bg-gray-900 text-white py-2.5 text-sm font-medium hover:bg-gray-800 disabled:opacity-60"
+                className="w-full rounded-full bg-gray-900 text-white py-2.5 text-sm font-medium hover:bg-gray-800 disabled:opacity-60 cursor-pointer"
               >
                 {isSubmitting ? "กำลังสร้างร้าน..." : "เปิดร้านค้า"}
               </button>
