@@ -1,14 +1,18 @@
 // src/pages/store/StoreSettingsTab.tsx
 import { useState } from "react"
 import { useStoreStore } from "../../stores/storeStore"
+import { useUserStore } from "../../stores/userStore"
 import { useStoreApi } from "../../api/storeApi"
 import { useNavigate } from "react-router-dom"
 import ConfirmationModal from "../../components/Modal/ConfirmationModal"
+import { toast } from "react-toastify"
+import { handleApiError } from "../../utils/handleApiError"
 
 export default function StoreSettingsTab() {
   const { store, loading, error, updateStoreData } = useStoreStore()
   const { updateStore, deleteStore } = useStoreApi()
   const navigate = useNavigate()
+  const { fetchUser } = useUserStore()
 
   const [saving, setSaving] = useState(false)
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false)
@@ -33,20 +37,22 @@ export default function StoreSettingsTab() {
       // อัปเดตค่าใน zustand ให้ UI เปลี่ยนทันที
       updateStoreData({ is_active: newStatus })
     } catch (e) {
-      console.error(e)
-      alert("ไม่สามารถอัปเดตสถานะร้านได้")
+      handleApiError(e)
     } finally {
       setSaving(false)
     }
   }
 
+
+
   const handleDeleteStore = async () => {
     try {
       await deleteStore(store.id)
-      navigate("/")
+      await fetchUser()
+      toast.success("ลบร้านค้าเรียบร้อยแล้ว")
+      navigate("/dashboard")
     } catch (e) {
-      console.error(e)
-      alert("ไม่สามารถลบร้านค้าได้")
+      handleApiError(e)
     }
   }
 
