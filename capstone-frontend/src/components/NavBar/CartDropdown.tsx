@@ -103,7 +103,8 @@ export default function CartDropdown({ isOpen, onToggle, onClose }: Props) {
         className="relative cursor-pointer"
         onClick={onToggle}
       >
-        <ShoppingCart className="h-6 w-6 text-[--icon-color] hover:text-orange-600" />
+        <ShoppingCart className={`h-6 w-6 ${isOpen ? "text-orange-500" : "text-gray-500"}`} />
+        {/* <ShoppingCart className="h-6 w-6 text-[--icon-color] hover:text-orange-600" />  */}
         {totalQuantity > 0 && (
           <span className="absolute -top-2 -right-2 bg-orange-500 text-white text-xs rounded-full px-1.5">
             {totalQuantity}

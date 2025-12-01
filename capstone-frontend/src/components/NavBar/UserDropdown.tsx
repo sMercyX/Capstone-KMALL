@@ -1,3 +1,4 @@
+import { useRef, useEffect } from "react"
 import { Link } from "react-router-dom"
 import { ChevronDown, User, Image, Check } from "lucide-react"
 // import { useTheme } from "../../theme/ThemeContext"
@@ -22,6 +23,23 @@ export default function UserDropdown({
   isStoreActive,
   isCartActive,
 }: Props) {
+  const dropdownRef = useRef<HTMLDivElement | null>(null)
+
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+        onClose()
+      }
+    }
+
+    if (isOpen) {
+      document.addEventListener("mousedown", handleClickOutside)
+    }
+
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside)
+    }
+  }, [isOpen, onClose])
   // const { theme, setTheme } = useTheme()
   const { name, email, roles } = useUserStore()
   const { logout } = useAuth()
@@ -48,7 +66,7 @@ export default function UserDropdown({
       </button>
 
       {isOpen && (
-        <div className="absolute right-0 mt-3 w-80 rounded-3xl bg-white shadow-xl border border-violet-200 p-5 z-50">
+        <div ref={dropdownRef} className="absolute right-0 mt-3 w-80 rounded-3xl bg-white shadow-xl border border-orange-200 p-5 z-50">
           {/* Profile header */}
           <div className="flex gap-4">
             <div className="h-16 w-16 rounded-full bg-gray-200" />
