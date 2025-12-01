@@ -107,7 +107,7 @@ export default function Dashboard() {
       </div> */}
       {/* Greeting + Categories */}
      <div className="flex flex-col items-center justify-center text-center min-h-[70vh]">
-        <div className="text-xs text-orange-500">
+        <div className="text-1xl text-orange-500">
           สวัสดี {name} ! ยินดีต้อนรับสู่
         </div>
         <h2 className="mt-1 text-2xl font-extrabold">
