@@ -62,10 +62,16 @@ function getStepLabel(stepKey: StepKey, currentStatus?: string): string {
 }
 
 
+import { useUserStore } from "../../stores/userStore"
+// ... (existing imports)
+
+// ... (existing code)
+
 export default function StoreOrderDetailPage() {
   const { orderId } = useParams<{ orderId: string }>()
   const { getOrderDetail, updateOrderStatus, cancelledOrder } =
     useOrderSellerApi()
+  const { id } = useUserStore()
 
   const [data, setData] = useState<OrderDetailResponse | null>(null)
   const [loading, setLoading] = useState(false)
@@ -85,22 +91,27 @@ export default function StoreOrderDetailPage() {
       try {
         const res = await getOrderDetail(Number(orderId))
         setData(res.data ?? null)
-      } catch (e) {
+      } catch {
         setError("ไม่สามารถโหลดข้อมูลคำสั่งซื้อได้")
       } finally {
         setLoading(false)
       }
     })()
   }, [orderId])
+// ... (existing code)
 
   const order = data?.order
   const buyer = data?.buyer
   const items = data?.items ?? []
   const currentStep = order ? getStepIndex(order.status) : 0
 
-  // อนุญาตให้กดปุ่มก็ต่อเมื่อยังไม่ Completed / Cancelled
+  // อนุญาตให้กดปุ่มก็ต่อเมื่อยังไม่ Completed / Cancelled และคนดูไม่ใช่คนซื้อ
+  const isBuyer = id === order?.user_id
   const canAct =
-    !!order && order.status !== "Completed" && order.status !== "Cancelled"
+    !!order && 
+    order.status !== "Completed" && 
+    order.status !== "Cancelled" &&
+    !isBuyer
 
   // ---- handler ปุ่ม Reject ----
   const handleReject = async () => {
@@ -118,7 +129,7 @@ export default function StoreOrderDetailPage() {
             }
           : prev
       )
-    } catch (e) {
+    } catch {
       setError("ไม่สามารถยกเลิกคำสั่งซื้อได้")
     } finally {
       setActionLoading(null)
@@ -144,7 +155,7 @@ export default function StoreOrderDetailPage() {
             }
           : prev
       )
-    } catch (e) {
+    } catch {
       setError("ไม่สามารถยืนยันคำสั่งซื้อได้")
     } finally {
       setActionLoading(null)
@@ -262,33 +273,35 @@ export default function StoreOrderDetailPage() {
             </div>
 
             {/* ปุ่ม Reject / Accept */}
-            <div className="flex justify-center gap-4">
-              <button
-                onClick={handleReject}
-                disabled={!canAct || actionLoading === "reject"}
-                className={`px-10 py-2 rounded-md text-sm font-semibold text-white
-                  ${
-                    !canAct || actionLoading === "reject"
-                      ? "bg-red-200 cursor-not-allowed"
-                      : "bg-red-500 hover:bg-red-600"
-                  }`}
-              >
-                {actionLoading === "reject" ? "กำลังยกเลิก..." : "Reject"}
-              </button>
+            {!isBuyer && (
+              <div className="flex justify-center gap-4">
+                <button
+                  onClick={handleReject}
+                  disabled={!canAct || actionLoading === "reject"}
+                  className={`px-10 py-2 rounded-md text-sm font-semibold text-white
+                    ${
+                      !canAct || actionLoading === "reject"
+                        ? "bg-red-200 cursor-not-allowed"
+                        : "bg-red-500 hover:bg-red-600"
+                    }`}
+                >
+                  {actionLoading === "reject" ? "กำลังยกเลิก..." : "Reject"}
+                </button>
 
-              <button
-                onClick={handleAccept}
-                disabled={!canAct || actionLoading === "accept"}
-                className={`px-10 py-2 rounded-md text-sm font-semibold text-white
-                  ${
-                    !canAct || actionLoading === "accept"
-                      ? "bg-green-200 cursor-not-allowed"
-                      : "bg-green-500 hover:bg-green-600"
-                  }`}
-              >
-                {actionLoading === "accept" ? "กำลังยืนยัน..." : "Accept"}
-              </button>
-            </div>
+                <button
+                  onClick={handleAccept}
+                  disabled={!canAct || actionLoading === "accept"}
+                  className={`px-10 py-2 rounded-md text-sm font-semibold text-white
+                    ${
+                      !canAct || actionLoading === "accept"
+                        ? "bg-green-200 cursor-not-allowed"
+                        : "bg-green-500 hover:bg-green-600"
+                    }`}
+                >
+                  {actionLoading === "accept" ? "กำลังยืนยัน..." : "Accept"}
+                </button>
+              </div>
+            )}
           </>
         )}
       </div>
