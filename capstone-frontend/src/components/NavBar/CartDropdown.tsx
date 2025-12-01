@@ -5,6 +5,7 @@ import { toast } from "react-toastify"
 import { useCartApi } from "../../api/cartApi"
 import { useCartStore } from "../../stores/cartStore"
 import ConfirmationModal from "../Modal/ConfirmationModal"
+import { resolveImageUrl } from "../../utils/resolve"
 
 
 
@@ -162,7 +163,7 @@ export default function CartDropdown({ isOpen, onToggle, onClose }: Props) {
                   <div className="h-16 w-16 rounded-lg bg-gray-200 overflow-hidden">
                     {item.product_image_url ? (
                       <img
-                        src={item.product_image_url}
+                        src={resolveImageUrl(item.product_image_url)}
                         alt={item.product_name}
                         className="h-full w-full object-cover"
                       />

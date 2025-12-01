@@ -7,6 +7,7 @@ import { useStoreStore } from "../../../stores/storeStore"
 import { useStoreProductStore } from "./storeProductStore"
 import StoreEditProductModal from "./StoreEditProductModal"
 import ConfirmationModal from "../../../components/Modal/ConfirmationModal"
+import { resolveImageUrl } from "../../../utils/resolve"
 
 export default function StoreProductsTab() {
   const { getStoreProducts } = useStoreApi()
@@ -190,7 +191,7 @@ export default function StoreProductsTab() {
                   <img
             src={
               product.image_url
-                ? `http://localhost:8000${product.image_url}`
+                ? resolveImageUrl(product.image_url)
                 : "/images/default-store.png"
             }
             alt={product.name}

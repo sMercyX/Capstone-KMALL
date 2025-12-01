@@ -7,7 +7,7 @@ export function resolveImageUrl(path?: string | null): string {
   }
 
   // ถ้าเป็น absolute URL อยู่แล้ว -> ใช้เลย
-  if (path.startsWith("http://") || path.startsWith("https://")) {
+  if (path.startsWith("http://") || path.startsWith("https://") || path.startsWith("blob:") || path.startsWith("data:")) {
     return path
   }
 

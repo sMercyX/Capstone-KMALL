@@ -7,6 +7,7 @@ import { useStoreStore } from "../../../stores/storeStore"
 import type { StoreEditForm } from "./StoreEditModal/StoreEditModal"
 import StoreEditModal from "./StoreEditModal/StoreEditModal"
 import { handleApiError } from "../../../utils/handleApiError"
+import { resolveImageUrl } from "../../../utils/resolve"
 
 export default function StoreInfoTab() {
   const { updateStore, addImageStore, editImageStore } = useStoreApi()
@@ -49,7 +50,7 @@ export default function StoreInfoTab() {
               primaryImageUrl = uploaded.image_url
             }
           }
-        } catch (_uploadErr) {
+        } catch {
           imageError = true
           toast.error("อัปโหลดโลโก้ใหม่ไม่สำเร็จ")
         }
@@ -118,7 +119,7 @@ export default function StoreInfoTab() {
           <img
             src={
               store.profile_url
-                ? `http://localhost:8000${store.profile_url}`
+                ? resolveImageUrl(store.profile_url)
                 : "/images/default-store.png"
             }
             alt="store-logo"

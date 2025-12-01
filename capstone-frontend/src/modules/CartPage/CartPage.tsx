@@ -14,6 +14,7 @@ import { useNavigate } from "react-router-dom"
 import ConfirmationModal from "../../components/Modal/ConfirmationModal"
 import { useCheckkOutApi, type orderCreatedRequest } from "../../api/checkOutApi"
 import { toast } from "react-toastify"
+import { resolveImageUrl } from "../../utils/resolve"
 
 type CartItem = {
   id: number
@@ -306,7 +307,7 @@ export default function CartPage() {
         name: it.product_name,
         price: it.product_price,
         quantity: it.quantity,
-        image: it.product_image_url || "https://via.placeholder.com/160",
+        image: it.product_image_url ? resolveImageUrl(it.product_image_url) : "/images/default-product.png",
         subtotal: it.subtotal,
       }
 

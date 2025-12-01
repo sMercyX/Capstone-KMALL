@@ -2,6 +2,7 @@ import { useEffect, useState } from "react"
 import { useStoreApi, type addStoreData } from "../../api/storeApi"
 import Card from "./Card"
 import { Link } from "react-router-dom"
+import { resolveImageUrl } from "../../utils/resolve"
 
 interface StoreInfoCardProps {
   storeId: number
@@ -49,7 +50,7 @@ export default function StoreInfoCard({ storeId }: StoreInfoCardProps) {
              <img
                 src={
                   store.profile_url
-                    ? `http://localhost:8000${store.profile_url}`
+                    ? resolveImageUrl(store.profile_url)
                     : "/images/default-store.png"
                 }
                 alt={store.name}

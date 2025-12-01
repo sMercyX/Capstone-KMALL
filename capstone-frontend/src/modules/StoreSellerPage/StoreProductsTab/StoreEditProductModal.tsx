@@ -12,6 +12,7 @@ import { toast } from "react-toastify"
 import { Input } from "../../../components/Input/Input"
 import { Textarea } from "../../../components/Input/Textarea"
 import { handleApiError } from "../../../utils/handleApiError"
+import { resolveImageUrl } from "../../../utils/resolve"
 
 import {
   useProductApi,
@@ -132,7 +133,7 @@ export default function StoreEditProductModal({
         const items: ImageItem[] = apiImages.map((img) => ({
           type: "EXISTING",
           id: img.id,
-          url: img.image_url, // backend sends /static/...
+          url: resolveImageUrl(img.image_url), // backend sends /static/...
         }))
 
         setImages(items)
@@ -353,7 +354,7 @@ export default function StoreEditProductModal({
   }
 
   const mainImageSrc = images[mainIndex]?.url 
-    ? (images[mainIndex].type === "EXISTING" ? `http://localhost:8000${images[mainIndex].url}` : images[mainIndex].url)
+    ? (images[mainIndex].type === "EXISTING" ? resolveImageUrl(images[mainIndex].url) : images[mainIndex].url)
     : null
 
   return (
@@ -423,7 +424,7 @@ export default function StoreEditProductModal({
 
                   {images.map((img, index) => {
                     const isMain = index === mainIndex
-                    const src = img.type === "EXISTING" ? `http://localhost:8000${img.url}` : img.url
+                    const src = img.type === "EXISTING" ? resolveImageUrl(img.url) : img.url
                     
                     return (
                       <div

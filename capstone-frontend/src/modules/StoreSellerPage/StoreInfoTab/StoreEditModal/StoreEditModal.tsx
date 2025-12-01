@@ -5,6 +5,7 @@ import * as yup from "yup"
 import { toast } from "react-toastify"
 import { Input } from "../../../../components/Input/Input"
 import { Textarea } from "../../../../components/Input/Textarea"
+import { resolveImageUrl } from "../../../../utils/resolve"
 
 export type StoreEditForm = {
   name: string
@@ -223,7 +224,7 @@ export default function StoreEditModal({
               <label className="flex flex-col bg-white items-center justify-center cursor-pointer border border-dashed rounded-xl py-6 hover:bg-gray-50 transition relative overflow-hidden">
                 {previewUrl || profileUrl ? (
                   <img 
-                    src={previewUrl || profileUrl} 
+                    src={previewUrl || resolveImageUrl(profileUrl)} 
                     alt="Preview" 
                     className="h-32 w-32 object-cover rounded-full mb-2 border"
                   />
