@@ -1,3 +1,4 @@
+// src/utils/resolve.ts
 import { API_BASE } from "../config"
 
 export function resolveImageUrl(path?: string | null): string {
@@ -5,20 +6,21 @@ export function resolveImageUrl(path?: string | null): string {
     return "https://via.placeholder.com/800"
   }
 
-  // ถ้าเป็น absolute URL อยู่แล้ว ก็ใช้เลย
+  // ถ้าเป็น absolute URL อยู่แล้ว -> ใช้เลย
   if (path.startsWith("http://") || path.startsWith("https://")) {
     return path
   }
 
-  // แปลง /uploads/... ให้กลายเป็น /api/uploads/...
+  const apiUrl = new URL(API_BASE) // เช่น https://bscit.../cp25ssa2/api
+  const origin = apiUrl.origin     // https://bscit.sit.kmutt.ac.th
+  const basePath = apiUrl.pathname.replace(/\/api\/?$/, "") // /capstone25/cp25ssa2
+
+  // ให้แน่ใจว่า path มี / นำหน้า
   let p = path
-  if (p.startsWith("/uploads/")) {
-    p = "/api" + p        // => /api/uploads/...
+  if (!p.startsWith("/")) {
+    p = "/" + p
   }
 
-  const url = new URL(API_BASE) // เช่น https://.../cp25ssa2/api
-  const origin = url.origin     // https://bscit.sit.kmutt.ac.th
-  const basePath = url.pathname.replace(/\/api\/?$/, "") // /capstone25/cp25ssa2
-
+  // สุดท้าย: https://.../capstone25/cp25ssa2/uploads/...
   return `${origin}${basePath}${p}`
 }

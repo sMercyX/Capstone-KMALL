@@ -48,3 +48,14 @@ services:
             - Set-Cookie
             - Authorization
           max_age: 3600
+
+  - name: uploads-service
+    url: http://backend:8080 
+    routes:
+      - name: uploads-route
+        paths:
+          - /uploads
+          - /uploads/
+          - /uploads/*
+        strip_path: false
+        preserve_host: true

@@ -134,7 +134,7 @@ func Attach(r *gin.Engine, db *pgxpool.Pool, cfg config.Config) {
 		log.Println("[AUTH] Using direct OIDC auth (backend verifies token)")
 	}
 
-	v1.Static("/uploads", "./uploads")
+	r.Static("/uploads", "./uploads")
 
 	// ---- debug headers ผ่าน chain เต็ม (ต้อง login) ----
 	v1.GET("/debug/headers", func(c *gin.Context) {
