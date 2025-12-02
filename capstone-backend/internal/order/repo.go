@@ -19,7 +19,7 @@ import (
 type Repo interface {
 	CreateOrderWithItems(ctx context.Context, in OrderCreateParams, items []OrderItemCreateParams) (OrderWithItems, error)
 	GetOrder(ctx context.Context, id int64) (Order, error)
-	ListItemsByOrderID(ctx context.Context, orderID int64) ([]OrderItem, error)
+	ListItemsByOrderID(ctx context.Context, orderID int64) ([]OrderItemWithProduct, error)
 	UpdateOrderStatus(ctx context.Context, id int64, status string) (Order, error)
 	CancelOrder(ctx context.Context, id int64) (Order, error)
 
@@ -87,10 +87,24 @@ func scanOrderItem(row pgx.Row, it *OrderItem) error {
 	)
 }
 
+func scanOrderItemWithProduct(row pgx.Row, it *OrderItemWithProduct) error {
+	return row.Scan(
+		&it.ID,
+		&it.Quantity,
+		&it.UnitPrice,
+		&it.FulfillmentType,
+		&it.Subtotal,
+		&it.DepositAmount,
+		&it.PromisedShipDate,
+		&it.OrderID,
+		&it.ProductID,
+		&it.ProductName,
+	)
+}
+
 // ============================================================================
 // Create Order + Items (Tx)
 // ============================================================================
-
 func (r *repo) CreateOrderWithItems(
 	ctx context.Context,
 	in OrderCreateParams,
@@ -116,7 +130,7 @@ func (r *repo) CreateOrderWithItems(
 	`, in.Status, in.TotalPrice, in.UserID, in.StoreID), &ord)
 	if err != nil {
 		if pgErr, ok := err.(*pgconn.PgError); ok {
-			if pgErr.Code == "23503" { // fk users / stores
+			if pgErr.Code == "23503" {
 				return OrderWithItems{}, apperr.WithFields(
 					apperr.Wrap(apperr.BadRequest, err, "invalid user_id or store_id"),
 					map[string]any{"pg_code": pgErr.Code, "constraint": pgErr.ConstraintName},
@@ -130,8 +144,6 @@ func (r *repo) CreateOrderWithItems(
 		return OrderWithItems{}, apperr.Wrap(apperr.Internal, err, "insert order failed")
 	}
 
-	outItems := make([]OrderItem, 0, len(items))
-
 	for _, it := range items {
 		var promised any
 		if it.PromisedShipDate.IsZero() {
@@ -142,15 +154,15 @@ func (r *repo) CreateOrderWithItems(
 
 		var oi OrderItem
 		err = scanOrderItem(tx.QueryRow(ctx, `
-    	INSERT INTO order_items
-        	(quantity, unit_price, fulfillment_type, subtotal,
-         	deposit_amount, promised_ship_date, order_id, product_id)
-    	VALUES ($1, $2, $3, $4, $5,
-            COALESCE($6, CURRENT_TIMESTAMP),
-            $7, $8)
-    	RETURNING order_item_id, quantity, unit_price, fulfillment_type,
-              subtotal, deposit_amount, promised_ship_date,
-              order_id, product_id;
+			INSERT INTO order_items
+				(quantity, unit_price, fulfillment_type, subtotal,
+				 deposit_amount, promised_ship_date, order_id, product_id)
+			VALUES ($1, $2, $3, $4, $5,
+			        COALESCE($6, CURRENT_TIMESTAMP),
+			        $7, $8)
+			RETURNING order_item_id, quantity, unit_price, fulfillment_type,
+			          subtotal, deposit_amount, promised_ship_date,
+			          order_id, product_id;
 		`,
 			it.Quantity,
 			it.UnitPrice,
@@ -177,8 +189,6 @@ func (r *repo) CreateOrderWithItems(
 			}
 			return OrderWithItems{}, apperr.Wrap(apperr.Internal, err, "insert order_item failed")
 		}
-
-		outItems = append(outItems, oi)
 	}
 
 	if err = tx.Commit(ctx); err != nil {
@@ -186,9 +196,14 @@ func (r *repo) CreateOrderWithItems(
 	}
 	tx = nil
 
+	itemsWithProduct, err := r.ListItemsByOrderID(ctx, int64(ord.ID))
+	if err != nil {
+		return OrderWithItems{}, err
+	}
+
 	return OrderWithItems{
 		Order: ord,
-		Items: outItems,
+		Items: itemsWithProduct,
 	}, nil
 }
 
@@ -214,24 +229,33 @@ func (r *repo) GetOrder(ctx context.Context, id int64) (Order, error) {
 	return ord, nil
 }
 
-func (r *repo) ListItemsByOrderID(ctx context.Context, orderID int64) ([]OrderItem, error) {
+func (r *repo) ListItemsByOrderID(ctx context.Context, orderID int64) ([]OrderItemWithProduct, error) {
 	rows, err := r.db.Query(ctx, `
-		SELECT order_item_id, quantity, unit_price, fulfillment_type,
-		       subtotal, deposit_amount, promised_ship_date,
-		       order_id, product_id
-		FROM order_items
-		WHERE order_id = $1
-		ORDER BY order_item_id ASC;
+		SELECT 
+			oi.order_item_id,
+			oi.quantity,
+			oi.unit_price,
+			oi.fulfillment_type,
+			oi.subtotal,
+			oi.deposit_amount,
+			oi.promised_ship_date,
+			oi.order_id,
+			oi.product_id,
+			p.name AS product_name
+		FROM order_items oi
+		JOIN products p ON p.product_id = oi.product_id
+		WHERE oi.order_id = $1
+		ORDER BY oi.order_item_id ASC;
 	`, orderID)
 	if err != nil {
 		return nil, apperr.Wrap(apperr.Internal, err, "list order_items failed")
 	}
 	defer rows.Close()
 
-	var out []OrderItem
+	var out []OrderItemWithProduct
 	for rows.Next() {
-		var it OrderItem
-		if err := scanOrderItem(rows, &it); err != nil {
+		var it OrderItemWithProduct
+		if err := scanOrderItemWithProduct(rows, &it); err != nil {
 			return nil, apperr.Wrap(apperr.Internal, err, "scan order_item failed")
 		}
 		out = append(out, it)

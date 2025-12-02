@@ -95,12 +95,12 @@ type orderBuyerDTO struct {
 }
 
 type orderDetailResp struct {
-	Order      Order          `json:"order"`
-	Items      []OrderItem    `json:"items"`
-	StoreName  string         `json:"store_name"`
-	SellerName string         `json:"seller_name"`
-	BuyerName  string         `json:"buyer_name"`
-	Buyer      *orderBuyerDTO `json:"buyer,omitempty"`
+	Order      Order                  `json:"order"`
+	Items      []OrderItemWithProduct `json:"items"`
+	StoreName  string                 `json:"store_name"`
+	SellerName string                 `json:"seller_name"`
+	BuyerName  string                 `json:"buyer_name"`
+	Buyer      *orderBuyerDTO         `json:"buyer,omitempty"`
 }
 
 type buyerOrderDTO struct {
