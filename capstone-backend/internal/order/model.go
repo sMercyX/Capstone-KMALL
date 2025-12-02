@@ -25,9 +25,14 @@ type OrderItem struct {
 	ProductID        int       `json:"product_id"`
 }
 
+type OrderItemWithProduct struct {
+	OrderItem
+	ProductName string `json:"product_name"`
+}
+
 type OrderWithItems struct {
-	Order Order       `json:"order"`
-	Items []OrderItem `json:"items"`
+	Order Order                  `json:"order"`
+	Items []OrderItemWithProduct `json:"items"`
 }
 
 type CreateOrderItemInput struct {
