@@ -281,7 +281,7 @@ export default function CartPage() {
       toast.success(`ยืนยันออเดอร์สำเร็จ! เลขคำสั่งซื้อ #${res.data.order.order_id}`)
       
       // Navigate to orders page
-      navigate(`/store/orders/${res.data.order.order_id}`) 
+      navigate(`/orders/${res.data.order.order_id}`) 
     } catch (err) {
       console.error(err)
       toast.error("ยืนยันออเดอร์ไม่สำเร็จ")

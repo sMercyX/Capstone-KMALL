@@ -69,19 +69,15 @@ export default function StoreInfoCard({
         </div>
       </div>
 
-      <Link to={`/store/${storeId}`} className="flex gap-3">
-        <button className="rounded-full bg-orange-500 px-5 py-2 text-sm font-semibold text-white hover:bg-orange-600 transition">
+    
+
+      {!disableViewButton && (
+        <Link to={`/store/${storeId}`} className="flex gap-3">
+          <button className="rounded-full bg-orange-500 px-5 py-2 text-sm font-semibold text-white hover:bg-orange-600 transition">
             ดูร้านค้า
           </button>
         </Link>
-
-        {!disableViewButton && (
-      <Link to={`/store/${storeId}`} className="flex gap-3">
-        <button className="rounded-full bg-orange-500 px-5 py-2 text-sm font-semibold text-white hover:bg-orange-600 transition">
-          ดูร้านค้า
-        </button>
-      </Link>
-        )}
+      )}
 
     </Card>
   )

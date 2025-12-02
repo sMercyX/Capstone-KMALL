@@ -1,5 +1,6 @@
 // src/components/Order/OrderListItem.tsx
 import { Check, Coffee, Loader2, X } from "lucide-react"
+import { useNavigate } from "react-router-dom"
 import { formatThaiDate } from "../../utils/dateFormatter"
 
 export type OrderStatusContext = "ongoing" | "completed" | "canceled"
@@ -21,7 +22,6 @@ export interface OrderSummary {
 interface OrderListItemProps {
   data: OrderSummary
   context: OrderStatusContext   // บอกว่าตอนนี้อยู่หน้าไหน (ongoing/completed/canceled)
-  onClick?: () => void
 }
 
 function StatusBadge({ context }: { context: OrderStatusContext }) {
@@ -52,15 +52,15 @@ function StatusBadge({ context }: { context: OrderStatusContext }) {
 export default function OrderListItem({
   data,
   context,
-  onClick,
 }: OrderListItemProps) {
   const { order } = data
   const orderDate = formatThaiDate(order.order_date)
+  const navigate = useNavigate()
 
   return (
     <button
       type="button"
-      onClick={onClick}
+      onClick={() => navigate(`/orders/${order.order_id}`)}
       className="block w-full text-left"
     >
       <div className="flex items-center gap-6 rounded-2xl border border-gray-200 px-6 py-4 shadow-sm hover:shadow-md transition">

@@ -22,7 +22,9 @@ const StoreRegisterPage = lazy(
 )
 const CartPage = lazy(() => import("../modules/CartPage/CartPage"))
 const CheckoutPage = lazy(() => import("../modules/CheckoutPage/CheckoutPage"))
-const StoreOrderDetailPage = lazy(() => import("../modules/StoreOrderDetailPage/StoreOrderDetailPage"))
+const StoreOrderDetailPage = lazy(
+  () => import("../modules/StoreOrderDetailPage/StoreOrderDetailPage")
+)
 const OrderPage = lazy(() => import("../modules/OrderPage/OrderPage"))
 
 export default function AppRoutes() {
@@ -35,9 +37,111 @@ export default function AppRoutes() {
 
         <Route element={<MainLayout />}>
           {/* publicRoutes */}
+          <></>
+          {/* privateRoutes */}
           <>
-            <Route path="/dashboard2" element={<Dashboard />} />
-            <Route path="/store/:id" element={<StorePage />} />
+            <Route
+              path="/dashboard"
+              element={
+                <ProtectedRoute>
+                  <Dashboard />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/categories/:category"
+              element={
+                <ProtectedRoute>
+                  {/* <AllowedCategoryRoute> */}
+                  <CategoryPage />
+                  {/* </AllowedCategoryRoute> */}
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/product/:id"
+              element={
+                <ProtectedRoute>
+                  <ProductPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/store/:id"
+              element={
+                <ProtectedRoute>
+                  <StorePage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/store/register"
+              element={
+                <ProtectedRoute>
+                  <StoreRegisterPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/store/me"
+              element={
+                <ProtectedRoute>
+                  <StoreSellerPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/store/products"
+              element={
+                <ProtectedRoute>
+                  <StoreSellerPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/store/add"
+              element={
+                <ProtectedRoute>
+                  <StoreSellerPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/store/orders"
+              element={<Navigate to="/store/orders/ongoing" replace />}
+            />
+            <Route
+              path="/store/orders/ongoing"
+              element={
+                <ProtectedRoute>
+                  <StoreSellerPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/store/orders/completed"
+              element={
+                <ProtectedRoute>
+                  <StoreSellerPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/store/orders/canceled"
+              element={
+                <ProtectedRoute>
+                  <StoreSellerPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/store/settings"
+              element={
+                <ProtectedRoute>
+                  <StoreSellerPage />
+                </ProtectedRoute>
+              }
+            />
             <Route
               path="/cart"
               element={
@@ -86,98 +190,11 @@ export default function AppRoutes() {
                 </ProtectedRoute>
               }
             />
-          </>
-          {/* privateRoutes */}
-          <>
             <Route
-              path="/dashboard"
+              path="/orders/:orderId"
               element={
                 <ProtectedRoute>
-                  <Dashboard />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/categories/:category"
-              element={
-                <ProtectedRoute>
-                  {/* <AllowedCategoryRoute> */}
-                  <CategoryPage />
-                  {/* </AllowedCategoryRoute> */}
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/product/:id"
-              element={
-                <ProtectedRoute>
-                  <ProductPage />
-                </ProtectedRoute>
-              }
-            />
-
-            <Route
-              path="/store/register"
-              element={
-                <ProtectedRoute>
-                  <StoreRegisterPage />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/store/me"
-              element={
-                <ProtectedRoute>
-                  <StoreSellerPage />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/store/products"
-              element={
-                <ProtectedRoute>
-                  <StoreSellerPage />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/store/add"
-              element={
-                <ProtectedRoute>
-                  <StoreSellerPage />
-                </ProtectedRoute>
-              }
-            />
-            <Route path="/store/orders" element={<Navigate to="/store/orders/ongoing" replace />} />
-            <Route
-              path="/store/orders/ongoing"
-              element={
-                <ProtectedRoute>
-                  <StoreSellerPage />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/store/orders/completed"
-              element={
-                <ProtectedRoute>
-                  <StoreSellerPage />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/store/orders/canceled"
-              element={
-                <ProtectedRoute>
-                  <StoreSellerPage />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/store/settings"
-              element={
-                <ProtectedRoute>
-                  <StoreSellerPage />
+                  <StoreOrderDetailPage />
                 </ProtectedRoute>
               }
             />

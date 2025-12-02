@@ -101,8 +101,12 @@ export default function StoreOrderDetailPage() {
 // ... (existing code)
 
   const order = data?.order
-  const buyer = data?.buyer
+  // const buyer = data?.buyer
   const items = data?.items ?? []
+  const buyer_name = data?.buyer_name
+  // const seller_name = data?.seller_name
+  const store_name = data?.store_name
+
   const currentStep = order ? getStepIndex(order.status) : 0
 
   // อนุญาตให้กดปุ่มก็ต่อเมื่อยังไม่ Completed / Cancelled และคนดูไม่ใช่คนซื้อ
@@ -220,9 +224,9 @@ export default function StoreOrderDetailPage() {
             <div className="flex h-8 w-8 items-center justify-center rounded-full bg-white">
               <Store className="h-5 w-5 text-gray-700" />
             </div>
-            <span className="font-semibold">Handmade Store</span>
+            <span className="font-semibold">{store_name}</span>
           </div>
-          <button className="text-sm font-semibold underline">Chat</button>
+          {/* <button className="text-sm font-semibold underline">Chat</button> */}
         </div>
 
         <hr className="border-gray-300 mb-4" />
@@ -241,7 +245,7 @@ export default function StoreOrderDetailPage() {
                 <div className="rounded-2xl bg-white px-4 py-3 min-h-[96px]">
                   <p className="font-semibold mb-1">ชื่อผู้ซื้อ</p>
                   <p className="text-sm text-gray-700">
-                    {buyer?.display_name || "-"}
+                    {buyer_name || "-"}
                   </p>
                 </div>
 

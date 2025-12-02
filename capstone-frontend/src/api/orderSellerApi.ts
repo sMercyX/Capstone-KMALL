@@ -59,6 +59,9 @@ export interface OrderDetailResponse {
   order: orderSellerData
   items: OrderItemDetail[]
   buyer: OrderBuyerDetail
+  buyer_name:string
+  seller_name:string
+  store_name:string
 }
 export interface OrderStatusResquest {
   status: OrderStatus
