@@ -15,6 +15,7 @@ import ConfirmationModal from "../../components/Modal/ConfirmationModal"
 import { useCheckkOutApi, type orderCreatedRequest } from "../../api/checkOutApi"
 import { toast } from "react-toastify"
 import { resolveImageUrl } from "../../utils/resolve"
+import { handleApiError } from "../../utils/handleApiError"
 
 type CartItem = {
   id: number
@@ -209,9 +210,9 @@ export default function CartPage() {
       setCart(res.data)
       setIsDeleteModalOpen(false)
       setDeleteId(null)
+      toast.success("ลบสินค้าออกจากตะกร้าเรียบร้อยแล้ว")
     } catch (err) {
-      console.error(err)
-      setError("ลบสินค้าไม่สำเร็จ")
+      handleApiError(err)
     }
   }
 

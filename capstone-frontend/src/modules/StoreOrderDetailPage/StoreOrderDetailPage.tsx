@@ -1,6 +1,6 @@
 // src/pages/store/StoreOrderDetailPage.tsx
 import { useEffect, useState } from "react"
-import { useParams } from "react-router-dom"
+import { Link, useParams } from "react-router-dom"
 import { Store } from "lucide-react"
 
 import {
@@ -63,6 +63,9 @@ function getStepLabel(stepKey: StepKey, currentStatus?: string): string {
 
 
 import { useUserStore } from "../../stores/userStore"
+import ConfirmationModal from "../../components/Modal/ConfirmationModal"
+import { toast } from "react-toastify"
+import { handleApiError } from "../../utils/handleApiError"
 // ... (existing imports)
 
 // ... (existing code)
@@ -81,6 +84,7 @@ export default function StoreOrderDetailPage() {
   const [actionLoading, setActionLoading] = useState<
     "accept" | "reject" | null
   >(null)
+  const [isRejectModalOpen, setIsRejectModalOpen] = useState(false)
 
   useEffect(() => {
     if (!orderId) return
@@ -109,17 +113,21 @@ export default function StoreOrderDetailPage() {
 
   const currentStep = order ? getStepIndex(order.status) : 0
 
-  // อนุญาตให้กดปุ่มก็ต่อเมื่อยังไม่ Completed / Cancelled และคนดูไม่ใช่คนซื้อ
+  // อนุญาตให้กดปุ่มก็ต่อเมื่อยังไม่ Completed / Cancelled
   const isBuyer = id === order?.user_id
-  const canAct =
-    !!order && 
-    order.status !== "Completed" && 
-    order.status !== "Cancelled" &&
-    !isBuyer
+  const isFinished = order?.status === "Completed" || order?.status === "Cancelled"
+
+  const canReject = !!order && !isFinished
+  const canAccept = !!order && !isFinished && !isBuyer
 
   // ---- handler ปุ่ม Reject ----
-  const handleReject = async () => {
-    if (!order || !orderId || !canAct) return
+  const handleRejectClick = () => {
+    if (!order || !orderId || !canReject) return
+    setIsRejectModalOpen(true)
+  }
+
+  const confirmReject = async () => {
+    if (!order || !orderId) return
     setActionLoading("reject")
     setError(null)
     try {
@@ -133,8 +141,10 @@ export default function StoreOrderDetailPage() {
             }
           : prev
       )
-    } catch {
-      setError("ไม่สามารถยกเลิกคำสั่งซื้อได้")
+      setIsRejectModalOpen(false)
+      toast.success("ยกเลิกคำสั่งซื้อเรียบร้อยแล้ว")
+    } catch (e) {
+      handleApiError(e)
     } finally {
       setActionLoading(null)
     }
@@ -142,7 +152,7 @@ export default function StoreOrderDetailPage() {
 
   // ---- handler ปุ่ม Accept ----
   const handleAccept = async () => {
-    if (!order || !orderId || !canAct) return
+    if (!order || !orderId || !canAccept) return
     setActionLoading("accept")
     setError(null)
     try {
@@ -159,8 +169,9 @@ export default function StoreOrderDetailPage() {
             }
           : prev
       )
-    } catch {
-      setError("ไม่สามารถยืนยันคำสั่งซื้อได้")
+      toast.success("ยืนยันคำสั่งซื้อเรียบร้อยแล้ว")
+    } catch (e) {
+      handleApiError(e)
     } finally {
       setActionLoading(null)
     }
@@ -224,7 +235,9 @@ export default function StoreOrderDetailPage() {
             <div className="flex h-8 w-8 items-center justify-center rounded-full bg-white">
               <Store className="h-5 w-5 text-gray-700" />
             </div>
-            <span className="font-semibold">{store_name}</span>
+            <Link to={`/store/${order?.store_id}`}>
+              <span className="font-semibold text-gray-700">{store_name}</span>
+            </Link>
           </div>
           {/* <button className="text-sm font-semibold underline">Chat</button> */}
         </div>
@@ -254,7 +267,7 @@ export default function StoreOrderDetailPage() {
                   <ul className="text-sm text-gray-700 list-disc list-inside space-y-1">
                     {items.map((it) => (
                       <li key={it.order_item_id}>
-                        สินค้า #{it.product_id} × {it.quantity} —{" "}
+                        สินค้า {it.product_name} × {it.quantity} —{" "}
                         {it.subtotal.toLocaleString()} บาท
                       </li>
                     ))}
@@ -264,6 +277,12 @@ export default function StoreOrderDetailPage() {
                       </li>
                     )}
                   </ul>
+                  <div className="flex justify-between items-center mt-4 pt-4 border-t border-gray-200">
+                    <p className="font-semibold">รวมทั้งหมด</p>
+                    <p className="text-lg font-semibold text-gray-800">
+                      {order.total_price.toLocaleString()} บาท
+                    </p>
+                  </div>
                 </div>
               </div>
 
@@ -277,38 +296,49 @@ export default function StoreOrderDetailPage() {
             </div>
 
             {/* ปุ่ม Reject / Accept */}
-            {!isBuyer && (
-              <div className="flex justify-center gap-4">
-                <button
-                  onClick={handleReject}
-                  disabled={!canAct || actionLoading === "reject"}
-                  className={`px-10 py-2 rounded-md text-sm font-semibold text-white
-                    ${
-                      !canAct || actionLoading === "reject"
-                        ? "bg-red-200 cursor-not-allowed"
-                        : "bg-red-500 hover:bg-red-600"
-                    }`}
-                >
-                  {actionLoading === "reject" ? "กำลังยกเลิก..." : "Reject"}
-                </button>
+            <div className="flex justify-center gap-4">
+              <button
+                onClick={handleRejectClick}
+                disabled={!canReject || actionLoading === "reject"}
+                className={`px-10 py-2 rounded-md text-sm font-semibold text-white
+                  ${
+                    !canReject || actionLoading === "reject"
+                      ? "bg-red-200 cursor-not-allowed"
+                      : "bg-red-500 hover:bg-red-600"
+                  }`}
+              >
+                {actionLoading === "reject" ? "กำลังยกเลิก..." : "Reject"}
+              </button>
 
+              {!isBuyer && (
                 <button
                   onClick={handleAccept}
-                  disabled={!canAct || actionLoading === "accept"}
+                  disabled={!canAccept || actionLoading === "accept"}
                   className={`px-10 py-2 rounded-md text-sm font-semibold text-white
                     ${
-                      !canAct || actionLoading === "accept"
+                      !canAccept || actionLoading === "accept"
                         ? "bg-green-200 cursor-not-allowed"
                         : "bg-green-500 hover:bg-green-600"
                     }`}
                 >
                   {actionLoading === "accept" ? "กำลังยืนยัน..." : "Accept"}
                 </button>
-              </div>
-            )}
+              )}
+            </div>
           </>
         )}
       </div>
+
+      <ConfirmationModal
+        isOpen={isRejectModalOpen}
+        onClose={() => setIsRejectModalOpen(false)}
+        onConfirm={confirmReject}
+        title="ยืนยันการยกเลิก"
+        message="คุณต้องการที่จะยกเลิกจริงๆ ใช่ไหม?"
+        confirmText="ยืนยัน"
+        cancelText="ยกเลิก"
+        variant="danger"
+      />
     </div>
   )
 }

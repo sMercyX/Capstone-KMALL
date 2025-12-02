@@ -38,6 +38,7 @@ export interface OrderItemDetail {
   promised_ship_date: string
   order_id: number
   product_id: number
+  product_name: string
 }
 
 export interface OrderBuyerDetail {
