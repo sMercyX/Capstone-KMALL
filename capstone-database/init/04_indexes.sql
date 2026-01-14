@@ -66,3 +66,57 @@ CREATE INDEX IF NOT EXISTS idx_store_images_store
 DROP INDEX IF EXISTS idx_categories_parent;
 CREATE INDEX IF NOT EXISTS idx_categories_parent
   ON categories(parent_id);
+
+DROP INDEX IF EXISTS idx_chat_messages_thread_time;
+CREATE INDEX IF NOT EXISTS idx_chat_messages_thread_time
+  ON order_chat_messages(thread_id, created_at ASC);
+
+DROP INDEX IF EXISTS idx_chat_messages_thread_id;
+CREATE INDEX IF NOT EXISTS idx_chat_messages_thread_id
+  ON order_chat_messages(thread_id);
+
+DROP INDEX IF EXISTS idx_pickup_locations_store_active;
+CREATE INDEX IF NOT EXISTS idx_pickup_locations_store_active
+  ON store_pickup_locations(store_id, is_active);
+
+DROP INDEX IF EXISTS idx_attr_values_key_value;
+CREATE INDEX IF NOT EXISTS idx_attr_values_key_value
+  ON product_attribute_values(attr_key_id, value_text);
+
+DROP INDEX IF EXISTS idx_attr_values_product;
+CREATE INDEX IF NOT EXISTS idx_attr_values_product
+  ON product_attribute_values(product_id);
+
+-- Full-text search
+DROP INDEX IF EXISTS idx_products_search_tsv;
+CREATE INDEX IF NOT EXISTS idx_products_search_tsv
+  ON products USING GIN (search_tsv);
+
+DROP INDEX IF EXISTS idx_products_name_trgm;
+CREATE INDEX IF NOT EXISTS idx_products_name_trgm
+  ON products USING GIN (name gin_trgm_ops);
+
+DROP INDEX IF EXISTS idx_products_desc_trgm;
+CREATE INDEX IF NOT EXISTS idx_products_desc_trgm
+  ON products USING GIN (product_desc gin_trgm_ops);
+
+DROP INDEX IF EXISTS idx_rec_events_user_time;
+CREATE INDEX IF NOT EXISTS idx_rec_events_user_time
+  ON recommendation_events(user_id, created_at DESC);
+
+DROP INDEX IF EXISTS idx_rec_items_event_rank;
+CREATE INDEX IF NOT EXISTS idx_rec_items_event_rank
+  ON recommendation_event_items(event_id, rank_no);
+
+DROP INDEX IF EXISTS idx_products_embedding_cosine;
+CREATE INDEX idx_products_embedding_cosine
+  ON products USING ivfflat (embedding vector_cosine_ops)
+  WITH (lists = 100);
+
+DROP INDEX IF EXISTS idx_order_status_history_order_time;
+CREATE INDEX IF NOT EXISTS idx_order_status_history_order_time
+  ON order_status_history(order_id, created_at DESC);
+
+DROP INDEX IF EXISTS idx_products_active;
+CREATE INDEX IF NOT EXISTS idx_products_active
+  ON products(is_active);

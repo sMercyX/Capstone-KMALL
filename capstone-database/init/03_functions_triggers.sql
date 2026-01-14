@@ -302,3 +302,60 @@ CREATE TRIGGER trg_product_image_primary_before
 BEFORE INSERT ON product_images
 FOR EACH ROW
 EXECUTE FUNCTION product_image_primary_before();
+
+-- touch thread.updated_at
+CREATE OR REPLACE FUNCTION touch_chat_thread_updated_at()
+RETURNS TRIGGER AS $$
+BEGIN
+  UPDATE order_chat_threads SET updated_at = NOW()
+  WHERE thread_id = NEW.thread_id;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS trg_touch_chat_thread ON order_chat_messages;
+CREATE TRIGGER trg_touch_chat_thread
+AFTER INSERT ON order_chat_messages
+FOR EACH ROW
+EXECUTE FUNCTION touch_chat_thread_updated_at();
+
+-- ========= PRODUCT SEARCH TSV TRIGGER =========
+CREATE OR REPLACE FUNCTION products_tsv_update()
+RETURNS TRIGGER AS $$
+BEGIN
+  NEW.search_tsv :=
+    setweight(to_tsvector('simple', COALESCE(NEW.name,'')), 'A')
+    || setweight(to_tsvector('simple', COALESCE(NEW.product_desc,'')), 'B');
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS trg_products_tsv ON products;
+CREATE TRIGGER trg_products_tsv
+BEFORE INSERT OR UPDATE OF name, product_desc
+ON products
+FOR EACH ROW
+EXECUTE FUNCTION products_tsv_update();
+
+-- ========= TRIGGER: log เมื่อ status เปลี่ยน =========
+CREATE OR REPLACE FUNCTION log_order_status_change()
+RETURNS TRIGGER AS $$
+BEGIN
+  IF NEW.status IS DISTINCT FROM OLD.status THEN
+    INSERT INTO order_status_history(order_id, old_status, new_status, changed_by, note)
+    VALUES (NEW.order_id, OLD.status, NEW.status, NULL, NULL);
+
+    IF NEW.status = 'Cancelled' THEN
+      NEW.cancelled_at := NOW();
+    END IF;
+  END IF;
+
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS trg_log_order_status_change ON orders;
+CREATE TRIGGER trg_log_order_status_change
+BEFORE UPDATE OF status ON orders
+FOR EACH ROW
+EXECUTE FUNCTION log_order_status_change();

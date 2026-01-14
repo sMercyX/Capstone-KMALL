@@ -72,65 +72,146 @@ CREATE TABLE IF NOT EXISTS categories (
 -- ========= PRODUCTS =========
 CREATE TABLE IF NOT EXISTS products (
   product_id SERIAL PRIMARY KEY,
+
   name VARCHAR(100) NOT NULL,
   product_desc VARCHAR(255) NULL,
+
   price DECIMAL(10,2) NOT NULL,
   image_url VARCHAR(255) NULL,
+
+  -- สำหรับ search (Full-text)
+  search_tsv tsvector,
+
+  -- Semantic Search (AI / Ollama / pgvector)
+  embedding vector(768) NULL,
+
   created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
   is_active VARCHAR(3) NOT NULL CHECK (is_active IN ('YES', 'NO')),
+
   store_id INT NOT NULL,
   category_id INT NOT NULL,
+
   CONSTRAINT fk_products_stores1 FOREIGN KEY (store_id)
     REFERENCES stores (store_id)
     ON DELETE NO ACTION
     ON UPDATE NO ACTION,
+
   CONSTRAINT fk_products_categories1 FOREIGN KEY (category_id)
     REFERENCES categories (category_id)
     ON DELETE NO ACTION
     ON UPDATE NO ACTION,
+
   CONSTRAINT uq_products_name UNIQUE (name)
 );
+
+
+
 
 -- ========= ORDERS =========
 CREATE TABLE IF NOT EXISTS orders (
   order_id SERIAL PRIMARY KEY,
-  status VARCHAR(45) NOT NULL CHECK (status IN ('Pending Seller Confirmation', 'Awaiting Buyer Confirmation', 'Ready for Pickup', 'Ready for Delivery', 'Completed', 'Cancelled')), 
+
+  status VARCHAR(45) NOT NULL
+    CHECK (
+      status IN (
+        'Pending Seller Confirmation',
+        'Awaiting Buyer Confirmation',
+        'Ready for Pickup',
+        'Ready for Delivery',
+        'Completed',
+        'Cancelled'
+      )
+    ),
+
   total_price DECIMAL(10,2) NOT NULL,
+
   order_date TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  cancelled_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+  cancelled_at TIMESTAMPTZ NULL,
+  cancelled_by VARCHAR(10)
+    CHECK (cancelled_by IN ('BUYER','SELLER','SYSTEM')),
+  cancelled_reason VARCHAR(255),
+
   user_id UUID NOT NULL,
   store_id INT NOT NULL,
+
   CONSTRAINT fk_orders_users1 FOREIGN KEY (user_id)
     REFERENCES users (user_id)
     ON DELETE CASCADE
     ON UPDATE CASCADE,
+
   CONSTRAINT fk_orders_stores1 FOREIGN KEY (store_id)
     REFERENCES stores (store_id)
     ON DELETE CASCADE
     ON UPDATE CASCADE
 );
 
+-- ========= PICKUP LOCATIONS =========
+CREATE TABLE IF NOT EXISTS store_pickup_locations (
+  pickup_location_id SERIAL PRIMARY KEY,
+  store_id INT NOT NULL REFERENCES stores(store_id) ON DELETE CASCADE,
+  name VARCHAR(100) NOT NULL,
+  address_line1 VARCHAR(150) NOT NULL,
+  address_line2 VARCHAR(150) NULL,
+  district VARCHAR(80) NULL,
+  province VARCHAR(80) NULL,
+  postal_code VARCHAR(10) NULL,
+  -- 
+  latitude NUMERIC(10,7) NULL,
+  longitude NUMERIC(10,7) NULL,
+  opening_hours VARCHAR(255) NULL,
+  phone VARCHAR(30) NULL,
+  is_active BOOLEAN NOT NULL DEFAULT TRUE,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
 -- ========= ORDER_ITEMS =========
 CREATE TABLE IF NOT EXISTS order_items (
   order_item_id SERIAL PRIMARY KEY,
+
   quantity INT NOT NULL,
   unit_price DECIMAL(10,2) NOT NULL,
-  fulfillment_type VARCHAR(8) NOT NULL CHECK (fulfillment_type IN ('STANDARD', 'EXPRESS')),
+
+  fulfillment_type VARCHAR(8) NOT NULL
+    CHECK (fulfillment_type IN ('STANDARD', 'EXPRESS')),
+
+  delivery_method VARCHAR(10) NOT NULL DEFAULT 'DELIVERY'
+    CHECK (delivery_method IN ('DELIVERY','PICKUP')),
+
   subtotal DECIMAL(10,2) NOT NULL,
   deposit_amount DECIMAL(10,2) NULL,
+
   promised_ship_date TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+  --'PICKUP'
+  pickup_location_id INT NULL,
+
   order_id INT NOT NULL,
   product_id INT NOT NULL,
+
   CONSTRAINT fk_order_items_orders1 FOREIGN KEY (order_id)
     REFERENCES orders (order_id)
     ON DELETE NO ACTION
     ON UPDATE NO ACTION,
+
   CONSTRAINT fk_order_items_products1 FOREIGN KEY (product_id)
     REFERENCES products (product_id)
     ON DELETE NO ACTION
-    ON UPDATE NO ACTION
+    ON UPDATE NO ACTION,
+
+  CONSTRAINT fk_order_items_pickup_location FOREIGN KEY (pickup_location_id)
+    REFERENCES store_pickup_locations (pickup_location_id)
+    ON DELETE SET NULL,
+  -- location
+  CONSTRAINT chk_pickup_location_required CHECK (
+    (delivery_method = 'DELIVERY' AND pickup_location_id IS NULL)
+    OR
+    (delivery_method = 'PICKUP' AND pickup_location_id IS NOT NULL)
+  )
 );
 
 -- ========= CARTS =========
@@ -192,4 +273,81 @@ CREATE TABLE IF NOT EXISTS product_images (
     ON DELETE CASCADE
     ON UPDATE CASCADE,
   CONSTRAINT uq_product_images_product_sort UNIQUE (product_id, sort_order)
+);
+
+
+-- ========= ORDER CHAT: THREAD =========
+CREATE TABLE IF NOT EXISTS order_chat_threads (
+  thread_id BIGSERIAL PRIMARY KEY,
+  order_id INT NOT NULL UNIQUE REFERENCES orders(order_id) ON DELETE CASCADE,
+  buyer_id UUID NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
+  seller_id UUID NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- ========= ORDER CHAT: MESSAGES =========
+CREATE TABLE IF NOT EXISTS order_chat_messages (
+  message_id BIGSERIAL PRIMARY KEY,
+  thread_id BIGINT NOT NULL REFERENCES order_chat_threads(thread_id) ON DELETE CASCADE,
+  sender_id UUID NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
+  message_text TEXT NOT NULL,
+  message_type VARCHAR(20) NOT NULL DEFAULT 'TEXT' CHECK (message_type IN ('TEXT','SYSTEM')),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- ========= READ STATE =========
+CREATE TABLE IF NOT EXISTS order_chat_read_state (
+  thread_id BIGINT NOT NULL REFERENCES order_chat_threads(thread_id) ON DELETE CASCADE,
+  user_id UUID NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
+  last_read_message_id BIGINT NULL,
+  last_read_at TIMESTAMPTZ NULL,
+  PRIMARY KEY (thread_id, user_id)
+);
+
+
+-- ========= ATTRIBUTE KEYS  =========
+CREATE TABLE IF NOT EXISTS product_attribute_keys (
+  attr_key_id SERIAL PRIMARY KEY,
+  key_name VARCHAR(50) NOT NULL UNIQUE
+);
+
+-- ========= ATTRIBUTE VALUES =========
+CREATE TABLE IF NOT EXISTS product_attribute_values (
+  product_id INT NOT NULL REFERENCES products(product_id) ON DELETE CASCADE,
+  attr_key_id INT NOT NULL REFERENCES product_attribute_keys(attr_key_id) ON DELETE CASCADE,
+  value_text VARCHAR(100) NOT NULL,
+  PRIMARY KEY (product_id, attr_key_id, value_text)
+);
+
+
+-- ========= RECOMMENDATION EVENTS =========
+CREATE TABLE IF NOT EXISTS recommendation_events (
+  event_id BIGSERIAL PRIMARY KEY,
+  user_id UUID NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
+  order_id INT NULL REFERENCES orders(order_id) ON DELETE SET NULL,
+  trigger_type VARCHAR(30) NOT NULL CHECK (trigger_type IN ('ORDER_CANCELLED','SEARCH','PRODUCT_VIEW')),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- ========= RECOMMENDED ITEMS =========
+CREATE TABLE IF NOT EXISTS recommendation_event_items (
+  event_id BIGINT NOT NULL REFERENCES recommendation_events(event_id) ON DELETE CASCADE,
+  product_id INT NOT NULL REFERENCES products(product_id) ON DELETE CASCADE,
+  score DOUBLE PRECISION NULL,
+  rank_no INT NOT NULL,
+  reason VARCHAR(50) NULL,
+  PRIMARY KEY (event_id, product_id)
+);
+
+
+-- ========= ORDER STATUS HISTORY =========
+CREATE TABLE IF NOT EXISTS order_status_history (
+  history_id BIGSERIAL PRIMARY KEY,
+  order_id INT NOT NULL REFERENCES orders(order_id) ON DELETE CASCADE,
+  old_status VARCHAR(45) NULL,
+  new_status VARCHAR(45) NOT NULL,
+  changed_by UUID NULL REFERENCES users(user_id) ON DELETE SET NULL,
+  note VARCHAR(255) NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
