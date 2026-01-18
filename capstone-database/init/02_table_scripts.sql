@@ -150,7 +150,7 @@ CREATE TABLE IF NOT EXISTS user_addresses (
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
--- ========= ORDERS =========
+-- ========= ORDERS (Round University + Campus only) =========
 CREATE TABLE IF NOT EXISTS orders (
   order_id SERIAL PRIMARY KEY,
 
@@ -171,22 +171,20 @@ CREATE TABLE IF NOT EXISTS orders (
   order_date TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
-  delivery_method VARCHAR(10) NOT NULL DEFAULT 'DELIVERY'
-    CHECK (delivery_method IN ('DELIVERY','CAMPUS')),
+  delivery_method VARCHAR(20) NOT NULL DEFAULT 'ROUND_UNIVERSITY'
+    CHECK (delivery_method IN ('ROUND_UNIVERSITY','CAMPUS')),
 
-  delivery_address_id BIGINT NULL,       
-  campus_location_id INT NULL,           
-  campus_detail_note VARCHAR(255) NULL,   
+  delivery_address_id BIGINT NULL,     
+  campus_location_id INT NULL,         
+  campus_detail_note VARCHAR(255) NULL, 
 
   delivery_agreement_status VARCHAR(12) NOT NULL DEFAULT 'NONE'
     CHECK (delivery_agreement_status IN ('NONE','PROPOSED','CONFIRMED')),
 
   deliver_at_start TIMESTAMPTZ NULL,
   deliver_at_end   TIMESTAMPTZ NULL,
-
   delivery_confirmed_at TIMESTAMPTZ NULL,
 
-  -- ========= Cancel =========
   cancelled_at TIMESTAMPTZ NULL,
   cancelled_by VARCHAR(10)
     CHECK (cancelled_by IN ('BUYER','SELLER','SYSTEM')),
@@ -214,7 +212,7 @@ CREATE TABLE IF NOT EXISTS orders (
     ON DELETE RESTRICT,
 
   CONSTRAINT chk_delivery_destination_required CHECK (
-    (delivery_method = 'DELIVERY'
+    (delivery_method = 'ROUND_UNIVERSITY'
       AND delivery_address_id IS NOT NULL
       AND campus_location_id IS NULL)
     OR
@@ -243,6 +241,7 @@ CREATE TABLE IF NOT EXISTS orders (
     OR (cancelled_at IS NOT NULL AND cancelled_by IS NOT NULL)
   )
 );
+
 
 
 -- ========= ORDER_ITEMS =========
@@ -433,42 +432,182 @@ CREATE TABLE IF NOT EXISTS homepage_banners (
   )
 );
 
--- ========= CAMPUS DELIVERY PROPOSALS (Round University Delivery) =========
-CREATE TABLE IF NOT EXISTS order_campus_delivery_proposals (
-  proposal_id BIGSERIAL PRIMARY KEY,
+-- ========= REPORTS =========
+CREATE TABLE IF NOT EXISTS reports (
+  report_id BIGSERIAL PRIMARY KEY,
 
+  -- what happened
   order_id INT NOT NULL REFERENCES orders(order_id) ON DELETE CASCADE,
 
-  delivery_address_id BIGINT NOT NULL REFERENCES user_addresses(address_id) ON DELETE RESTRICT,
+  -- who reported
+  reporter_id UUID NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
 
-  proposed_start_at TIMESTAMPTZ NOT NULL,
-  proposed_end_at   TIMESTAMPTZ NOT NULL,
+  -- who got reported (buyer or seller)
+  reported_user_id UUID NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
 
-  status VARCHAR(12) NOT NULL DEFAULT 'PROPOSED'
-    CHECK (status IN ('DRAFT','PROPOSED','CONFIRMED','CANCELLED')),
+  reported_party_type VARCHAR(10) NOT NULL
+    CHECK (reported_party_type IN ('BUYER','SELLER')),
 
-  proposed_by UUID NULL REFERENCES users(user_id) ON DELETE SET NULL,  
-  confirmed_by UUID NULL REFERENCES users(user_id) ON DELETE SET NULL,
+  reason_code VARCHAR(50) NOT NULL,
+  description TEXT NULL,
 
-  note VARCHAR(255) NULL,
+  status VARCHAR(15) NOT NULL DEFAULT 'PENDING'
+    CHECK (status IN ('PENDING','NEEDS_INFO','REVIEWED','RESOLVED','REJECTED','CLOSED')),
 
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 
-  CONSTRAINT chk_proposal_time CHECK (proposed_start_at <= proposed_end_at)
+  -- prevent spam/duplicate for the same target in same order
+  CONSTRAINT uq_report_once UNIQUE (order_id, reporter_id, reported_party_type, reported_user_id),
+
+  CONSTRAINT chk_not_self_report CHECK (reporter_id <> reported_user_id)
 );
 
--- ========= CAMPUS DELIVERY AGREEMENT (Locked source of truth) =========
-CREATE TABLE IF NOT EXISTS order_campus_delivery_agreements (
-  order_id INT PRIMARY KEY REFERENCES orders(order_id) ON DELETE CASCADE,
+-- ========= REPORT_ORDER_SNAPSHOTS =========
+CREATE TABLE IF NOT EXISTS report_order_snapshots (
+  report_id BIGINT PRIMARY KEY REFERENCES reports(report_id) ON DELETE CASCADE,
 
-  delivery_address_id BIGINT NOT NULL REFERENCES user_addresses(address_id) ON DELETE RESTRICT,
+  order_status VARCHAR(45) NOT NULL,
+  delivery_method VARCHAR(20) NOT NULL,
 
-  confirmed_start_at TIMESTAMPTZ NOT NULL,
-  confirmed_end_at   TIMESTAMPTZ NOT NULL,
+  total_price DECIMAL(10,2) NOT NULL,
 
-  confirmed_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  confirmed_by UUID NULL REFERENCES users(user_id) ON DELETE SET NULL,
+  -- snapshot payloads (so admin can see what it was at report time)
+  delivery_address JSONB NULL,
+  campus_location  JSONB NULL,
+  delivery_time    JSONB NULL,
 
-  CONSTRAINT chk_agreement_time CHECK (confirmed_start_at <= confirmed_end_at)
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- ========= REPORT_CHAT_SNAPSHOTS =========
+CREATE TABLE IF NOT EXISTS report_chat_snapshots (
+  snapshot_id BIGSERIAL PRIMARY KEY,
+
+  report_id BIGINT NOT NULL REFERENCES reports(report_id) ON DELETE CASCADE,
+
+  -- allow SYSTEM snapshot rows (sender_id can be NULL)
+  sender_id UUID NULL REFERENCES users(user_id) ON DELETE SET NULL,
+
+  sender_role VARCHAR(10) NOT NULL
+    CHECK (sender_role IN ('BUYER','SELLER','SYSTEM')),
+
+  message_text TEXT NOT NULL,
+  message_type VARCHAR(20),
+
+  message_created_at TIMESTAMPTZ NOT NULL
+);
+
+-- ========= REPORT_ADMIN_ACTIONS =========
+-- keep log of admin workflow actions on a report (review, needs info, close, etc.)
+CREATE TABLE IF NOT EXISTS report_admin_actions (
+  action_id BIGSERIAL PRIMARY KEY,
+
+  report_id BIGINT NOT NULL REFERENCES reports(report_id) ON DELETE CASCADE,
+
+  admin_id UUID NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
+
+  action_type VARCHAR(25) NOT NULL
+    CHECK (action_type IN (
+      'REVIEWED',
+      'REQUEST_MORE_INFO',
+      'NO_ACTION',
+      'RESOLVED',
+      'REJECTED',
+      'CLOSED',
+      'WARN_USER',
+      'SUSPEND_USER',
+      'BAN_USER',
+      'HIDE_STORE',
+      'SUSPEND_STORE',
+      'DELETE_STORE'
+    )),
+
+  note TEXT NULL,
+
+  -- optional action params (ex. suspend 3 days, which store was affected)
+  target_user_id UUID NULL REFERENCES users(user_id) ON DELETE SET NULL,
+  target_store_id INT NULL REFERENCES stores(store_id) ON DELETE SET NULL,
+
+  suspend_days INT NULL,
+  is_permanent BOOLEAN NOT NULL DEFAULT FALSE,
+
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+
+  CONSTRAINT chk_suspend_days_positive CHECK (suspend_days IS NULL OR suspend_days > 0),
+
+  CONSTRAINT chk_user_action_requires_target CHECK (
+    action_type NOT IN ('WARN_USER','SUSPEND_USER','BAN_USER')
+    OR target_user_id IS NOT NULL
+  ),
+
+  CONSTRAINT chk_store_action_requires_target CHECK (
+    action_type NOT IN ('HIDE_STORE','SUSPEND_STORE','DELETE_STORE')
+    OR target_store_id IS NOT NULL
+  )
+);
+
+-- ========= USER_BLACKLISTS (User restrictions) =========
+-- Warn / Suspend (Temp) / Ban (Permanent)
+CREATE TABLE IF NOT EXISTS user_blacklists (
+  blacklist_id BIGSERIAL PRIMARY KEY,
+
+  user_id UUID NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
+
+  user_role VARCHAR(10) NOT NULL
+    CHECK (user_role IN ('BUYER','SELLER')),
+
+  report_id BIGINT NULL REFERENCES reports(report_id) ON DELETE SET NULL,
+
+  reason VARCHAR(255) NOT NULL,
+
+  ban_type VARCHAR(10) NOT NULL
+    CHECK (ban_type IN ('WARNING','TEMPORARY','PERMANENT')),
+
+  banned_from TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  banned_until TIMESTAMPTZ NULL,
+
+  is_active BOOLEAN NOT NULL DEFAULT TRUE,
+
+  created_by UUID NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+
+  CONSTRAINT chk_temp_ban_requires_until CHECK (
+    ban_type <> 'TEMPORARY' OR banned_until IS NOT NULL
+  ),
+
+  CONSTRAINT chk_perm_ban_until_null CHECK (
+    ban_type <> 'PERMANENT' OR banned_until IS NULL
+  )
+);
+
+-- ========= STORE_RESTRICTIONS (Store restrictions) =========
+-- Hide / Suspend / Delete store
+CREATE TABLE IF NOT EXISTS store_restrictions (
+  restriction_id BIGSERIAL PRIMARY KEY,
+
+  store_id INT NOT NULL REFERENCES stores(store_id) ON DELETE CASCADE,
+
+  report_id BIGINT NULL REFERENCES reports(report_id) ON DELETE SET NULL,
+
+  reason VARCHAR(255) NOT NULL,
+
+  restriction_type VARCHAR(12) NOT NULL
+    CHECK (restriction_type IN ('HIDE','SUSPEND','DELETE')),
+
+  restricted_from TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  restricted_until TIMESTAMPTZ NULL,
+
+  is_active BOOLEAN NOT NULL DEFAULT TRUE,
+
+  created_by UUID NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+
+  CONSTRAINT chk_hide_suspend_requires_until CHECK (
+    restriction_type IN ('DELETE') OR restricted_until IS NOT NULL
+  ),
+
+  CONSTRAINT chk_delete_until_null CHECK (
+    restriction_type <> 'DELETE' OR restricted_until IS NULL
+  )
 );

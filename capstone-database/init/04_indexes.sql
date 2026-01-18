@@ -127,10 +127,6 @@ DROP INDEX IF EXISTS idx_products_active_price;
 CREATE INDEX IF NOT EXISTS idx_products_active_price
   ON products(is_active, price ASC);
 
-DROP INDEX IF EXISTS idx_campus_locations_active;
-CREATE INDEX IF NOT EXISTS idx_campus_locations_active
-  ON campus_locations(is_active, sort_order);
-
 DROP INDEX IF EXISTS uq_homepage_banners_sort_active;
 CREATE UNIQUE INDEX IF NOT EXISTS uq_homepage_banners_sort_active
   ON homepage_banners(sort_order)
@@ -144,10 +140,40 @@ DROP INDEX IF EXISTS idx_homepage_banners_active_time;
 CREATE INDEX IF NOT EXISTS idx_homepage_banners_active_time
   ON homepage_banners(is_active, start_at, end_at);
 
-DROP INDEX IF EXISTS idx_proposals_order_time;
-CREATE INDEX IF NOT EXISTS idx_proposals_order_time
-  ON order_campus_delivery_proposals(order_id, created_at DESC);
+DROP INDEX IF EXISTS idx_reports_status_time;
+CREATE INDEX IF NOT EXISTS idx_reports_status_time
+  ON reports(status, created_at DESC);
 
-DROP INDEX IF EXISTS uq_agreement_order;
-CREATE UNIQUE INDEX IF NOT EXISTS uq_agreement_order
-  ON order_campus_delivery_agreements(order_id);
+DROP INDEX IF EXISTS idx_reports_order;
+CREATE INDEX IF NOT EXISTS idx_reports_order
+  ON reports(order_id);
+
+DROP INDEX IF EXISTS idx_reports_reported_user_time;
+CREATE INDEX IF NOT EXISTS idx_reports_reported_user_time
+  ON reports(reported_user_id, created_at DESC);
+
+DROP INDEX IF EXISTS idx_report_chat_snapshots_report_time;
+CREATE INDEX IF NOT EXISTS idx_report_chat_snapshots_report_time
+  ON report_chat_snapshots(report_id, message_created_at ASC);
+
+DROP INDEX IF EXISTS idx_report_admin_actions_report_time;
+CREATE INDEX IF NOT EXISTS idx_report_admin_actions_report_time
+  ON report_admin_actions(report_id, created_at DESC);
+
+DROP INDEX IF EXISTS idx_user_blacklists_user_active_until;
+CREATE INDEX IF NOT EXISTS idx_user_blacklists_user_active_until
+  ON user_blacklists(user_id, is_active, banned_until);
+
+DROP INDEX IF EXISTS idx_store_restrictions_store_active_until;
+CREATE INDEX IF NOT EXISTS idx_store_restrictions_store_active_until
+  ON store_restrictions(store_id, is_active, restricted_until);
+
+DROP INDEX IF EXISTS uq_user_blacklists_one_active;
+CREATE UNIQUE INDEX IF NOT EXISTS uq_user_blacklists_one_active
+  ON user_blacklists(user_id)
+  WHERE is_active = TRUE;
+
+DROP INDEX IF EXISTS uq_store_restrictions_one_active;
+CREATE UNIQUE INDEX IF NOT EXISTS uq_store_restrictions_one_active
+  ON store_restrictions(store_id)
+  WHERE is_active = TRUE;
