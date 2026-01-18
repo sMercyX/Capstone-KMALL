@@ -177,3 +177,7 @@ DROP INDEX IF EXISTS uq_store_restrictions_one_active;
 CREATE UNIQUE INDEX IF NOT EXISTS uq_store_restrictions_one_active
   ON store_restrictions(store_id)
   WHERE is_active = TRUE;
+
+DROP INDEX IF EXISTS idx_search_history_user_time;
+CREATE INDEX IF NOT EXISTS idx_search_history_user_time
+  ON search_history(user_id, searched_at DESC);

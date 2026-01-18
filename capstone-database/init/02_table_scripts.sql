@@ -611,3 +611,13 @@ CREATE TABLE IF NOT EXISTS store_restrictions (
     restriction_type <> 'DELETE' OR restricted_until IS NULL
   )
 );
+
+-- ========= SEARCH HISTORY (Recent Search) =========
+CREATE TABLE IF NOT EXISTS search_history (
+  search_id BIGSERIAL PRIMARY KEY,
+  user_id UUID NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
+  query_text VARCHAR(200) NOT NULL,
+  searched_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  CONSTRAINT uq_search_history_user_query UNIQUE (user_id, query_text)
+);
+
