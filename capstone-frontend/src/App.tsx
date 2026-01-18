@@ -9,7 +9,7 @@ import AppRoutes from "./routes"
 
 export default function App() {
   return (
-    <BrowserRouter basename="/capstone25/cp25ssa2">
+    <BrowserRouter basename={import.meta.env.BASE_URL}>
       <AuthProvider>
         <ThemeProvider>
           <AppRoutes />
