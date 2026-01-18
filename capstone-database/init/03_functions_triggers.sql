@@ -342,17 +342,29 @@ CREATE OR REPLACE FUNCTION log_order_status_change()
 RETURNS TRIGGER AS $$
 BEGIN
   IF NEW.status IS DISTINCT FROM OLD.status THEN
-    INSERT INTO order_status_history(order_id, old_status, new_status, changed_by, note)
-    VALUES (NEW.order_id, OLD.status, NEW.status, NULL, NULL);
 
-    IF NEW.status = 'Cancelled' THEN
+    IF NEW.status = 'Cancelled' AND NEW.cancelled_at IS NULL THEN
       NEW.cancelled_at := NOW();
     END IF;
+
+    INSERT INTO order_status_history(order_id, old_status, new_status, changed_by, note)
+    VALUES (
+      NEW.order_id,
+      OLD.status,
+      NEW.status,
+      NULL,
+      CASE
+        WHEN NEW.status = 'Cancelled' THEN COALESCE(NEW.cancelled_reason, NULL)
+        ELSE NULL
+      END
+    );
+
   END IF;
 
   RETURN NEW;
 END;
 $$ LANGUAGE plpgsql;
+
 
 DROP TRIGGER IF EXISTS trg_log_order_status_change ON orders;
 CREATE TRIGGER trg_log_order_status_change

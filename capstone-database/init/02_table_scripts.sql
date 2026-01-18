@@ -106,7 +106,18 @@ CREATE TABLE IF NOT EXISTS products (
   CONSTRAINT uq_products_name UNIQUE (name)
 );
 
-
+-- ========= CAMPUS LOCATIONS =========
+CREATE TABLE IF NOT EXISTS campus_locations (
+  campus_location_id SERIAL PRIMARY KEY,
+  name VARCHAR(120) NOT NULL,    
+  area VARCHAR(80) NULL,          
+  latitude NUMERIC(10,7) NULL,
+  longitude NUMERIC(10,7) NULL,
+  is_active BOOLEAN NOT NULL DEFAULT TRUE,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  CONSTRAINT uq_campus_locations_name UNIQUE (name)
+);
 
 
 -- ========= ORDERS =========
@@ -130,6 +141,14 @@ CREATE TABLE IF NOT EXISTS orders (
   order_date TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
+  delivery_method VARCHAR(10) NOT NULL DEFAULT 'DELIVERY'
+    CHECK (delivery_method IN ('DELIVERY','CAMPUS')),
+
+  delivery_address_id BIGINT NULL,
+
+  campus_location_id INT NULL,
+  campus_detail_note VARCHAR(255) NULL,
+
   cancelled_at TIMESTAMPTZ NULL,
   cancelled_by VARCHAR(10)
     CHECK (cancelled_by IN ('BUYER','SELLER','SYSTEM')),
@@ -146,50 +165,44 @@ CREATE TABLE IF NOT EXISTS orders (
   CONSTRAINT fk_orders_stores1 FOREIGN KEY (store_id)
     REFERENCES stores (store_id)
     ON DELETE CASCADE
-    ON UPDATE CASCADE
+    ON UPDATE CASCADE,
+
+  CONSTRAINT fk_orders_delivery_address FOREIGN KEY (delivery_address_id)
+    REFERENCES user_addresses (address_id)
+    ON DELETE RESTRICT,
+
+  CONSTRAINT fk_orders_campus_location FOREIGN KEY (campus_location_id)
+    REFERENCES campus_locations (campus_location_id)
+    ON DELETE RESTRICT,
+
+  CONSTRAINT chk_delivery_destination_required CHECK (
+    (delivery_method = 'DELIVERY'
+      AND delivery_address_id IS NOT NULL
+      AND campus_location_id IS NULL
+      AND campus_detail_note IS NULL)
+    OR
+    (delivery_method = 'CAMPUS'
+      AND delivery_address_id IS NULL
+      AND campus_location_id IS NOT NULL)
+  ),
+  
+  CONSTRAINT chk_cancel_meta_required CHECK (
+    status <> 'Cancelled'
+    OR (cancelled_at IS NOT NULL AND cancelled_by IS NOT NULL)
+  )
 );
 
--- ========= PICKUP LOCATIONS =========
-CREATE TABLE IF NOT EXISTS store_pickup_locations (
-  pickup_location_id SERIAL PRIMARY KEY,
-  store_id INT NOT NULL REFERENCES stores(store_id) ON DELETE CASCADE,
-  name VARCHAR(100) NOT NULL,
-  address_line1 VARCHAR(150) NOT NULL,
-  address_line2 VARCHAR(150) NULL,
-  district VARCHAR(80) NULL,
-  province VARCHAR(80) NULL,
-  postal_code VARCHAR(10) NULL,
-  -- 
-  latitude NUMERIC(10,7) NULL,
-  longitude NUMERIC(10,7) NULL,
-  opening_hours VARCHAR(255) NULL,
-  phone VARCHAR(30) NULL,
-  is_active BOOLEAN NOT NULL DEFAULT TRUE,
-  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
 
 -- ========= ORDER_ITEMS =========
 CREATE TABLE IF NOT EXISTS order_items (
   order_item_id SERIAL PRIMARY KEY,
-
   quantity INT NOT NULL,
   unit_price DECIMAL(10,2) NOT NULL,
-
   fulfillment_type VARCHAR(8) NOT NULL
     CHECK (fulfillment_type IN ('STANDARD', 'EXPRESS')),
-
-  delivery_method VARCHAR(10) NOT NULL DEFAULT 'DELIVERY'
-    CHECK (delivery_method IN ('DELIVERY','PICKUP')),
-
   subtotal DECIMAL(10,2) NOT NULL,
   deposit_amount DECIMAL(10,2) NULL,
-
   promised_ship_date TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
-
-  --'PICKUP'
-  pickup_location_id INT NULL,
-
   order_id INT NOT NULL,
   product_id INT NOT NULL,
 
@@ -201,18 +214,9 @@ CREATE TABLE IF NOT EXISTS order_items (
   CONSTRAINT fk_order_items_products1 FOREIGN KEY (product_id)
     REFERENCES products (product_id)
     ON DELETE NO ACTION
-    ON UPDATE NO ACTION,
-
-  CONSTRAINT fk_order_items_pickup_location FOREIGN KEY (pickup_location_id)
-    REFERENCES store_pickup_locations (pickup_location_id)
-    ON DELETE SET NULL,
-  -- location
-  CONSTRAINT chk_pickup_location_required CHECK (
-    (delivery_method = 'DELIVERY' AND pickup_location_id IS NULL)
-    OR
-    (delivery_method = 'PICKUP' AND pickup_location_id IS NOT NULL)
-  )
+    ON UPDATE NO ACTION
 );
+
 
 -- ========= CARTS =========
 CREATE TABLE IF NOT EXISTS carts (
@@ -351,3 +355,28 @@ CREATE TABLE IF NOT EXISTS order_status_history (
   note VARCHAR(255) NULL,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+
+CREATE TABLE IF NOT EXISTS user_addresses (
+  address_id BIGSERIAL PRIMARY KEY,
+  user_id UUID NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
+
+  label VARCHAR(50) NULL,            
+  address_line1 VARCHAR(150) NOT NULL,
+  address_line2 VARCHAR(150) NULL,
+  district VARCHAR(80) NULL,
+  province VARCHAR(80) NULL,
+  postal_code VARCHAR(10) NULL,
+  phone VARCHAR(30) NULL,
+
+  latitude NUMERIC(10,7) NULL,
+  longitude NUMERIC(10,7) NULL,
+
+  is_default BOOLEAN NOT NULL DEFAULT FALSE,
+  is_active BOOLEAN NOT NULL DEFAULT TRUE,
+
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+
+

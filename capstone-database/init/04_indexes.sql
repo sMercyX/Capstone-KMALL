@@ -75,9 +75,7 @@ DROP INDEX IF EXISTS idx_chat_messages_thread_id;
 CREATE INDEX IF NOT EXISTS idx_chat_messages_thread_id
   ON order_chat_messages(thread_id);
 
-DROP INDEX IF EXISTS idx_pickup_locations_store_active;
-CREATE INDEX IF NOT EXISTS idx_pickup_locations_store_active
-  ON store_pickup_locations(store_id, is_active);
+
 
 DROP INDEX IF EXISTS idx_attr_values_key_value;
 CREATE INDEX IF NOT EXISTS idx_attr_values_key_value
@@ -120,3 +118,16 @@ CREATE INDEX IF NOT EXISTS idx_order_status_history_order_time
 DROP INDEX IF EXISTS idx_products_active;
 CREATE INDEX IF NOT EXISTS idx_products_active
   ON products(is_active);
+
+DROP INDEX IF EXISTS idx_products_active_created_at;
+CREATE INDEX IF NOT EXISTS idx_products_active_created_at
+  ON products(is_active, created_at DESC);
+
+DROP INDEX IF EXISTS idx_products_active_price;
+CREATE INDEX IF NOT EXISTS idx_products_active_price
+  ON products(is_active, price ASC);
+
+
+DROP INDEX IF EXISTS idx_campus_locations_active;
+CREATE INDEX IF NOT EXISTS idx_campus_locations_active
+  ON campus_locations(is_active, sort_order);
