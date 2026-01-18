@@ -127,7 +127,27 @@ DROP INDEX IF EXISTS idx_products_active_price;
 CREATE INDEX IF NOT EXISTS idx_products_active_price
   ON products(is_active, price ASC);
 
-
 DROP INDEX IF EXISTS idx_campus_locations_active;
 CREATE INDEX IF NOT EXISTS idx_campus_locations_active
   ON campus_locations(is_active, sort_order);
+
+DROP INDEX IF EXISTS uq_homepage_banners_sort_active;
+CREATE UNIQUE INDEX IF NOT EXISTS uq_homepage_banners_sort_active
+  ON homepage_banners(sort_order)
+  WHERE is_active = TRUE;
+
+DROP INDEX IF EXISTS idx_homepage_banners_active_sort;
+CREATE INDEX IF NOT EXISTS idx_homepage_banners_active_sort
+  ON homepage_banners(is_active, sort_order);
+
+DROP INDEX IF EXISTS idx_homepage_banners_active_time;
+CREATE INDEX IF NOT EXISTS idx_homepage_banners_active_time
+  ON homepage_banners(is_active, start_at, end_at);
+
+DROP INDEX IF EXISTS idx_proposals_order_time;
+CREATE INDEX IF NOT EXISTS idx_proposals_order_time
+  ON order_campus_delivery_proposals(order_id, created_at DESC);
+
+DROP INDEX IF EXISTS uq_agreement_order;
+CREATE UNIQUE INDEX IF NOT EXISTS uq_agreement_order
+  ON order_campus_delivery_agreements(order_id);

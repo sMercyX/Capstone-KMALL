@@ -41,16 +41,25 @@ CREATE TABLE IF NOT EXISTS stores (
   store_name VARCHAR(100) NOT NULL,
   store_desc VARCHAR(255) NULL,
   profile_url VARCHAR(255) NULL,
+
+  delivery_round_university_enabled BOOLEAN NOT NULL DEFAULT FALSE,
+
+  campus_enabled BOOLEAN NOT NULL DEFAULT FALSE,
+
   is_active VARCHAR(3) NOT NULL CHECK (is_active IN ('YES', 'NO')),
   created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP, 
   updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
   user_id UUID NOT NULL,
+
   CONSTRAINT fk_stores_users1 FOREIGN KEY (user_id)
     REFERENCES users (user_id)
     ON DELETE NO ACTION
     ON UPDATE NO ACTION,
+
   CONSTRAINT uq_stores_store_name UNIQUE (store_name)
 );
+
+
 
 -- ========= CATEGORIES =========
 CREATE TABLE IF NOT EXISTS categories (
@@ -119,6 +128,27 @@ CREATE TABLE IF NOT EXISTS campus_locations (
   CONSTRAINT uq_campus_locations_name UNIQUE (name)
 );
 
+CREATE TABLE IF NOT EXISTS user_addresses (
+  address_id BIGSERIAL PRIMARY KEY,
+  user_id UUID NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
+
+  label VARCHAR(50) NULL,            
+  address_line1 VARCHAR(150) NOT NULL,
+  address_line2 VARCHAR(150) NULL,
+  district VARCHAR(80) NULL,
+  province VARCHAR(80) NULL,
+  postal_code VARCHAR(10) NULL,
+  phone VARCHAR(30) NULL,
+
+  latitude NUMERIC(10,7) NULL,
+  longitude NUMERIC(10,7) NULL,
+
+  is_default BOOLEAN NOT NULL DEFAULT FALSE,
+  is_active BOOLEAN NOT NULL DEFAULT TRUE,
+
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
 
 -- ========= ORDERS =========
 CREATE TABLE IF NOT EXISTS orders (
@@ -144,11 +174,19 @@ CREATE TABLE IF NOT EXISTS orders (
   delivery_method VARCHAR(10) NOT NULL DEFAULT 'DELIVERY'
     CHECK (delivery_method IN ('DELIVERY','CAMPUS')),
 
-  delivery_address_id BIGINT NULL,
+  delivery_address_id BIGINT NULL,       
+  campus_location_id INT NULL,           
+  campus_detail_note VARCHAR(255) NULL,   
 
-  campus_location_id INT NULL,
-  campus_detail_note VARCHAR(255) NULL,
+  delivery_agreement_status VARCHAR(12) NOT NULL DEFAULT 'NONE'
+    CHECK (delivery_agreement_status IN ('NONE','PROPOSED','CONFIRMED')),
 
+  deliver_at_start TIMESTAMPTZ NULL,
+  deliver_at_end   TIMESTAMPTZ NULL,
+
+  delivery_confirmed_at TIMESTAMPTZ NULL,
+
+  -- ========= Cancel =========
   cancelled_at TIMESTAMPTZ NULL,
   cancelled_by VARCHAR(10)
     CHECK (cancelled_by IN ('BUYER','SELLER','SYSTEM')),
@@ -178,14 +216,28 @@ CREATE TABLE IF NOT EXISTS orders (
   CONSTRAINT chk_delivery_destination_required CHECK (
     (delivery_method = 'DELIVERY'
       AND delivery_address_id IS NOT NULL
-      AND campus_location_id IS NULL
-      AND campus_detail_note IS NULL)
+      AND campus_location_id IS NULL)
     OR
     (delivery_method = 'CAMPUS'
       AND delivery_address_id IS NULL
       AND campus_location_id IS NOT NULL)
   ),
-  
+
+  CONSTRAINT chk_delivery_time_range CHECK (
+    deliver_at_start IS NULL
+    OR deliver_at_end IS NULL
+    OR deliver_at_start <= deliver_at_end
+  ),
+
+  CONSTRAINT chk_confirm_requires_data CHECK (
+    delivery_agreement_status <> 'CONFIRMED'
+    OR (
+      delivery_confirmed_at IS NOT NULL
+      AND deliver_at_start IS NOT NULL
+      AND deliver_at_end IS NOT NULL
+    )
+  ),
+
   CONSTRAINT chk_cancel_meta_required CHECK (
     status <> 'Cancelled'
     OR (cancelled_at IS NOT NULL AND cancelled_by IS NOT NULL)
@@ -356,27 +408,67 @@ CREATE TABLE IF NOT EXISTS order_status_history (
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-CREATE TABLE IF NOT EXISTS user_addresses (
-  address_id BIGSERIAL PRIMARY KEY,
-  user_id UUID NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
+-- ========= HOMEPAGE BANNERS (Admin-managed) =========
+CREATE TABLE IF NOT EXISTS homepage_banners (
+  banner_id BIGSERIAL PRIMARY KEY,
 
-  label VARCHAR(50) NULL,            
-  address_line1 VARCHAR(150) NOT NULL,
-  address_line2 VARCHAR(150) NULL,
-  district VARCHAR(80) NULL,
-  province VARCHAR(80) NULL,
-  postal_code VARCHAR(10) NULL,
-  phone VARCHAR(30) NULL,
+  image_url VARCHAR(255) NOT NULL,
+  link_url  VARCHAR(255) NULL,    
 
-  latitude NUMERIC(10,7) NULL,
-  longitude NUMERIC(10,7) NULL,
+  title    VARCHAR(120) NULL,
+  alt_text VARCHAR(255) NULL,
 
-  is_default BOOLEAN NOT NULL DEFAULT FALSE,
   is_active BOOLEAN NOT NULL DEFAULT TRUE,
+  sort_order INT NOT NULL DEFAULT 1,
 
+  start_at TIMESTAMPTZ NULL,
+  end_at   TIMESTAMPTZ NULL,
+
+  created_by UUID NULL REFERENCES users(user_id) ON DELETE SET NULL,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+
+  CONSTRAINT chk_banner_time CHECK (
+    start_at IS NULL OR end_at IS NULL OR start_at <= end_at
+  )
 );
 
+-- ========= CAMPUS DELIVERY PROPOSALS (Round University Delivery) =========
+CREATE TABLE IF NOT EXISTS order_campus_delivery_proposals (
+  proposal_id BIGSERIAL PRIMARY KEY,
 
+  order_id INT NOT NULL REFERENCES orders(order_id) ON DELETE CASCADE,
 
+  delivery_address_id BIGINT NOT NULL REFERENCES user_addresses(address_id) ON DELETE RESTRICT,
+
+  proposed_start_at TIMESTAMPTZ NOT NULL,
+  proposed_end_at   TIMESTAMPTZ NOT NULL,
+
+  status VARCHAR(12) NOT NULL DEFAULT 'PROPOSED'
+    CHECK (status IN ('DRAFT','PROPOSED','CONFIRMED','CANCELLED')),
+
+  proposed_by UUID NULL REFERENCES users(user_id) ON DELETE SET NULL,  
+  confirmed_by UUID NULL REFERENCES users(user_id) ON DELETE SET NULL,
+
+  note VARCHAR(255) NULL,
+
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+
+  CONSTRAINT chk_proposal_time CHECK (proposed_start_at <= proposed_end_at)
+);
+
+-- ========= CAMPUS DELIVERY AGREEMENT (Locked source of truth) =========
+CREATE TABLE IF NOT EXISTS order_campus_delivery_agreements (
+  order_id INT PRIMARY KEY REFERENCES orders(order_id) ON DELETE CASCADE,
+
+  delivery_address_id BIGINT NOT NULL REFERENCES user_addresses(address_id) ON DELETE RESTRICT,
+
+  confirmed_start_at TIMESTAMPTZ NOT NULL,
+  confirmed_end_at   TIMESTAMPTZ NOT NULL,
+
+  confirmed_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  confirmed_by UUID NULL REFERENCES users(user_id) ON DELETE SET NULL,
+
+  CONSTRAINT chk_agreement_time CHECK (confirmed_start_at <= confirmed_end_at)
+);
