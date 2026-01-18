@@ -28,6 +28,9 @@ type Config struct {
 	JWTSecret       string // HS256
 	AccessTokenTTL  time.Duration
 	RefreshTokenTTL time.Duration
+
+	// CORS
+	CORSAllowedOrigins string
 }
 
 func must(k string) string {
@@ -78,6 +81,7 @@ func Load() Config {
 		JWTAudience:     os.Getenv("JWT_AUDIENCE"),
 		AccessTokenTTL:  mustDuration("JWT_ACCESS_TTL", 30*time.Minute),
 		RefreshTokenTTL: mustDuration("JWT_REFRESH_TTL", 24*time.Hour),
+		CORSAllowedOrigins: os.Getenv("CORS_ALLOWED_ORIGINS"),
 	}
 
 	tenantID := os.Getenv("AZ_TENANT_ID")
