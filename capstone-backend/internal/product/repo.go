@@ -282,8 +282,21 @@ func (r *repo) ListPublic(
 
 	args := []any{}
 
+	// if q != "" {
+	// 	cond := " AND LOWER(p.name) LIKE '%' || $" + strconv.Itoa(len(args)+1) + " || '%' "
+	// 	selectQuery += cond
+	// 	countQuery += cond
+	// 	args = append(args, q)
+	// }
 	if q != "" {
-		cond := " AND LOWER(p.name) LIKE '%' || $" + strconv.Itoa(len(args)+1) + " || '%' "
+		idx := strconv.Itoa(len(args) + 1)
+		cond := `
+    		AND (
+      			LOWER(p.name) LIKE '%' || $` + idx + ` || '%'
+      			OR LOWER(p.product_desc) LIKE '%' || $` + idx + ` || '%'
+      			OR LOWER(s.store_name) LIKE '%' || $` + idx + ` || '%'
+    		)
+  		`
 		selectQuery += cond
 		countQuery += cond
 		args = append(args, q)
