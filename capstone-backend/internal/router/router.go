@@ -29,6 +29,7 @@ func Attach(r *gin.Engine, db *pgxpool.Pool, cfg config.Config) {
 		middleware.RequestTimeout(10*time.Second),
 		middleware.ErrorHandler(),
 		middleware.Recovery(),
+		middleware.CORSMiddleware(cfg.CORSAllowedOrigins),
 	)
 
 	// health (ไม่ต้อง auth)
