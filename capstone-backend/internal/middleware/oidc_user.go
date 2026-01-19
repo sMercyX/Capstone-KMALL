@@ -91,8 +91,8 @@ func firstEmail(list []string) string {
 func DevMockUser() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		u := &UpstreamUser{
-			UID:   "dev-buyer-1",
-			Email: "buyer1@example.com",
+			UID:   "dev-admin-1",
+			Email: "admin1@example.com",
 			Name:  "Dev Seller 1",
 		}
 		c.Set(CtxUpstreamUser, u)
