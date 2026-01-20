@@ -181,3 +181,19 @@ CREATE UNIQUE INDEX IF NOT EXISTS uq_store_restrictions_one_active
 DROP INDEX IF EXISTS idx_search_history_user_time;
 CREATE INDEX IF NOT EXISTS idx_search_history_user_time
   ON search_history(user_id, searched_at DESC);
+
+DROP INDEX IF EXISTS idx_products_name_prefix;
+CREATE INDEX IF NOT EXISTS idx_products_name_prefix
+ON products (lower(name));
+
+DROP INDEX IF EXISTS idx_products_name_trgm;
+CREATE INDEX IF NOT EXISTS idx_products_name_trgm
+ON products USING gin (name gin_trgm_ops);
+
+DROP INDEX IF EXISTS idx_stores_name_trgm;
+CREATE INDEX IF NOT EXISTS idx_stores_name_trgm
+ON stores USING gin (store_name gin_trgm_ops);
+
+DROP INDEX IF EXISTS idx_products_desc_trgm;
+CREATE INDEX IF NOT EXISTS idx_products_desc_trgm
+ON products USING gin (product_desc gin_trgm_ops);

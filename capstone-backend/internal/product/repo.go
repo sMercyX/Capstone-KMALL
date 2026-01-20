@@ -29,6 +29,7 @@ type Repo interface {
 		priceSort string,
 	) ([]Product, int64, error)
 	GetPublic(ctx context.Context, id int64) (Product, error)
+	Suggest(ctx context.Context, q string, limit int) ([]string, error)
 }
 
 type repo struct{ db *pgxpool.Pool }
@@ -248,6 +249,7 @@ func (r *repo) ListPublic(
 	limit, page int,
 	priceSort string,
 ) ([]Product, int64, error) {
+
 	if limit <= 0 {
 		limit = 20
 	}
@@ -255,59 +257,44 @@ func (r *repo) ListPublic(
 		page = 1
 	}
 	offset := (page - 1) * limit
-	q = strings.TrimSpace(strings.ToLower(q))
+
+	q = strings.TrimSpace(q)
+	qLower := strings.ToLower(q)
+	terms := strings.Fields(qLower) // แยกคำด้วย space
 
 	base := `
-        FROM products p
-        JOIN stores s ON p.store_id = s.store_id
-        WHERE p.is_active = 'YES' AND s.is_active = 'YES'
-    `
+		FROM products p
+		JOIN stores s ON p.store_id = s.store_id
+		WHERE p.is_active = 'YES' AND s.is_active = 'YES'
+	`
 
 	selectQuery := `
-        SELECT 
-            p.product_id,
-            p.name,
-            p.product_desc,
-            p.price,
-            p.image_url,
-            p.created_at,
-            p.updated_at,
-            p.is_active,
-            p.store_id,
-            p.category_id,
-            s.store_name
-    ` + base
+		SELECT
+			p.product_id,
+			p.name,
+			p.product_desc,
+			p.price,
+			p.image_url,
+			p.created_at,
+			p.updated_at,
+			p.is_active,
+			p.store_id,
+			p.category_id,
+			s.store_name
+	` + base
 
 	countQuery := `SELECT COUNT(*) ` + base
 
 	args := []any{}
+	var qPos int // placeholder position ของ qLower (เช่น 1,2,3...)
 
-	// if q != "" {
-	// 	cond := " AND LOWER(p.name) LIKE '%' || $" + strconv.Itoa(len(args)+1) + " || '%' "
-	// 	selectQuery += cond
-	// 	countQuery += cond
-	// 	args = append(args, q)
-	// }
-	if q != "" {
-		idx := strconv.Itoa(len(args) + 1)
-		cond := `
-    		AND (
-      			LOWER(p.name) LIKE '%' || $` + idx + ` || '%'
-      			OR LOWER(p.product_desc) LIKE '%' || $` + idx + ` || '%'
-      			OR LOWER(s.store_name) LIKE '%' || $` + idx + ` || '%'
-    		)
-  		`
-		selectQuery += cond
-		countQuery += cond
-		args = append(args, q)
-	}
-
+	// ===== Filters =====
 	if len(categoryIDs) > 0 {
-		placeholders := make([]string, len(categoryIDs))
+		ph := make([]string, len(categoryIDs))
 		for i := range categoryIDs {
-			placeholders[i] = "$" + strconv.Itoa(len(args)+1+i)
+			ph[i] = "$" + strconv.Itoa(len(args)+1+i)
 		}
-		cond := " AND p.category_id IN (" + strings.Join(placeholders, ",") + ")"
+		cond := " AND p.category_id IN (" + strings.Join(ph, ",") + ")"
 		selectQuery += cond
 		countQuery += cond
 		for _, id := range categoryIDs {
@@ -317,12 +304,12 @@ func (r *repo) ListPublic(
 
 	if parentCategoryID != nil {
 		cond := `
-            AND p.category_id IN (
-                SELECT c.category_id
-                FROM categories c
-                WHERE c.parent_id = $` + strconv.Itoa(len(args)+1) + `
-            )
-        `
+			AND p.category_id IN (
+				SELECT c.category_id
+				FROM categories c
+				WHERE c.parent_id = $` + strconv.Itoa(len(args)+1) + `
+			)
+		`
 		selectQuery += cond
 		countQuery += cond
 		args = append(args, *parentCategoryID)
@@ -335,25 +322,136 @@ func (r *repo) ListPublic(
 		args = append(args, *storeID)
 	}
 
-	orderBy := "p.created_at DESC, p.product_id ASC"
-	switch priceSort {
-	case "asc":
-		orderBy = "p.price ASC, p.product_id ASC"
-	case "desc":
-		orderBy = "p.price DESC, p.product_id ASC"
+	// ===== Search =====
+	// เราจะใช้ qLower เป็น arg หนึ่งตัวเพื่อทำ exact/prefix/contains/similarity
+	// และใช้ terms อีกหลายตัวเพื่อช่วย "เกี่ยวข้อง" + match count
+	if qLower != "" {
+		args = append(args, qLower)
+		qPos = len(args)
+
+		// เงื่อนไขรวม: ติดจาก “ก้อน q” หรือจาก “term ใด term หนึ่ง”
+		likeQ := "$" + strconv.Itoa(qPos)
+
+		termParts := []string{}
+		for _, t := range terms {
+			if t == "" {
+				continue
+			}
+			args = append(args, t)
+			tPos := len(args)
+			termParts = append(termParts, `
+				(
+					lower(p.name) LIKE '%' || $`+strconv.Itoa(tPos)+` || '%'
+					OR lower(s.store_name) LIKE '%' || $`+strconv.Itoa(tPos)+` || '%'
+					OR lower(coalesce(p.product_desc,'')) LIKE '%' || $`+strconv.Itoa(tPos)+` || '%'
+				)
+			`)
+		}
+
+		cond := `
+			AND (
+				-- direct (whole q)
+				lower(p.name) LIKE '%' || ` + likeQ + ` || '%'
+				OR lower(s.store_name) LIKE '%' || ` + likeQ + ` || '%'
+				OR lower(coalesce(p.product_desc,'')) LIKE '%' || ` + likeQ + ` || '%'
+				OR p.name % ` + likeQ + `
+				OR s.store_name % ` + likeQ + `
+				OR coalesce(p.product_desc,'') % ` + likeQ + `
+		`
+
+		if len(termParts) > 0 {
+			cond += " OR (" + strings.Join(termParts, " OR ") + ") "
+		}
+		cond += ")"
+
+		selectQuery += cond
+		countQuery += cond
 	}
 
+	// ===== ORDER BY (Ranking) =====
+	orderBy := "p.created_at DESC, p.product_id ASC"
+
+	// ถ้ามี q ให้ ranking แบบละเอียด
+	if qLower != "" {
+		// matchCount: นับจำนวน terms ที่ไป match name/store/desc
+		// (ยิ่ง match หลายคำ ยิ่งขึ้น)
+		matchCountExpr := "0"
+		for i := qPos + 1; i <= len(args); i++ { // terms จะอยู่หลัง qPos
+			matchCountExpr += `
+				+ CASE WHEN (
+					lower(p.name) LIKE '%' || $` + strconv.Itoa(i) + ` || '%'
+					OR lower(s.store_name) LIKE '%' || $` + strconv.Itoa(i) + ` || '%'
+					OR lower(coalesce(p.product_desc,'')) LIKE '%' || $` + strconv.Itoa(i) + ` || '%'
+				) THEN 1 ELSE 0 END
+			`
+		}
+
+		// similarity max จาก 3 field
+		simMax := `
+			GREATEST(
+				similarity(p.name, $` + strconv.Itoa(qPos) + `),
+				similarity(s.store_name, $` + strconv.Itoa(qPos) + `),
+				similarity(coalesce(p.product_desc,''), $` + strconv.Itoa(qPos) + `)
+			)
+		`
+
+		orderBy = `
+			-- 1) exact product > exact store
+			(lower(p.name) = $` + strconv.Itoa(qPos) + `) DESC,
+			(lower(s.store_name) = $` + strconv.Itoa(qPos) + `) DESC,
+
+			-- 2) prefix product > prefix store
+			(lower(p.name) LIKE $` + strconv.Itoa(qPos) + ` || '%') DESC,
+			(lower(s.store_name) LIKE $` + strconv.Itoa(qPos) + ` || '%') DESC,
+
+			-- 3) contains product/store/desc
+			(lower(p.name) LIKE '%' || $` + strconv.Itoa(qPos) + ` || '%') DESC,
+			(lower(s.store_name) LIKE '%' || $` + strconv.Itoa(qPos) + ` || '%') DESC,
+			(lower(coalesce(p.product_desc,'')) LIKE '%' || $` + strconv.Itoa(qPos) + ` || '%') DESC,
+
+			-- 4) match terms count
+			(` + matchCountExpr + `) DESC,
+
+			-- 5) similarity
+			(` + simMax + `) DESC,
+
+			-- fallback
+			p.created_at DESC,
+			p.product_id ASC
+		`
+	}
+
+	// ===== ถ้ามี priceSort ให้ price เป็นตัวเรียง “หลัง relevance”
+	// (คือยังคงให้ตรงสุดมาก่อน แล้วค่อยเรียงราคาในกลุ่ม)
+	switch strings.ToLower(strings.TrimSpace(priceSort)) {
+	case "asc":
+		if qLower != "" {
+			orderBy += ", p.price ASC"
+		} else {
+			orderBy = "p.price ASC, p.product_id ASC"
+		}
+	case "desc":
+		if qLower != "" {
+			orderBy += ", p.price DESC"
+		} else {
+			orderBy = "p.price DESC, p.product_id ASC"
+		}
+	}
+
+	// ===== Paging =====
 	selectQuery += " ORDER BY " + orderBy +
 		" LIMIT $" + strconv.Itoa(len(args)+1) +
 		" OFFSET $" + strconv.Itoa(len(args)+2)
 
 	argsWithPage := append(append([]any{}, args...), limit, offset)
 
+	// ===== Count =====
 	var total int64
 	if err := r.db.QueryRow(ctx, countQuery, args...).Scan(&total); err != nil {
 		return nil, 0, apperr.Wrap(apperr.Internal, err, "count public products failed")
 	}
 
+	// ===== Query =====
 	rows, err := r.db.Query(ctx, selectQuery, argsWithPage...)
 	if err != nil {
 		return nil, 0, apperr.Wrap(apperr.Internal, err, "public list failed")
@@ -364,17 +462,8 @@ func (r *repo) ListPublic(
 	for rows.Next() {
 		var p Product
 		if err := rows.Scan(
-			&p.ID,
-			&p.Name,
-			&p.Description,
-			&p.Price,
-			&p.ImageURL,
-			&p.CreatedAt,
-			&p.UpdatedAt,
-			&p.IsActive,
-			&p.StoreID,
-			&p.CategoryID,
-			&p.StoreName,
+			&p.ID, &p.Name, &p.Description, &p.Price, &p.ImageURL,
+			&p.CreatedAt, &p.UpdatedAt, &p.IsActive, &p.StoreID, &p.CategoryID, &p.StoreName,
 		); err != nil {
 			return nil, 0, apperr.Wrap(apperr.Internal, err, "scan product failed")
 		}
@@ -406,4 +495,55 @@ func (r *repo) GetPublic(ctx context.Context, id int64) (Product, error) {
 	}
 
 	return p, nil
+}
+
+func (r *repo) Suggest(ctx context.Context, q string, limit int) ([]string, error) {
+	q = strings.TrimSpace(q)
+	if q == "" {
+		return []string{}, nil
+	}
+	if limit <= 0 {
+		limit = 10
+	}
+	if limit > 20 {
+		limit = 20
+	}
+
+	rows, err := r.db.Query(ctx, `
+		WITH sug AS (
+			-- product name
+			SELECT p.name AS v, 1 AS prio
+			FROM products p
+			JOIN stores s ON s.store_id = p.store_id
+			WHERE p.is_active='YES' AND s.is_active='YES'
+			  AND lower(p.name) LIKE lower($1) || '%'
+
+			UNION ALL
+
+			-- store name
+			SELECT s.store_name AS v, 2 AS prio
+			FROM stores s
+			WHERE s.is_active='YES'
+			  AND lower(s.store_name) LIKE lower($1) || '%'
+		)
+		SELECT v
+		FROM sug
+		GROUP BY v, prio
+		ORDER BY prio ASC, v ASC
+		LIMIT $2;
+	`, q, limit)
+	if err != nil {
+		return nil, apperr.Wrap(apperr.Internal, err, "suggest failed")
+	}
+	defer rows.Close()
+
+	out := make([]string, 0, limit)
+	for rows.Next() {
+		var v string
+		if err := rows.Scan(&v); err != nil {
+			return nil, apperr.Wrap(apperr.Internal, err, "scan suggest failed")
+		}
+		out = append(out, v)
+	}
+	return out, nil
 }

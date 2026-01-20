@@ -43,6 +43,7 @@ type Service interface {
 		priceSort string,
 	) ([]Product, int64, error)
 	GetPublic(ctx context.Context, id int64) (Product, error)
+	Suggest(ctx context.Context, q string, limit int) ([]string, error)
 }
 
 type service struct {
@@ -260,4 +261,21 @@ func (s *service) GetPublic(ctx context.Context, id int64) (Product, error) {
 		return Product{}, apperr.New(apperr.BadRequest, "invalid id")
 	}
 	return s.repo.GetPublic(ctx, id)
+}
+
+func (s *service) Suggest(ctx context.Context, q string, limit int) ([]string, error) {
+	q = strings.TrimSpace(q)
+
+	if len([]rune(q)) < 1 {
+		return []string{}, nil
+	}
+
+	if limit <= 0 {
+		limit = 10
+	}
+	if limit > 20 {
+		limit = 20
+	}
+
+	return s.repo.Suggest(ctx, q, limit)
 }
