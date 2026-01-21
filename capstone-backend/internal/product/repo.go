@@ -27,10 +27,11 @@ type Repo interface {
 		parentCategoryID *int64,
 		storeID *int64,
 		limit, page int,
-		priceSort string,
+		sortBy string, // NEW: "latest" | "sold" | ""
+		priceSort string, // "asc" | "desc" | ""
 		fulfillment string, // "ROUND_UNIVERSITY" | "CAMPUS" | ""
-		minPrice *float64, // NEW
-		maxPrice *float64, // NEW
+		minPrice *float64,
+		maxPrice *float64,
 	) ([]Product, int64, float64, error)
 
 	GetPublic(ctx context.Context, id int64) (Product, error)
@@ -252,6 +253,7 @@ func (r *repo) ListPublic(
 	parentCategoryID *int64,
 	storeID *int64,
 	limit, page int,
+	sortBy string,
 	priceSort string,
 	fulfillment string,
 	minPrice *float64,
@@ -271,6 +273,8 @@ func (r *repo) ListPublic(
 	terms := strings.Fields(qLower)
 
 	fulfillment = strings.ToUpper(strings.TrimSpace(fulfillment))
+	sortBy = strings.ToLower(strings.TrimSpace(sortBy))
+	priceSort = strings.ToLower(strings.TrimSpace(priceSort))
 
 	// price range validation
 	if minPrice != nil && *minPrice < 0 {
@@ -284,28 +288,33 @@ func (r *repo) ListPublic(
 	}
 
 	base := `
-		FROM products p
-		JOIN stores s ON p.store_id = s.store_id
-		WHERE p.is_active = 'YES' AND s.is_active = 'YES'
-	`
+        FROM products p
+        JOIN stores s ON p.store_id = s.store_id
+
+        LEFT JOIN order_items oi ON oi.product_id = p.product_id
+        LEFT JOIN orders o ON o.order_id = oi.order_id AND o.status = 'Completed'
+
+        WHERE p.is_active = 'YES' AND s.is_active = 'YES'
+    `
 
 	selectQuery := `
-		SELECT
-			p.product_id,
-			p.name,
-			p.product_desc,
-			p.price,
-			p.image_url,
-			p.created_at,
-			p.updated_at,
-			p.is_active,
-			p.store_id,
-			p.category_id,
-			s.store_name
-	` + base
+        SELECT
+            p.product_id,
+            p.name,
+            p.product_desc,
+            p.price,
+            p.image_url,
+            p.created_at,
+            p.updated_at,
+            p.is_active,
+            p.store_id,
+            p.category_id,
+            s.store_name,
+            COALESCE(SUM(CASE WHEN o.order_id IS NOT NULL THEN oi.quantity ELSE 0 END), 0) AS sold_count
+    ` + base
 
-	countQuery := `SELECT COUNT(*) ` + base
-	// max price ต้อง “หลังกรองทั้งหมด” ดังนั้นใช้ base+cond ชุดเดียวกัน
+	countQuery := `SELECT COUNT(DISTINCT p.product_id) ` + base
+
 	maxQuery := `SELECT COALESCE(MAX(p.price), 0) ` + base
 
 	args := []any{}
@@ -328,12 +337,12 @@ func (r *repo) ListPublic(
 
 	if parentCategoryID != nil {
 		cond := `
-			AND p.category_id IN (
-				SELECT c.category_id
-				FROM categories c
-				WHERE c.parent_id = $` + strconv.Itoa(len(args)+1) + `
-			)
-		`
+            AND p.category_id IN (
+                SELECT c.category_id
+                FROM categories c
+                WHERE c.parent_id = $` + strconv.Itoa(len(args)+1) + `
+            )
+        `
 		selectQuery += cond
 		countQuery += cond
 		maxQuery += cond
@@ -348,7 +357,7 @@ func (r *repo) ListPublic(
 		args = append(args, *storeID)
 	}
 
-	// fulfillment filter (stores schema fields)
+	// fulfillment filter
 	if fulfillment != "" {
 		var cond string
 		switch fulfillment {
@@ -364,7 +373,7 @@ func (r *repo) ListPublic(
 		maxQuery += cond
 	}
 
-	// price range filter (min/max)
+	// price range filter
 	if minPrice != nil {
 		cond := " AND p.price >= $" + strconv.Itoa(len(args)+1)
 		selectQuery += cond
@@ -394,25 +403,23 @@ func (r *repo) ListPublic(
 			args = append(args, t)
 			tPos := len(args)
 			termParts = append(termParts, `
-				(
-					lower(p.name) LIKE '%' || $`+strconv.Itoa(tPos)+` || '%'
-					OR lower(s.store_name) LIKE '%' || $`+strconv.Itoa(tPos)+` || '%'
-					OR lower(coalesce(p.product_desc,'')) LIKE '%' || $`+strconv.Itoa(tPos)+` || '%'
-				)
-			`)
+                (
+                    lower(p.name) LIKE '%' || $`+strconv.Itoa(tPos)+` || '%'
+                    OR lower(s.store_name) LIKE '%' || $`+strconv.Itoa(tPos)+` || '%'
+                    OR lower(coalesce(p.product_desc,'')) LIKE '%' || $`+strconv.Itoa(tPos)+` || '%'
+                )
+            `)
 		}
 
 		cond := `
-			AND (
-				-- direct (whole q)
-				lower(p.name) LIKE '%' || ` + likeQ + ` || '%'
-				OR lower(s.store_name) LIKE '%' || ` + likeQ + ` || '%'
-				OR lower(coalesce(p.product_desc,'')) LIKE '%' || ` + likeQ + ` || '%'
-				-- trigram
-				OR p.name % ` + likeQ + `
-				OR s.store_name % ` + likeQ + `
-				OR coalesce(p.product_desc,'') % ` + likeQ + `
-		`
+            AND (
+                lower(p.name) LIKE '%' || ` + likeQ + ` || '%'
+                OR lower(s.store_name) LIKE '%' || ` + likeQ + ` || '%'
+                OR lower(coalesce(p.product_desc,'')) LIKE '%' || ` + likeQ + ` || '%'
+                OR p.name % ` + likeQ + `
+                OR s.store_name % ` + likeQ + `
+                OR coalesce(p.product_desc,'') % ` + likeQ + `
+        `
 
 		if len(termParts) > 0 {
 			cond += " OR (" + strings.Join(termParts, " OR ") + ") "
@@ -424,50 +431,79 @@ func (r *repo) ListPublic(
 		maxQuery += cond
 	}
 
-	// ===== ORDER BY (Ranking) =====
+	// ===== GROUP BY =====
+	groupBy := `
+        GROUP BY
+            p.product_id,
+            p.name,
+            p.product_desc,
+            p.price,
+            p.image_url,
+            p.created_at,
+            p.updated_at,
+            p.is_active,
+            p.store_id,
+            p.category_id,
+            s.store_name
+    `
+	selectQuery += " " + groupBy
+
+	// ===== ORDER BY =====
 	orderBy := "p.created_at DESC, p.product_id ASC"
 
 	if qLower != "" {
 		matchCountExpr := "0"
 		for i := qPos + 1; i <= len(args); i++ {
 			matchCountExpr += `
-				+ CASE WHEN (
-					lower(p.name) LIKE '%' || $` + strconv.Itoa(i) + ` || '%'
-					OR lower(s.store_name) LIKE '%' || $` + strconv.Itoa(i) + ` || '%'
-					OR lower(coalesce(p.product_desc,'')) LIKE '%' || $` + strconv.Itoa(i) + ` || '%'
-				) THEN 1 ELSE 0 END
-			`
+                + CASE WHEN (
+                    lower(p.name) LIKE '%' || $` + strconv.Itoa(i) + ` || '%'
+                    OR lower(s.store_name) LIKE '%' || $` + strconv.Itoa(i) + ` || '%'
+                    OR lower(coalesce(p.product_desc,'')) LIKE '%' || $` + strconv.Itoa(i) + ` || '%'
+                ) THEN 1 ELSE 0 END
+            `
 		}
 
 		simMax := `
-			GREATEST(
-				similarity(p.name, $` + strconv.Itoa(qPos) + `),
-				similarity(s.store_name, $` + strconv.Itoa(qPos) + `),
-				similarity(coalesce(p.product_desc,''), $` + strconv.Itoa(qPos) + `)
-			)
-		`
+            GREATEST(
+                similarity(p.name, $` + strconv.Itoa(qPos) + `),
+                similarity(s.store_name, $` + strconv.Itoa(qPos) + `),
+                similarity(coalesce(p.product_desc,''), $` + strconv.Itoa(qPos) + `)
+            )
+        `
 
 		orderBy = `
-			(lower(p.name) = $` + strconv.Itoa(qPos) + `) DESC,
-			(lower(s.store_name) = $` + strconv.Itoa(qPos) + `) DESC,
+            (lower(p.name) = $` + strconv.Itoa(qPos) + `) DESC,
+            (lower(s.store_name) = $` + strconv.Itoa(qPos) + `) DESC,
 
-			(lower(p.name) LIKE $` + strconv.Itoa(qPos) + ` || '%') DESC,
-			(lower(s.store_name) LIKE $` + strconv.Itoa(qPos) + ` || '%') DESC,
+            (lower(p.name) LIKE $` + strconv.Itoa(qPos) + ` || '%') DESC,
+            (lower(s.store_name) LIKE $` + strconv.Itoa(qPos) + ` || '%') DESC,
 
-			(lower(p.name) LIKE '%' || $` + strconv.Itoa(qPos) + ` || '%') DESC,
-			(lower(s.store_name) LIKE '%' || $` + strconv.Itoa(qPos) + ` || '%') DESC,
-			(lower(coalesce(p.product_desc,'')) LIKE '%' || $` + strconv.Itoa(qPos) + ` || '%') DESC,
+            (lower(p.name) LIKE '%' || $` + strconv.Itoa(qPos) + ` || '%') DESC,
+            (lower(s.store_name) LIKE '%' || $` + strconv.Itoa(qPos) + ` || '%') DESC,
+            (lower(coalesce(p.product_desc,'')) LIKE '%' || $` + strconv.Itoa(qPos) + ` || '%') DESC,
 
-			(` + matchCountExpr + `) DESC,
-			(` + simMax + `) DESC,
+            (` + matchCountExpr + `) DESC,
+            (` + simMax + `) DESC,
 
-			p.created_at DESC,
-			p.product_id ASC
-		`
+            p.created_at DESC,
+            p.product_id ASC
+        `
 	}
 
-	// price sort
-	switch strings.ToLower(strings.TrimSpace(priceSort)) {
+	switch sortBy {
+	case "", "latest":
+	case "sold":
+		if qLower != "" {
+			orderBy += ", sold_count DESC, p.created_at DESC, p.product_id ASC"
+		} else {
+			orderBy = "sold_count DESC, p.created_at DESC, p.product_id ASC"
+		}
+	default:
+		return nil, 0, 0, apperr.New(apperr.BadRequest, "invalid sort_by (use latest or sold)")
+	}
+
+	switch priceSort {
+	case "":
 	case "asc":
 		if qLower != "" {
 			orderBy += ", p.price ASC"
@@ -480,6 +516,8 @@ func (r *repo) ListPublic(
 		} else {
 			orderBy = "p.price DESC, p.product_id ASC"
 		}
+	default:
+		return nil, 0, 0, apperr.New(apperr.BadRequest, "invalid price_sort (use asc or desc)")
 	}
 
 	// ===== Paging =====
@@ -512,8 +550,18 @@ func (r *repo) ListPublic(
 	for rows.Next() {
 		var p Product
 		if err := rows.Scan(
-			&p.ID, &p.Name, &p.Description, &p.Price, &p.ImageURL,
-			&p.CreatedAt, &p.UpdatedAt, &p.IsActive, &p.StoreID, &p.CategoryID, &p.StoreName,
+			&p.ID,
+			&p.Name,
+			&p.Description,
+			&p.Price,
+			&p.ImageURL,
+			&p.CreatedAt,
+			&p.UpdatedAt,
+			&p.IsActive,
+			&p.StoreID,
+			&p.CategoryID,
+			&p.StoreName,
+			&p.SoldCount,
 		); err != nil {
 			return nil, 0, 0, apperr.Wrap(apperr.Internal, err, "scan product failed")
 		}
@@ -531,14 +579,53 @@ func (r *repo) GetPublic(ctx context.Context, id int64) (Product, error) {
 	var p Product
 
 	err := r.db.QueryRow(ctx, `
-		SELECT p.product_id, p.name, p.product_desc, p.price, p.image_url,
-		       p.created_at, p.updated_at, p.is_active, p.store_id, p.category_id
-		FROM products p
-		JOIN stores s ON p.store_id = s.store_id
-		WHERE p.product_id = $1 AND p.is_active = 'YES' AND s.is_active = 'YES';
-	`, id).Scan(
-		&p.ID, &p.Name, &p.Description, &p.Price, &p.ImageURL,
-		&p.CreatedAt, &p.UpdatedAt, &p.IsActive, &p.StoreID, &p.CategoryID,
+        SELECT
+            p.product_id,
+            p.name,
+            p.product_desc,
+            p.price,
+            p.image_url,
+            p.created_at,
+            p.updated_at,
+            p.is_active,
+            p.store_id,
+            p.category_id,
+            s.store_name,
+            COALESCE(SUM(CASE WHEN o.order_id IS NOT NULL THEN oi.quantity ELSE 0 END), 0) AS sold_count
+        FROM products p
+        JOIN stores s ON p.store_id = s.store_id
+
+        LEFT JOIN order_items oi ON oi.product_id = p.product_id
+        LEFT JOIN orders o ON o.order_id = oi.order_id AND o.status = 'Completed'
+
+        WHERE p.product_id = $1
+          AND p.is_active = 'YES'
+          AND s.is_active = 'YES'
+        GROUP BY
+            p.product_id,
+            p.name,
+            p.product_desc,
+            p.price,
+            p.image_url,
+            p.created_at,
+            p.updated_at,
+            p.is_active,
+            p.store_id,
+            p.category_id,
+            s.store_name;
+    `, id).Scan(
+		&p.ID,
+		&p.Name,
+		&p.Description,
+		&p.Price,
+		&p.ImageURL,
+		&p.CreatedAt,
+		&p.UpdatedAt,
+		&p.IsActive,
+		&p.StoreID,
+		&p.CategoryID,
+		&p.StoreName,
+		&p.SoldCount,
 	)
 
 	if err != nil {

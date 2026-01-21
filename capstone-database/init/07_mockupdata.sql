@@ -710,3 +710,184 @@ WHERE s.store_name = 'Local Craft Studio'
   AND c.slug = 'textile-knitting'
   AND p.name = 'Mini Woven Handbag'
 ON CONFLICT (product_id, sort_order) DO NOTHING;
+
+-- ========= DEV DEMO ORDERS / ORDER ITEMS (FIXED FOR YOUR SCHEMA) =========
+-- Optional reset (ถ้าต้องการให้สะอาดทุกครั้ง)
+TRUNCATE order_items, orders RESTART IDENTITY CASCADE;
+
+-- ensure buyer has 1 address (for ROUND_UNIVERSITY)
+INSERT INTO user_addresses (user_id, label, address_line1, district, province, postal_code, phone, is_default)
+SELECT u.user_id, 'Dorm', 'KMUTT Dorm A', 'Thung Khru', 'Bangkok', '10140', '0800000000', TRUE
+FROM users u
+WHERE u.kms_id = 'dev-buyer-1'
+  AND NOT EXISTS (
+    SELECT 1 FROM user_addresses ua WHERE ua.user_id = u.user_id AND ua.is_default = TRUE
+  );
+
+-- ensure campus location exists (for CAMPUS)
+INSERT INTO campus_locations (name, area, latitude, longitude, is_active)
+SELECT 'KMUTT Main Gate', 'KMUTT', 13.6510000, 100.4960000, TRUE
+WHERE NOT EXISTS (SELECT 1 FROM campus_locations WHERE name = 'KMUTT Main Gate');
+
+DO $$
+DECLARE
+  buyer_uuid UUID;
+  addr_id BIGINT;
+  campus_id INT;
+
+  r RECORD;
+  oid INT;
+
+  q INT;
+  unit NUMERIC(10,2);
+  sub NUMERIC(10,2);
+
+  dm VARCHAR(20);
+BEGIN
+  -- buyer
+  SELECT user_id INTO buyer_uuid FROM users WHERE kms_id = 'dev-buyer-1' LIMIT 1;
+  IF buyer_uuid IS NULL THEN RAISE EXCEPTION 'dev-buyer-1 not found'; END IF;
+
+  -- default address id
+  SELECT address_id INTO addr_id
+  FROM user_addresses
+  WHERE user_id = buyer_uuid AND is_default = TRUE
+  ORDER BY address_id DESC
+  LIMIT 1;
+  IF addr_id IS NULL THEN RAISE EXCEPTION 'buyer default address not found'; END IF;
+
+  -- campus id
+  SELECT campus_location_id INTO campus_id
+  FROM campus_locations
+  WHERE name = 'KMUTT Main Gate'
+  LIMIT 1;
+  IF campus_id IS NULL THEN RAISE EXCEPTION 'campus location not found'; END IF;
+
+  FOR r IN
+    SELECT p.product_id, p.store_id, p.price
+    FROM products p
+    ORDER BY p.product_id
+  LOOP
+    unit := r.price;
+
+    -- สลับ delivery_method เพื่อให้มีทั้ง ROUND_UNIVERSITY และ CAMPUS
+    IF (r.product_id % 2) = 0 THEN
+      dm := 'ROUND_UNIVERSITY';
+    ELSE
+      dm := 'CAMPUS';
+    END IF;
+
+    -- helper inline: create order + item
+    -- 1) Pending Seller Confirmation
+    q := 1; sub := unit*q;
+    INSERT INTO orders (status, total_price, delivery_method, delivery_address_id, campus_location_id, user_id, store_id)
+    VALUES (
+      'Pending Seller Confirmation', sub, dm,
+      CASE WHEN dm='ROUND_UNIVERSITY' THEN addr_id ELSE NULL END,
+      CASE WHEN dm='CAMPUS' THEN campus_id ELSE NULL END,
+      buyer_uuid, r.store_id
+    )
+    RETURNING order_id INTO oid;
+
+    INSERT INTO order_items (quantity, unit_price, fulfillment_type, subtotal, order_id, product_id)
+    VALUES (q, unit, 'STANDARD', sub, oid, r.product_id);
+
+    -- 2) Awaiting Buyer Confirmation
+    q := 1; sub := unit*q;
+    INSERT INTO orders (status, total_price, delivery_method, delivery_address_id, campus_location_id, user_id, store_id)
+    VALUES (
+      'Awaiting Buyer Confirmation', sub, dm,
+      CASE WHEN dm='ROUND_UNIVERSITY' THEN addr_id ELSE NULL END,
+      CASE WHEN dm='CAMPUS' THEN campus_id ELSE NULL END,
+      buyer_uuid, r.store_id
+    )
+    RETURNING order_id INTO oid;
+
+    INSERT INTO order_items (quantity, unit_price, fulfillment_type, subtotal, order_id, product_id)
+    VALUES (q, unit, 'STANDARD', sub, oid, r.product_id);
+
+    -- 3) Ready (เลือกเป็น Pickup หรือ Delivery ตาม delivery_method)
+    q := 1; sub := unit*q;
+    INSERT INTO orders (status, total_price, delivery_method, delivery_address_id, campus_location_id, user_id, store_id)
+    VALUES (
+      CASE WHEN dm='CAMPUS' THEN 'Ready for Pickup' ELSE 'Ready for Delivery' END,
+      sub, dm,
+      CASE WHEN dm='ROUND_UNIVERSITY' THEN addr_id ELSE NULL END,
+      CASE WHEN dm='CAMPUS' THEN campus_id ELSE NULL END,
+      buyer_uuid, r.store_id
+    )
+    RETURNING order_id INTO oid;
+
+    INSERT INTO order_items (quantity, unit_price, fulfillment_type, subtotal, order_id, product_id)
+    VALUES (q, unit, 'STANDARD', sub, oid, r.product_id);
+
+    -- 4) Completed (อย่างน้อย 1)
+    q := 1; sub := unit*q;
+    INSERT INTO orders (status, total_price, delivery_method, delivery_address_id, campus_location_id, user_id, store_id)
+    VALUES (
+      'Completed', sub, dm,
+      CASE WHEN dm='ROUND_UNIVERSITY' THEN addr_id ELSE NULL END,
+      CASE WHEN dm='CAMPUS' THEN campus_id ELSE NULL END,
+      buyer_uuid, r.store_id
+    )
+    RETURNING order_id INTO oid;
+
+    INSERT INTO order_items (quantity, unit_price, fulfillment_type, subtotal, order_id, product_id)
+    VALUES (q, unit, 'STANDARD', sub, oid, r.product_id);
+
+    -- 5) Cancelled (ต้องมี cancelled_at + cancelled_by)
+    q := 1; sub := unit*q;
+    INSERT INTO orders (
+      status, total_price, delivery_method, delivery_address_id, campus_location_id,
+      cancelled_at, cancelled_by, cancelled_reason,
+      user_id, store_id
+    )
+    VALUES (
+      'Cancelled', sub, dm,
+      CASE WHEN dm='ROUND_UNIVERSITY' THEN addr_id ELSE NULL END,
+      CASE WHEN dm='CAMPUS' THEN campus_id ELSE NULL END,
+      NOW(), 'BUYER', 'Mock cancel for testing',
+      buyer_uuid, r.store_id
+    )
+    RETURNING order_id INTO oid;
+
+    INSERT INTO order_items (quantity, unit_price, fulfillment_type, subtotal, order_id, product_id)
+    VALUES (q, unit, 'STANDARD', sub, oid, r.product_id);
+
+    -- ===== Extra Completed (เพิ่ม sold_count ให้ต่างกัน) =====
+    q := (r.product_id % 3) + 2; -- 2..4
+    sub := unit*q;
+    INSERT INTO orders (status, total_price, delivery_method, delivery_address_id, campus_location_id, user_id, store_id)
+    VALUES (
+      'Completed', sub, dm,
+      CASE WHEN dm='ROUND_UNIVERSITY' THEN addr_id ELSE NULL END,
+      CASE WHEN dm='CAMPUS' THEN campus_id ELSE NULL END,
+      buyer_uuid, r.store_id
+    )
+    RETURNING order_id INTO oid;
+
+    INSERT INTO order_items (quantity, unit_price, fulfillment_type, subtotal, order_id, product_id)
+    VALUES (q, unit, 'STANDARD', sub, oid, r.product_id);
+
+    -- ===== Extra Cancelled =====
+    q := (r.product_id % 2) + 1; -- 1..2
+    sub := unit*q;
+    INSERT INTO orders (
+      status, total_price, delivery_method, delivery_address_id, campus_location_id,
+      cancelled_at, cancelled_by, cancelled_reason,
+      user_id, store_id
+    )
+    VALUES (
+      'Cancelled', sub, dm,
+      CASE WHEN dm='ROUND_UNIVERSITY' THEN addr_id ELSE NULL END,
+      CASE WHEN dm='CAMPUS' THEN campus_id ELSE NULL END,
+      NOW(), 'SELLER', 'Mock seller cancel for testing',
+      buyer_uuid, r.store_id
+    )
+    RETURNING order_id INTO oid;
+
+    INSERT INTO order_items (quantity, unit_price, fulfillment_type, subtotal, order_id, product_id)
+    VALUES (q, unit, 'STANDARD', sub, oid, r.product_id);
+
+  END LOOP;
+END $$;

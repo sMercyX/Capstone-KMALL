@@ -374,7 +374,8 @@ func (h *Handler) listPublic(c *gin.Context) {
 	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "20"))
 	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
 
-	priceSort := strings.ToLower(strings.TrimSpace(c.Query("price")))
+	sortBy := strings.ToLower(strings.TrimSpace(c.Query("sort_by")))
+	priceSort := strings.ToLower(strings.TrimSpace(c.Query("price_sort")))
 
 	items, total, maxPriceResult, err := h.svc.ListPublic(
 		c.Request.Context(),
@@ -384,11 +385,13 @@ func (h *Handler) listPublic(c *gin.Context) {
 		storeID,
 		limit,
 		page,
+		sortBy,
 		priceSort,
 		fulfillment,
 		minPrice,
 		maxPrice,
 	)
+
 	if err != nil {
 		c.Error(err)
 		return

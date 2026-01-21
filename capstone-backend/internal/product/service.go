@@ -41,6 +41,7 @@ type Service interface {
 		parentCategoryID *int64,
 		storeID *int64,
 		limit, page int,
+		sortBy string,
 		priceSort string,
 		fulfillment string,
 		minPrice *float64,
@@ -185,6 +186,16 @@ func normalizePriceSort(s string) string {
 	}
 }
 
+func normalizeSortBy(s string) string {
+	s = strings.TrimSpace(strings.ToLower(s))
+	switch s {
+	case "", "latest", "sold":
+		return s
+	default:
+		return ""
+	}
+}
+
 func normalizeFulfillment(s string) string {
 	s = strings.TrimSpace(strings.ToUpper(s))
 	switch s {
@@ -256,6 +267,7 @@ func (s *service) ListPublic(
 	parentCategoryID *int64,
 	storeID *int64,
 	limit, page int,
+	sortBy string,
 	priceSort string,
 	fulfillment string,
 	minPrice *float64,
@@ -269,6 +281,7 @@ func (s *service) ListPublic(
 	}
 
 	q = strings.TrimSpace(q)
+	sortBy = normalizeSortBy(sortBy)
 	priceSort = normalizePriceSort(priceSort)
 	fulfillment = normalizeFulfillment(fulfillment)
 
@@ -310,11 +323,13 @@ func (s *service) ListPublic(
 		storeID,
 		limit,
 		page,
+		sortBy,
 		priceSort,
 		fulfillment,
 		minPrice,
 		maxPrice,
 	)
+
 }
 
 func (s *service) GetPublic(ctx context.Context, id int64) (Product, error) {
