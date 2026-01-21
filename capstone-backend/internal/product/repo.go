@@ -35,7 +35,7 @@ type Repo interface {
 	) ([]Product, int64, float64, error)
 
 	GetPublic(ctx context.Context, id int64) (Product, error)
-	Suggest(ctx context.Context, q string, limit int) ([]string, error)
+	SuggestSplit(ctx context.Context, userID string, q string, limit int) (SuggestSplitResult, error)
 }
 
 type repo struct{ db *pgxpool.Pool }
@@ -61,13 +61,17 @@ type UpdateParams struct {
 	CategoryID  *int
 }
 
+type SuggestSplitResult struct {
+	History []string `json:"history"`
+	Suggest []string `json:"suggest"`
+}
+
 func (r *repo) Create(ctx context.Context, in CreateParams) (Product, error) {
 	in.IsActive = strings.ToUpper(strings.TrimSpace(in.IsActive))
 	if in.IsActive == "" {
 		in.IsActive = "YES"
 	}
 
-	// ----- เช็คชื่อสินค้าซ้ำ -----
 	var exists bool
 	if err := r.db.QueryRow(ctx, `
 		SELECT EXISTS(
@@ -638,10 +642,12 @@ func (r *repo) GetPublic(ctx context.Context, id int64) (Product, error) {
 	return p, nil
 }
 
-func (r *repo) Suggest(ctx context.Context, q string, limit int) ([]string, error) {
+func (r *repo) SuggestSplit(ctx context.Context, userID string, q string, limit int) (SuggestSplitResult, error) {
 	q = strings.TrimSpace(q)
-	if q == "" {
-		return []string{}, nil
+	userID = strings.TrimSpace(userID)
+
+	if userID == "" {
+		return SuggestSplitResult{}, apperr.New(apperr.BadRequest, "user_id is required")
 	}
 	if limit <= 0 {
 		limit = 10
@@ -650,10 +656,46 @@ func (r *repo) Suggest(ctx context.Context, q string, limit int) ([]string, erro
 		limit = 20
 	}
 
+	// q ว่าง => history ล้วน
+	if q == "" {
+		rows, err := r.db.Query(ctx, `
+			SELECT query_text
+			FROM search_history
+			WHERE user_id = $1
+			ORDER BY searched_at DESC, search_id DESC
+			LIMIT $2;
+		`, userID, limit)
+		if err != nil {
+			return SuggestSplitResult{}, apperr.Wrap(apperr.Internal, err, "list history for suggest failed")
+		}
+		defer rows.Close()
+
+		out := SuggestSplitResult{
+			History: make([]string, 0, limit),
+			Suggest: []string{},
+		}
+		for rows.Next() {
+			var v string
+			if err := rows.Scan(&v); err != nil {
+				return SuggestSplitResult{}, apperr.Wrap(apperr.Internal, err, "scan history suggest failed")
+			}
+			out.History = append(out.History, v)
+		}
+		return out, nil
+	}
+
 	rows, err := r.db.Query(ctx, `
-		WITH sug AS (
-			-- product name
-			SELECT p.name AS v, 1 AS prio
+		WITH combined AS (
+			-- 0) history match ก่อน
+			SELECT sh.query_text AS v, 0 AS prio, sh.searched_at AS ts
+			FROM search_history sh
+			WHERE sh.user_id = $2
+			  AND lower(sh.query_text) LIKE lower($1) || '%'
+
+			UNION ALL
+
+			-- 1) product name
+			SELECT p.name AS v, 1 AS prio, NULL::timestamptz AS ts
 			FROM products p
 			JOIN stores s ON s.store_id = p.store_id
 			WHERE p.is_active='YES' AND s.is_active='YES'
@@ -661,30 +703,48 @@ func (r *repo) Suggest(ctx context.Context, q string, limit int) ([]string, erro
 
 			UNION ALL
 
-			-- store name
-			SELECT s.store_name AS v, 2 AS prio
+			-- 2) store name
+			SELECT s.store_name AS v, 2 AS prio, NULL::timestamptz AS ts
 			FROM stores s
 			WHERE s.is_active='YES'
 			  AND lower(s.store_name) LIKE lower($1) || '%'
+		),
+		dedup AS (
+			SELECT v, prio, ts,
+				   ROW_NUMBER() OVER (
+					 PARTITION BY v
+					 ORDER BY prio ASC, ts DESC NULLS LAST, v ASC
+				   ) AS rn
+			FROM combined
 		)
-		SELECT v
-		FROM sug
-		GROUP BY v, prio
-		ORDER BY prio ASC, v ASC
-		LIMIT $2;
-	`, q, limit)
+		SELECT v, prio
+		FROM dedup
+		WHERE rn = 1
+		ORDER BY prio ASC, ts DESC NULLS LAST, v ASC
+		LIMIT $3;
+	`, q, userID, limit)
 	if err != nil {
-		return nil, apperr.Wrap(apperr.Internal, err, "suggest failed")
+		return SuggestSplitResult{}, apperr.Wrap(apperr.Internal, err, "suggest+history failed")
 	}
 	defer rows.Close()
 
-	out := make([]string, 0, limit)
+	out := SuggestSplitResult{
+		History: make([]string, 0, limit),
+		Suggest: make([]string, 0, limit),
+	}
+
 	for rows.Next() {
 		var v string
-		if err := rows.Scan(&v); err != nil {
-			return nil, apperr.Wrap(apperr.Internal, err, "scan suggest failed")
+		var prio int
+		if err := rows.Scan(&v, &prio); err != nil {
+			return SuggestSplitResult{}, apperr.Wrap(apperr.Internal, err, "scan suggest split failed")
 		}
-		out = append(out, v)
+		if prio == 0 {
+			out.History = append(out.History, v)
+		} else {
+			out.Suggest = append(out.Suggest, v)
+		}
 	}
+
 	return out, nil
 }

@@ -49,7 +49,7 @@ type Service interface {
 	) ([]Product, int64, float64, error)
 
 	GetPublic(ctx context.Context, id int64) (Product, error)
-	Suggest(ctx context.Context, q string, limit int) ([]string, error)
+	SuggestSplit(ctx context.Context, userID string, q string, limit int) (SuggestSplitResult, error)
 }
 
 type service struct {
@@ -339,11 +339,12 @@ func (s *service) GetPublic(ctx context.Context, id int64) (Product, error) {
 	return s.repo.GetPublic(ctx, id)
 }
 
-func (s *service) Suggest(ctx context.Context, q string, limit int) ([]string, error) {
+func (s *service) SuggestSplit(ctx context.Context, userID string, q string, limit int) (SuggestSplitResult, error) {
 	q = strings.TrimSpace(q)
+	userID = strings.TrimSpace(userID)
 
-	if len([]rune(q)) < 1 {
-		return []string{}, nil
+	if userID == "" {
+		return SuggestSplitResult{}, apperr.New(apperr.BadRequest, "user_id is required")
 	}
 
 	if limit <= 0 {
@@ -353,5 +354,5 @@ func (s *service) Suggest(ctx context.Context, q string, limit int) ([]string, e
 		limit = 20
 	}
 
-	return s.repo.Suggest(ctx, q, limit)
+	return s.repo.SuggestSplit(ctx, userID, q, limit)
 }

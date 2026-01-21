@@ -472,8 +472,13 @@ func parseInt64ListQuery(c *gin.Context, key string) []int64 {
 	return res
 }
 
-// GET /api/products/suggest?q=po&limit=10
+// GET /api/products/suggest?q=Cho&limit=10
 func (h *Handler) suggest(c *gin.Context) {
+	userID, ok := h.resolveCurrentUserID(c, true)
+	if !ok {
+		return
+	}
+
 	q := strings.TrimSpace(c.Query("q"))
 
 	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "10"))
@@ -484,14 +489,18 @@ func (h *Handler) suggest(c *gin.Context) {
 		limit = 20
 	}
 
-	items, err := h.svc.Suggest(c.Request.Context(), q, limit)
+	res, err := h.svc.SuggestSplit(c.Request.Context(), userID, q, limit)
 	if err != nil {
 		c.Error(err)
 		return
 	}
-	if items == nil {
-		items = []string{}
+
+	if res.History == nil {
+		res.History = []string{}
+	}
+	if res.Suggest == nil {
+		res.Suggest = []string{}
 	}
 
-	respond.OK(c, apperr.OK, gin.H{"items": items})
+	respond.OK(c, apperr.OK, res)
 }
