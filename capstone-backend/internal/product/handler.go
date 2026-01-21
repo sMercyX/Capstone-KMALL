@@ -10,6 +10,7 @@ import (
 	apperr "github.com/Perpasit/Capstone-KMALL/internal/apperr"
 	"github.com/Perpasit/Capstone-KMALL/internal/middleware"
 	"github.com/Perpasit/Capstone-KMALL/internal/respond"
+	"github.com/Perpasit/Capstone-KMALL/internal/searchhistory"
 	"github.com/Perpasit/Capstone-KMALL/internal/store"
 	"github.com/Perpasit/Capstone-KMALL/internal/user"
 )
@@ -21,14 +22,16 @@ type Handler struct {
 	storeSvc store.Service
 	roleSvc  middleware.RoleNameLister
 	userSvc  user.Service
+	shSvc    searchhistory.Service
 }
 
-func NewHandler(s Service, ss store.Service, rl middleware.RoleNameLister, us user.Service) *Handler {
+func NewHandler(s Service, ss store.Service, rl middleware.RoleNameLister, us user.Service, sh searchhistory.Service) *Handler {
 	return &Handler{
 		svc:      s,
 		storeSvc: ss,
 		roleSvc:  rl,
 		userSvc:  us,
+		shSvc:    sh,
 	}
 }
 
@@ -38,6 +41,7 @@ func (h *Handler) Register(r *gin.RouterGroup) {
 
 	// ----- Public -----
 	pg.GET("/public", h.listPublic)
+	pg.GET("/suggest", h.suggest)
 	pg.GET("/:id/public", h.getPublic)
 
 	// ----- Seller/Admin (product-level) -----
@@ -376,6 +380,14 @@ func (h *Handler) listPublic(c *gin.Context) {
 		items = []Product{}
 	}
 
+	if q != "" {
+		userID, ok := h.resolveCurrentUserID(c, true)
+		if ok {
+			_, _ = h.shSvc.Create(c.Request.Context(), userID, q)
+
+		}
+	}
+
 	resp := struct {
 		PageSize  int       `json:"pageSize"`
 		PageIndex int       `json:"pageIndex"`
@@ -428,4 +440,28 @@ func parseInt64ListQuery(c *gin.Context, key string) []int64 {
 		return nil
 	}
 	return res
+}
+
+// GET /api/products/suggest?q=po&limit=10
+func (h *Handler) suggest(c *gin.Context) {
+	q := strings.TrimSpace(c.Query("q"))
+
+	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "10"))
+	if limit <= 0 {
+		limit = 10
+	}
+	if limit > 20 {
+		limit = 20
+	}
+
+	items, err := h.svc.Suggest(c.Request.Context(), q, limit)
+	if err != nil {
+		c.Error(err)
+		return
+	}
+	if items == nil {
+		items = []string{}
+	}
+
+	respond.OK(c, apperr.OK, gin.H{"items": items})
 }
