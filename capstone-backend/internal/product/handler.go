@@ -10,6 +10,7 @@ import (
 	apperr "github.com/Perpasit/Capstone-KMALL/internal/apperr"
 	"github.com/Perpasit/Capstone-KMALL/internal/middleware"
 	"github.com/Perpasit/Capstone-KMALL/internal/respond"
+	"github.com/Perpasit/Capstone-KMALL/internal/searchhistory"
 	"github.com/Perpasit/Capstone-KMALL/internal/store"
 	"github.com/Perpasit/Capstone-KMALL/internal/user"
 )
@@ -21,14 +22,16 @@ type Handler struct {
 	storeSvc store.Service
 	roleSvc  middleware.RoleNameLister
 	userSvc  user.Service
+	shSvc    searchhistory.Service
 }
 
-func NewHandler(s Service, ss store.Service, rl middleware.RoleNameLister, us user.Service) *Handler {
+func NewHandler(s Service, ss store.Service, rl middleware.RoleNameLister, us user.Service, sh searchhistory.Service) *Handler {
 	return &Handler{
 		svc:      s,
 		storeSvc: ss,
 		roleSvc:  rl,
 		userSvc:  us,
+		shSvc:    sh,
 	}
 }
 
@@ -375,6 +378,14 @@ func (h *Handler) listPublic(c *gin.Context) {
 
 	if items == nil {
 		items = []Product{}
+	}
+
+	if q != "" {
+		userID, ok := h.resolveCurrentUserID(c, true)
+		if ok {
+			_, _ = h.shSvc.Create(c.Request.Context(), userID, q)
+
+		}
 	}
 
 	resp := struct {

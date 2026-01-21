@@ -18,6 +18,7 @@ import (
 	"github.com/Perpasit/Capstone-KMALL/internal/product"
 	"github.com/Perpasit/Capstone-KMALL/internal/respond"
 	"github.com/Perpasit/Capstone-KMALL/internal/role"
+	"github.com/Perpasit/Capstone-KMALL/internal/searchhistory"
 	"github.com/Perpasit/Capstone-KMALL/internal/store"
 	"github.com/Perpasit/Capstone-KMALL/internal/user"
 )
@@ -89,6 +90,9 @@ func Attach(r *gin.Engine, db *pgxpool.Pool, cfg config.Config) {
 
 	oRepo := order.NewRepo(db)
 	oSvc := order.NewService(oRepo, cartSvc, pSvc)
+
+	shRepo := searchhistory.NewRepo(db)
+	shSvc := searchhistory.NewService(shRepo)
 
 	// v1 := r.Group("/api",
 	// 	apiLogger(),
@@ -178,7 +182,7 @@ func Attach(r *gin.Engine, db *pgxpool.Pool, cfg config.Config) {
 	cHdl.Register(v1)
 
 	// products
-	pHdl := product.NewHandler(pSvc, sSvc, rSvc, uSvc)
+	pHdl := product.NewHandler(pSvc, sSvc, rSvc, uSvc, shSvc)
 	pHdl.Register(v1)
 
 	// images
@@ -194,6 +198,10 @@ func Attach(r *gin.Engine, db *pgxpool.Pool, cfg config.Config) {
 	// orders
 	oHdl := order.NewHandler(oSvc, rSvc, uSvc, sSvc)
 	oHdl.Register(v1)
+
+	//search history
+	shHdl := searchhistory.NewHandler(shSvc, rSvc, uSvc)
+	shHdl.Register(v1)
 
 	// ---- debug local (ยิงตรง http://localhost:18080/debug/headers) ----
 	r.GET("/debug/headers", func(c *gin.Context) {
