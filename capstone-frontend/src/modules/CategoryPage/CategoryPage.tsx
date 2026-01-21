@@ -4,7 +4,8 @@ import { useProductApi } from "../../api/productApi"
 import { useCatagoriesApi } from "../../api/catagoriesApi"
 import { useProductListStore } from "../../stores/catagoriesStore"
 import PageHeader from "./PageHeader"
-import Toolbar, { type SortKey, type FilterKey } from "./Toolbar"
+import FilterSidebar from "./FilterSidebar"
+import SortBar, { type SortKey } from "./SortBar"
 import ProductGrid from "../../components/Product/ProductGrid"
 import Pagination from "../../components/Pagination/Pagination"
 
@@ -32,7 +33,8 @@ export default function CategoryPage() {
   const apiCategoryId = mapCategoryId(routeCategory)
 
   const [sort, setSort] = useState<SortKey>("ASC")
-  const [filter, setFilter] = useState<FilterKey[]>([])
+  // filter is now number[] (category IDs)
+  const [filter, setFilter] = useState<number[]>([]) 
   const [filterOptions, setFilterOptions] = useState<{ label: string; value: string }[]>([])
 
   const {
@@ -60,7 +62,7 @@ export default function CategoryPage() {
     setFilter([])
   }, [routeCategory, reset, setPageIndex])
 
-  // Fetch filter options
+  // Fetch filter options (Sub-categories)
   useEffect(() => {
     async function fetchCategories() {
       try {
@@ -86,8 +88,8 @@ export default function CategoryPage() {
     async function fetchData() {
       try {
         startLoading()
-        // Convert filter strings to numbers
-        const categoryIds = filter.map(Number)
+        // filter is already number[]
+        const categoryIds = filter
         const res = await getProductsByParentId(apiCategoryId, pageSize, pageIndex, sort, categoryIds)
         if (ignore) return
         setPageData(res.data)
@@ -116,39 +118,68 @@ export default function CategoryPage() {
   const totalPages = Math.max(1, Math.ceil(safeTotal / safeSize))
 
   return (
-    <main className="mx-auto max-w-6xl px-4 py-6 md:py-10">
+    <main className="mx-auto max-w-7xl py-8 md:py-12">
       <PageHeader category={routeCategory || "food"} />
 
-      <div className="mt-6">
-        <Toolbar
-          sort={sort}
-          onChangeSort={setSort}
-          filter={filter}
-          onChangeFilter={setFilter}
-          filterOptions={filterOptions}
-        />
-      </div>
+      <div className="mt-10 grid grid-cols-1 gap-8 lg:grid-cols-[260px_1fr]">
+        
+        {/* SIDEBAR */}
+        <aside className="hidden lg:block">
+            <div className="sticky top-24">
+                <FilterSidebar 
+                    filterOptions={filterOptions}
+                    selectedCategories={filter}
+                    onChangeCategory={setFilter}
+                />
+            </div>
+        </aside>
 
-      <div className="mt-6">
-        {isLoading ? (
-          <div className="py-10 text-center text-gray-500">
-            กำลังโหลดสินค้า...
+        {/* MAIN CONTENT */}
+        <div className="min-w-0">
+          
+          <SortBar 
+            totalItems={safeTotal}
+            pageIndex={pageIndex}
+            pageSize={pageSize}
+            sort={sort}
+            onChangeSort={setSort}
+            onPageChange={setPageIndex}
+          />
+
+          <div className="mt-6">
+            {isLoading ? (
+              <div className="py-20 text-center">
+                 <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-current border-r-transparent align-[-0.125em] motion-reduce:animate-[spin_1.5s_linear_infinite]" role="status">
+                    <span className="!absolute !-m-px !h-px !w-px !overflow-hidden !whitespace-nowrap !border-0 !p-0 ![clip:rect(0,0,0,0)]">Loading...</span>
+                 </div>
+                 <p className="mt-2 text-gray-500">กำลังโหลดสินค้า...</p>
+              </div>
+            ) : error ? (
+              <div className="py-20 text-center text-red-500 bg-red-50 rounded-xl border border-red-100">
+                {error}
+              </div>
+            ) : items.length === 0 ? (
+                <div className="py-20 text-center text-gray-500 bg-gray-50 rounded-xl border border-dashed border-gray-200">
+                    ไม่พบสินค้าในหมวดหมู่นี้
+                </div>
+            ) : (
+              <ProductGrid items={items} />
+            )}
           </div>
-        ) : error ? (
-          <div className="py-10 text-center text-red-500">{error}</div>
-        ) : (
-          <ProductGrid items={items} />
-        )}
-      </div>
 
-      {/* แสดง pagination เฉพาะตอนมีของ */}
-      {items.length > 0 && (
-        <Pagination
-          currentPage={pageIndex}
-          totalPages={totalPages}
-          onPageChange={setPageIndex}
-        />
-      )}
+          {/* Bottom Pagination (Full) */}
+          {items.length > 0 && (
+            <div className="mt-10">
+                <Pagination
+                currentPage={pageIndex}
+                totalPages={totalPages}
+                onPageChange={setPageIndex}
+                />
+            </div>
+          )}
+        </div>
+      
+      </div>
     </main>
   )
 }
