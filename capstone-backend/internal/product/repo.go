@@ -20,6 +20,7 @@ type Repo interface {
 	Update(ctx context.Context, id int64, in UpdateParams) (Product, error)
 	Delete(ctx context.Context, id int64) error
 
+	// UPDATED: add fulfillment + return maxPriceInResult
 	ListPublic(ctx context.Context,
 		q string,
 		categoryIDs []int64,
@@ -27,7 +28,11 @@ type Repo interface {
 		storeID *int64,
 		limit, page int,
 		priceSort string,
-	) ([]Product, int64, error)
+		fulfillment string, // "ROUND_UNIVERSITY" | "CAMPUS" | ""
+		minPrice *float64, // NEW
+		maxPrice *float64, // NEW
+	) ([]Product, int64, float64, error)
+
 	GetPublic(ctx context.Context, id int64) (Product, error)
 	Suggest(ctx context.Context, q string, limit int) ([]string, error)
 }
@@ -248,7 +253,10 @@ func (r *repo) ListPublic(
 	storeID *int64,
 	limit, page int,
 	priceSort string,
-) ([]Product, int64, error) {
+	fulfillment string,
+	minPrice *float64,
+	maxPrice *float64,
+) ([]Product, int64, float64, error) {
 
 	if limit <= 0 {
 		limit = 20
@@ -260,7 +268,20 @@ func (r *repo) ListPublic(
 
 	q = strings.TrimSpace(q)
 	qLower := strings.ToLower(q)
-	terms := strings.Fields(qLower) // แยกคำด้วย space
+	terms := strings.Fields(qLower)
+
+	fulfillment = strings.ToUpper(strings.TrimSpace(fulfillment))
+
+	// price range validation
+	if minPrice != nil && *minPrice < 0 {
+		return nil, 0, 0, apperr.New(apperr.BadRequest, "min_price must be >= 0")
+	}
+	if maxPrice != nil && *maxPrice < 0 {
+		return nil, 0, 0, apperr.New(apperr.BadRequest, "max_price must be >= 0")
+	}
+	if minPrice != nil && maxPrice != nil && *maxPrice < *minPrice {
+		return nil, 0, 0, apperr.New(apperr.BadRequest, "max_price must be >= min_price")
+	}
 
 	base := `
 		FROM products p
@@ -284,9 +305,11 @@ func (r *repo) ListPublic(
 	` + base
 
 	countQuery := `SELECT COUNT(*) ` + base
+	// max price ต้อง “หลังกรองทั้งหมด” ดังนั้นใช้ base+cond ชุดเดียวกัน
+	maxQuery := `SELECT COALESCE(MAX(p.price), 0) ` + base
 
 	args := []any{}
-	var qPos int // placeholder position ของ qLower (เช่น 1,2,3...)
+	var qPos int // position of qLower in args (1-based placeholder index)
 
 	// ===== Filters =====
 	if len(categoryIDs) > 0 {
@@ -297,6 +320,7 @@ func (r *repo) ListPublic(
 		cond := " AND p.category_id IN (" + strings.Join(ph, ",") + ")"
 		selectQuery += cond
 		countQuery += cond
+		maxQuery += cond
 		for _, id := range categoryIDs {
 			args = append(args, id)
 		}
@@ -312,6 +336,7 @@ func (r *repo) ListPublic(
 		`
 		selectQuery += cond
 		countQuery += cond
+		maxQuery += cond
 		args = append(args, *parentCategoryID)
 	}
 
@@ -319,17 +344,46 @@ func (r *repo) ListPublic(
 		cond := " AND p.store_id = $" + strconv.Itoa(len(args)+1)
 		selectQuery += cond
 		countQuery += cond
+		maxQuery += cond
 		args = append(args, *storeID)
 	}
 
+	// fulfillment filter (stores schema fields)
+	if fulfillment != "" {
+		var cond string
+		switch fulfillment {
+		case "ROUND_UNIVERSITY":
+			cond = " AND s.delivery_round_university_enabled = TRUE"
+		case "CAMPUS":
+			cond = " AND s.campus_enabled = TRUE"
+		default:
+			return nil, 0, 0, apperr.New(apperr.BadRequest, "invalid fulfillment (use ROUND_UNIVERSITY or CAMPUS)")
+		}
+		selectQuery += cond
+		countQuery += cond
+		maxQuery += cond
+	}
+
+	// price range filter (min/max)
+	if minPrice != nil {
+		cond := " AND p.price >= $" + strconv.Itoa(len(args)+1)
+		selectQuery += cond
+		countQuery += cond
+		maxQuery += cond
+		args = append(args, *minPrice)
+	}
+	if maxPrice != nil {
+		cond := " AND p.price <= $" + strconv.Itoa(len(args)+1)
+		selectQuery += cond
+		countQuery += cond
+		maxQuery += cond
+		args = append(args, *maxPrice)
+	}
+
 	// ===== Search =====
-	// เราจะใช้ qLower เป็น arg หนึ่งตัวเพื่อทำ exact/prefix/contains/similarity
-	// และใช้ terms อีกหลายตัวเพื่อช่วย "เกี่ยวข้อง" + match count
 	if qLower != "" {
 		args = append(args, qLower)
 		qPos = len(args)
-
-		// เงื่อนไขรวม: ติดจาก “ก้อน q” หรือจาก “term ใด term หนึ่ง”
 		likeQ := "$" + strconv.Itoa(qPos)
 
 		termParts := []string{}
@@ -354,6 +408,7 @@ func (r *repo) ListPublic(
 				lower(p.name) LIKE '%' || ` + likeQ + ` || '%'
 				OR lower(s.store_name) LIKE '%' || ` + likeQ + ` || '%'
 				OR lower(coalesce(p.product_desc,'')) LIKE '%' || ` + likeQ + ` || '%'
+				-- trigram
 				OR p.name % ` + likeQ + `
 				OR s.store_name % ` + likeQ + `
 				OR coalesce(p.product_desc,'') % ` + likeQ + `
@@ -366,17 +421,15 @@ func (r *repo) ListPublic(
 
 		selectQuery += cond
 		countQuery += cond
+		maxQuery += cond
 	}
 
 	// ===== ORDER BY (Ranking) =====
 	orderBy := "p.created_at DESC, p.product_id ASC"
 
-	// ถ้ามี q ให้ ranking แบบละเอียด
 	if qLower != "" {
-		// matchCount: นับจำนวน terms ที่ไป match name/store/desc
-		// (ยิ่ง match หลายคำ ยิ่งขึ้น)
 		matchCountExpr := "0"
-		for i := qPos + 1; i <= len(args); i++ { // terms จะอยู่หลัง qPos
+		for i := qPos + 1; i <= len(args); i++ {
 			matchCountExpr += `
 				+ CASE WHEN (
 					lower(p.name) LIKE '%' || $` + strconv.Itoa(i) + ` || '%'
@@ -386,7 +439,6 @@ func (r *repo) ListPublic(
 			`
 		}
 
-		// similarity max จาก 3 field
 		simMax := `
 			GREATEST(
 				similarity(p.name, $` + strconv.Itoa(qPos) + `),
@@ -396,33 +448,25 @@ func (r *repo) ListPublic(
 		`
 
 		orderBy = `
-			-- 1) exact product > exact store
 			(lower(p.name) = $` + strconv.Itoa(qPos) + `) DESC,
 			(lower(s.store_name) = $` + strconv.Itoa(qPos) + `) DESC,
 
-			-- 2) prefix product > prefix store
 			(lower(p.name) LIKE $` + strconv.Itoa(qPos) + ` || '%') DESC,
 			(lower(s.store_name) LIKE $` + strconv.Itoa(qPos) + ` || '%') DESC,
 
-			-- 3) contains product/store/desc
 			(lower(p.name) LIKE '%' || $` + strconv.Itoa(qPos) + ` || '%') DESC,
 			(lower(s.store_name) LIKE '%' || $` + strconv.Itoa(qPos) + ` || '%') DESC,
 			(lower(coalesce(p.product_desc,'')) LIKE '%' || $` + strconv.Itoa(qPos) + ` || '%') DESC,
 
-			-- 4) match terms count
 			(` + matchCountExpr + `) DESC,
-
-			-- 5) similarity
 			(` + simMax + `) DESC,
 
-			-- fallback
 			p.created_at DESC,
 			p.product_id ASC
 		`
 	}
 
-	// ===== ถ้ามี priceSort ให้ price เป็นตัวเรียง “หลัง relevance”
-	// (คือยังคงให้ตรงสุดมาก่อน แล้วค่อยเรียงราคาในกลุ่ม)
+	// price sort
 	switch strings.ToLower(strings.TrimSpace(priceSort)) {
 	case "asc":
 		if qLower != "" {
@@ -448,13 +492,19 @@ func (r *repo) ListPublic(
 	// ===== Count =====
 	var total int64
 	if err := r.db.QueryRow(ctx, countQuery, args...).Scan(&total); err != nil {
-		return nil, 0, apperr.Wrap(apperr.Internal, err, "count public products failed")
+		return nil, 0, 0, apperr.Wrap(apperr.Internal, err, "count public products failed")
+	}
+
+	// ===== Max price (after ALL filters) =====
+	var maxPriceResult float64
+	if err := r.db.QueryRow(ctx, maxQuery, args...).Scan(&maxPriceResult); err != nil {
+		return nil, 0, 0, apperr.Wrap(apperr.Internal, err, "max price public products failed")
 	}
 
 	// ===== Query =====
 	rows, err := r.db.Query(ctx, selectQuery, argsWithPage...)
 	if err != nil {
-		return nil, 0, apperr.Wrap(apperr.Internal, err, "public list failed")
+		return nil, 0, 0, apperr.Wrap(apperr.Internal, err, "public list failed")
 	}
 	defer rows.Close()
 
@@ -465,12 +515,16 @@ func (r *repo) ListPublic(
 			&p.ID, &p.Name, &p.Description, &p.Price, &p.ImageURL,
 			&p.CreatedAt, &p.UpdatedAt, &p.IsActive, &p.StoreID, &p.CategoryID, &p.StoreName,
 		); err != nil {
-			return nil, 0, apperr.Wrap(apperr.Internal, err, "scan product failed")
+			return nil, 0, 0, apperr.Wrap(apperr.Internal, err, "scan product failed")
 		}
 		out = append(out, p)
 	}
 
-	return out, total, nil
+	if out == nil {
+		out = []Product{}
+	}
+
+	return out, total, maxPriceResult, nil
 }
 
 func (r *repo) GetPublic(ctx context.Context, id int64) (Product, error) {

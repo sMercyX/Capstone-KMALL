@@ -110,6 +110,18 @@ func parseInt64Query(c *gin.Context, key string) *int64 {
 	return &id
 }
 
+func parseFloat64Query(c *gin.Context, key string) *float64 {
+	val := strings.TrimSpace(c.Query(key))
+	if val == "" {
+		return nil
+	}
+	f, err := strconv.ParseFloat(val, 64)
+	if err != nil {
+		return nil
+	}
+	return &f
+}
+
 func (h *Handler) resolveCurrentUserID(c *gin.Context, ensure bool) (string, bool) {
 	up, ok := c.Get(middleware.CtxUpstreamUser)
 	if !ok || up == nil {
@@ -355,13 +367,16 @@ func (h *Handler) listPublic(c *gin.Context) {
 	categoryIDs := parseInt64ListQuery(c, "category_id")
 	storeID := parseInt64Query(c, "store_id")
 	parentCategoryID := parseInt64Query(c, "parent_category_id")
+	fulfillment := strings.TrimSpace(c.Query("fulfillment"))
+	minPrice := parseFloat64Query(c, "min_price")
+	maxPrice := parseFloat64Query(c, "max_price")
 
 	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "20"))
 	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
 
 	priceSort := strings.ToLower(strings.TrimSpace(c.Query("price")))
 
-	items, total, err := h.svc.ListPublic(
+	items, total, maxPriceResult, err := h.svc.ListPublic(
 		c.Request.Context(),
 		q,
 		categoryIDs,
@@ -370,6 +385,9 @@ func (h *Handler) listPublic(c *gin.Context) {
 		limit,
 		page,
 		priceSort,
+		fulfillment,
+		minPrice,
+		maxPrice,
 	)
 	if err != nil {
 		c.Error(err)
@@ -384,20 +402,29 @@ func (h *Handler) listPublic(c *gin.Context) {
 		userID, ok := h.resolveCurrentUserID(c, true)
 		if ok {
 			_, _ = h.shSvc.Create(c.Request.Context(), userID, q)
-
 		}
 	}
 
+	minPriceUI := 0.0
+	if minPrice != nil && *minPrice > 0 {
+	}
+
 	resp := struct {
-		PageSize  int       `json:"pageSize"`
-		PageIndex int       `json:"pageIndex"`
-		Total     int64     `json:"total"`
-		Items     []Product `json:"items"`
+		PageSize    int       `json:"pageSize"`
+		PageIndex   int       `json:"pageIndex"`
+		Total       int64     `json:"total"`
+		MinPrice    float64   `json:"minPrice"`
+		MaxPrice    float64   `json:"maxPrice"`
+		Fulfillment string    `json:"fulfillment"`
+		Items       []Product `json:"items"`
 	}{
-		PageSize:  limit,
-		PageIndex: page,
-		Total:     total,
-		Items:     items,
+		PageSize:    limit,
+		PageIndex:   page,
+		Total:       total,
+		MinPrice:    minPriceUI,
+		MaxPrice:    maxPriceResult,
+		Fulfillment: fulfillment,
+		Items:       items,
 	}
 
 	respond.OK(c, apperr.OK, resp)

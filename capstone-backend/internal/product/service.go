@@ -2,6 +2,7 @@ package product
 
 import (
 	"context"
+	"math"
 	"net/url"
 	"strings"
 
@@ -41,7 +42,11 @@ type Service interface {
 		storeID *int64,
 		limit, page int,
 		priceSort string,
-	) ([]Product, int64, error)
+		fulfillment string,
+		minPrice *float64,
+		maxPrice *float64,
+	) ([]Product, int64, float64, error)
+
 	GetPublic(ctx context.Context, id int64) (Product, error)
 	Suggest(ctx context.Context, q string, limit int) ([]string, error)
 }
@@ -180,6 +185,16 @@ func normalizePriceSort(s string) string {
 	}
 }
 
+func normalizeFulfillment(s string) string {
+	s = strings.TrimSpace(strings.ToUpper(s))
+	switch s {
+	case "ROUND_UNIVERSITY", "CAMPUS":
+		return s
+	default:
+		return ""
+	}
+}
+
 func (s *service) Create(ctx context.Context, in CreateInput) (Product, error) {
 	if err := validateCreate(&in); err != nil {
 		return Product{}, err
@@ -242,7 +257,10 @@ func (s *service) ListPublic(
 	storeID *int64,
 	limit, page int,
 	priceSort string,
-) ([]Product, int64, error) {
+	fulfillment string,
+	minPrice *float64,
+	maxPrice *float64,
+) ([]Product, int64, float64, error) {
 	if limit <= 0 {
 		limit = 20
 	}
@@ -252,8 +270,51 @@ func (s *service) ListPublic(
 
 	q = strings.TrimSpace(q)
 	priceSort = normalizePriceSort(priceSort)
+	fulfillment = normalizeFulfillment(fulfillment)
 
-	return s.repo.ListPublic(ctx, q, categoryIDs, parentCategoryID, storeID, limit, page, priceSort)
+	// ===== normalize price range =====
+	// goal: UI slider length should start at 0 always
+	if minPrice != nil {
+		if math.IsNaN(*minPrice) || math.IsInf(*minPrice, 0) {
+			return nil, 0, 0, apperr.New(apperr.BadRequest, "min_price is invalid")
+		}
+		if *minPrice < 0 {
+			v := 0.0
+			minPrice = &v
+		}
+	}
+	if maxPrice != nil {
+		if math.IsNaN(*maxPrice) || math.IsInf(*maxPrice, 0) {
+			return nil, 0, 0, apperr.New(apperr.BadRequest, "max_price is invalid")
+		}
+		if *maxPrice < 0 {
+			// ignore invalid negative max
+			maxPrice = nil
+		}
+	}
+
+	// if both provided and min > max -> swap (friendly)
+	if minPrice != nil && maxPrice != nil && *minPrice > *maxPrice {
+		*minPrice, *maxPrice = *maxPrice, *minPrice
+		// after swap, ensure min not negative
+		if *minPrice < 0 {
+			*minPrice = 0
+		}
+	}
+
+	return s.repo.ListPublic(
+		ctx,
+		q,
+		categoryIDs,
+		parentCategoryID,
+		storeID,
+		limit,
+		page,
+		priceSort,
+		fulfillment,
+		minPrice,
+		maxPrice,
+	)
 }
 
 func (s *service) GetPublic(ctx context.Context, id int64) (Product, error) {
