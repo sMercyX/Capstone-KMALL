@@ -41,8 +41,7 @@ type Service interface {
 		parentCategoryID *int64,
 		storeID *int64,
 		limit, page int,
-		sortBy string,
-		priceSort string,
+		sortBy string, // "", "latest", "sold", "price_asc", "price_desc"
 		fulfillment string,
 		minPrice *float64,
 		maxPrice *float64,
@@ -176,20 +175,10 @@ func validateUpdate(in *UpdateInput) error {
 	return nil
 }
 
-func normalizePriceSort(s string) string {
-	s = strings.TrimSpace(strings.ToLower(s))
-	switch s {
-	case "asc", "desc":
-		return s
-	default:
-		return ""
-	}
-}
-
 func normalizeSortBy(s string) string {
 	s = strings.TrimSpace(strings.ToLower(s))
 	switch s {
-	case "", "latest", "sold":
+	case "", "latest", "sold", "price_asc", "price_desc":
 		return s
 	default:
 		return ""
@@ -259,7 +248,6 @@ func (s *service) Delete(ctx context.Context, id int64) error {
 	}
 	return s.repo.Delete(ctx, id)
 }
-
 func (s *service) ListPublic(
 	ctx context.Context,
 	q string,
@@ -268,11 +256,11 @@ func (s *service) ListPublic(
 	storeID *int64,
 	limit, page int,
 	sortBy string,
-	priceSort string,
 	fulfillment string,
 	minPrice *float64,
 	maxPrice *float64,
 ) ([]Product, int64, float64, error) {
+
 	if limit <= 0 {
 		limit = 20
 	}
@@ -282,8 +270,12 @@ func (s *service) ListPublic(
 
 	q = strings.TrimSpace(q)
 	sortBy = normalizeSortBy(sortBy)
-	priceSort = normalizePriceSort(priceSort)
 	fulfillment = normalizeFulfillment(fulfillment)
+
+	// ถ้าส่ง sort_by แปลก ๆ มา
+	if sortBy == "" && strings.TrimSpace(strings.ToLower(sortBy)) != "" {
+		return nil, 0, 0, apperr.New(apperr.BadRequest, "invalid sort_by (use latest, sold, price_asc, price_desc)")
+	}
 
 	// ===== normalize price range =====
 	// goal: UI slider length should start at 0 always
@@ -309,7 +301,6 @@ func (s *service) ListPublic(
 	// if both provided and min > max -> swap (friendly)
 	if minPrice != nil && maxPrice != nil && *minPrice > *maxPrice {
 		*minPrice, *maxPrice = *maxPrice, *minPrice
-		// after swap, ensure min not negative
 		if *minPrice < 0 {
 			*minPrice = 0
 		}
@@ -324,12 +315,10 @@ func (s *service) ListPublic(
 		limit,
 		page,
 		sortBy,
-		priceSort,
 		fulfillment,
 		minPrice,
 		maxPrice,
 	)
-
 }
 
 func (s *service) GetPublic(ctx context.Context, id int64) (Product, error) {
