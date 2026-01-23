@@ -27,8 +27,7 @@ type Repo interface {
 		parentCategoryID *int64,
 		storeID *int64,
 		limit, page int,
-		sortBy string, // NEW: "latest" | "sold" | ""
-		priceSort string, // "asc" | "desc" | ""
+		sortBy string, // NEW: "latest" | "sold" | | "price_asc" | "price_desc" | ""
 		fulfillment string, // "ROUND_UNIVERSITY" | "CAMPUS" | ""
 		minPrice *float64,
 		maxPrice *float64,
@@ -257,8 +256,7 @@ func (r *repo) ListPublic(
 	parentCategoryID *int64,
 	storeID *int64,
 	limit, page int,
-	sortBy string,
-	priceSort string,
+	sortBy string, // "latest" | "sold" | "price_asc" | "price_desc" | ""
 	fulfillment string,
 	minPrice *float64,
 	maxPrice *float64,
@@ -278,7 +276,6 @@ func (r *repo) ListPublic(
 
 	fulfillment = strings.ToUpper(strings.TrimSpace(fulfillment))
 	sortBy = strings.ToLower(strings.TrimSpace(sortBy))
-	priceSort = strings.ToLower(strings.TrimSpace(priceSort))
 
 	// price range validation
 	if minPrice != nil && *minPrice < 0 {
@@ -318,7 +315,6 @@ func (r *repo) ListPublic(
     ` + base
 
 	countQuery := `SELECT COUNT(DISTINCT p.product_id) ` + base
-
 	maxQuery := `SELECT COALESCE(MAX(p.price), 0) ` + base
 
 	args := []any{}
@@ -453,7 +449,8 @@ func (r *repo) ListPublic(
 	selectQuery += " " + groupBy
 
 	// ===== ORDER BY =====
-	orderBy := "p.created_at DESC, p.product_id ASC"
+	defaultLatest := "p.created_at DESC, p.product_id ASC"
+	relevanceOrder := ""
 
 	if qLower != "" {
 		matchCountExpr := "0"
@@ -475,7 +472,7 @@ func (r *repo) ListPublic(
             )
         `
 
-		orderBy = `
+		relevanceOrder = `
             (lower(p.name) = $` + strconv.Itoa(qPos) + `) DESC,
             (lower(s.store_name) = $` + strconv.Itoa(qPos) + `) DESC,
 
@@ -487,41 +484,46 @@ func (r *repo) ListPublic(
             (lower(coalesce(p.product_desc,'')) LIKE '%' || $` + strconv.Itoa(qPos) + ` || '%') DESC,
 
             (` + matchCountExpr + `) DESC,
-            (` + simMax + `) DESC,
-
-            p.created_at DESC,
-            p.product_id ASC
+            (` + simMax + `) DESC
         `
 	}
 
+	orderBy := defaultLatest
+
 	switch sortBy {
 	case "", "latest":
-	case "sold":
-		if qLower != "" {
-			orderBy += ", sold_count DESC, p.created_at DESC, p.product_id ASC"
+		// มี q => relevance ก่อน แล้วค่อย latest เป็นตัวกัน tie
+		if qLower != "" && relevanceOrder != "" {
+			orderBy = relevanceOrder + ", " + defaultLatest
 		} else {
-			orderBy = "sold_count DESC, p.created_at DESC, p.product_id ASC"
+			orderBy = defaultLatest
 		}
-	default:
-		return nil, 0, 0, apperr.New(apperr.BadRequest, "invalid sort_by (use latest or sold)")
-	}
 
-	switch priceSort {
-	case "":
-	case "asc":
-		if qLower != "" {
-			orderBy += ", p.price ASC"
+	case "sold":
+		// sold เป็นหลัก (แต่ถ้ามี q ให้ relevance ช่วยดันของที่เกี่ยวข้องก่อน)
+		if qLower != "" && relevanceOrder != "" {
+			orderBy = relevanceOrder + ", sold_count DESC, " + defaultLatest
+		} else {
+			orderBy = "sold_count DESC, " + defaultLatest
+		}
+
+	case "price_asc":
+		// ราคาเป็นหลักเสมอ
+		if qLower != "" && relevanceOrder != "" {
+			orderBy = "p.price ASC, " + relevanceOrder + ", p.product_id ASC"
 		} else {
 			orderBy = "p.price ASC, p.product_id ASC"
 		}
-	case "desc":
-		if qLower != "" {
-			orderBy += ", p.price DESC"
+
+	case "price_desc":
+		if qLower != "" && relevanceOrder != "" {
+			orderBy = "p.price DESC, " + relevanceOrder + ", p.product_id ASC"
 		} else {
 			orderBy = "p.price DESC, p.product_id ASC"
 		}
+
 	default:
-		return nil, 0, 0, apperr.New(apperr.BadRequest, "invalid price_sort (use asc or desc)")
+		return nil, 0, 0, apperr.New(apperr.BadRequest, "invalid sort_by (use latest, sold, price_asc, price_desc)")
 	}
 
 	// ===== Paging =====

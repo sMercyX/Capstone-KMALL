@@ -374,8 +374,8 @@ func (h *Handler) listPublic(c *gin.Context) {
 	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "20"))
 	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
 
+	// sort_by: "", "latest", "sold", "price_asc", "price_desc"
 	sortBy := strings.ToLower(strings.TrimSpace(c.Query("sort_by")))
-	priceSort := strings.ToLower(strings.TrimSpace(c.Query("price_sort")))
 
 	items, total, maxPriceResult, err := h.svc.ListPublic(
 		c.Request.Context(),
@@ -386,7 +386,6 @@ func (h *Handler) listPublic(c *gin.Context) {
 		limit,
 		page,
 		sortBy,
-		priceSort,
 		fulfillment,
 		minPrice,
 		maxPrice,
@@ -410,6 +409,7 @@ func (h *Handler) listPublic(c *gin.Context) {
 
 	minPriceUI := 0.0
 	if minPrice != nil && *minPrice > 0 {
+		minPriceUI = *minPrice
 	}
 
 	resp := struct {
@@ -419,6 +419,7 @@ func (h *Handler) listPublic(c *gin.Context) {
 		MinPrice    float64   `json:"minPrice"`
 		MaxPrice    float64   `json:"maxPrice"`
 		Fulfillment string    `json:"fulfillment"`
+		SortBy      string    `json:"sortBy"`
 		Items       []Product `json:"items"`
 	}{
 		PageSize:    limit,
@@ -427,6 +428,7 @@ func (h *Handler) listPublic(c *gin.Context) {
 		MinPrice:    minPriceUI,
 		MaxPrice:    maxPriceResult,
 		Fulfillment: fulfillment,
+		SortBy:      sortBy,
 		Items:       items,
 	}
 
