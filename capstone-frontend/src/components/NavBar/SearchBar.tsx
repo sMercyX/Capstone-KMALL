@@ -115,11 +115,9 @@ export default function SearchBar() {
 
   const handleSearch = (searchTerm?: string) => {
     const term = searchTerm || query
-    if (term.trim()) {
-      setQuery(term)
-      navigate(`/search?q=${encodeURIComponent(term.trim())}`)
-      setIsOpen(false)
-    }
+    setQuery(term)
+    navigate(`/search?q=${encodeURIComponent(term.trim())}`)
+    setIsOpen(false)
   }
 
   const handleHistoryClick = (term: string) => {

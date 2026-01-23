@@ -1,18 +1,39 @@
 import { useEffect, useState } from "react"
-import { useLocation } from "react-router-dom"
+import { useLocation, useNavigate } from "react-router-dom"
 import { useProductApi } from "../../api/productApi"
+import { useCatagoriesApi } from "../../api/catagoriesApi"
 import { useProductListStore } from "../../stores/catagoriesStore"
 import SearchPageHeader from "./SearchPageHeader"
+import FilterSidebar from "../CategoryPage/FilterSidebar"
 import SortBar, { type SortKey } from "../CategoryPage/SortBar"
 import ProductGrid from "../../components/Product/ProductGrid"
 import Pagination from "../../components/Pagination/Pagination"
 
 export default function SearchPage() {
   const location = useLocation()
+  const navigate = useNavigate()
   const searchParams = new URLSearchParams(location.search)
   const q = searchParams.get("q") || ""
+  const sortFromUrl = (searchParams.get("sort_by") as SortKey) || "latest"
 
-  const [sort, setSort] = useState<SortKey>("ASC")
+  const [sort, setSort] = useState<SortKey>(sortFromUrl)
+  const [filter, setFilter] = useState<number[]>([]) 
+  const [filterOptions, setFilterOptions] = useState<{ label: string; value: string }[]>([])
+  
+  // Price range from API response
+  const [apiMinPrice, setApiMinPrice] = useState<number>(0)
+  const [apiMaxPrice, setApiMaxPrice] = useState<number>(500)
+  // User selected price range for filtering
+  const [selectedMinPrice, setSelectedMinPrice] = useState<number | undefined>(undefined)
+  const [selectedMaxPrice, setSelectedMaxPrice] = useState<number | undefined>(undefined)
+
+  // Handle sort change and update URL
+  const handleSortChange = (newSort: SortKey) => {
+    setSort(newSort)
+    const params = new URLSearchParams(location.search)
+    params.set("sort_by", newSort)
+    navigate(`${location.pathname}?${params.toString()}`, { replace: true })
+  }
 
   const {
     items,
@@ -29,25 +50,71 @@ export default function SearchPage() {
   } = useProductListStore()
 
   const { searchProducts } = useProductApi()
+  const { getCatagoriesName } = useCatagoriesApi()
 
   // Reset when query changes
   useEffect(() => {
     reset()
     setPageIndex(1)
+    setFilter([])
+    setSelectedMinPrice(undefined)
+    setSelectedMaxPrice(undefined)
   }, [q, reset, setPageIndex])
+
+  // Fetch all categories for filter (parent_id = 1 for food categories as default)
+  useEffect(() => {
+    async function fetchCategories() {
+      try {
+        // Fetch categories from all parent categories (1, 2, 3)
+        const [res1, res2, res3] = await Promise.all([
+          getCatagoriesName(1),
+          getCatagoriesName(2),
+          getCatagoriesName(3),
+        ])
+        const allCategories = [
+          ...(res1.data || []),
+          ...(res2.data || []),
+          ...(res3.data || []),
+        ]
+        const options = allCategories.map((cat) => ({
+          label: cat.name,
+          value: String(cat.id),
+        }))
+        setFilterOptions(options)
+      } catch (err) {
+        console.error("Failed to fetch categories:", err)
+      }
+    }
+    fetchCategories()
+  }, [])
 
   // Fetch search results
   useEffect(() => {
-    if (!q.trim()) return
-
     let ignore = false
 
     async function fetchData() {
       try {
         startLoading()
-        const res = await searchProducts(q, pageSize, pageIndex, sort)
+        const res = await searchProducts({
+          q,
+          limit: pageSize,
+          page: pageIndex,
+          sortBy: sort,
+          categoryIds: filter.length > 0 ? filter : undefined,
+          minPrice: selectedMinPrice,
+          maxPrice: selectedMaxPrice,
+        })
         if (ignore) return
         setPageData(res.data)
+        
+        // Store minPrice/maxPrice from API response (only on first load or when no filter applied)
+        if (res.data.minPrice !== undefined && selectedMinPrice === undefined) {
+          setApiMinPrice(res.data.minPrice)
+        }
+        if (res.data.maxPrice !== undefined && selectedMaxPrice === undefined) {
+          setApiMaxPrice(res.data.maxPrice)
+        }
+        
         setError(null)
       } catch (err) {
         if (ignore) return
@@ -60,28 +127,39 @@ export default function SearchPage() {
     return () => {
       ignore = true
     }
-  }, [q, pageIndex, pageSize, sort])
+  }, [q, pageIndex, pageSize, sort, filter, selectedMinPrice, selectedMaxPrice])
+
+  // Handle price range change from FilterSidebar
+  const handlePriceRangeChange = (min: number, max: number) => {
+    setSelectedMinPrice(min)
+    setSelectedMaxPrice(max)
+    setPageIndex(1)
+  }
 
   const safeTotal = typeof total === "number" ? total : 0
   const safeSize = typeof pageSize === "number" ? pageSize : 1
   const totalPages = Math.max(1, Math.ceil(safeTotal / safeSize))
 
-  // If no query, show empty state
-  if (!q.trim()) {
-    return (
-      <main className="mx-auto max-w-7xl py-8 md:py-12">
-        <div className="py-20 text-center text-gray-500 bg-gray-50 rounded-xl border border-dashed border-gray-200">
-          กรุณาใส่คำค้นหา
-        </div>
-      </main>
-    )
-  }
-
   return (
     <main className="mx-auto max-w-7xl py-8 md:py-12">
       <SearchPageHeader query={q} />
 
-      <div className="mt-10">
+      <div className="mt-10 grid grid-cols-1 gap-8 lg:grid-cols-[260px_1fr]">
+        
+        {/* SIDEBAR */}
+        <aside className="hidden lg:block">
+            <div className="sticky top-24">
+                <FilterSidebar 
+                    filterOptions={filterOptions}
+                    selectedCategories={filter}
+                    onChangeCategory={setFilter}
+                    priceMin={apiMinPrice}
+                    priceMax={apiMaxPrice}
+                    onChangePriceRange={handlePriceRangeChange}
+                />
+            </div>
+        </aside>
+
         {/* MAIN CONTENT */}
         <div className="min-w-0">
           
@@ -90,7 +168,7 @@ export default function SearchPage() {
             pageIndex={pageIndex}
             pageSize={pageSize}
             sort={sort}
-            onChangeSort={setSort}
+            onChangeSort={handleSortChange}
             onPageChange={setPageIndex}
           />
 

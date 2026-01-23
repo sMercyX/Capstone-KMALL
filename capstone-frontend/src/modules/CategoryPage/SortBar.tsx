@@ -1,7 +1,7 @@
 import { ArrowUpDown, Check, ChevronLeft, ChevronRight } from "lucide-react"
 import { useState, useRef, useEffect } from "react"
 
-export type SortKey = "ASC" | "DESC"
+export type SortKey = "latest" | "sold" | "price_asc" | "price_desc"
 
 interface SortBarProps {
   totalItems: number
@@ -23,8 +23,10 @@ function SortDropdown({
   const ref = useRef<HTMLDivElement>(null)
 
   const options: { label: string; value: SortKey }[] = [
-    { label: "ราคาต่ำสุด", value: "ASC" },
-    { label: "ราคาสูงสุด", value: "DESC" },
+    { label: "ล่าสุด", value: "latest" },
+    { label: "ขายดี", value: "sold" },
+    { label: "ราคาต่ำ-สูง", value: "price_asc" },
+    { label: "ราคาสูง-ต่ำ", value: "price_desc" },
   ]
 
   const currentLabel = options.find((o) => o.value === value)?.label

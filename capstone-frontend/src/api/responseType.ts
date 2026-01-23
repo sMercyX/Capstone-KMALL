@@ -28,6 +28,9 @@ export interface PaginatedData<T> {
   pageIndex: number;
   pageSize: number;
   total: number;
+  minPrice?: number;
+  maxPrice?: number;
+  fulfillment?: string;
 }
 
 // response ของ API แบบมี pagination

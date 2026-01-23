@@ -99,16 +99,36 @@ export function useProductApi() {
     return http.getItems(url)
   }
   
-  async function searchProducts(
-    q: string,
-    limit: number,
-    pageIndex: number,
-    price?: string,
+  interface SearchProductsParams {
+    q: string
+    limit: number
+    page: number
+    sortBy?: string
+    categoryIds?: number[]
     parentCategoryId?: number
-  ): Promise<ProductListResponse> {
-    let url = `/products/public?q=${encodeURIComponent(q)}&limit=${limit}&page=${pageIndex}`
-    if (price) url += `&price=${price}`
+    minPrice?: number
+    maxPrice?: number
+    fulfillment?: string
+    storeId?: number
+  }
+
+  async function searchProducts(params: SearchProductsParams): Promise<ProductListResponse> {
+    const { q, limit, page, sortBy, categoryIds, parentCategoryId, minPrice, maxPrice, fulfillment, storeId } = params
+    
+    let url = `/products/public?q=${encodeURIComponent(q)}&limit=${limit}&page=${page}`
+    
+    if (sortBy) url += `&sort_by=${sortBy}`
     if (parentCategoryId) url += `&parent_category_id=${parentCategoryId}`
+    if (minPrice !== undefined) url += `&min_price=${minPrice}`
+    if (maxPrice !== undefined) url += `&max_price=${maxPrice}`
+    if (fulfillment) url += `&fulfillment=${fulfillment}`
+    if (storeId) url += `&store_id=${storeId}`
+    if (categoryIds && categoryIds.length > 0) {
+      categoryIds.forEach((id) => {
+        url += `&category_id=${id}`
+      })
+    }
+    
     return http.getItems(url)
   }
 

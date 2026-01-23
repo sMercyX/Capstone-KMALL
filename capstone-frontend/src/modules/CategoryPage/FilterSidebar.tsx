@@ -93,7 +93,7 @@ export default function FilterSidebar({
         {isCategoryOpen && (
           <div className="mt-4 space-y-1">
             {/* Category Label */}
-            <p className="text-sm font-semibold text-gray-800 mb-3">อาหาร</p>
+            {/* <p className="text-sm font-semibold text-gray-800 mb-3">อาหาร</p> */}
             
             {filterOptions.map((opt) => {
               const isSelected = selectedCategories.includes(Number(opt.value))
