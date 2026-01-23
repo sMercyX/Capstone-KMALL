@@ -197,3 +197,31 @@ ON stores USING gin (store_name gin_trgm_ops);
 DROP INDEX IF EXISTS idx_products_desc_trgm;
 CREATE INDEX IF NOT EXISTS idx_products_desc_trgm
 ON products USING gin (product_desc gin_trgm_ops);
+
+DROP INDEX IF EXISTS idx_order_items_product_order;
+CREATE INDEX IF NOT EXISTS idx_order_items_product_order
+  ON order_items(product_id, order_id);
+
+DROP INDEX IF EXISTS idx_orders_completed_order_id;
+CREATE INDEX IF NOT EXISTS idx_orders_completed_order_id
+  ON orders(order_id)
+  WHERE status = 'Completed';
+
+DROP INDEX IF EXISTS idx_products_store_active_created_at;
+CREATE INDEX IF NOT EXISTS idx_products_store_active_created_at
+  ON products(store_id, is_active, created_at DESC);
+
+DROP INDEX IF EXISTS idx_products_yes_created_at;
+CREATE INDEX IF NOT EXISTS idx_products_yes_created_at
+  ON products(created_at DESC)
+  WHERE is_active = 'YES';
+
+DROP INDEX IF EXISTS idx_stores_active_rounduni;
+CREATE INDEX IF NOT EXISTS idx_stores_active_rounduni
+  ON stores(store_id)
+  WHERE is_active = 'YES' AND delivery_round_university_enabled = TRUE;
+
+DROP INDEX IF EXISTS idx_stores_active_campus;
+CREATE INDEX IF NOT EXISTS idx_stores_active_campus
+  ON stores(store_id)
+  WHERE is_active = 'YES' AND campus_enabled = TRUE;

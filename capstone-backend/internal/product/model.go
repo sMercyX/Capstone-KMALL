@@ -16,4 +16,5 @@ type Product struct {
 	StoreID     int       `db:"store_id"    json:"store_id"`
 	CategoryID  int       `db:"category_id" json:"category_id"`
 	StoreName   string    `db:"store_name" json:"store_name"`
+	SoldCount   int64     `db:"sold_count"  json:"sold_count"`
 }
