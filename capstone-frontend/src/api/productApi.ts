@@ -1,26 +1,8 @@
-// api/productApi.ts
+// src/api/productApi.ts
 import { useCrudApi } from "../utils/fetch"
 import type { ApiCreateResponse, ApiUpdatedResponse, PaginatedResponse, ApiResponse } from "./responseType"
 
 export type CategoryType = "food" | "clothing" | "handmade-products"
-
-// export interface Product {
-//   id: number
-//   name: string
-//   slug: string
-//   is_active: "YES" | "NO"
-//   created_at: string
-//   updated_at: string
-
-//   // FE-only fields
-//   image?: string
-//   price?: number
-//   rating?: number
-//   ratingCount?: number
-//   shop?: string
-//   badge?: string
-//   category?: string
-// }
 
 export interface Product {
   id: number
@@ -116,6 +98,20 @@ export function useProductApi() {
     }
     return http.getItems(url)
   }
+  
+  async function searchProducts(
+    q: string,
+    limit: number,
+    pageIndex: number,
+    price?: string,
+    parentCategoryId?: number
+  ): Promise<ProductListResponse> {
+    let url = `/products/public?q=${encodeURIComponent(q)}&limit=${limit}&page=${pageIndex}`
+    if (price) url += `&price=${price}`
+    if (parentCategoryId) url += `&parent_category_id=${parentCategoryId}`
+    return http.getItems(url)
+  }
+
   async function getProductsStoreByStoreId(
     storeId: number,
     limit: number,
@@ -186,6 +182,7 @@ export function useProductApi() {
     getProductBySlug,
     getProductsByStore,
     getProductsByParentId,
+    searchProducts, // Add searchProducts here
     getProductsStoreByStoreId,
     addProduct,
     getProduct,

@@ -12,6 +12,7 @@ import ProtectedRoute from "../components/ProtectedRoute/ProtectedRoute"
 const Dashboard = lazy(() => import("../modules/DashBoard/Dashboard"))
 const LandingPage = lazy(() => import("../modules/LandingPage/LandingPage"))
 const CategoryPage = lazy(() => import("../modules/CategoryPage/CategoryPage"))
+const SearchPage = lazy(() => import("../modules/SearchPage/SearchPage"))
 
 const StorePage = lazy(() => import("../modules/StorePage/StorePage"))
 const StoreSellerPage = lazy(
@@ -55,6 +56,14 @@ export default function AppRoutes() {
                   {/* <AllowedCategoryRoute> */}
                   <CategoryPage />
                   {/* </AllowedCategoryRoute> */}
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/search"
+              element={
+                <ProtectedRoute>
+                  <SearchPage />
                 </ProtectedRoute>
               }
             />

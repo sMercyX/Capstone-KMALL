@@ -6,6 +6,7 @@ import { useCartApi } from "../../api/cartApi"
 import { useCartStore } from "../../stores/cartStore"
 import CartDropdown from "./CartDropdown"
 import UserDropdown from "./UserDropdown"
+import SearchBar from "./SearchBar"
 import kmallLogo from "../../assets/kmutt.svg"
 import kmallText from "../../assets/kmutt-text.svg"
 
@@ -62,15 +63,7 @@ export default function Navbar() {
         </Link>
 
         {/* CENTER: Search */}
-        {/* <div className="flex justify-center w-[50%]">
-          <div className="relative w-full">
-            <input
-              type="text"
-              placeholder="Search for anything..."
-              className="w-full rounded-full border border-gray-300 pl-4 pr-10 py-2 focus:outline-none focus:ring-2 focus:ring-orange-500"
-            />
-          </div>
-        </div> */}
+        <SearchBar />
 
         {/* RIGHT: Cart + User */}
         <div className="flex items-center gap-4">
