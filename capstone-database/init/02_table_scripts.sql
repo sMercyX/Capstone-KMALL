@@ -157,10 +157,11 @@ CREATE TABLE IF NOT EXISTS orders (
   status VARCHAR(45) NOT NULL
     CHECK (
       status IN (
-        'Pending Seller Confirmation',
-        'Awaiting Buyer Confirmation',
-        'Ready for Pickup',
-        'Ready for Delivery',
+        'Pending',
+        'Proposed',
+        'Accepted',
+        'Out For Delivery',
+        'Arrived',
         'Completed',
         'Cancelled'
       )
@@ -174,9 +175,9 @@ CREATE TABLE IF NOT EXISTS orders (
   delivery_method VARCHAR(20) NOT NULL DEFAULT 'ROUND_UNIVERSITY'
     CHECK (delivery_method IN ('ROUND_UNIVERSITY','CAMPUS')),
 
-  delivery_address_id BIGINT NULL,     
-  campus_location_id INT NULL,         
-  campus_detail_note VARCHAR(255) NULL, 
+  delivery_address_id BIGINT NULL,
+  campus_location_id INT NULL,
+  campus_detail_note VARCHAR(255) NULL,
 
   delivery_agreement_status VARCHAR(12) NOT NULL DEFAULT 'NONE'
     CHECK (delivery_agreement_status IN ('NONE','PROPOSED','CONFIRMED')),
@@ -225,6 +226,20 @@ CREATE TABLE IF NOT EXISTS orders (
     deliver_at_start IS NULL
     OR deliver_at_end IS NULL
     OR deliver_at_start <= deliver_at_end
+  ),
+
+  CONSTRAINT chk_proposed_requires_time CHECK (
+    status <> 'Proposed'
+    OR (deliver_at_start IS NOT NULL AND deliver_at_end IS NOT NULL)
+  ),
+
+  CONSTRAINT chk_accepted_requires_confirm CHECK (
+    status <> 'Accepted'
+    OR (
+      deliver_at_start IS NOT NULL
+      AND deliver_at_end IS NOT NULL
+      AND delivery_confirmed_at IS NOT NULL
+    )
   ),
 
   CONSTRAINT chk_confirm_requires_data CHECK (

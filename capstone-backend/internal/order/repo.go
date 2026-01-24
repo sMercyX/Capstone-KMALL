@@ -44,6 +44,11 @@ type OrderCreateParams struct {
 	TotalPrice float64
 	UserID     string
 	StoreID    int
+
+	DeliveryMethod    string
+	DeliveryAddressID *int64
+	CampusLocationID  *int
+	CampusDetailNote  *string
 }
 
 type OrderItemCreateParams struct {
@@ -70,6 +75,11 @@ func scanOrder(row pgx.Row, o *Order) error {
 		&o.CancelledAt,
 		&o.UserID,
 		&o.StoreID,
+
+		&o.DeliveryMethod,
+		&o.DeliveryAddressID,
+		&o.CampusLocationID,
+		&o.CampusDetailNote,
 	)
 }
 
@@ -123,11 +133,29 @@ func (r *repo) CreateOrderWithItems(
 
 	var ord Order
 	err = scanOrder(tx.QueryRow(ctx, `
-		INSERT INTO orders (status, total_price, user_id, store_id)
-		VALUES ($1, $2, $3, $4)
-		RETURNING order_id, status, total_price, order_date, updated_at,
-		          cancelled_at, user_id, store_id;
-	`, in.Status, in.TotalPrice, in.UserID, in.StoreID), &ord)
+	INSERT INTO orders (
+		status, total_price, user_id, store_id,
+		delivery_method, delivery_address_id,
+		campus_location_id, campus_detail_note
+	)
+	VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
+	RETURNING
+  order_id, status, total_price, order_date, updated_at,
+  cancelled_at, user_id, store_id,
+  delivery_method, delivery_address_id,
+  campus_location_id, campus_detail_note;
+
+`,
+		in.Status,
+		in.TotalPrice,
+		in.UserID,
+		in.StoreID,
+		in.DeliveryMethod,
+		in.DeliveryAddressID,
+		in.CampusLocationID,
+		in.CampusDetailNote,
+	), &ord)
+
 	if err != nil {
 		if pgErr, ok := err.(*pgconn.PgError); ok {
 			if pgErr.Code == "23503" {
@@ -277,8 +305,12 @@ func (r *repo) UpdateOrderStatus(ctx context.Context, id int64, status string) (
 		SET status = $2,
 		    updated_at = NOW()
 		WHERE order_id = $1
-		RETURNING order_id, status, total_price, order_date, updated_at,
-		          cancelled_at, user_id, store_id;
+		RETURNING
+  order_id, status, total_price, order_date, updated_at,
+  cancelled_at, user_id, store_id,
+  delivery_method, delivery_address_id,
+  campus_location_id, campus_detail_note;
+
 	`, id, status), &ord)
 
 	if err != nil {
@@ -298,8 +330,12 @@ func (r *repo) CancelOrder(ctx context.Context, id int64) (Order, error) {
 		    updated_at = NOW(),
 		    cancelled_at = NOW()
 		WHERE order_id = $1
-		RETURNING order_id, status, total_price, order_date, updated_at,
-		          cancelled_at, user_id, store_id;
+		RETURNING
+  order_id, status, total_price, order_date, updated_at,
+  cancelled_at, user_id, store_id,
+  delivery_method, delivery_address_id,
+  campus_location_id, campus_detail_note;
+
 	`, id), &ord)
 
 	if err != nil {
@@ -313,9 +349,13 @@ func (r *repo) CancelOrder(ctx context.Context, id int64) (Order, error) {
 
 func (r *repo) ListByUserID(ctx context.Context, userID string, statuses []string) ([]Order, error) {
 	query := `
-		SELECT order_id, status, total_price, order_date, updated_at,
-		       cancelled_at, user_id, store_id
-		FROM orders
+		SELECT
+  order_id, status, total_price, order_date, updated_at,
+  cancelled_at, user_id, store_id,
+  delivery_method, delivery_address_id,
+  campus_location_id, campus_detail_note
+FROM orders
+
 		WHERE user_id = $1
 	`
 	args := []any{userID}
@@ -349,10 +389,14 @@ func (r *repo) ListByUserID(ctx context.Context, userID string, statuses []strin
 
 func (r *repo) ListByStoreID(ctx context.Context, storeID int64, statuses []string) ([]Order, error) {
 	query := `
-		SELECT order_id, status, total_price, order_date, updated_at,
-		       cancelled_at, user_id, store_id
-		FROM orders
-		WHERE store_id = $1
+		SELECT
+  order_id, status, total_price, order_date, updated_at,
+  cancelled_at, user_id, store_id,
+  delivery_method, delivery_address_id,
+  campus_location_id, campus_detail_note
+FROM orders
+WHERE store_id = $1
+
 	`
 	args := []any{storeID}
 

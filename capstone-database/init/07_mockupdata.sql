@@ -728,7 +728,6 @@ WHERE u.kms_id = 'dev-buyer-1'
 INSERT INTO campus_locations (name, area, latitude, longitude, is_active)
 SELECT 'KMUTT Main Gate', 'KMUTT', 13.6510000, 100.4960000, TRUE
 WHERE NOT EXISTS (SELECT 1 FROM campus_locations WHERE name = 'KMUTT Main Gate');
-
 DO $$
 DECLARE
   buyer_uuid UUID;
@@ -743,6 +742,9 @@ DECLARE
   sub NUMERIC(10,2);
 
   dm VARCHAR(20);
+
+  t_start TIMESTAMPTZ;
+  t_end   TIMESTAMPTZ;
 BEGIN
   -- buyer
   SELECT user_id INTO buyer_uuid FROM users WHERE kms_id = 'dev-buyer-1' LIMIT 1;
@@ -777,12 +779,19 @@ BEGIN
       dm := 'CAMPUS';
     END IF;
 
-    -- helper inline: create order + item
-    -- 1) Pending Seller Confirmation
+    -- ตั้งเวลานัดแบบมั่ว ๆ ให้ผ่าน constraint
+    t_start := NOW() + INTERVAL '1 day' + ((r.product_id % 5) * INTERVAL '1 hour');
+    t_end   := t_start + INTERVAL '30 minutes';
+
+    -- 1) Pending
     q := 1; sub := unit*q;
-    INSERT INTO orders (status, total_price, delivery_method, delivery_address_id, campus_location_id, user_id, store_id)
+    INSERT INTO orders (
+      status, total_price, delivery_method,
+      delivery_address_id, campus_location_id,
+      user_id, store_id
+    )
     VALUES (
-      'Pending Seller Confirmation', sub, dm,
+      'Pending', sub, dm,
       CASE WHEN dm='ROUND_UNIVERSITY' THEN addr_id ELSE NULL END,
       CASE WHEN dm='CAMPUS' THEN campus_id ELSE NULL END,
       buyer_uuid, r.store_id
@@ -792,13 +801,19 @@ BEGIN
     INSERT INTO order_items (quantity, unit_price, fulfillment_type, subtotal, order_id, product_id)
     VALUES (q, unit, 'STANDARD', sub, oid, r.product_id);
 
-    -- 2) Awaiting Buyer Confirmation
+    -- 2) Proposed (ต้องมี deliver_at_start/end)
     q := 1; sub := unit*q;
-    INSERT INTO orders (status, total_price, delivery_method, delivery_address_id, campus_location_id, user_id, store_id)
+    INSERT INTO orders (
+      status, total_price, delivery_method,
+      delivery_address_id, campus_location_id,
+      deliver_at_start, deliver_at_end,
+      user_id, store_id
+    )
     VALUES (
-      'Awaiting Buyer Confirmation', sub, dm,
+      'Proposed', sub, dm,
       CASE WHEN dm='ROUND_UNIVERSITY' THEN addr_id ELSE NULL END,
       CASE WHEN dm='CAMPUS' THEN campus_id ELSE NULL END,
+      t_start, t_end,
       buyer_uuid, r.store_id
     )
     RETURNING order_id INTO oid;
@@ -806,14 +821,19 @@ BEGIN
     INSERT INTO order_items (quantity, unit_price, fulfillment_type, subtotal, order_id, product_id)
     VALUES (q, unit, 'STANDARD', sub, oid, r.product_id);
 
-    -- 3) Ready (เลือกเป็น Pickup หรือ Delivery ตาม delivery_method)
+    -- 3) Accepted (ต้องมี deliver_at_start/end + delivery_confirmed_at)
     q := 1; sub := unit*q;
-    INSERT INTO orders (status, total_price, delivery_method, delivery_address_id, campus_location_id, user_id, store_id)
+    INSERT INTO orders (
+      status, total_price, delivery_method,
+      delivery_address_id, campus_location_id,
+      deliver_at_start, deliver_at_end, delivery_confirmed_at,
+      user_id, store_id
+    )
     VALUES (
-      CASE WHEN dm='CAMPUS' THEN 'Ready for Pickup' ELSE 'Ready for Delivery' END,
-      sub, dm,
+      'Accepted', sub, dm,
       CASE WHEN dm='ROUND_UNIVERSITY' THEN addr_id ELSE NULL END,
       CASE WHEN dm='CAMPUS' THEN campus_id ELSE NULL END,
+      t_start, t_end, NOW(),
       buyer_uuid, r.store_id
     )
     RETURNING order_id INTO oid;
@@ -823,7 +843,11 @@ BEGIN
 
     -- 4) Completed (อย่างน้อย 1)
     q := 1; sub := unit*q;
-    INSERT INTO orders (status, total_price, delivery_method, delivery_address_id, campus_location_id, user_id, store_id)
+    INSERT INTO orders (
+      status, total_price, delivery_method,
+      delivery_address_id, campus_location_id,
+      user_id, store_id
+    )
     VALUES (
       'Completed', sub, dm,
       CASE WHEN dm='ROUND_UNIVERSITY' THEN addr_id ELSE NULL END,
@@ -838,7 +862,8 @@ BEGIN
     -- 5) Cancelled (ต้องมี cancelled_at + cancelled_by)
     q := 1; sub := unit*q;
     INSERT INTO orders (
-      status, total_price, delivery_method, delivery_address_id, campus_location_id,
+      status, total_price, delivery_method,
+      delivery_address_id, campus_location_id,
       cancelled_at, cancelled_by, cancelled_reason,
       user_id, store_id
     )
@@ -854,10 +879,14 @@ BEGIN
     INSERT INTO order_items (quantity, unit_price, fulfillment_type, subtotal, order_id, product_id)
     VALUES (q, unit, 'STANDARD', sub, oid, r.product_id);
 
-    -- ===== Extra Completed (เพิ่ม sold_count ให้ต่างกัน) =====
+    -- ===== Extra Completed (เพิ่ม qty ให้ต่างกัน) =====
     q := (r.product_id % 3) + 2; -- 2..4
     sub := unit*q;
-    INSERT INTO orders (status, total_price, delivery_method, delivery_address_id, campus_location_id, user_id, store_id)
+    INSERT INTO orders (
+      status, total_price, delivery_method,
+      delivery_address_id, campus_location_id,
+      user_id, store_id
+    )
     VALUES (
       'Completed', sub, dm,
       CASE WHEN dm='ROUND_UNIVERSITY' THEN addr_id ELSE NULL END,
@@ -873,7 +902,8 @@ BEGIN
     q := (r.product_id % 2) + 1; -- 1..2
     sub := unit*q;
     INSERT INTO orders (
-      status, total_price, delivery_method, delivery_address_id, campus_location_id,
+      status, total_price, delivery_method,
+      delivery_address_id, campus_location_id,
       cancelled_at, cancelled_by, cancelled_reason,
       user_id, store_id
     )

@@ -50,20 +50,22 @@ func NewService(r Repo, c cart.Service, p product.Service) Service {
 // ============================================================================
 
 var allowedStatuses = map[string]struct{}{
-	"Pending Seller Confirmation": {},
-	"Awaiting Buyer Confirmation": {},
-	"Ready for Pickup":            {},
-	"Ready for Delivery":          {},
-	"Completed":                   {},
-	"Cancelled":                   {},
+	"Pending":          {},
+	"Proposed":         {},
+	"Accepted":         {},
+	"Out For Delivery": {},
+	"Arrived":          {},
+	"Completed":        {},
+	"Cancelled":        {},
 }
 
 var statusGroups = map[string][]string{
 	"active": {
-		"Pending Seller Confirmation",
-		"Awaiting Buyer Confirmation",
-		"Ready for Pickup",
-		"Ready for Delivery",
+		"Pending",
+		"Proposed",
+		"Accepted",
+		"Out For Delivery",
+		"Arrived",
 	},
 	"completed": {"Completed"},
 	"cancelled": {"Cancelled"},
@@ -104,6 +106,33 @@ func mapStatusGroup(group string) ([]string, error) {
 	return statuses, nil
 }
 
+func validateDelivery(in *CheckoutConfirmInput) error {
+	in.DeliveryMethod = strings.ToUpper(strings.TrimSpace(in.DeliveryMethod))
+	if in.DeliveryMethod == "" {
+		in.DeliveryMethod = "ROUND_UNIVERSITY"
+	}
+
+	switch in.DeliveryMethod {
+	case "CAMPUS":
+		if in.CampusLocationID == nil || *in.CampusLocationID <= 0 {
+			return apperr.New(apperr.BadRequest, "campus_location_id is required for CAMPUS")
+		}
+		in.DeliveryAddressID = nil
+
+	case "ROUND_UNIVERSITY":
+		if in.DeliveryAddressID == nil || *in.DeliveryAddressID <= 0 {
+			return apperr.New(apperr.BadRequest, "delivery_address_id is required for ROUND_UNIVERSITY")
+		}
+		in.CampusLocationID = nil
+		in.CampusDetailNote = nil
+
+	default:
+		return apperr.New(apperr.BadRequest, "delivery_method must be CAMPUS or ROUND_UNIVERSITY")
+	}
+
+	return nil
+}
+
 // ============================================================================
 // Service Methods
 // ============================================================================
@@ -116,6 +145,10 @@ func (s *service) CreateFromCart(ctx context.Context, userID string, in Checkout
 	if err := validateCheckoutInput(&in); err != nil {
 		return OrderWithItems{}, err
 	}
+	if err := validateDelivery(&in); err != nil {
+		return OrderWithItems{}, err
+	}
+
 	cw, err := s.cartSvc.GetCart(ctx, userID)
 	if err != nil {
 		return OrderWithItems{}, err
@@ -150,27 +183,28 @@ func (s *service) CreateFromCart(ctx context.Context, userID string, in Checkout
 		sub := unit * float64(ci.Quantity)
 		totalPrice += sub
 
-		promised := time.Time{}
-		if in.PromisedShipDate != nil {
-			promised = *in.PromisedShipDate
-		}
-
 		items = append(items, OrderItemCreateParams{
 			Quantity:         ci.Quantity,
 			UnitPrice:        unit,
 			FulfillmentType:  in.FulfillmentType,
 			Subtotal:         sub,
 			DepositAmount:    in.DepositAmount,
-			PromisedShipDate: promised,
+			PromisedShipDate: time.Time{},
 			ProductID:        ci.ProductID,
 		})
+
 	}
 
 	params := OrderCreateParams{
-		Status:     "Pending Seller Confirmation",
+		Status:     "Pending",
 		TotalPrice: totalPrice,
 		UserID:     userID,
 		StoreID:    storeID,
+
+		DeliveryMethod:    in.DeliveryMethod,
+		DeliveryAddressID: in.DeliveryAddressID,
+		CampusLocationID:  in.CampusLocationID,
+		CampusDetailNote:  in.CampusDetailNote,
 	}
 
 	ow, err := s.repo.CreateOrderWithItems(ctx, params, items)

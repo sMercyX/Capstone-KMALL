@@ -3,14 +3,20 @@ package order
 import "time"
 
 type Order struct {
-	ID          int       `json:"order_id"`
-	Status      string    `json:"status"`
-	TotalPrice  float64   `json:"total_price"`
-	OrderDate   time.Time `json:"order_date"`
-	UpdatedAt   time.Time `json:"updated_at"`
-	CancelledAt time.Time `json:"cancelled_at"`
-	UserID      string    `json:"user_id"`
-	StoreID     int       `json:"store_id"`
+	ID          int        `json:"id"`
+	Status      string     `json:"status"`
+	TotalPrice  float64    `json:"total_price"`
+	OrderDate   time.Time  `json:"order_date"`
+	UpdatedAt   time.Time  `json:"updated_at"`
+	CancelledAt *time.Time `json:"cancelled_at,omitempty"`
+
+	UserID  string `json:"user_id"`
+	StoreID int    `json:"store_id"`
+
+	DeliveryMethod    string  `json:"delivery_method"`
+	DeliveryAddressID *int64  `json:"delivery_address_id,omitempty"`
+	CampusLocationID  *int    `json:"campus_location_id,omitempty"`
+	CampusDetailNote  *string `json:"campus_detail_note,omitempty"`
 }
 
 type OrderItem struct {
@@ -56,7 +62,12 @@ type CancelOrderInput struct {
 }
 
 type CheckoutConfirmInput struct {
-	FulfillmentType  string     `json:"fulfillment_type"` // "STANDARD" / "EXPRESS"
-	PromisedShipDate *time.Time `json:"promised_ship_date,omitempty"`
-	DepositAmount    *float64   `json:"deposit_amount,omitempty"`
+	FulfillmentType string   `json:"fulfillment_type"`
+	DepositAmount   *float64 `json:"deposit_amount"`
+
+	DeliveryMethod    string `json:"delivery_method"`
+	DeliveryAddressID *int64 `json:"delivery_address_id,omitempty"`
+
+	CampusLocationID *int    `json:"campus_location_id,omitempty"`
+	CampusDetailNote *string `json:"campus_detail_note,omitempty"`
 }

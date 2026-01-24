@@ -79,9 +79,12 @@ func (h *Handler) Register(r *gin.RouterGroup) {
 // ============================================================================
 
 type checkoutConfirmReq struct {
-	FulfillmentType  string   `json:"fulfillment_type"`
-	PromisedShipDate *string  `json:"promised_ship_date,omitempty"`
-	DepositAmount    *float64 `json:"deposit_amount,omitempty"`
+	FulfillmentType   string   `json:"fulfillment_type"`
+	DepositAmount     *float64 `json:"deposit_amount,omitempty"`
+	DeliveryMethod    string   `json:"delivery_method"`
+	DeliveryAddressID *int64   `json:"delivery_address_id,omitempty"`
+	CampusLocationID  *int     `json:"campus_location_id,omitempty"`
+	CampusDetailNote  *string  `json:"campus_detail_note,omitempty"`
 }
 
 type statusUpdateReq struct {
@@ -216,8 +219,12 @@ func (h *Handler) createFromCart(c *gin.Context) {
 	}
 
 	svcIn := CheckoutConfirmInput{
-		FulfillmentType: in.FulfillmentType,
-		DepositAmount:   in.DepositAmount,
+		FulfillmentType:   in.FulfillmentType,
+		DepositAmount:     in.DepositAmount,
+		DeliveryMethod:    in.DeliveryMethod,
+		DeliveryAddressID: in.DeliveryAddressID,
+		CampusLocationID:  in.CampusLocationID,
+		CampusDetailNote:  in.CampusDetailNote,
 	}
 
 	result, err := h.svc.CreateFromCart(c.Request.Context(), userID, svcIn)
