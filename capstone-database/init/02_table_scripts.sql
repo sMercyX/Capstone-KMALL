@@ -155,36 +155,31 @@ CREATE TABLE IF NOT EXISTS orders (
   order_id SERIAL PRIMARY KEY,
 
   status VARCHAR(45) NOT NULL
-    CHECK (
-      status IN (
-        'Pending',
-        'Proposed',
-        'Accepted',
-        'Out For Delivery',
-        'Arrived',
-        'Completed',
-        'Cancelled'
-      )
-    ),
+    CHECK (status IN (
+      'Pending','Proposed','Accepted',
+      'Out For Delivery','Arrived',
+      'Completed','Cancelled'
+    )),
 
   total_price DECIMAL(10,2) NOT NULL,
 
   order_date TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
-  delivery_method VARCHAR(20) NOT NULL DEFAULT 'ROUND_UNIVERSITY'
+  delivery_method VARCHAR(20) NOT NULL
     CHECK (delivery_method IN ('ROUND_UNIVERSITY','CAMPUS')),
 
+  -- ROUND_UNIVERSITY
   delivery_address_id BIGINT NULL,
+
+  -- CAMPUS (optional note only, not required)
   campus_location_id INT NULL,
   campus_detail_note VARCHAR(255) NULL,
 
-  delivery_agreement_status VARCHAR(12) NOT NULL DEFAULT 'NONE'
-    CHECK (delivery_agreement_status IN ('NONE','PROPOSED','CONFIRMED')),
-
-  deliver_at_start TIMESTAMPTZ NULL,
-  deliver_at_end   TIMESTAMPTZ NULL,
-  delivery_confirmed_at TIMESTAMPTZ NULL,
+  -- Proposal (CAMPUS only)
+  proposed_at TIMESTAMPTZ NULL,
+  meeting_location_id INT NULL,
+  meeting_note VARCHAR(255) NULL,
 
   cancelled_at TIMESTAMPTZ NULL,
   cancelled_by VARCHAR(10)
@@ -194,69 +189,59 @@ CREATE TABLE IF NOT EXISTS orders (
   user_id UUID NOT NULL,
   store_id INT NOT NULL,
 
-  CONSTRAINT fk_orders_users1 FOREIGN KEY (user_id)
-    REFERENCES users (user_id)
-    ON DELETE CASCADE
-    ON UPDATE CASCADE,
+  -- ===== FK =====
+  FOREIGN KEY (user_id) REFERENCES users(user_id),
+  FOREIGN KEY (store_id) REFERENCES stores(store_id),
+  FOREIGN KEY (delivery_address_id) REFERENCES user_addresses(address_id),
+  FOREIGN KEY (meeting_location_id) REFERENCES campus_locations(campus_location_id),
 
-  CONSTRAINT fk_orders_stores1 FOREIGN KEY (store_id)
-    REFERENCES stores (store_id)
-    ON DELETE CASCADE
-    ON UPDATE CASCADE,
-
-  CONSTRAINT fk_orders_delivery_address FOREIGN KEY (delivery_address_id)
-    REFERENCES user_addresses (address_id)
-    ON DELETE RESTRICT,
-
-  CONSTRAINT fk_orders_campus_location FOREIGN KEY (campus_location_id)
-    REFERENCES campus_locations (campus_location_id)
-    ON DELETE RESTRICT,
-
-  CONSTRAINT chk_delivery_destination_required CHECK (
+  -- ===== destination rules =====
+  CONSTRAINT chk_destination_by_method CHECK (
     (delivery_method = 'ROUND_UNIVERSITY'
-      AND delivery_address_id IS NOT NULL
-      AND campus_location_id IS NULL)
+      AND delivery_address_id IS NOT NULL)
     OR
     (delivery_method = 'CAMPUS'
-      AND delivery_address_id IS NULL
-      AND campus_location_id IS NOT NULL)
+      AND delivery_address_id IS NULL)
   ),
 
-  CONSTRAINT chk_delivery_time_range CHECK (
-    deliver_at_start IS NULL
-    OR deliver_at_end IS NULL
-    OR deliver_at_start <= deliver_at_end
-  ),
-
-  CONSTRAINT chk_proposed_requires_time CHECK (
+  -- ===== Proposed: CAMPUS only =====
+  CONSTRAINT chk_proposed_requires_meeting CHECK (
     status <> 'Proposed'
-    OR (deliver_at_start IS NOT NULL AND deliver_at_end IS NOT NULL)
+    OR (
+      delivery_method = 'CAMPUS'
+      AND proposed_at IS NOT NULL
+      AND meeting_location_id IS NOT NULL
+    )
   ),
 
-  CONSTRAINT chk_accepted_requires_confirm CHECK (
+  -- ===== Accepted =====
+  CONSTRAINT chk_accepted_requires_data CHECK (
     status <> 'Accepted'
     OR (
-      deliver_at_start IS NOT NULL
-      AND deliver_at_end IS NOT NULL
-      AND delivery_confirmed_at IS NOT NULL
+      (delivery_method = 'CAMPUS'
+        AND proposed_at IS NOT NULL
+        AND meeting_location_id IS NOT NULL)
+      OR
+      (delivery_method = 'ROUND_UNIVERSITY')
     )
   ),
 
-  CONSTRAINT chk_confirm_requires_data CHECK (
-    delivery_agreement_status <> 'CONFIRMED'
+  -- ===== ROUND_UNIVERSITY must not have proposal =====
+  CONSTRAINT chk_round_uni_no_proposal CHECK (
+    delivery_method <> 'ROUND_UNIVERSITY'
     OR (
-      delivery_confirmed_at IS NOT NULL
-      AND deliver_at_start IS NOT NULL
-      AND deliver_at_end IS NOT NULL
+      proposed_at IS NULL
+      AND meeting_location_id IS NULL
+      AND meeting_note IS NULL
     )
   ),
 
-  CONSTRAINT chk_cancel_meta_required CHECK (
+  -- ===== Cancel =====
+  CONSTRAINT chk_cancel_meta CHECK (
     status <> 'Cancelled'
     OR (cancelled_at IS NOT NULL AND cancelled_by IS NOT NULL)
   )
 );
-
 
 
 -- ========= ORDER_ITEMS =========

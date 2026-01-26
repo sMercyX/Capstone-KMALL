@@ -139,21 +139,27 @@ func validateDelivery(in *CheckoutConfirmInput) error {
 	}
 
 	switch in.DeliveryMethod {
+
 	case "CAMPUS":
-		if in.CampusLocationID == nil || *in.CampusLocationID <= 0 {
-			return apperr.New(apperr.BadRequest, "campus_location_id is required for CAMPUS")
-		}
 		in.DeliveryAddressID = nil
+		in.CampusLocationID = nil
+		in.CampusDetailNote = nil
 
 	case "ROUND_UNIVERSITY":
 		if in.DeliveryAddressID == nil || *in.DeliveryAddressID <= 0 {
-			return apperr.New(apperr.BadRequest, "delivery_address_id is required for ROUND_UNIVERSITY")
+			return apperr.New(
+				apperr.BadRequest,
+				"delivery_address_id is required for ROUND_UNIVERSITY",
+			)
 		}
 		in.CampusLocationID = nil
 		in.CampusDetailNote = nil
 
 	default:
-		return apperr.New(apperr.BadRequest, "delivery_method must be CAMPUS or ROUND_UNIVERSITY")
+		return apperr.New(
+			apperr.BadRequest,
+			"delivery_method must be CAMPUS or ROUND_UNIVERSITY",
+		)
 	}
 
 	return nil
