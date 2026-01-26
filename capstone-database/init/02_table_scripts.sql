@@ -172,7 +172,7 @@ CREATE TABLE IF NOT EXISTS orders (
   -- ROUND_UNIVERSITY
   delivery_address_id BIGINT NULL,
 
-  -- CAMPUS (optional note only, not required)
+  -- CAMPUS (optional note only)
   campus_location_id INT NULL,
   campus_detail_note VARCHAR(255) NULL,
 
@@ -184,24 +184,29 @@ CREATE TABLE IF NOT EXISTS orders (
   cancelled_at TIMESTAMPTZ NULL,
   cancelled_by VARCHAR(10)
     CHECK (cancelled_by IN ('BUYER','SELLER','SYSTEM')),
-  cancelled_reason VARCHAR(255),
+  cancelled_reason VARCHAR(255) NULL,
 
   user_id UUID NOT NULL,
   store_id INT NOT NULL,
 
   -- ===== FK =====
-  FOREIGN KEY (user_id) REFERENCES users(user_id),
-  FOREIGN KEY (store_id) REFERENCES stores(store_id),
-  FOREIGN KEY (delivery_address_id) REFERENCES user_addresses(address_id),
-  FOREIGN KEY (meeting_location_id) REFERENCES campus_locations(campus_location_id),
+  CONSTRAINT fk_orders_users
+    FOREIGN KEY (user_id) REFERENCES users(user_id),
+
+  CONSTRAINT fk_orders_stores
+    FOREIGN KEY (store_id) REFERENCES stores(store_id),
+
+  CONSTRAINT fk_orders_delivery_address
+    FOREIGN KEY (delivery_address_id) REFERENCES user_addresses(address_id),
+
+  CONSTRAINT fk_orders_meeting_location
+    FOREIGN KEY (meeting_location_id) REFERENCES campus_locations(campus_location_id),
 
   -- ===== destination rules =====
   CONSTRAINT chk_destination_by_method CHECK (
-    (delivery_method = 'ROUND_UNIVERSITY'
-      AND delivery_address_id IS NOT NULL)
+    (delivery_method = 'ROUND_UNIVERSITY' AND delivery_address_id IS NOT NULL)
     OR
-    (delivery_method = 'CAMPUS'
-      AND delivery_address_id IS NULL)
+    (delivery_method = 'CAMPUS' AND delivery_address_id IS NULL)
   ),
 
   -- ===== Proposed: CAMPUS only =====
@@ -236,10 +241,15 @@ CREATE TABLE IF NOT EXISTS orders (
     )
   ),
 
-  -- ===== Cancel =====
+  -- ===== Cancel (บังคับ reason แบบข้อความ ไม่ใช้ dropdown) =====
   CONSTRAINT chk_cancel_meta CHECK (
     status <> 'Cancelled'
-    OR (cancelled_at IS NOT NULL AND cancelled_by IS NOT NULL)
+    OR (
+      cancelled_at IS NOT NULL
+      AND cancelled_by IS NOT NULL
+      AND cancelled_reason IS NOT NULL
+      AND btrim(cancelled_reason) <> ''
+    )
   )
 );
 

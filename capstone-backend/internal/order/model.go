@@ -10,13 +10,17 @@ type Order struct {
 	UpdatedAt   time.Time  `json:"updated_at"`
 	CancelledAt *time.Time `json:"cancelled_at,omitempty"`
 
+	CancelledBy     *string `json:"cancelled_by,omitempty"`
+	CancelledReason *string `json:"cancelled_reason,omitempty"`
+
 	UserID  string `json:"user_id"`
 	StoreID int    `json:"store_id"`
 
-	DeliveryMethod    string     `json:"delivery_method"`
-	DeliveryAddressID *int64     `json:"delivery_address_id,omitempty"`
-	CampusLocationID  *int       `json:"campus_location_id,omitempty"`
-	CampusDetailNote  *string    `json:"campus_detail_note,omitempty"`
+	DeliveryMethod    string  `json:"delivery_method"`
+	DeliveryAddressID *int64  `json:"delivery_address_id,omitempty"`
+	CampusLocationID  *int    `json:"campus_location_id,omitempty"`
+	CampusDetailNote  *string `json:"campus_detail_note,omitempty"`
+
 	ProposedAt        *time.Time `json:"proposed_at,omitempty"`
 	MeetingLocationID *int       `json:"meeting_location_id,omitempty"`
 	MeetingNote       *string    `json:"meeting_note,omitempty"`

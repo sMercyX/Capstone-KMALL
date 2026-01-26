@@ -43,10 +43,10 @@ type Service interface {
 		id int64,
 		in AcceptProposedInput,
 	) (Order, error)
-	Cancel(
-		ctx context.Context,
+	Cancel(ctx context.Context,
 		actorUserID string,
 		id int64,
+		reason string,
 	) (Order, error)
 	ListBuyerOrders(
 		ctx context.Context,
@@ -378,14 +378,18 @@ func allowedBuyerTransition(from, to string) bool {
 	}
 }
 
-func (s *service) Cancel(ctx context.Context, actorUserID string, id int64) (Order, error) {
+func (s *service) Cancel(ctx context.Context, actorUserID string, id int64, reason string) (Order, error) {
 	actorUserID = strings.TrimSpace(actorUserID)
+	reason = strings.TrimSpace(reason)
+
 	if actorUserID == "" {
 		return Order{}, apperr.New(apperr.BadRequest, "invalid actor_user_id")
 	}
-
 	if id <= 0 {
 		return Order{}, apperr.New(apperr.BadRequest, "invalid order_id")
+	}
+	if reason == "" {
+		return Order{}, apperr.New(apperr.BadRequest, "cancel reason is required")
 	}
 
 	ord, err := s.repo.GetOrder(ctx, id)
@@ -393,21 +397,54 @@ func (s *service) Cancel(ctx context.Context, actorUserID string, id int64) (Ord
 		return Order{}, err
 	}
 
+	if ord.Status == "Completed" || ord.Status == "Cancelled" {
+		return Order{}, apperr.New(apperr.BadRequest, "cannot cancel completed or cancelled order")
+	}
+
 	isBuyer := s.isBuyer(ord, actorUserID)
 	isSeller, err := s.isStoreOwner(ctx, ord, actorUserID)
 	if err != nil {
 		return Order{}, err
 	}
-
 	if !isBuyer && !isSeller {
 		return Order{}, apperr.New(apperr.Forbidden, "not allowed to cancel")
 	}
 
-	if ord.Status == "Completed" || ord.Status == "Cancelled" {
-		return Order{}, apperr.New(apperr.BadRequest, "cannot cancel completed or cancelled order")
+	// ===== branch ตาม delivery_method =====
+	switch ord.DeliveryMethod {
+
+	case "CAMPUS":
+		// Rule: CAMPUS
+		switch ord.Status {
+		case "Pending", "Proposed":
+			// Buyer/Seller cancel ได้
+		case "Accepted", "Out For Delivery", "Arrived":
+			// Seller เท่านั้น
+			if !isSeller {
+				return Order{}, apperr.New(apperr.Forbidden, "buyer cannot cancel after accepted (campus)")
+			}
+		default:
+			return Order{}, apperr.New(apperr.BadRequest, "cannot cancel in current status (campus)")
+		}
+
+	case "ROUND_UNIVERSITY":
+		// TODO: ยังไม่ finalize rule ของ round university
+		// ตอนนี้ใช้ rule เดิมชั่วคราว: Buyer/Seller cancel ได้จนกว่าจะ Completed/Cancelled
+		// (คุณจะมาเปลี่ยน logic ทีหลังได้)
+		// nothing
+
+	default:
+		return Order{}, apperr.New(apperr.BadRequest, "invalid delivery_method")
 	}
 
-	return s.repo.CancelOrder(ctx, id)
+	cancelledBy := "SYSTEM"
+	if isSeller {
+		cancelledBy = "SELLER"
+	} else if isBuyer {
+		cancelledBy = "BUYER"
+	}
+
+	return s.repo.CancelOrder(ctx, id, cancelledBy, reason)
 }
 
 func (s *service) ListBuyerOrders(ctx context.Context, userID string, statusGroup string) ([]Order, error) {

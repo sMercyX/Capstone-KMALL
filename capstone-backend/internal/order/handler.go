@@ -344,7 +344,13 @@ func (h *Handler) cancelOrder(c *gin.Context) {
 		return
 	}
 
-	cancelled, err := h.svc.Cancel(c.Request.Context(), userID, id)
+	var in CancelOrderInput
+	if err := c.ShouldBindJSON(&in); err != nil {
+		c.Error(apperr.New(apperr.BadRequest, "bad json"))
+		return
+	}
+
+	cancelled, err := h.svc.Cancel(c.Request.Context(), userID, id, in.Reason)
 	if err != nil {
 		c.Error(err)
 		return

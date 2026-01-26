@@ -371,3 +371,47 @@ CREATE TRIGGER trg_log_order_status_change
 BEFORE UPDATE OF status ON orders
 FOR EACH ROW
 EXECUTE FUNCTION log_order_status_change();
+
+CREATE OR REPLACE FUNCTION enforce_cancel_rules()
+RETURNS trigger
+LANGUAGE plpgsql
+AS $$
+BEGIN
+  IF NEW.status = 'Cancelled' THEN
+
+    -- ห้าม cancel ถ้าเดิมเป็น Completed/Cancelled (ใช้ทุก method)
+    IF OLD.status IN ('Completed','Cancelled') THEN
+      RAISE EXCEPTION 'cannot cancel from status %', OLD.status;
+    END IF;
+
+    -- enforce เฉพาะ CAMPUS
+    IF OLD.delivery_method = 'CAMPUS' THEN
+
+      -- Buyer ยกเลิกได้เฉพาะ Pending/Proposed
+      IF NEW.cancelled_by = 'BUYER' AND OLD.status NOT IN ('Pending','Proposed') THEN
+        RAISE EXCEPTION 'buyer cannot cancel when status is % (campus)', OLD.status;
+      END IF;
+
+      -- Seller ยกเลิกได้ถึง Arrived
+      IF NEW.cancelled_by = 'SELLER'
+         AND OLD.status NOT IN ('Pending','Proposed','Accepted','Out For Delivery','Arrived') THEN
+        RAISE EXCEPTION 'seller cannot cancel when status is % (campus)', OLD.status;
+      END IF;
+
+    ELSE
+      -- ROUND_UNIVERSITY: ยังไม่ enforce rule พิเศษตอนนี้ (ปล่อยผ่าน)
+      NULL;
+    END IF;
+
+  END IF;
+
+  RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS trg_enforce_cancel_rules ON orders;
+
+CREATE TRIGGER trg_enforce_cancel_rules
+BEFORE UPDATE OF status ON orders
+FOR EACH ROW
+EXECUTE FUNCTION enforce_cancel_rules();
