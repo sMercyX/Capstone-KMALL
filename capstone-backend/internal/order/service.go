@@ -8,6 +8,7 @@ import (
 	apperr "github.com/Perpasit/Capstone-KMALL/internal/apperr"
 	"github.com/Perpasit/Capstone-KMALL/internal/cart"
 	"github.com/Perpasit/Capstone-KMALL/internal/product"
+	"github.com/Perpasit/Capstone-KMALL/internal/store"
 )
 
 // ============================================================================
@@ -24,25 +25,50 @@ type OrderStatusUpdateInput struct {
 type Service interface {
 	CreateFromCart(ctx context.Context, userID string, in CheckoutConfirmInput) (OrderWithItems, error)
 	GetOrderWithItems(ctx context.Context, id int64) (OrderWithItems, error)
-	UpdateStatus(ctx context.Context, id int64, in OrderStatusUpdateInput) (Order, error)
-	Cancel(ctx context.Context, id int64) (Order, error)
-
-	ListBuyerOrders(ctx context.Context, userID string, statusGroup string) ([]Order, error)
-	ListStoreOrders(ctx context.Context, storeID int64, statusGroup string) ([]Order, error)
+	UpdateStatus(
+		ctx context.Context,
+		actorUserID string,
+		id int64,
+		in OrderStatusUpdateInput,
+	) (Order, error)
+	Propose(
+		ctx context.Context,
+		actorUserID string,
+		id int64,
+		in ProposeSuggestInput,
+	) (Order, error)
+	AcceptProposed(
+		ctx context.Context,
+		actorUserID string,
+		id int64,
+		in AcceptProposedInput,
+	) (Order, error)
+	Cancel(
+		ctx context.Context,
+		actorUserID string,
+		id int64,
+	) (Order, error)
+	ListBuyerOrders(
+		ctx context.Context,
+		userID string,
+		statusGroup string,
+	) ([]Order, error)
+	ListStoreOrders(
+		ctx context.Context,
+		storeID int64,
+		statusGroup string,
+	) ([]Order, error)
 }
 
 type service struct {
 	repo       Repo
 	cartSvc    cart.Service
 	productSvc product.Service
+	storeSvc   store.Service
 }
 
-func NewService(r Repo, c cart.Service, p product.Service) Service {
-	return &service{
-		repo:       r,
-		cartSvc:    c,
-		productSvc: p,
-	}
+func NewService(r Repo, c cart.Service, p product.Service, st store.Service) Service {
+	return &service{repo: r, cartSvc: c, productSvc: p, storeSvc: st}
 }
 
 // ============================================================================
@@ -131,6 +157,28 @@ func validateDelivery(in *CheckoutConfirmInput) error {
 	}
 
 	return nil
+}
+
+func validateProposeInput(in ProposeSuggestInput) error {
+	if in.ProposedAt.IsZero() {
+		return apperr.New(apperr.BadRequest, "proposed_at is required")
+	}
+	if in.MeetingLocationID == nil || *in.MeetingLocationID <= 0 {
+		return apperr.New(apperr.BadRequest, "meeting_location_id is required")
+	}
+	return nil
+}
+
+func (s *service) isBuyer(ord Order, actorUserID string) bool {
+	return ord.UserID == actorUserID
+}
+
+func (s *service) isStoreOwner(ctx context.Context, ord Order, actorUserID string) (bool, error) {
+	st, err := s.storeSvc.Get(ctx, int64(ord.StoreID))
+	if err != nil {
+		return false, err
+	}
+	return strings.EqualFold(st.UserID.String(), actorUserID), nil
 }
 
 // ============================================================================
@@ -242,7 +290,12 @@ func (s *service) GetOrderWithItems(ctx context.Context, id int64) (OrderWithIte
 	}, nil
 }
 
-func (s *service) UpdateStatus(ctx context.Context, id int64, in OrderStatusUpdateInput) (Order, error) {
+func (s *service) UpdateStatus(ctx context.Context, actorUserID string, id int64, in OrderStatusUpdateInput) (Order, error) {
+	actorUserID = strings.TrimSpace(actorUserID)
+	if actorUserID == "" {
+		return Order{}, apperr.New(apperr.BadRequest, "invalid actor_user_id")
+	}
+
 	if id <= 0 {
 		return Order{}, apperr.New(apperr.BadRequest, "invalid order_id")
 	}
@@ -250,23 +303,105 @@ func (s *service) UpdateStatus(ctx context.Context, id int64, in OrderStatusUpda
 		return Order{}, err
 	}
 
-	ord, err := s.repo.UpdateOrderStatus(ctx, id, in.Status)
+	ord, err := s.repo.GetOrder(ctx, id)
 	if err != nil {
 		return Order{}, err
 	}
-	return ord, nil
+
+	isBuyer := s.isBuyer(ord, actorUserID)
+	isSeller, err := s.isStoreOwner(ctx, ord, actorUserID)
+	if err != nil {
+		return Order{}, err
+	}
+
+	if !isBuyer && !isSeller {
+		return Order{}, apperr.New(apperr.Forbidden, "not allowed")
+	}
+
+	from := ord.Status
+	to := in.Status
+
+	if from == "Completed" || from == "Cancelled" {
+		return Order{}, apperr.New(apperr.BadRequest, "cannot change status from completed/cancelled")
+	}
+
+	switch {
+	case isSeller:
+		// allow Pending->Accepted สำหรับ ROUND_UNIVERSITY
+		if from == "Pending" && strings.ToUpper(strings.TrimSpace(ord.DeliveryMethod)) == "ROUND_UNIVERSITY" {
+			if to != "Accepted" {
+				return Order{}, apperr.New(apperr.BadRequest, "ROUND_UNIVERSITY seller can only move Pending -> Accepted")
+			}
+			return s.repo.UpdateOrderStatus(ctx, id, to)
+		}
+
+		if !allowedSellerTransition(from, to) {
+			return Order{}, apperr.New(apperr.BadRequest, "seller cannot change status like this")
+		}
+
+	case isBuyer:
+		if !allowedBuyerTransition(from, to) {
+			return Order{}, apperr.New(apperr.BadRequest, "buyer cannot change status like this")
+		}
+	}
+
+	return s.repo.UpdateOrderStatus(ctx, id, to)
 }
 
-func (s *service) Cancel(ctx context.Context, id int64) (Order, error) {
+func allowedSellerTransition(from, to string) bool {
+	switch from {
+	case "Pending":
+		return to == "Proposed"
+	case "Accepted":
+		return to == "Out For Delivery"
+	case "Out For Delivery":
+		return to == "Arrived"
+	case "Arrived":
+		return to == "Completed"
+	default:
+		return false
+	}
+}
+
+func allowedBuyerTransition(from, to string) bool {
+	switch from {
+	case "Proposed":
+		return to == "Accepted"
+	default:
+		return false
+	}
+}
+
+func (s *service) Cancel(ctx context.Context, actorUserID string, id int64) (Order, error) {
+	actorUserID = strings.TrimSpace(actorUserID)
+	if actorUserID == "" {
+		return Order{}, apperr.New(apperr.BadRequest, "invalid actor_user_id")
+	}
+
 	if id <= 0 {
 		return Order{}, apperr.New(apperr.BadRequest, "invalid order_id")
 	}
 
-	ord, err := s.repo.CancelOrder(ctx, id)
+	ord, err := s.repo.GetOrder(ctx, id)
 	if err != nil {
 		return Order{}, err
 	}
-	return ord, nil
+
+	isBuyer := s.isBuyer(ord, actorUserID)
+	isSeller, err := s.isStoreOwner(ctx, ord, actorUserID)
+	if err != nil {
+		return Order{}, err
+	}
+
+	if !isBuyer && !isSeller {
+		return Order{}, apperr.New(apperr.Forbidden, "not allowed to cancel")
+	}
+
+	if ord.Status == "Completed" || ord.Status == "Cancelled" {
+		return Order{}, apperr.New(apperr.BadRequest, "cannot cancel completed or cancelled order")
+	}
+
+	return s.repo.CancelOrder(ctx, id)
 }
 
 func (s *service) ListBuyerOrders(ctx context.Context, userID string, statusGroup string) ([]Order, error) {
@@ -301,4 +436,71 @@ func (s *service) ListStoreOrders(ctx context.Context, storeID int64, statusGrou
 		return nil, err
 	}
 	return orders, nil
+}
+
+func (s *service) Propose(ctx context.Context, actorUserID string, id int64, in ProposeSuggestInput) (Order, error) {
+	actorUserID = strings.TrimSpace(actorUserID)
+	if actorUserID == "" {
+		return Order{}, apperr.New(apperr.BadRequest, "invalid actor_user_id")
+	}
+	if id <= 0 {
+		return Order{}, apperr.New(apperr.BadRequest, "invalid order_id")
+	}
+	if err := validateProposeInput(in); err != nil {
+		return Order{}, err
+	}
+
+	ord, err := s.repo.GetOrder(ctx, id)
+	if err != nil {
+		return Order{}, err
+	}
+
+	if strings.ToUpper(strings.TrimSpace(ord.DeliveryMethod)) != "CAMPUS" {
+		return Order{}, apperr.New(apperr.BadRequest, "propose is only available for CAMPUS orders")
+	}
+
+	isSeller, err := s.isStoreOwner(ctx, ord, actorUserID)
+	if err != nil {
+		return Order{}, err
+	}
+	if !isSeller {
+		return Order{}, apperr.New(apperr.Forbidden, "only store owner can propose")
+	}
+
+	if ord.Status != "Pending" {
+		return Order{}, apperr.New(apperr.BadRequest, "can propose only when status is Pending")
+	}
+
+	return s.repo.Propose(ctx, id, in.ProposedAt, in.MeetingLocationID, in.MeetingNote)
+}
+
+func (s *service) AcceptProposed(ctx context.Context, actorUserID string, id int64, in AcceptProposedInput) (Order, error) {
+	actorUserID = strings.TrimSpace(actorUserID)
+	if actorUserID == "" {
+		return Order{}, apperr.New(apperr.BadRequest, "invalid actor_user_id")
+	}
+	if id <= 0 {
+		return Order{}, apperr.New(apperr.BadRequest, "invalid order_id")
+	}
+
+	ord, err := s.repo.GetOrder(ctx, id)
+	if err != nil {
+		return Order{}, err
+	}
+
+	// CAMPUS เท่านั้นที่ต้อง accept proposal
+	if strings.ToUpper(strings.TrimSpace(ord.DeliveryMethod)) != "CAMPUS" {
+		return Order{}, apperr.New(apperr.BadRequest, "accept proposal is only available for CAMPUS orders")
+	}
+
+	isBuyer := s.isBuyer(ord, actorUserID)
+	if !isBuyer {
+		return Order{}, apperr.New(apperr.Forbidden, "only buyer can accept/reject proposal")
+	}
+
+	if ord.Status != "Proposed" {
+		return Order{}, apperr.New(apperr.BadRequest, "can accept/reject only when status is Proposed")
+	}
+
+	return s.repo.RespondProposal(ctx, id, in.Accept)
 }

@@ -25,6 +25,8 @@ type Repo interface {
 
 	ListByUserID(ctx context.Context, userID string, statuses []string) ([]Order, error)
 	ListByStoreID(ctx context.Context, storeID int64, statuses []string) ([]Order, error)
+	Propose(ctx context.Context, id int64, proposedAt time.Time, meetingLocationID *int, meetingNote *string) (Order, error)
+	RespondProposal(ctx context.Context, id int64, accept bool) (Order, error)
 }
 
 type repo struct {
@@ -80,6 +82,10 @@ func scanOrder(row pgx.Row, o *Order) error {
 		&o.DeliveryAddressID,
 		&o.CampusLocationID,
 		&o.CampusDetailNote,
+
+		&o.ProposedAt,
+		&o.MeetingLocationID,
+		&o.MeetingNote,
 	)
 }
 
@@ -134,17 +140,16 @@ func (r *repo) CreateOrderWithItems(
 	var ord Order
 	err = scanOrder(tx.QueryRow(ctx, `
 	INSERT INTO orders (
-		status, total_price, user_id, store_id,
-		delivery_method, delivery_address_id,
-		campus_location_id, campus_detail_note
-	)
-	VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
+  status, total_price, user_id, store_id,
+  delivery_method, delivery_address_id,
+  campus_location_id, campus_detail_note
+)
+VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
 	RETURNING
   order_id, status, total_price, order_date, updated_at,
   cancelled_at, user_id, store_id,
-  delivery_method, delivery_address_id,
-  campus_location_id, campus_detail_note;
-
+  delivery_method, delivery_address_id, campus_location_id, campus_detail_note,
+  proposed_at, meeting_location_id, meeting_note
 `,
 		in.Status,
 		in.TotalPrice,
@@ -182,16 +187,15 @@ func (r *repo) CreateOrderWithItems(
 
 		var oi OrderItem
 		err = scanOrderItem(tx.QueryRow(ctx, `
-			INSERT INTO order_items
-				(quantity, unit_price, fulfillment_type, subtotal,
-				 deposit_amount, promised_ship_date, order_id, product_id)
-			VALUES ($1, $2, $3, $4, $5,
-			        COALESCE($6, CURRENT_TIMESTAMP),
-			        $7, $8)
-			RETURNING order_item_id, quantity, unit_price, fulfillment_type,
-			          subtotal, deposit_amount, promised_ship_date,
-			          order_id, product_id;
-		`,
+  INSERT INTO order_items
+    (quantity, unit_price, fulfillment_type, subtotal,
+     deposit_amount, promised_ship_date, order_id, product_id)
+  VALUES ($1,$2,$3,$4,$5, COALESCE($6::timestamptz, CURRENT_TIMESTAMP), $7,$8)
+  RETURNING
+    order_item_id, quantity, unit_price, fulfillment_type,
+    subtotal, deposit_amount, promised_ship_date,
+    order_id, product_id;
+`,
 			it.Quantity,
 			it.UnitPrice,
 			it.FulfillmentType,
@@ -242,11 +246,14 @@ func (r *repo) CreateOrderWithItems(
 func (r *repo) GetOrder(ctx context.Context, id int64) (Order, error) {
 	var ord Order
 	err := scanOrder(r.db.QueryRow(ctx, `
-		SELECT order_id, status, total_price, order_date, updated_at,
-		       cancelled_at, user_id, store_id
-		FROM orders
-		WHERE order_id = $1;
-	`, id), &ord)
+  SELECT
+    order_id, status, total_price, order_date, updated_at,
+    cancelled_at, user_id, store_id,
+    delivery_method, delivery_address_id, campus_location_id, campus_detail_note,
+    proposed_at, meeting_location_id, meeting_note
+  FROM orders
+  WHERE order_id = $1;
+`, id), &ord)
 
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -301,17 +308,16 @@ func (r *repo) ListItemsByOrderID(ctx context.Context, orderID int64) ([]OrderIt
 func (r *repo) UpdateOrderStatus(ctx context.Context, id int64, status string) (Order, error) {
 	var ord Order
 	err := scanOrder(r.db.QueryRow(ctx, `
-		UPDATE orders
-		SET status = $2,
-		    updated_at = NOW()
-		WHERE order_id = $1
-		RETURNING
-  order_id, status, total_price, order_date, updated_at,
-  cancelled_at, user_id, store_id,
-  delivery_method, delivery_address_id,
-  campus_location_id, campus_detail_note;
-
-	`, id, status), &ord)
+  UPDATE orders
+  SET status = $2,
+      updated_at = NOW()
+  WHERE order_id = $1
+  RETURNING
+    order_id, status, total_price, order_date, updated_at,
+    cancelled_at, user_id, store_id,
+    delivery_method, delivery_address_id, campus_location_id, campus_detail_note,
+    proposed_at, meeting_location_id, meeting_note;
+`, id, status), &ord)
 
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -333,9 +339,8 @@ func (r *repo) CancelOrder(ctx context.Context, id int64) (Order, error) {
 		RETURNING
   order_id, status, total_price, order_date, updated_at,
   cancelled_at, user_id, store_id,
-  delivery_method, delivery_address_id,
-  campus_location_id, campus_detail_note;
-
+  delivery_method, delivery_address_id, campus_location_id, campus_detail_note,
+  proposed_at, meeting_location_id, meeting_note
 	`, id), &ord)
 
 	if err != nil {
@@ -353,7 +358,9 @@ func (r *repo) ListByUserID(ctx context.Context, userID string, statuses []strin
   order_id, status, total_price, order_date, updated_at,
   cancelled_at, user_id, store_id,
   delivery_method, delivery_address_id,
-  campus_location_id, campus_detail_note
+  campus_location_id, campus_detail_note,
+  proposed_at, meeting_location_id,
+  meeting_note
 FROM orders
 
 		WHERE user_id = $1
@@ -393,7 +400,10 @@ func (r *repo) ListByStoreID(ctx context.Context, storeID int64, statuses []stri
   order_id, status, total_price, order_date, updated_at,
   cancelled_at, user_id, store_id,
   delivery_method, delivery_address_id,
-  campus_location_id, campus_detail_note
+  campus_location_id, campus_detail_note,
+  proposed_at,
+meeting_location_id,
+ meeting_note
 FROM orders
 WHERE store_id = $1
 
@@ -425,4 +435,59 @@ WHERE store_id = $1
 		return nil, apperr.Wrap(apperr.Internal, err, "rows error")
 	}
 	return out, nil
+}
+
+func (r *repo) Propose(ctx context.Context, id int64, proposedAt time.Time, meetingLocationID *int, meetingNote *string) (Order, error) {
+	var ord Order
+	err := scanOrder(r.db.QueryRow(ctx, `
+		UPDATE orders
+		SET
+			status = 'Proposed',
+			proposed_at = $2,
+			meeting_location_id = $3,
+			meeting_note = $4,
+			updated_at = NOW()
+		WHERE order_id = $1
+		RETURNING
+			order_id, status, total_price, order_date, updated_at,
+			cancelled_at, user_id, store_id,
+			delivery_method, delivery_address_id, campus_location_id, campus_detail_note,
+			proposed_at, meeting_location_id, meeting_note;
+	`, id, proposedAt, meetingLocationID, meetingNote), &ord)
+
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return Order{}, apperr.New(apperr.NotFound, "order not found")
+		}
+		return Order{}, apperr.Wrap(apperr.Internal, err, "propose order failed")
+	}
+	return ord, nil
+}
+
+func (r *repo) RespondProposal(ctx context.Context, id int64, accept bool) (Order, error) {
+	var ord Order
+	err := scanOrder(r.db.QueryRow(ctx, `
+		UPDATE orders
+		SET
+			status = CASE WHEN $2 THEN 'Accepted' ELSE 'Pending' END,
+			-- ถ้า reject ให้ล้าง proposal เก่าออก เพื่อไม่ให้ data ค้าง
+			proposed_at = CASE WHEN $2 THEN proposed_at ELSE NULL END,
+			meeting_location_id = CASE WHEN $2 THEN meeting_location_id ELSE NULL END,
+			meeting_note = CASE WHEN $2 THEN meeting_note ELSE NULL END,
+			updated_at = NOW()
+		WHERE order_id = $1
+		RETURNING
+			order_id, status, total_price, order_date, updated_at,
+			cancelled_at, user_id, store_id,
+			delivery_method, delivery_address_id, campus_location_id, campus_detail_note,
+			proposed_at, meeting_location_id, meeting_note;
+	`, id, accept), &ord)
+
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return Order{}, apperr.New(apperr.NotFound, "order not found")
+		}
+		return Order{}, apperr.Wrap(apperr.Internal, err, "respond proposal failed")
+	}
+	return ord, nil
 }

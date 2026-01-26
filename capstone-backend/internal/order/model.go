@@ -13,10 +13,13 @@ type Order struct {
 	UserID  string `json:"user_id"`
 	StoreID int    `json:"store_id"`
 
-	DeliveryMethod    string  `json:"delivery_method"`
-	DeliveryAddressID *int64  `json:"delivery_address_id,omitempty"`
-	CampusLocationID  *int    `json:"campus_location_id,omitempty"`
-	CampusDetailNote  *string `json:"campus_detail_note,omitempty"`
+	DeliveryMethod    string     `json:"delivery_method"`
+	DeliveryAddressID *int64     `json:"delivery_address_id,omitempty"`
+	CampusLocationID  *int       `json:"campus_location_id,omitempty"`
+	CampusDetailNote  *string    `json:"campus_detail_note,omitempty"`
+	ProposedAt        *time.Time `json:"proposed_at,omitempty"`
+	MeetingLocationID *int       `json:"meeting_location_id,omitempty"`
+	MeetingNote       *string    `json:"meeting_note,omitempty"`
 }
 
 type OrderItem struct {
