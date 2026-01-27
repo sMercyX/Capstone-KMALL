@@ -19,10 +19,11 @@ EXECUTE FUNCTION user_email_to_lower();
 CREATE OR REPLACE FUNCTION update_updated_at_on_change()
 RETURNS TRIGGER AS $$
 BEGIN
-    IF NEW.email <> OLD.email OR NEW.display_name <> OLD.display_name THEN
-        NEW.updated_at = CURRENT_TIMESTAMP;
-    END IF;
-    RETURN NEW;
+  IF NEW.email IS DISTINCT FROM OLD.email
+     OR NEW.display_name IS DISTINCT FROM OLD.display_name THEN
+    NEW.updated_at = CURRENT_TIMESTAMP;
+  END IF;
+  RETURN NEW;
 END;
 $$ LANGUAGE plpgsql;
 
@@ -303,22 +304,6 @@ BEFORE INSERT ON product_images
 FOR EACH ROW
 EXECUTE FUNCTION product_image_primary_before();
 
--- touch thread.updated_at
-CREATE OR REPLACE FUNCTION touch_chat_thread_updated_at()
-RETURNS TRIGGER AS $$
-BEGIN
-  UPDATE order_chat_threads SET updated_at = NOW()
-  WHERE thread_id = NEW.thread_id;
-  RETURN NEW;
-END;
-$$ LANGUAGE plpgsql;
-
-DROP TRIGGER IF EXISTS trg_touch_chat_thread ON order_chat_messages;
-CREATE TRIGGER trg_touch_chat_thread
-AFTER INSERT ON order_chat_messages
-FOR EACH ROW
-EXECUTE FUNCTION touch_chat_thread_updated_at();
-
 -- ========= PRODUCT SEARCH TSV TRIGGER =========
 CREATE OR REPLACE FUNCTION products_tsv_update()
 RETURNS TRIGGER AS $$
@@ -415,3 +400,21 @@ CREATE TRIGGER trg_enforce_cancel_rules
 BEFORE UPDATE OF status ON orders
 FOR EACH ROW
 EXECUTE FUNCTION enforce_cancel_rules();
+
+-- ========= TRIGGER: touch thread.updated_at when new message arrives =========
+CREATE OR REPLACE FUNCTION touch_chat_thread_updated_at()
+RETURNS TRIGGER AS $$
+BEGIN
+  UPDATE order_chat_threads
+  SET updated_at = NOW()
+  WHERE thread_id = NEW.thread_id;
+
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS trg_touch_chat_thread ON order_chat_messages;
+CREATE TRIGGER trg_touch_chat_thread
+AFTER INSERT ON order_chat_messages
+FOR EACH ROW
+EXECUTE FUNCTION touch_chat_thread_updated_at();

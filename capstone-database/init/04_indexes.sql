@@ -225,3 +225,19 @@ DROP INDEX IF EXISTS idx_stores_active_campus;
 CREATE INDEX IF NOT EXISTS idx_stores_active_campus
   ON stores(store_id)
   WHERE is_active = 'YES' AND campus_enabled = TRUE;
+
+DROP INDEX IF EXISTS idx_chat_messages_thread_time;
+CREATE INDEX IF NOT EXISTS idx_chat_messages_thread_time
+  ON order_chat_messages(thread_id, created_at ASC);
+
+DROP INDEX IF EXISTS idx_chat_messages_thread_time_desc;
+CREATE INDEX IF NOT EXISTS idx_chat_messages_thread_time_desc
+  ON order_chat_messages(thread_id, created_at DESC);
+
+DROP INDEX IF EXISTS idx_chat_threads_order;
+CREATE INDEX IF NOT EXISTS idx_chat_threads_order
+  ON order_chat_threads(order_id);
+
+DROP INDEX IF EXISTS idx_chat_threads_updated_at;
+CREATE INDEX IF NOT EXISTS idx_chat_threads_updated_at
+  ON order_chat_threads(updated_at DESC);

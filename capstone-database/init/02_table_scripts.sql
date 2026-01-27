@@ -341,12 +341,25 @@ CREATE TABLE IF NOT EXISTS product_images (
 );
 
 
--- ========= ORDER CHAT: THREAD =========
+-- ========= ORDER CHAT: THREAD (1 order = 1 room) =========
 CREATE TABLE IF NOT EXISTS order_chat_threads (
   thread_id BIGSERIAL PRIMARY KEY,
-  order_id INT NOT NULL UNIQUE REFERENCES orders(order_id) ON DELETE CASCADE,
-  buyer_id UUID NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
-  seller_id UUID NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
+
+  -- 1 order ต่อ 1 thread
+  order_id INT NOT NULL UNIQUE
+    REFERENCES orders(order_id) ON DELETE CASCADE,
+
+  -- เก็บ store_id เพื่อ enforce seller = owner ของ store ใน order
+  store_id INT NOT NULL
+    REFERENCES stores(store_id) ON DELETE CASCADE,
+
+  -- participants
+  buyer_id UUID NOT NULL
+    REFERENCES users(user_id) ON DELETE CASCADE,
+
+  seller_id UUID NOT NULL
+    REFERENCES users(user_id) ON DELETE CASCADE,
+
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
@@ -354,19 +367,34 @@ CREATE TABLE IF NOT EXISTS order_chat_threads (
 -- ========= ORDER CHAT: MESSAGES =========
 CREATE TABLE IF NOT EXISTS order_chat_messages (
   message_id BIGSERIAL PRIMARY KEY,
-  thread_id BIGINT NOT NULL REFERENCES order_chat_threads(thread_id) ON DELETE CASCADE,
-  sender_id UUID NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
+
+  thread_id BIGINT NOT NULL
+    REFERENCES order_chat_threads(thread_id) ON DELETE CASCADE,
+
+  sender_id UUID NOT NULL
+    REFERENCES users(user_id) ON DELETE CASCADE,
+
   message_text TEXT NOT NULL,
-  message_type VARCHAR(20) NOT NULL DEFAULT 'TEXT' CHECK (message_type IN ('TEXT','SYSTEM')),
+
+  message_type VARCHAR(20) NOT NULL DEFAULT 'TEXT'
+    CHECK (message_type IN ('TEXT','SYSTEM')),
+
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
 -- ========= READ STATE =========
 CREATE TABLE IF NOT EXISTS order_chat_read_state (
-  thread_id BIGINT NOT NULL REFERENCES order_chat_threads(thread_id) ON DELETE CASCADE,
-  user_id UUID NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
-  last_read_message_id BIGINT NULL,
+  thread_id BIGINT NOT NULL
+    REFERENCES order_chat_threads(thread_id) ON DELETE CASCADE,
+
+  user_id UUID NOT NULL
+    REFERENCES users(user_id) ON DELETE CASCADE,
+
+  last_read_message_id BIGINT NULL
+    REFERENCES order_chat_messages(message_id) ON DELETE SET NULL,
+
   last_read_at TIMESTAMPTZ NULL,
+
   PRIMARY KEY (thread_id, user_id)
 );
 
