@@ -12,7 +12,6 @@ import { useCartStore } from "../../stores/cartStore"
 import { useCartApi } from "../../api/cartApi"
 import { useNavigate } from "react-router-dom"
 import ConfirmationModal from "../../components/Modal/ConfirmationModal"
-import { useCheckkOutApi, type orderCreatedRequest } from "../../api/checkOutApi"
 import { toast } from "react-toastify"
 import { resolveImageUrl } from "../../utils/resolve"
 import { handleApiError } from "../../utils/handleApiError"
@@ -162,14 +161,12 @@ function CartStoreBlock({
 
 export default function CartPage() {
   const { getCart, deleteItemCart, updateCart } = useCartApi()
-  const { cart, isLoading, error, startLoading, setCart, setError, reset } =
+  const { cart, isLoading, error, startLoading, setCart, setError } =
     useCartStore()
-  const { checkOutOrder } = useCheckkOutApi()
   const navigate = useNavigate()
 
   const [deleteId, setDeleteId] = useState<number | null>(null)
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false)
-  const [isSubmitting, setIsSubmitting] = useState(false)
 
   useEffect(() => {
     let cancelled = false
@@ -238,58 +235,6 @@ export default function CartPage() {
     }
   }
 
-  async function handleCheckout() {
-    if (!cart) return
-
-    try {
-      setIsSubmitting(true)
-      // Hardcoded shipping fee to match CheckoutPage logic for now
-      const shippingFee = 10 
-      // Recalculate total price here or use the one calculated below if accessible (it's not easily accessible inside this function without refactoring, so I'll rely on the passed total or recalculate if needed. 
-      // Actually, let's just use the calculated totalPrice from the render scope if we can, but functions are defined before render.
-      // Better to recalculate or pass it. For simplicity and correctness with current state:
-      
-      let currentTotalPrice = 0
-      if (cart) {
-         // Re-calculate locally to be safe
-         const storeMap = new Map<number, CartStore>()
-         for (const it of cart.items) {
-            const existing = storeMap.get(it.store_id)
-            const subtotal = it.subtotal
-            if (!existing) {
-                storeMap.set(it.store_id, { id: it.store_id, name: it.store_name, items: [], }) // dummy items
-                currentTotalPrice += subtotal
-            } else {
-                currentTotalPrice += subtotal
-            }
-         }
-         // Actually, simpler:
-         currentTotalPrice = cart.items.reduce((sum, item) => sum + item.subtotal, 0)
-      }
-
-      const grandTotal = currentTotalPrice + shippingFee
-
-      const payload: orderCreatedRequest = {
-        fulfillment_type: "STANDARD",
-        promised_ship_date: new Date().toISOString(),
-        deposit_amount: grandTotal,
-      }
-
-      const res = await checkOutOrder(payload)
-      console.log("Order created:", res.data.order)
-
-      reset()
-      toast.success(`ยืนยันออเดอร์สำเร็จ! เลขคำสั่งซื้อ #${res.data.order.order_id}`)
-      
-      // Navigate to orders page
-      navigate(`/orders/${res.data.order.order_id}`) 
-    } catch (err) {
-      console.error(err)
-      toast.error("ยืนยันออเดอร์ไม่สำเร็จ")
-    } finally {
-      setIsSubmitting(false)
-    }
-  }
 
   let uiStores: CartStore[] = []
   let totalItems = 0
@@ -397,11 +342,10 @@ export default function CartPage() {
           </div>
           
           <button
-            onClick={handleCheckout}
-            disabled={isSubmitting}
-            className="rounded-full bg-orange-500 px-8 py-3 text-base font-semibold text-white shadow-lg shadow-orange-200 transition-all hover:bg-orange-600 hover:scale-105 active:scale-95 disabled:opacity-70 disabled:cursor-not-allowed"
+            onClick={() => navigate("/checkout")}
+            className="rounded-full bg-orange-500 px-8 py-3 text-base font-semibold text-white shadow-lg shadow-orange-200 transition-all hover:bg-orange-600 hover:scale-105 active:scale-95"
           >
-            {isSubmitting ? "กำลังยืนยัน..." : "ยืนยันคำสั่งซื้อ"}
+            ถัดไป
           </button>
         </div>
       )}
