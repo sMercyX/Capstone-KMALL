@@ -456,25 +456,28 @@ WHERE store_id = $1
 func (r *repo) Propose(ctx context.Context, id int64, proposedAt time.Time, meetingLocationID *int, meetingNote *string) (Order, error) {
 	var ord Order
 	err := scanOrder(r.db.QueryRow(ctx, `
-		UPDATE orders
-		SET
-			status = 'Proposed',
-			proposed_at = $2,
-			meeting_location_id = $3,
-			meeting_note = $4,
-			updated_at = NOW()
-		WHERE order_id = $1
-		RETURNING
-  order_id, status, total_price, order_date, updated_at,
-  cancelled_at, cancelled_by, cancelled_reason,
-  user_id, store_id,
-  delivery_method, delivery_address_id, campus_location_id, campus_detail_note,
-  proposed_at, meeting_location_id, meeting_note
-	`, id, proposedAt, meetingLocationID, meetingNote), &ord)
+    UPDATE orders
+    SET
+      status = 'Proposed',
+      proposed_at = $2,
+      meeting_location_id = $3,
+      meeting_note = $4,
+      updated_at = NOW()
+    WHERE order_id = $1
+      AND status IN ('Pending','Proposed')
+    RETURNING
+      order_id, status, total_price, order_date, updated_at,
+      cancelled_at, cancelled_by, cancelled_reason,
+      user_id, store_id,
+      delivery_method, delivery_address_id, campus_location_id, campus_detail_note,
+      proposed_at, meeting_location_id, meeting_note
+  `, id, proposedAt, meetingLocationID, meetingNote), &ord)
 
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			return Order{}, apperr.New(apperr.NotFound, "order not found")
+			// ตรงนี้จะเกิดได้ทั้ง "ไม่เจอ order" หรือ "status ไม่อนุญาต (เช่น Accepted)"
+			// ถ้าอยากแยกให้ชัด ต้อง query สถานะอีกรอบหรือใช้ RETURNING status เดิมแบบอื่น
+			return Order{}, apperr.New(apperr.Conflict, "cannot propose in current status or order not found")
 		}
 		return Order{}, apperr.Wrap(apperr.Internal, err, "propose order failed")
 	}
