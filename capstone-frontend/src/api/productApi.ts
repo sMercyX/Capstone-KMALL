@@ -84,17 +84,25 @@ export function useProductApi() {
     categoryId: number,
     limit: number,
     pageIndex: number,
-    price?: string,
-    categoryIds?: number[]
+    sortBy?: string,
+    categoryIds?: number[],
+    minPrice?: number,
+    maxPrice?: number
   ): Promise<CategoryListResponse> {
     let url = `/products/public?parent_category_id=${categoryId}&limit=${limit}&page=${pageIndex}`
-    if (price) {
-      url += `&price=${price}`
+    if (sortBy) {
+      url += `&sort_by=${sortBy}`
     }
     if (categoryIds && categoryIds.length > 0) {
       categoryIds.forEach((id) => {
         url += `&category_id=${id}`
       })
+    }
+    if (minPrice !== undefined) {
+      url += `&min_price=${minPrice}`
+    }
+    if (maxPrice !== undefined) {
+      url += `&max_price=${maxPrice}`
     }
     return http.getItems(url)
   }

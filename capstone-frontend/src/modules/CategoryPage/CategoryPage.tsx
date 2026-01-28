@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react"
-import { useParams } from "react-router-dom"
+import { useParams, useLocation } from "react-router-dom"
 import { useProductApi } from "../../api/productApi"
 import { useCatagoriesApi } from "../../api/catagoriesApi"
 import { useProductListStore } from "../../stores/catagoriesStore"
@@ -29,13 +29,23 @@ function mapCategoryId(category?: string) {
 // ====================== MAIN PAGE ======================
 export default function CategoryPage() {
   const { category: routeCategory } = useParams()
+  const location = useLocation()
+  const searchParams = new URLSearchParams(location.search)
+  const q = searchParams.get("q") || ""
 
   const apiCategoryId = mapCategoryId(routeCategory)
 
-  const [sort, setSort] = useState<SortKey>("ASC")
+  const [sort, setSort] = useState<SortKey>("latest")
   // filter is now number[] (category IDs)
   const [filter, setFilter] = useState<number[]>([]) 
   const [filterOptions, setFilterOptions] = useState<{ label: string; value: string }[]>([])
+  
+  // Price range from API response
+  const [apiMinPrice, setApiMinPrice] = useState<number>(0)
+  const [apiMaxPrice, setApiMaxPrice] = useState<number>(500)
+  // User selected price range for filtering
+  const [selectedMinPrice, setSelectedMinPrice] = useState<number | undefined>(undefined)
+  const [selectedMaxPrice, setSelectedMaxPrice] = useState<number | undefined>(undefined)
 
   const {
     items,
@@ -52,7 +62,7 @@ export default function CategoryPage() {
   } = useProductListStore()
 
   // ใช้ getProductsByParentId แล้ว
-  const { getProductsByParentId } = useProductApi()
+  const { getProductsByParentId, searchProducts } = useProductApi()
   const { getCatagoriesName } = useCatagoriesApi()
 
   // reset เมื่อเปลี่ยนหมวด
@@ -60,6 +70,8 @@ export default function CategoryPage() {
     reset()
     setPageIndex(1)
     setFilter([])
+    setSelectedMinPrice(undefined)
+    setSelectedMaxPrice(undefined)
   }, [routeCategory, reset, setPageIndex])
 
   // Fetch filter options (Sub-categories)
@@ -90,9 +102,31 @@ export default function CategoryPage() {
         startLoading()
         // filter is already number[]
         const categoryIds = filter
-        const res = await getProductsByParentId(apiCategoryId, pageSize, pageIndex, sort, categoryIds)
+        
+        let res
+        if (q) {
+          // ถ้ามีคำค้นหา ใช้ searchProducts (Global Search)
+          res = await searchProducts({
+            q,
+            limit: pageSize,
+            page: pageIndex,
+            sortBy: sort,
+          })
+        } else {
+          // ถ้าไม่มี ใช้ตามเดิม
+          res = await getProductsByParentId(apiCategoryId, pageSize, pageIndex, sort, categoryIds, selectedMinPrice, selectedMaxPrice)
+        }
+        
         if (ignore) return
         setPageData(res.data)
+        
+        // Store minPrice/maxPrice from API response
+        if (res.data.minPrice !== undefined && selectedMinPrice === undefined) {
+          setApiMinPrice(res.data.minPrice)
+        }
+        if (res.data.maxPrice !== undefined && selectedMaxPrice === undefined) {
+          setApiMaxPrice(res.data.maxPrice)
+        }
         setError(null)
       } catch (err) {
         if (ignore) return
@@ -110,8 +144,18 @@ export default function CategoryPage() {
     pageIndex,
     pageSize,
     sort,
-    filter
+    filter,
+    q,
+    selectedMinPrice,
+    selectedMaxPrice
   ])
+
+  // Handle price range change from FilterSidebar
+  const handlePriceRangeChange = (min: number, max: number) => {
+    setSelectedMinPrice(min)
+    setSelectedMaxPrice(max)
+    setPageIndex(1)
+  }
 
   const safeTotal = typeof total === "number" ? total : 0
   const safeSize = typeof pageSize === "number" ? pageSize : 1
@@ -130,6 +174,9 @@ export default function CategoryPage() {
                     filterOptions={filterOptions}
                     selectedCategories={filter}
                     onChangeCategory={setFilter}
+                    priceMin={apiMinPrice}
+                    priceMax={apiMaxPrice}
+                    onChangePriceRange={handlePriceRangeChange}
                 />
             </div>
         </aside>
