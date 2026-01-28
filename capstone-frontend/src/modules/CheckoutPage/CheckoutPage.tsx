@@ -1,14 +1,11 @@
 // src/pages/cart/CheckoutPage.tsx
 import { useEffect, useState } from "react"
-import { ShoppingCart, Store as StoreIcon, Building2, Truck, ArrowLeft } from "lucide-react"
+import { MapPin, ShoppingCart, Store as StoreIcon } from "lucide-react"
 import { useCartApi } from "../../api/cartApi"
 import { useCartStore } from "../../stores/cartStore"
 import { useUserStore } from "../../stores/userStore"
 import { useCheckkOutApi, type orderCreatedRequest } from "../../api/checkOutApi"
-import { useNavigate } from "react-router-dom"
-import { toast } from "react-toastify"
 
-type DeliveryMethod = "CAMPUS" | "ROUND_UNIVERSITY"
 
 type CheckoutItem = {
   id: number
@@ -30,6 +27,7 @@ const formatPrice = (v: number) =>
   v.toLocaleString("th-TH", { minimumFractionDigits: 0 })
 
 export default function CheckoutPage() {
+  // ดึง cart (getCart) จาก cartApi
   const { getCart } = useCartApi()
   const {
     cart,
@@ -38,17 +36,17 @@ export default function CheckoutPage() {
     startLoading,
     setCart,
     setError,
-    reset,
   } = useCartStore()
 
+  // ยิง checkout (checkOutOrder) จาก storeApi
   const { checkOutOrder } = useCheckkOutApi()
-  const navigate = useNavigate()
 
   const { email } = useUserStore()
 
+  const { reset } = useCartStore()
+
   const [addressExtra, setAddressExtra] = useState("")
   const [note, setNote] = useState("")
-  const [deliveryMethod, setDeliveryMethod] = useState<DeliveryMethod>("CAMPUS")
   const [submitting, setSubmitting] = useState(false)
 
   // โหลด cart ถ้ายังไม่มี
@@ -70,7 +68,7 @@ export default function CheckoutPage() {
   let stores: CheckoutStore[] = []
   let totalItems = 0
   let merchandiseTotal = 0
-  const shippingFee = deliveryMethod === "CAMPUS" ? 0 : 10
+  const shippingFee = 10
 
   if (cart) {
     const storeMap = new Map<number, CheckoutStore>()
@@ -123,11 +121,11 @@ export default function CheckoutPage() {
     try {
       setSubmitting(true)
 
+      // payload สำหรับ /api/checkout/confirm
       const payload: orderCreatedRequest = {
-        fulfillment_type: "STANDARD",
-        promised_ship_date: new Date().toISOString(),
-        deposit_amount: grandTotal,
-        delivery_method: deliveryMethod,
+        fulfillment_type: "STANDARD", // หรือให้เลือกจาก UI ทีหลังได้
+        promised_ship_date: new Date().toISOString(), // ปรับให้ตรง logic BE ถ้าต้องการ
+        deposit_amount: grandTotal, // ถ้าต้องการมัดจำบางส่วนเปลี่ยนค่าตรงนี้ได้
       }
 
       const res = await checkOutOrder(payload)
@@ -136,11 +134,13 @@ export default function CheckoutPage() {
 
       reset()
       
-      toast.success(`ยืนยันออเดอร์สำเร็จ! เลขคำสั่งซื้อ #${res.data.order.order_id}`)
-      navigate(`/orders/${res.data.order.order_id}`)
+      alert(`ยืนยันออเดอร์สำเร็จ! เลขคำสั่งซื้อ #${res.data.order.order_id}`)
+
+      // TODO: redirect ไปหน้า orders หรือหน้า success
+      // navigate(`/orders/${res.data.order.order_id}`)
     } catch (err) {
       console.error(err)
-      toast.error("ยืนยันออเดอร์ไม่สำเร็จ")
+      alert("ยืนยันออเดอร์ไม่สำเร็จ")
     } finally {
       setSubmitting(false)
     }
@@ -200,70 +200,13 @@ export default function CheckoutPage() {
               />
             </div>
 
-            {/* Delivery Method Selection */}
-            <div>
-              <h2 className="text-lg font-semibold mb-4">เลือกวิธีการจัดส่ง</h2>
-              <div className="grid grid-cols-2 gap-4">
-                {/* ส่งภายในมอ */}
-                <button
-                  type="button"
-                  onClick={() => setDeliveryMethod("CAMPUS")}
-                  className={`relative flex flex-col items-center gap-3 rounded-2xl border-2 p-6 transition-all ${
-                    deliveryMethod === "CAMPUS"
-                      ? "border-orange-500 bg-orange-50 shadow-lg shadow-orange-100"
-                      : "border-gray-200 bg-white hover:border-orange-300 hover:bg-orange-50/50"
-                  }`}
-                >
-                  {deliveryMethod === "CAMPUS" && (
-                    <span className="absolute top-3 right-3 flex h-6 w-6 items-center justify-center rounded-full bg-orange-500 text-white">
-                      ✓
-                    </span>
-                  )}
-                  <Building2 className={`h-10 w-10 ${deliveryMethod === "CAMPUS" ? "text-orange-500" : "text-gray-400"}`} />
-                  <div className="text-center">
-                    <p className={`font-semibold ${deliveryMethod === "CAMPUS" ? "text-orange-600" : "text-gray-700"}`}>
-                      ส่งภายในมอ
-                    </p>
-                    <p className="mt-1 text-xs text-gray-500">ส่งภายในมหาวิทยาลัย</p>
-                    <p className="mt-2 text-sm font-bold text-green-600">ฟรี!</p>
-                  </div>
-                </button>
-
-                {/* ส่งรอบมอ */}
-                <button
-                  type="button"
-                  onClick={() => setDeliveryMethod("ROUND_UNIVERSITY")}
-                  className={`relative flex flex-col items-center gap-3 rounded-2xl border-2 p-6 transition-all ${
-                    deliveryMethod === "ROUND_UNIVERSITY"
-                      ? "border-orange-500 bg-orange-50 shadow-lg shadow-orange-100"
-                      : "border-gray-200 bg-white hover:border-orange-300 hover:bg-orange-50/50"
-                  }`}
-                >
-                  {deliveryMethod === "ROUND_UNIVERSITY" && (
-                    <span className="absolute top-3 right-3 flex h-6 w-6 items-center justify-center rounded-full bg-orange-500 text-white">
-                      ✓
-                    </span>
-                  )}
-                  <Truck className={`h-10 w-10 ${deliveryMethod === "ROUND_UNIVERSITY" ? "text-orange-500" : "text-gray-400"}`} />
-                  <div className="text-center">
-                    <p className={`font-semibold ${deliveryMethod === "ROUND_UNIVERSITY" ? "text-orange-600" : "text-gray-700"}`}>
-                      ส่งรอบมอ
-                    </p>
-                    <p className="mt-1 text-xs text-gray-500">ส่งรอบมหาวิทยาลัย</p>
-                    <p className="mt-2 text-sm font-bold text-gray-600">10 บาท</p>
-                  </div>
-                </button>
-              </div>
-            </div>
-
             <div className="mt-10 flex items-center justify-between">
               <button
                 type="button"
-                onClick={() => navigate("/cart")}
-                className="inline-flex items-center justify-center gap-2 rounded-xl border border-gray-200 bg-white px-6 py-3 text-sm font-semibold text-gray-600 shadow-[0_10px_20px_rgba(0,0,0,0.08)] hover:border-gray-300"
+                className="inline-flex items-center justify-center gap-2 rounded-xl border border-gray-200 bg-white px-6 py-3 text-sm font-semibold text-orange-600 shadow-[0_10px_20px_rgba(0,0,0,0.08)] hover:border-orange-300"
               >
-                <ArrowLeft className="h-4 w-4" />
-                <span>ย้อนกลับ</span>
+                <MapPin className="h-4 w-4" />
+                <span>Map KMUTT</span>
               </button>
 
               <button
@@ -272,7 +215,7 @@ export default function CheckoutPage() {
                 disabled={submitting || !cart || totalItems === 0}
                 className="rounded-xl bg-[#f0532c] px-10 py-3 text-sm font-semibold text-white shadow-lg hover:bg-[#e24420] disabled:opacity-60 disabled:cursor-not-allowed"
               >
-                {submitting ? "กำลังยืนยัน..." : "ยืนยันออเดอร์"}
+                ยืนยันออเดอร์
               </button>
             </div>
           </section>
@@ -351,10 +294,8 @@ export default function CheckoutPage() {
                   </div>
 
                   <div className="flex justify-between">
-                    <span>ค่าจัดส่ง ({deliveryMethod === "CAMPUS" ? "ภายในมอ" : "รอบมอ"})</span>
-                    <span className={shippingFee === 0 ? "text-green-600 font-semibold" : ""}>
-                      {shippingFee === 0 ? "ฟรี!" : `${formatPrice(shippingFee)} บาท`}
-                    </span>
+                    <span>ค่าจัดส่ง</span>
+                    <span>{formatPrice(shippingFee)} บาท</span>
                   </div>
                 </div>
 
@@ -372,4 +313,3 @@ export default function CheckoutPage() {
     </div>
   )
 }
-
