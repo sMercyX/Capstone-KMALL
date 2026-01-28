@@ -1,4 +1,4 @@
-import { Routes, Route, Navigate } from "react-router-dom"
+import { Routes, Route } from "react-router-dom"
 import { lazy, Suspense } from "react"
 import MainLayout from "../components/Layout/MainLayout"
 import LoadingSpinner from "../components/LoaingSpinner/LoadingSpinner"
@@ -117,10 +117,6 @@ export default function AppRoutes() {
             />
             <Route
               path="/store/orders"
-              element={<Navigate to="/store/orders/ongoing" replace />}
-            />
-            <Route
-              path="/store/orders/ongoing"
               element={
                 <ProtectedRoute>
                   <StoreSellerPage />
@@ -128,18 +124,10 @@ export default function AppRoutes() {
               }
             />
             <Route
-              path="/store/orders/completed"
+              path="/store/orders/:orderId"
               element={
                 <ProtectedRoute>
-                  <StoreSellerPage />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/store/orders/canceled"
-              element={
-                <ProtectedRoute>
-                  <StoreSellerPage />
+                  <StoreOrderDetailPage />
                 </ProtectedRoute>
               }
             />
@@ -164,14 +152,6 @@ export default function AppRoutes() {
               element={
                 <ProtectedRoute>
                   <CheckoutPage />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/store/orders/:orderId"
-              element={
-                <ProtectedRoute>
-                  <StoreOrderDetailPage />
                 </ProtectedRoute>
               }
             />

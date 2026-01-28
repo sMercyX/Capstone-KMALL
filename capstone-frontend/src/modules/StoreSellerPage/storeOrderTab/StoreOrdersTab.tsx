@@ -1,6 +1,5 @@
 // src/pages/store/StoreOrdersTab.tsx
-import { useEffect } from "react";
-import { useLocation } from "react-router-dom";
+import { useEffect, useState } from "react";
 import type { SwitchTabItem } from "../../../components/SwitchTabs/SwitchTabs";
 import type { OrderStatusGroup } from "../../../api/orderApi";
 import { useStoreOrderStore } from "../../../stores/storeOrderStore";
@@ -12,9 +11,9 @@ import SwitchTabs from "../../../components/SwitchTabs/SwitchTabs";
 import { useStoreStore } from "../../../stores/storeStore";
 
 const ORDER_TABS: SwitchTabItem[] = [
-  { key: "ongoing", label: "ON GOING", href: "/store/orders/ongoing" },
-  { key: "completed", label: "COMPLETED", href: "/store/orders/completed" },
-  { key: "canceled", label: "CANCELED/FAILED", href: "/store/orders/canceled" },
+  { key: "ongoing", label: "ON GOING" },
+  { key: "completed", label: "COMPLETED" },
+  { key: "canceled", label: "CANCELED/FAILED" },
 ];
 
 const statusGroupMap: Record<StoreOrderTabKey, OrderStatusGroup> = {
@@ -29,13 +28,6 @@ const contextMap: Record<StoreOrderTabKey, StoreOrderStatusContext> = {
   canceled: "canceled",
 };
 
-function getActiveKeyFromPath(pathname: string): StoreOrderTabKey {
-  if (pathname.startsWith("/store/orders/completed")) return "completed";
-  if (pathname.startsWith("/store/orders/canceled")) return "canceled";
-  // default
-  return "ongoing";
-}
-
 export default function StoreOrdersTab() {
   const {
     orders,
@@ -48,12 +40,9 @@ export default function StoreOrdersTab() {
 
   const { getOrdersSellerByStatus } = useOrderSellerApi();
   const { store } = useStoreStore();
-  const location = useLocation();
-  const pathname = location.pathname;
-
-  const activeKey = getActiveKeyFromPath(pathname);
-
- 
+  
+  // ใช้ internal state แทน URL routing
+  const [activeKey, setActiveKey] = useState<StoreOrderTabKey>("ongoing");
 
   useEffect(() => {
     if (!store?.id) return;
@@ -78,7 +67,10 @@ export default function StoreOrdersTab() {
       {/* เส้นคั่น + tabs */}
       <div className="mb-4 border-gray-300 pt-3">
         <SwitchTabs
-          tabs={ORDER_TABS} // ใช้โหมด NavLink แบบเดียวกับ StorePage
+          tabs={ORDER_TABS} 
+          useNavLink={false}
+          activeKey={activeKey}
+          onChange={(key) => setActiveKey(key as StoreOrderTabKey)}
         />
       </div>
 
