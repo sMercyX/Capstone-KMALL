@@ -10,7 +10,7 @@ export interface orderRequest {
 export type OrderStatusGroup  = "active" | "completed" | "cancelled"
 
 export interface orderData {
-  order_id: number
+  id: number  // backend ส่ง "id" ไม่ใช่ "order_id"
   status: string
   total_price: number
   order_date: string

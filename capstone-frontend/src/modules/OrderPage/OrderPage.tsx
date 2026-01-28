@@ -72,28 +72,46 @@ export default function OrderPage() {
 
   // sync URL -> activeKey
   useEffect(() => {
-    let routeKey: OrderTabKey 
-    if (pathname.startsWith("/orders/ongoing")) routeKey = "ongoing"
-    else if (pathname.startsWith("/orders/completed")) routeKey = "completed"
+    let routeKey: OrderTabKey = "ongoing"  // default
+    if (pathname.startsWith("/orders/completed")) routeKey = "completed"
     else if (pathname.startsWith("/orders/canceled")) routeKey = "canceled"
-    setActiveKey(routeKey!)
-  }, [pathname, setActiveKey])
+    // else -> "ongoing" (default)
+
+    if (activeKey !== routeKey) {
+      setActiveKey(routeKey)
+    }
+  }, [pathname, setActiveKey, activeKey])
 
   // load data เมื่อ activeKey เปลี่ยน
   useEffect(() => {
+    // Guard: ไม่ fetch ถ้า activeKey ยังไม่พร้อม
+    if (!activeKey) return
+
     const group = statusGroupMap[activeKey]
+    if (!group) return
+
+    let isCancelled = false
 
     startLoading()
     setError(null)
     ;(async () => {
       try {
         const res = await getOrdersByStatus(group)
-        setOrders(res.data ?? [])
+        if (!isCancelled) {
+          setOrders(res.data ?? [])
+        }
       } catch (err) {
-        setError("ไม่สามารถโหลดข้อมูลคำสั่งซื้อได้")
+        if (!isCancelled) {
+          setError("ไม่สามารถโหลดข้อมูลคำสั่งซื้อได้")
+        }
       }
     })()
-  }, [activeKey])
+
+    return () => {
+      isCancelled = true
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeKey]) // เฉพาะ activeKey เพื่อป้องกัน fetch ซ้ำ
 
   return (
     <div className="max-w-5xl mx-auto py-10">
@@ -142,7 +160,7 @@ export default function OrderPage() {
           !error &&
           orders.map((item) => (
             <OrderListItem
-              key={item.order.order_id}
+              key={item.order.id}
               data={item}
               context={contextMap[activeKey]}
             />

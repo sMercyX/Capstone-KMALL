@@ -7,7 +7,7 @@ export type OrderStatusContext = "ongoing" | "completed" | "canceled"
 
 export interface OrderSummary {
   order: {
-    order_id: number
+    id: number  // backend ส่ง "id" ไม่ใช่ "order_id"
     status: string
     total_price: number
     order_date: string
@@ -60,7 +60,7 @@ export default function OrderListItem({
   return (
     <button
       type="button"
-      onClick={() => navigate(`/orders/${order.order_id}`)}
+      onClick={() => navigate(`/orders/${order.id}`)}
       className="block w-full text-left"
     >
       <div className="flex items-center gap-6 rounded-2xl border border-gray-200 px-6 py-4 shadow-sm hover:shadow-md transition">
@@ -74,7 +74,7 @@ export default function OrderListItem({
 
         {/* ข้อมูลคำสั่งซื้อ */}
         <div className="flex-1 grid grid-cols-4 items-center text-center text-sm md:text-base">
-          <div className="font-medium">#{order.order_id}</div>
+          <div className="font-medium">#{order.id}</div>
           <div>{orderDate}</div>
           <div>{order.total_price.toLocaleString()} บาท</div>
           <div className="font-semibold uppercase">{order.status}</div>

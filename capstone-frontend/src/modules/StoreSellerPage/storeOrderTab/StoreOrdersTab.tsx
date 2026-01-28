@@ -99,7 +99,7 @@ export default function StoreOrdersTab() {
           !error &&
           orders.map((o) => (
             <StoreOrderListItem
-              key={o.order.order_id}
+              key={o.order.id}
               data={o}
               context={contextMap[activeKey]}
             />

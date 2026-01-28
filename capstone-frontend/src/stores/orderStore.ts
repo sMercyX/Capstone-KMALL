@@ -18,7 +18,7 @@ interface OrderState {
 }
 
 export const useOrderStore = create<OrderState>((set) => ({
-  activeKey: null!,
+  activeKey: "ongoing",
   orders: [],
   isLoading: false,
   error: null,

@@ -51,7 +51,7 @@ export default function StoreOrderListItem({ data, context }: Props) {
   return (
     <button
       type="button"
-      onClick={() => navigate(`/store/orders/${order.order_id}`)}
+      onClick={() => navigate(`/store/orders/${order.id}`)}
       className="block w-full text-left"
     >
       <div className="flex items-center gap-4 rounded-2xl border border-gray-200 bg-white px-6 py-4 shadow-sm hover:shadow-md transition">
