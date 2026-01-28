@@ -54,10 +54,13 @@ func (h *Handler) Register(r *gin.RouterGroup) {
 		sellerAdmin := g.Group("", middleware.RequireRolesAny(h.roleSvc, "Seller", "Admin"))
 		{
 			sellerAdmin.PUT("/:id/status", h.updateStatus)
+			sellerAdmin.PUT("/:id/propose", h.propose)
 		}
 
 		// ยกเลิกออเดอร์ (Buyer/Admin)
 		g.POST("/:id/cancel", h.cancelOrder)
+		g.POST("/:id/accept", h.acceptProposed)
+
 	}
 
 	// ===== Seller Order Management (ตามร้าน) =====
@@ -72,6 +75,7 @@ func (h *Handler) Register(r *gin.RouterGroup) {
 	{
 		cg.POST("/confirm", h.createFromCart)
 	}
+
 }
 
 // ============================================================================
@@ -79,9 +83,12 @@ func (h *Handler) Register(r *gin.RouterGroup) {
 // ============================================================================
 
 type checkoutConfirmReq struct {
-	FulfillmentType  string   `json:"fulfillment_type"`
-	PromisedShipDate *string  `json:"promised_ship_date,omitempty"`
-	DepositAmount    *float64 `json:"deposit_amount,omitempty"`
+	FulfillmentType   string   `json:"fulfillment_type"`
+	DepositAmount     *float64 `json:"deposit_amount,omitempty"`
+	DeliveryMethod    string   `json:"delivery_method"`
+	DeliveryAddressID *int64   `json:"delivery_address_id,omitempty"`
+	CampusLocationID  *int     `json:"campus_location_id,omitempty"`
+	CampusDetailNote  *string  `json:"campus_detail_note,omitempty"`
 }
 
 type statusUpdateReq struct {
@@ -177,28 +184,6 @@ func (h *Handler) isStoreOwnerOrAdmin(c *gin.Context, storeID int64, userID stri
 	return false
 }
 
-func canBuyerCancel(status string) bool {
-	switch status {
-	case "Pending Seller Confirmation",
-		"Awaiting Buyer Confirmation":
-		return true
-	default:
-		return false
-	}
-}
-
-func canSellerCancel(status string) bool {
-	switch status {
-	case "Pending Seller Confirmation",
-		"Awaiting Buyer Confirmation",
-		"Ready for Pickup",
-		"Ready for Delivery":
-		return true
-	default:
-		return false
-	}
-}
-
 // ============================================================================
 // Handlers
 // ============================================================================
@@ -216,8 +201,12 @@ func (h *Handler) createFromCart(c *gin.Context) {
 	}
 
 	svcIn := CheckoutConfirmInput{
-		FulfillmentType: in.FulfillmentType,
-		DepositAmount:   in.DepositAmount,
+		FulfillmentType:   in.FulfillmentType,
+		DepositAmount:     in.DepositAmount,
+		DeliveryMethod:    in.DeliveryMethod,
+		DeliveryAddressID: in.DeliveryAddressID,
+		CampusLocationID:  in.CampusLocationID,
+		CampusDetailNote:  in.CampusDetailNote,
 	}
 
 	result, err := h.svc.CreateFromCart(c.Request.Context(), userID, svcIn)
@@ -335,7 +324,7 @@ func (h *Handler) updateStatus(c *gin.Context) {
 		return
 	}
 
-	updated, err := h.svc.UpdateStatus(c.Request.Context(), id, OrderStatusUpdateInput(in))
+	updated, err := h.svc.UpdateStatus(c.Request.Context(), userID, id, OrderStatusUpdateInput(in))
 	if err != nil {
 		c.Error(err)
 		return
@@ -355,57 +344,13 @@ func (h *Handler) cancelOrder(c *gin.Context) {
 		return
 	}
 
-	ordWithItems, err := h.svc.GetOrderWithItems(c.Request.Context(), id)
-	if err != nil {
-		c.Error(err)
+	var in CancelOrderInput
+	if err := c.ShouldBindJSON(&in); err != nil {
+		c.Error(apperr.New(apperr.BadRequest, "bad json"))
 		return
 	}
 
-	order := ordWithItems.Order
-
-	isBuyer := order.UserID == userID
-	isSeller := h.isStoreOwnerOrAdmin(c, int64(order.StoreID), userID)
-	isAdmin := h.isAdmin(c, userID)
-
-	// ----- สิทธิ์ว่าใครยกเลิกได้บ้าง -----
-	if !isBuyer && !isSeller && !isAdmin {
-		if len(c.Errors) == 0 {
-			respond.Error(c, http.StatusForbidden, "FORBIDDEN", "only buyer, store owner or admin can cancel this order", nil)
-		}
-		return
-	}
-
-	status := order.Status
-
-	// ----- เช็คตามบทบาทแต่ละฝั่ง -----
-	switch {
-	case isAdmin:
-		// admin ห้ามยกเลิกถ้า complete หรือ cancel แล้ว
-		if status == "Completed" || status == "Cancelled" {
-			if len(c.Errors) == 0 {
-				respond.Error(c, http.StatusBadRequest, "INVALID_STATUS", "cannot cancel completed or already cancelled order", nil)
-			}
-			return
-		}
-
-	case isBuyer:
-		if !canBuyerCancel(status) {
-			if len(c.Errors) == 0 {
-				respond.Error(c, http.StatusBadRequest, "INVALID_STATUS", "buyer cannot cancel at this stage", nil)
-			}
-			return
-		}
-
-	case isSeller:
-		if !canSellerCancel(status) {
-			if len(c.Errors) == 0 {
-				respond.Error(c, http.StatusBadRequest, "INVALID_STATUS", "seller cannot cancel at this stage", nil)
-			}
-			return
-		}
-	}
-
-	cancelled, err := h.svc.Cancel(c.Request.Context(), id)
+	cancelled, err := h.svc.Cancel(c.Request.Context(), userID, id, in.Reason)
 	if err != nil {
 		c.Error(err)
 		return
@@ -505,4 +450,53 @@ func (h *Handler) listStoreOrders(c *gin.Context) {
 	}
 
 	respond.OK(c, apperr.OK, resp)
+}
+
+func (h *Handler) propose(c *gin.Context) {
+	userID, ok := h.resolveCurrentUserID(c)
+	if !ok {
+		return
+	}
+	id, ok := parsePathID(c, "id")
+	if !ok {
+		return
+	}
+
+	var in ProposeSuggestInput
+	if err := c.ShouldBindJSON(&in); err != nil {
+		c.Error(apperr.New(apperr.BadRequest, "bad json"))
+		return
+	}
+
+	updated, err := h.svc.Propose(c.Request.Context(), userID, id, in)
+	if err != nil {
+		c.Error(err)
+		return
+	}
+
+	respond.Updated(c, apperr.Updated, updated)
+}
+func (h *Handler) acceptProposed(c *gin.Context) {
+	userID, ok := h.resolveCurrentUserID(c)
+	if !ok {
+		return
+	}
+	id, ok := parsePathID(c, "id")
+	if !ok {
+		return
+	}
+
+	var in AcceptProposedInput
+	if err := c.ShouldBindJSON(&in); err != nil {
+		c.Error(apperr.New(apperr.BadRequest, "bad json"))
+		return
+	}
+
+	updated, err := h.svc.AcceptProposed(c.Request.Context(), userID, id, in)
+	if err != nil {
+		c.Error(err)
+		return
+	}
+
+	respond.Updated(c, apperr.Updated, updated)
 }

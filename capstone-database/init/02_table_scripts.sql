@@ -155,93 +155,103 @@ CREATE TABLE IF NOT EXISTS orders (
   order_id SERIAL PRIMARY KEY,
 
   status VARCHAR(45) NOT NULL
-    CHECK (
-      status IN (
-        'Pending Seller Confirmation',
-        'Awaiting Buyer Confirmation',
-        'Ready for Pickup',
-        'Ready for Delivery',
-        'Completed',
-        'Cancelled'
-      )
-    ),
+    CHECK (status IN (
+      'Pending','Proposed','Accepted',
+      'Out For Delivery','Arrived',
+      'Completed','Cancelled'
+    )),
 
   total_price DECIMAL(10,2) NOT NULL,
 
   order_date TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
-  delivery_method VARCHAR(20) NOT NULL DEFAULT 'ROUND_UNIVERSITY'
+  delivery_method VARCHAR(20) NOT NULL
     CHECK (delivery_method IN ('ROUND_UNIVERSITY','CAMPUS')),
 
-  delivery_address_id BIGINT NULL,     
-  campus_location_id INT NULL,         
-  campus_detail_note VARCHAR(255) NULL, 
+  -- ROUND_UNIVERSITY
+  delivery_address_id BIGINT NULL,
 
-  delivery_agreement_status VARCHAR(12) NOT NULL DEFAULT 'NONE'
-    CHECK (delivery_agreement_status IN ('NONE','PROPOSED','CONFIRMED')),
+  -- CAMPUS (optional note only)
+  campus_location_id INT NULL,
+  campus_detail_note VARCHAR(255) NULL,
 
-  deliver_at_start TIMESTAMPTZ NULL,
-  deliver_at_end   TIMESTAMPTZ NULL,
-  delivery_confirmed_at TIMESTAMPTZ NULL,
+  -- Proposal (CAMPUS only)
+  proposed_at TIMESTAMPTZ NULL,
+  meeting_location_id INT NULL,
+  meeting_note VARCHAR(255) NULL,
 
   cancelled_at TIMESTAMPTZ NULL,
   cancelled_by VARCHAR(10)
     CHECK (cancelled_by IN ('BUYER','SELLER','SYSTEM')),
-  cancelled_reason VARCHAR(255),
+  cancelled_reason VARCHAR(255) NULL,
 
   user_id UUID NOT NULL,
   store_id INT NOT NULL,
 
-  CONSTRAINT fk_orders_users1 FOREIGN KEY (user_id)
-    REFERENCES users (user_id)
-    ON DELETE CASCADE
-    ON UPDATE CASCADE,
+  -- ===== FK =====
+  CONSTRAINT fk_orders_users
+    FOREIGN KEY (user_id) REFERENCES users(user_id),
 
-  CONSTRAINT fk_orders_stores1 FOREIGN KEY (store_id)
-    REFERENCES stores (store_id)
-    ON DELETE CASCADE
-    ON UPDATE CASCADE,
+  CONSTRAINT fk_orders_stores
+    FOREIGN KEY (store_id) REFERENCES stores(store_id),
 
-  CONSTRAINT fk_orders_delivery_address FOREIGN KEY (delivery_address_id)
-    REFERENCES user_addresses (address_id)
-    ON DELETE RESTRICT,
+  CONSTRAINT fk_orders_delivery_address
+    FOREIGN KEY (delivery_address_id) REFERENCES user_addresses(address_id),
 
-  CONSTRAINT fk_orders_campus_location FOREIGN KEY (campus_location_id)
-    REFERENCES campus_locations (campus_location_id)
-    ON DELETE RESTRICT,
+  CONSTRAINT fk_orders_meeting_location
+    FOREIGN KEY (meeting_location_id) REFERENCES campus_locations(campus_location_id),
 
-  CONSTRAINT chk_delivery_destination_required CHECK (
-    (delivery_method = 'ROUND_UNIVERSITY'
-      AND delivery_address_id IS NOT NULL
-      AND campus_location_id IS NULL)
+  -- ===== destination rules =====
+  CONSTRAINT chk_destination_by_method CHECK (
+    (delivery_method = 'ROUND_UNIVERSITY' AND delivery_address_id IS NOT NULL)
     OR
-    (delivery_method = 'CAMPUS'
-      AND delivery_address_id IS NULL
-      AND campus_location_id IS NOT NULL)
+    (delivery_method = 'CAMPUS' AND delivery_address_id IS NULL)
   ),
 
-  CONSTRAINT chk_delivery_time_range CHECK (
-    deliver_at_start IS NULL
-    OR deliver_at_end IS NULL
-    OR deliver_at_start <= deliver_at_end
-  ),
-
-  CONSTRAINT chk_confirm_requires_data CHECK (
-    delivery_agreement_status <> 'CONFIRMED'
+  -- ===== Proposed: CAMPUS only =====
+  CONSTRAINT chk_proposed_requires_meeting CHECK (
+    status <> 'Proposed'
     OR (
-      delivery_confirmed_at IS NOT NULL
-      AND deliver_at_start IS NOT NULL
-      AND deliver_at_end IS NOT NULL
+      delivery_method = 'CAMPUS'
+      AND proposed_at IS NOT NULL
+      AND meeting_location_id IS NOT NULL
     )
   ),
 
-  CONSTRAINT chk_cancel_meta_required CHECK (
+  -- ===== Accepted =====
+  CONSTRAINT chk_accepted_requires_data CHECK (
+    status <> 'Accepted'
+    OR (
+      (delivery_method = 'CAMPUS'
+        AND proposed_at IS NOT NULL
+        AND meeting_location_id IS NOT NULL)
+      OR
+      (delivery_method = 'ROUND_UNIVERSITY')
+    )
+  ),
+
+  -- ===== ROUND_UNIVERSITY must not have proposal =====
+  CONSTRAINT chk_round_uni_no_proposal CHECK (
+    delivery_method <> 'ROUND_UNIVERSITY'
+    OR (
+      proposed_at IS NULL
+      AND meeting_location_id IS NULL
+      AND meeting_note IS NULL
+    )
+  ),
+
+  -- ===== Cancel (บังคับ reason แบบข้อความ ไม่ใช้ dropdown) =====
+  CONSTRAINT chk_cancel_meta CHECK (
     status <> 'Cancelled'
-    OR (cancelled_at IS NOT NULL AND cancelled_by IS NOT NULL)
+    OR (
+      cancelled_at IS NOT NULL
+      AND cancelled_by IS NOT NULL
+      AND cancelled_reason IS NOT NULL
+      AND btrim(cancelled_reason) <> ''
+    )
   )
 );
-
 
 
 -- ========= ORDER_ITEMS =========
@@ -331,12 +341,25 @@ CREATE TABLE IF NOT EXISTS product_images (
 );
 
 
--- ========= ORDER CHAT: THREAD =========
+-- ========= ORDER CHAT: THREAD (1 order = 1 room) =========
 CREATE TABLE IF NOT EXISTS order_chat_threads (
   thread_id BIGSERIAL PRIMARY KEY,
-  order_id INT NOT NULL UNIQUE REFERENCES orders(order_id) ON DELETE CASCADE,
-  buyer_id UUID NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
-  seller_id UUID NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
+
+  -- 1 order ต่อ 1 thread
+  order_id INT NOT NULL UNIQUE
+    REFERENCES orders(order_id) ON DELETE CASCADE,
+
+  -- เก็บ store_id เพื่อ enforce seller = owner ของ store ใน order
+  store_id INT NOT NULL
+    REFERENCES stores(store_id) ON DELETE CASCADE,
+
+  -- participants
+  buyer_id UUID NOT NULL
+    REFERENCES users(user_id) ON DELETE CASCADE,
+
+  seller_id UUID NOT NULL
+    REFERENCES users(user_id) ON DELETE CASCADE,
+
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
@@ -344,19 +367,34 @@ CREATE TABLE IF NOT EXISTS order_chat_threads (
 -- ========= ORDER CHAT: MESSAGES =========
 CREATE TABLE IF NOT EXISTS order_chat_messages (
   message_id BIGSERIAL PRIMARY KEY,
-  thread_id BIGINT NOT NULL REFERENCES order_chat_threads(thread_id) ON DELETE CASCADE,
-  sender_id UUID NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
+
+  thread_id BIGINT NOT NULL
+    REFERENCES order_chat_threads(thread_id) ON DELETE CASCADE,
+
+  sender_id UUID NOT NULL
+    REFERENCES users(user_id) ON DELETE CASCADE,
+
   message_text TEXT NOT NULL,
-  message_type VARCHAR(20) NOT NULL DEFAULT 'TEXT' CHECK (message_type IN ('TEXT','SYSTEM')),
+
+  message_type VARCHAR(20) NOT NULL DEFAULT 'TEXT'
+    CHECK (message_type IN ('TEXT','SYSTEM')),
+
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
 -- ========= READ STATE =========
 CREATE TABLE IF NOT EXISTS order_chat_read_state (
-  thread_id BIGINT NOT NULL REFERENCES order_chat_threads(thread_id) ON DELETE CASCADE,
-  user_id UUID NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
-  last_read_message_id BIGINT NULL,
+  thread_id BIGINT NOT NULL
+    REFERENCES order_chat_threads(thread_id) ON DELETE CASCADE,
+
+  user_id UUID NOT NULL
+    REFERENCES users(user_id) ON DELETE CASCADE,
+
+  last_read_message_id BIGINT NULL
+    REFERENCES order_chat_messages(message_id) ON DELETE SET NULL,
+
   last_read_at TIMESTAMPTZ NULL,
+
   PRIMARY KEY (thread_id, user_id)
 );
 

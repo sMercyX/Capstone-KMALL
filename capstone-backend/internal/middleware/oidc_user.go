@@ -90,11 +90,34 @@ func firstEmail(list []string) string {
 
 func DevMockUser() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		u := &UpstreamUser{
-			UID:   "dev-admin-1",
-			Email: "admin1@example.com",
-			Name:  "Dev Seller 1",
+		// เลือกจาก header (หรือจะใช้ query ก็ได้)
+		mode := strings.ToLower(strings.TrimSpace(c.GetHeader("X-Dev-User")))
+		if mode == "" {
+			mode = "seller" // default
 		}
+
+		var u *UpstreamUser
+		switch mode {
+		case "buyer":
+			u = &UpstreamUser{
+				UID:   "dev-buyer-1",
+				Email: "buyer1@example.com",
+				Name:  "Dev Buyer 1",
+			}
+		case "admin":
+			u = &UpstreamUser{
+				UID:   "dev-admin-1",
+				Email: "admin1@example.com",
+				Name:  "Dev Admin 1",
+			}
+		default: // seller
+			u = &UpstreamUser{
+				UID:   "dev-seller-1",
+				Email: "seller1@example.com",
+				Name:  "Dev Seller 1",
+			}
+		}
+
 		c.Set(CtxUpstreamUser, u)
 		c.Next()
 	}

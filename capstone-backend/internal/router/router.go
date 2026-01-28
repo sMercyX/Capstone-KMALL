@@ -89,7 +89,12 @@ func Attach(r *gin.Engine, db *pgxpool.Pool, cfg config.Config) {
 	cartSvc := cart.NewService(cartRepo)
 
 	oRepo := order.NewRepo(db)
-	oSvc := order.NewService(oRepo, cartSvc, pSvc)
+	oSvc := order.NewService(
+		oRepo,
+		cartSvc,
+		pSvc,
+		sSvc,
+	)
 
 	shRepo := searchhistory.NewRepo(db)
 	shSvc := searchhistory.NewService(shRepo)

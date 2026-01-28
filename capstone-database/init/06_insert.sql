@@ -144,3 +144,39 @@ FROM categories c
 WHERE c.slug = 'handmade-products'
 ON CONFLICT (slug) DO NOTHING;
 
+
+-- ========= SEED CAMPUS LOCATIONS (KMUTT) =========
+
+INSERT INTO campus_locations (name, area, latitude, longitude)
+VALUES
+-- ===== Central / Common Places =====
+('KMUTT Main Gate', 'Central', 13.6518000, 100.4949000),
+('King Mongkut Memorial Building', 'Central', 13.6522000, 100.4954000),
+('Central Canteen', 'Central', 13.6526000, 100.4959000),
+('University Library', 'Central', 13.6530000, 100.4963000),
+
+-- ===== Academic Buildings (Zone A / Blue) =====
+('Engineering Building', 'Zone A', 13.6519000, 100.4968000),
+('Chemical Engineering Building', 'Zone A', 13.6523000, 100.4971000),
+('Mechanical Engineering Building', 'Zone A', 13.6527000, 100.4973000),
+('Production Engineering Building', 'Zone A', 13.6531000, 100.4976000),
+
+-- ===== Science & IT (Zone C / Green) =====
+('Science Laboratory Building', 'Zone C', 13.6535000, 100.4981000),
+('School of Information Technology', 'Zone C', 13.6539000, 100.4984000),
+('Department of Mathematics', 'Zone C', 13.6537000, 100.4979000),
+('Department of Physics', 'Zone C', 13.6533000, 100.4975000),
+
+-- ===== Student Facilities =====
+('Dormitory (Male)', 'Residence', 13.6514000, 100.4953000),
+('Dormitory (Female)', 'Residence', 13.6512000, 100.4957000),
+('Sports Complex', 'Facilities', 13.6529000, 100.4969000),
+('Football Field', 'Facilities', 13.6532000, 100.4966000),
+
+-- ===== Shops & Services =====
+('Cooperative Store', 'Services', 13.6524000, 100.4962000),
+('7-Eleven KMUTT', 'Services', 13.6525000, 100.4965000),
+('Health Care Center', 'Services', 13.6528000, 100.4961000)
+
+ON CONFLICT (name) DO NOTHING;
+
