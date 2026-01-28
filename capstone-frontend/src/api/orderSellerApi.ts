@@ -16,6 +16,8 @@ export interface orderSellerData {
   order_date: string
   updated_at: string
   cancelled_at: string
+  cancelled_reason?: string
+  cancelled_by?: string
   user_id: string
   store_id: number
 }
@@ -94,9 +96,10 @@ export function useOrderSellerApi() {
   }
 
   async function cancelledOrder(
-    orderId: number
+    orderId: number,
+    reason?: string
   ): Promise<ApiUpdatedResponse<orderSellerData>> {
-    return http.postItem(`/orders/${orderId}/cancel`)
+    return http.postItem(`/orders/${orderId}/cancel`, { reason })
   }
 
   return {
