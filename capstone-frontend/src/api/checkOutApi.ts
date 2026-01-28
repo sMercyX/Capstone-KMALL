@@ -6,7 +6,7 @@ export interface orderCreatedRequest {
   fulfillment_type: "STANDARD" | "EXPRESS"
   promised_ship_date: string
   deposit_amount: number
-  delivery_method: "CAMPUS" | "ROUND_UNIVERSITY"
+  delivery_method?: "CAMPUS" | "ROUND_UNIVERSITY"
   delivery_address_id?: number
   campus_location_id?: number
   campus_detail_note?: string
