@@ -380,7 +380,7 @@ func (r *repo) ListByUserID(ctx context.Context, userID string, statuses []strin
   delivery_method, delivery_address_id, campus_location_id, campus_detail_note,
   proposed_at, meeting_location_id, meeting_note
 FROM orders
-WHERE order_id = $1;
+WHERE user_id = $1
 	`
 	args := []any{userID}
 
@@ -420,7 +420,7 @@ func (r *repo) ListByStoreID(ctx context.Context, storeID int64, statuses []stri
   delivery_method, delivery_address_id, campus_location_id, campus_detail_note,
   proposed_at, meeting_location_id, meeting_note
 FROM orders
-WHERE order_id = $1;
+WHERE store_id = $1
 	`
 	args := []any{storeID}
 
