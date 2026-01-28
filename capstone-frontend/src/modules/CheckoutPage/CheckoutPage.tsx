@@ -205,6 +205,7 @@ export default function CheckoutPage() {
                 </label>
                 <label className="flex items-center gap-3 cursor-pointer">
                   <input
+                    disabled={true}
                     type="radio"
                     name="deliveryMethod"
                     value="ROUND_UNIVERSITY"
