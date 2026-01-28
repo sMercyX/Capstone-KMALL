@@ -10,6 +10,7 @@ interface ConfirmationModalProps {
   confirmText?: string
   cancelText?: string
   variant?: "danger" | "warning" | "info"
+  children?: React.ReactNode
 }
 
 export default function ConfirmationModal({
@@ -21,6 +22,7 @@ export default function ConfirmationModal({
   confirmText = "ยืนยัน",
   cancelText = "ยกเลิก",
   variant = "danger",
+  children,
 }: ConfirmationModalProps) {
   if (!isOpen) return null
 
@@ -80,6 +82,8 @@ export default function ConfirmationModal({
             </p>
           </div>
         )}
+
+        {children && <div className="mt-4">{children}</div>}
 
         <div className="mt-6 flex justify-end gap-3">
           <button
