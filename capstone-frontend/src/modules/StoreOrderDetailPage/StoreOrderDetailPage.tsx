@@ -8,10 +8,11 @@ import {
   type OrderDetailResponse,
 } from "../../api/orderSellerApi"
 
-type StepKey = "PENDING" | "ACCEPTED" | "OUT_FOR_DELIVERY" | "ARRIVED" | "DONE"
+type StepKey = "PENDING" | "PROPOSED" | "ACCEPTED" | "OUT_FOR_DELIVERY" | "ARRIVED" | "DONE"
 
 const STEPS: { key: StepKey; label: string }[] = [
   { key: "PENDING", label: "PENDING" },
+  { key: "PROPOSED", label: "PROPOSED" },
   { key: "ACCEPTED", label: "ACCEPTED" },
   { key: "OUT_FOR_DELIVERY", label: "OUT FOR DELIVERY" },
   { key: "ARRIVED", label: "ARRIVED" },
@@ -21,21 +22,23 @@ const STEPS: { key: StepKey; label: string }[] = [
 function getStepIndex(status: string): number {
   switch (status) {
     case "Pending Seller Confirmation":
-    case "Awaiting Buyer Confirmation":
       return 0 // PENDING
 
+    case "Awaiting Buyer Confirmation":
+      return 1 // PROPOSED
+
     case "Accepted":
-      return 1 // ACCEPTED
+      return 2 // ACCEPTED
 
     case "Out for delivery":
-      return 2 // OUT_FOR_DELIVERY
+      return 3 // OUT_FOR_DELIVERY
 
     case "Arrived":
-      return 3 // ARRIVED
+      return 4 // ARRIVED
 
     case "Completed":
     case "Cancelled":
-      return 4 // DONE (Completed/Cancelled)
+      return 5 // DONE (Completed/Cancelled)
 
     default:
       return 0
@@ -46,6 +49,8 @@ function getStepLabel(stepKey: StepKey, currentStatus?: string): string {
   switch (stepKey) {
     case "PENDING":
       return "PENDING";
+    case "PROPOSED":
+      return "PROPOSED";
     case "ACCEPTED":
       return "ACCEPTED";
     case "OUT_FOR_DELIVERY":
@@ -131,7 +136,7 @@ export default function StoreOrderDetailPage() {
     setActionLoading("reject")
     setError(null)
     try {
-      await cancelledOrder(order.order_id)
+      await cancelledOrder(order.id)
       // อัปเดต state ในหน้า ให้ status เป็น Cancelled
       setData((prev) =>
         prev
@@ -156,7 +161,7 @@ export default function StoreOrderDetailPage() {
     setActionLoading("accept")
     setError(null)
     try {
-      await updateOrderStatus(order.order_id, {
+      await updateOrderStatus(order.id, {
         status: "Completed", // 👈 ห่อเป็น object ตาม interface ใหม่
       })
 
@@ -193,14 +198,14 @@ export default function StoreOrderDetailPage() {
       <div className="mb-8 flex justify-center">
         <div className="w-full max-w-3xl rounded-3xl bg-gray-100 px-8 py-5">
           <div className="relative">
-            <div className="absolute top-4 left-0 right-0 mx-4 h-[2px] bg-gray-300" />
+            <div className="absolute top-4 left-[calc(100%/12)] right-[calc(100%/12)] h-[2px] bg-gray-300" />
             <div className="relative flex justify-between">
               {STEPS.map((step, idx) => {
                 const isActive = idx === currentStep
                 return (
                   <div
                     key={step.key}
-                    className="flex flex-col items-center text-[10px] md:text-xs"
+                    className="flex-1 w-full flex flex-col items-center text-[10px] md:text-xs z-10"
                   >
                     <div
                       className={`flex h-8 w-8 items-center justify-center rounded-full border-2 text-sm font-semibold
@@ -213,7 +218,7 @@ export default function StoreOrderDetailPage() {
                       {idx + 1}
                     </div>
                     <span
-                      className={`mt-2 uppercase tracking-wide ${
+                      className={`mt-2 uppercase text-[9px] md:text-[11px] tracking-tight whitespace-nowrap ${
                         isActive ? "text-black" : "text-gray-400"
                       }`}
                     >
