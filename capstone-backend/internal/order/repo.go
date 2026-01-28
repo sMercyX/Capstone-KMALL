@@ -119,6 +119,7 @@ func scanOrderItemWithProduct(row pgx.Row, it *OrderItemWithProduct) error {
 		&it.OrderID,
 		&it.ProductID,
 		&it.ProductName,
+		&it.ProductImageURL,
 	)
 }
 
@@ -273,20 +274,22 @@ WHERE order_id = $1;
 func (r *repo) ListItemsByOrderID(ctx context.Context, orderID int64) ([]OrderItemWithProduct, error) {
 	rows, err := r.db.Query(ctx, `
 		SELECT 
-			oi.order_item_id,
-			oi.quantity,
-			oi.unit_price,
-			oi.fulfillment_type,
-			oi.subtotal,
-			oi.deposit_amount,
-			oi.promised_ship_date,
-			oi.order_id,
-			oi.product_id,
-			p.name AS product_name
-		FROM order_items oi
-		JOIN products p ON p.product_id = oi.product_id
-		WHERE oi.order_id = $1
-		ORDER BY oi.order_item_id ASC;
+  oi.order_item_id,
+  oi.quantity,
+  oi.unit_price,
+  oi.fulfillment_type,
+  oi.subtotal,
+  oi.deposit_amount,
+  oi.promised_ship_date,
+  oi.order_id,
+  oi.product_id,
+  p.name AS product_name,
+  p.image_url AS product_image_url
+FROM order_items oi
+JOIN products p ON p.product_id = oi.product_id
+WHERE oi.order_id = $1
+ORDER BY oi.order_item_id ASC;
+
 	`, orderID)
 	if err != nil {
 		return nil, apperr.Wrap(apperr.Internal, err, "list order_items failed")
@@ -373,15 +376,15 @@ func (r *repo) CancelOrder(
 
 func (r *repo) ListByUserID(ctx context.Context, userID string, statuses []string) ([]Order, error) {
 	query := `
-		SELECT
+SELECT
   order_id, status, total_price, order_date, updated_at,
   cancelled_at, cancelled_by, cancelled_reason,
   user_id, store_id,
   delivery_method, delivery_address_id, campus_location_id, campus_detail_note,
   proposed_at, meeting_location_id, meeting_note
 FROM orders
-WHERE order_id = $1;
-	`
+WHERE user_id = $1
+`
 	args := []any{userID}
 
 	if len(statuses) > 0 {
@@ -390,7 +393,6 @@ WHERE order_id = $1;
 	}
 
 	query += " ORDER BY order_date DESC;"
-
 	rows, err := r.db.Query(ctx, query, args...)
 	if err != nil {
 		return nil, apperr.Wrap(apperr.Internal, err, "list orders by user_id failed")
@@ -413,15 +415,15 @@ WHERE order_id = $1;
 
 func (r *repo) ListByStoreID(ctx context.Context, storeID int64, statuses []string) ([]Order, error) {
 	query := `
-		SELECT
+SELECT
   order_id, status, total_price, order_date, updated_at,
   cancelled_at, cancelled_by, cancelled_reason,
   user_id, store_id,
   delivery_method, delivery_address_id, campus_location_id, campus_detail_note,
   proposed_at, meeting_location_id, meeting_note
 FROM orders
-WHERE order_id = $1;
-	`
+WHERE store_id = $1
+`
 	args := []any{storeID}
 
 	if len(statuses) > 0 {
