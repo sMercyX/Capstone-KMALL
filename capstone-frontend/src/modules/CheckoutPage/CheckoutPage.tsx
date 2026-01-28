@@ -1,5 +1,6 @@
 // src/pages/cart/CheckoutPage.tsx
 import { useEffect, useState } from "react"
+import { useNavigate } from "react-router-dom"
 import { MapPin, ShoppingCart, Store as StoreIcon } from "lucide-react"
 import { useCartApi } from "../../api/cartApi"
 import { useCartStore } from "../../stores/cartStore"
@@ -44,7 +45,12 @@ export default function CheckoutPage() {
   const { email } = useUserStore()
 
   const { reset } = useCartStore()
+  const navigate = useNavigate()
 
+  const [deliveryMethod, setDeliveryMethod] = useState<"CAMPUS" | "ROUND_UNIVERSITY">("CAMPUS")
+  const [campusLocationId, setCampusLocationId] = useState<number>(1) // Default campus location
+  const [campusDetailNote, setCampusDetailNote] = useState("")
+  const [deliveryAddressId, setDeliveryAddressId] = useState<number>(1) // Default delivery address
   const [addressExtra, setAddressExtra] = useState("")
   const [note, setNote] = useState("")
   const [submitting, setSubmitting] = useState(false)
@@ -126,6 +132,17 @@ export default function CheckoutPage() {
         fulfillment_type: "STANDARD", // หรือให้เลือกจาก UI ทีหลังได้
         promised_ship_date: new Date().toISOString(), // ปรับให้ตรง logic BE ถ้าต้องการ
         deposit_amount: grandTotal, // ถ้าต้องการมัดจำบางส่วนเปลี่ยนค่าตรงนี้ได้
+        delivery_method: deliveryMethod,
+      }
+
+      // เพิ่มข้อมูลตาม delivery method ที่เลือก
+      if (deliveryMethod === "CAMPUS") {
+        payload.campus_location_id = campusLocationId
+        if (campusDetailNote) {
+          payload.campus_detail_note = campusDetailNote
+        }
+      } else if (deliveryMethod === "ROUND_UNIVERSITY") {
+        payload.delivery_address_id = deliveryAddressId
       }
 
       const res = await checkOutOrder(payload)
@@ -134,10 +151,8 @@ export default function CheckoutPage() {
 
       reset()
       
-      alert(`ยืนยันออเดอร์สำเร็จ! เลขคำสั่งซื้อ #${res.data.order.order_id}`)
-
-      // TODO: redirect ไปหน้า orders หรือหน้า success
-      // navigate(`/orders/${res.data.order.order_id}`)
+      // Redirect to order detail page
+      navigate(`/orders/${res.data.order.id}`)
     } catch (err) {
       console.error(err)
       alert("ยืนยันออเดอร์ไม่สำเร็จ")
@@ -173,21 +188,78 @@ export default function CheckoutPage() {
         <div className="grid items-start gap-16 lg:grid-cols-[0.6fr_0.4fr]">
           {/* LEFT FORM */}
           <section className="space-y-10">
+            {/* Delivery Method Selection */}
             <div>
-              <h2 className="text-lg font-semibold">ที่อยู่จัดส่ง</h2>
-
-              <p className="mt-3 text-sm font-medium">
-                {email || "example@kmutt.ac.th"}
-              </p>
-
-              <input
-                type="text"
-                placeholder="ระบุจุดรับเพิ่มเติม เช่น รออยู่ CBI ตรงร้านถ่ายเอกสารนะครับ"
-                value={addressExtra}
-                onChange={(e) => setAddressExtra(e.target.value)}
-                className="mt-3 w-full rounded-lg border border-gray-200 bg-white px-4 py-3 text-sm shadow-sm focus:border-orange-400 focus:ring-2 focus:ring-orange-100"
-              />
+              <h2 className="text-lg font-semibold mb-4">วิธีการจัดส่ง</h2>
+              <div className="space-y-3">
+                <label className="flex items-center gap-3 cursor-pointer">
+                  <input
+                    type="radio"
+                    name="deliveryMethod"
+                    value="CAMPUS"
+                    checked={deliveryMethod === "CAMPUS"}
+                    onChange={(e) => setDeliveryMethod(e.target.value as "CAMPUS")}
+                    className="w-5 h-5 text-orange-600 focus:ring-orange-500"
+                  />
+                  <span className="text-sm font-medium">ส่งภายในมหาวิทยาลัย (CAMPUS)</span>
+                </label>
+                <label className="flex items-center gap-3 cursor-pointer">
+                  <input
+                    type="radio"
+                    name="deliveryMethod"
+                    value="ROUND_UNIVERSITY"
+                    checked={deliveryMethod === "ROUND_UNIVERSITY"}
+                    onChange={(e) => setDeliveryMethod(e.target.value as "ROUND_UNIVERSITY")}
+                    className="w-5 h-5 text-orange-600 focus:ring-orange-500"
+                  />
+                  <span className="text-sm font-medium">ส่งบริเวณมหาวิทยาลัย (ROUND_UNIVERSITY)</span>
+                </label>
+              </div>
             </div>
+
+            {/* Conditional Fields Based on Delivery Method */}
+            {deliveryMethod === "CAMPUS" ? (
+              <div>
+                <h2 className="text-lg font-semibold">สถานที่รับภายในมหาวิทยาลัย</h2>
+                <select
+                  value={campusLocationId}
+                  onChange={(e) => setCampusLocationId(Number(e.target.value))}
+                  className="mt-3 w-full rounded-lg border border-gray-200 bg-white px-4 py-3 text-sm shadow-sm focus:border-orange-400 focus:ring-2 focus:ring-orange-100"
+                >
+                  <option value={1}>จุดรับที่ 1 - CBI Building</option>
+                  <option value={2}>จุดรับที่ 2 - Faculty of Engineering</option>
+                  <option value={3}>จุดรับที่ 3 - Library</option>
+                  <option value={4}>จุดรับที่ 4 - Student Union</option>
+                </select>
+                <input
+                  type="text"
+                  placeholder="ระบุจุดรับเพิ่มเติม เช่น รออยู่ CBI ตรงร้านถ่ายเอกสารนะครับ"
+                  value={campusDetailNote}
+                  onChange={(e) => setCampusDetailNote(e.target.value)}
+                  className="mt-3 w-full rounded-lg border border-gray-200 bg-white px-4 py-3 text-sm shadow-sm focus:border-orange-400 focus:ring-2 focus:ring-orange-100"
+                />
+              </div>
+            ) : (
+              <div>
+                <h2 className="text-lg font-semibold">ที่อยู่จัดส่ง</h2>
+                <select
+                  value={deliveryAddressId}
+                  onChange={(e) => setDeliveryAddressId(Number(e.target.value))}
+                  className="mt-3 w-full rounded-lg border border-gray-200 bg-white px-4 py-3 text-sm shadow-sm focus:border-orange-400 focus:ring-2 focus:ring-orange-100"
+                >
+                  <option value={1}>ที่อยู่ 1 - บ้านเลขที่ 123 ถนนสุขุมวิท</option>
+                  <option value={2}>ที่อยู่ 2 - บ้านเลขที่ 456 ถนนพระราม 2</option>
+                  <option value={3}>ที่อยู่ 3 - หอพักมหาวิทยาลัย</option>
+                </select>
+                <input
+                  type="text"
+                  placeholder="ข้อมูลเพิ่มเติมสำหรับการจัดส่ง"
+                  value={addressExtra}
+                  onChange={(e) => setAddressExtra(e.target.value)}
+                  className="mt-3 w-full rounded-lg border border-gray-200 bg-white px-4 py-3 text-sm shadow-sm focus:border-orange-400 focus:ring-2 focus:ring-orange-100"
+                />
+              </div>
+            )}
 
             <div>
               <h2 className="text-lg font-semibold">หมายเหตุ</h2>

@@ -13,7 +13,7 @@ export interface orderCreatedRequest {
 }
 
 export interface orderData {
-  order_id: number
+  id: number
   status: string
   total_price: number
   order_date: string
