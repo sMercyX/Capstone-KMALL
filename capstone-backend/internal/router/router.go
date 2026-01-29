@@ -9,6 +9,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/Perpasit/Capstone-KMALL/internal/auth"
+	"github.com/Perpasit/Capstone-KMALL/internal/campus"
 	"github.com/Perpasit/Capstone-KMALL/internal/cart"
 	"github.com/Perpasit/Capstone-KMALL/internal/category"
 	"github.com/Perpasit/Capstone-KMALL/internal/config"
@@ -98,6 +99,9 @@ func Attach(r *gin.Engine, db *pgxpool.Pool, cfg config.Config) {
 
 	shRepo := searchhistory.NewRepo(db)
 	shSvc := searchhistory.NewService(shRepo)
+
+	campusRepo := campus.NewRepo(db)
+	campusSvc := campus.NewService(campusRepo)
 
 	// v1 := r.Group("/api",
 	// 	apiLogger(),
@@ -207,6 +211,10 @@ func Attach(r *gin.Engine, db *pgxpool.Pool, cfg config.Config) {
 	//search history
 	shHdl := searchhistory.NewHandler(shSvc, rSvc, uSvc)
 	shHdl.Register(v1)
+
+	// register
+	campusHdl := campus.NewHandler(campusSvc, rSvc)
+	campusHdl.Register(v1)
 
 	// ---- debug local (ยิงตรง http://localhost:18080/debug/headers) ----
 	r.GET("/debug/headers", func(c *gin.Context) {

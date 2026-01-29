@@ -119,7 +119,7 @@ CREATE TABLE IF NOT EXISTS products (
 CREATE TABLE IF NOT EXISTS campus_locations (
   campus_location_id SERIAL PRIMARY KEY,
   name VARCHAR(120) NOT NULL,    
-  area VARCHAR(80) NULL,          
+  zone VARCHAR(80) NULL,          
   latitude NUMERIC(10,7) NULL,
   longitude NUMERIC(10,7) NULL,
   is_active BOOLEAN NOT NULL DEFAULT TRUE,
