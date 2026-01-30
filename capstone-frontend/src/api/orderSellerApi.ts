@@ -127,11 +127,18 @@ export function useOrderSellerApi() {
     })
   }
 
+  async function acceptOrder(
+    orderId: number
+  ): Promise<ApiUpdatedResponse<orderSellerData>> {
+    return http.postItem(`/orders/${orderId}/accept`, { accept: true })
+  }
+
   return {
     getOrdersSellerByStatus,
     getOrderDetail,
     updateOrderStatus,
     cancelledOrder,
     proposeOrder,
+    acceptOrder,
   }
 }

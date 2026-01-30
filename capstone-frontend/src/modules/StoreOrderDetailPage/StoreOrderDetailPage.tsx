@@ -83,9 +83,9 @@ function formatThaiDateTime(date: Date | string | null | undefined): string {
 
 export default function StoreOrderDetailPage() {
   const { orderId } = useParams<{ orderId: string }>()
-  const { getOrderDetail, updateOrderStatus, cancelledOrder, proposeOrder } =
+  const { getOrderDetail, updateOrderStatus, cancelledOrder, proposeOrder, acceptOrder } =
     useOrderSellerApi()
-  const { id, name: userName } = useUserStore()
+  const { name: userName } = useUserStore()
   const navigate = useNavigate()
 
   const [data, setData] = useState<OrderDetailResponse | null>(null)
@@ -232,11 +232,18 @@ export default function StoreOrderDetailPage() {
   const store_name = data?.store_name
 
   const currentStep = order ? getStepIndex(order.status) : 0
-  const isBuyer = id === order?.user_id
+  const isSellerPath = typeof window !== 'undefined' && window.location.pathname.includes('/store/orders/')
+  const isBuyer = !isSellerPath  // Buyer view is /orders/:id, Seller view is /store/orders/:id
   const isFinished = order?.status === "Completed" || order?.status === "Cancelled"
 
   const canReject = !!order && !isFinished
-  const canAccept = !!order && !isFinished && !isBuyer
+  // Accept button visibility:
+  // - PENDING status: only seller can accept (to propose)
+  // - PROPOSED status: only buyer can accept (to confirm proposal)
+  const canAccept = !!order && !isFinished && (
+    (order.status === "Pending" && isSellerPath) || 
+    (order.status === "Proposed" && !isSellerPath)
+  )
 
   const handleRejectClick = () => {
     if (!order || !orderId || !canReject) return
@@ -308,6 +315,27 @@ export default function StoreOrderDetailPage() {
         setData(res.data)
         
         toast.success("เสนอรายละเอียดการนัดรับสำเร็จ!")
+      } catch (e) {
+        handleApiError(e)
+      } finally {
+        setActionLoading(null)
+      }
+      return
+    }
+    
+    // If status is PROPOSED, buyer calls acceptOrder
+    if (order.status === "Proposed") {
+      setActionLoading("accept")
+      setError(null)
+      
+      try {
+        await acceptOrder(parseInt(orderId))
+        
+        // Refresh data
+        const res = await getOrderDetail(parseInt(orderId))
+        setData(res.data)
+        
+        toast.success("ยืนยันรับสินค้าสำเร็จ!")
       } catch (e) {
         handleApiError(e)
       } finally {
@@ -655,13 +683,13 @@ export default function StoreOrderDetailPage() {
 
             {/* Action Buttons */}
             <div className="flex justify-center gap-4 mt-8">
-              {!isBuyer && (
+              {canAccept && (
                 <button
                   onClick={handleAccept}
-                  disabled={!canAccept || actionLoading === "accept"}
+                  disabled={actionLoading === "accept"}
                   className={`px-16 py-3 rounded-lg text-base font-semibold text-white transition-colors
                     ${
-                      !canAccept || actionLoading === "accept"
+                      actionLoading === "accept"
                         ? "bg-green-300 cursor-not-allowed"
                         : "bg-green-500 hover:bg-green-600"
                     }`}
