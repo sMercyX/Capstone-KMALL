@@ -8,6 +8,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"github.com/Perpasit/Capstone-KMALL/internal/address"
 	"github.com/Perpasit/Capstone-KMALL/internal/auth"
 	"github.com/Perpasit/Capstone-KMALL/internal/campus"
 	"github.com/Perpasit/Capstone-KMALL/internal/cart"
@@ -102,6 +103,9 @@ func Attach(r *gin.Engine, db *pgxpool.Pool, cfg config.Config) {
 
 	campusRepo := campus.NewRepo(db)
 	campusSvc := campus.NewService(campusRepo)
+
+	addrRepo := address.NewRepo(db)
+	addrSvc := address.NewService(addrRepo)
 
 	// v1 := r.Group("/api",
 	// 	apiLogger(),
@@ -215,6 +219,10 @@ func Attach(r *gin.Engine, db *pgxpool.Pool, cfg config.Config) {
 	// register
 	campusHdl := campus.NewHandler(campusSvc, rSvc)
 	campusHdl.Register(v1)
+
+	// addresses (user private)
+	addrHdl := address.NewHandler(addrSvc, uSvc)
+	addrHdl.Register(v1)
 
 	// ---- debug local (ยิงตรง http://localhost:18080/debug/headers) ----
 	r.GET("/debug/headers", func(c *gin.Context) {
