@@ -1,6 +1,6 @@
 // src/pages/store/StoreOrderDetailPage.tsx
 import { useEffect, useState } from "react"
-import { Link, useParams } from "react-router-dom"
+import { Link, useNavigate, useParams } from "react-router-dom"
 import { Store } from "lucide-react"
 
 import {
@@ -11,6 +11,8 @@ import { useUserStore } from "../../stores/userStore"
 import ConfirmationModal from "../../components/Modal/ConfirmationModal"
 import { toast } from "react-toastify"
 import { handleApiError } from "../../utils/handleApiError"
+import SwitchTabs from "../../components/SwitchTabs/SwitchTabs"
+import { ZoneDropdown, BuildingDropdown, DateTimePicker } from "../../components/Dropdown"
 
 type StepKey = "PENDING" | "PROPOSED" | "ACCEPTED" | "OUT_FOR_DELIVERY" | "ARRIVED" | "DONE"
 
@@ -28,6 +30,7 @@ function getStepIndex(status: string): number {
     case "Pending Seller Confirmation":
     case "Pending":
       return 0
+    case "Proposed":
     case "Awaiting Buyer Confirmation":
       return 1
     case "Accepted":
@@ -80,9 +83,10 @@ function formatThaiDateTime(date: Date | string | null | undefined): string {
 
 export default function StoreOrderDetailPage() {
   const { orderId } = useParams<{ orderId: string }>()
-  const { getOrderDetail, updateOrderStatus, cancelledOrder } =
+  const { getOrderDetail, updateOrderStatus, cancelledOrder, proposeOrder } =
     useOrderSellerApi()
-  const { id } = useUserStore()
+  const { id, name: userName } = useUserStore()
+  const navigate = useNavigate()
 
   const [data, setData] = useState<OrderDetailResponse | null>(null)
   const [loading, setLoading] = useState(false)
@@ -93,6 +97,95 @@ export default function StoreOrderDetailPage() {
 
   const [isRejectModalOpen, setIsRejectModalOpen] = useState(false)
   const [cancelReason, setCancelReason] = useState("")
+  const [activeTab, setActiveTab] = useState<"products" | "delivery">("products")
+
+  // Delivery editing states
+  const [selectedZone, setSelectedZone] = useState<string | null>(null)
+  const [selectedBuilding, setSelectedBuilding] = useState<number | null>(null)
+  const [selectedDateTime, setSelectedDateTime] = useState<Date | null>(null)
+  const [selectedTime, setSelectedTime] = useState<string>("10:00 AM")
+  const [meetingNoteInput, setMeetingNoteInput] = useState("")
+  const [proposeLoading, setProposeLoading] = useState(false)
+
+  // Zone data
+  const zones = [
+    { id: "A", name: "Zone A" },
+    { id: "B", name: "Zone B" },
+    { id: "C", name: "Zone C" },
+  ]
+
+  // Buildings grouped by zone
+  const buildingsByZone: Record<string, { id: number; name: string }[]> = {
+    "A": [
+      { id: 1, name: "อาคาร 1 ตึกบริหาร" },
+      { id: 2, name: "อาคาร 2 คณะวิศวกรรมศาสตร์" },
+      { id: 3, name: "อาคาร 3 คณะวิทยาศาสตร์" },
+      { id: 4, name: "อาคาร 4 คณะสถาปัตยกรรมศาสตร์" },
+      { id: 5, name: "อาคาร 5 สำนักหอสมุด" },
+    ],
+    "B": [
+      { id: 6, name: "อาคาร 6 คณะครุศาสตร์อุตสาหกรรม" },
+      { id: 7, name: "อาคาร 7 คณะเทคโนโลยีสารสนเทศ" },
+      { id: 8, name: "อาคาร 8 ศูนย์เรียนรวม" },
+      { id: 9, name: "อาคาร 9 โรงอาหาร" },
+      { id: 10, name: "อาคาร 10 สนามกีฬา" },
+    ],
+    "C": [
+      { id: 11, name: "อาคาร 11 หอพักนักศึกษา" },
+      { id: 12, name: "อาคาร 12 ศูนย์กิจกรรมนักศึกษา" },
+      { id: 13, name: "อาคาร 13 คลินิกสุขภาพ" },
+      { id: 14, name: "อาคาร 14 อาคารบริการกลาง" },
+      { id: 15, name: "อาคาร 15 ห้องประชุมใหญ่" },
+    ],
+  }
+
+  // Get buildings for selected zone
+  const buildings = selectedZone ? buildingsByZone[selectedZone] || [] : []
+
+  // Handle zone change - reset building when zone changes
+  const handleZoneChange = (zoneId: string | null) => {
+    setSelectedZone(zoneId)
+    setSelectedBuilding(null) // Reset building when zone changes
+  }
+
+  // Handle propose order
+  async function handleProposeOrder() {
+    if (!orderId || !selectedDateTime) return
+    
+    try {
+      setProposeLoading(true)
+      
+      // Parse time and combine with date
+      const timeParts = selectedTime.match(/(\d+):(\d+)\s*(AM|PM)/i)
+      if (timeParts) {
+        let hours = parseInt(timeParts[1])
+        const minutes = parseInt(timeParts[2])
+        const isPM = timeParts[3].toUpperCase() === "PM"
+        
+        if (isPM && hours !== 12) hours += 12
+        if (!isPM && hours === 12) hours = 0
+        
+        selectedDateTime.setHours(hours, minutes, 0, 0)
+      }
+      
+      await proposeOrder(
+        parseInt(orderId),
+        selectedDateTime.toISOString(),
+        selectedBuilding || undefined,
+        meetingNoteInput || undefined
+      )
+      
+      toast.success("เสนอวันเวลาสำเร็จ!")
+      
+      // Refresh data
+      const res = await getOrderDetail(parseInt(orderId))
+      setData(res.data)
+    } catch (err) {
+      handleApiError(err)
+    } finally {
+      setProposeLoading(false)
+    }
+  }
 
   useEffect(() => {
     if (!orderId) return
@@ -110,6 +203,29 @@ export default function StoreOrderDetailPage() {
       }
     })()
   }, [orderId])
+
+  // Access control: check if current user has permission to view this order
+  // - /store/orders/:id → check seller_name
+  // - /orders/:id → check buyer_name
+  useEffect(() => {
+    if (!loading && data && userName) {
+      const isSellerPath = window.location.pathname.includes('/store/orders/')
+      
+      if (isSellerPath) {
+        // Seller must match seller_name
+        if (data.seller_name !== userName) {
+          toast.error("คุณไม่มีสิทธิ์เข้าถึงคำสั่งซื้อนี้")
+          navigate("/dashboard")
+        }
+      } else {
+        // Buyer must match buyer_name
+        if (data.buyer_name !== userName) {
+          toast.error("คุณไม่มีสิทธิ์เข้าถึงคำสั่งซื้อนี้")
+          navigate("/dashboard")
+        }
+      }
+    }
+  }, [data, userName, loading, navigate])
 
   const order = data?.order
   const items = data?.items ?? []
@@ -153,6 +269,54 @@ export default function StoreOrderDetailPage() {
 
   const handleAccept = async () => {
     if (!order || !orderId || !canAccept) return
+    
+    // If status is PENDING, call proposeOrder to move to PROPOSED
+    if (order.status === "Pending") {
+      // Validate required fields
+      if (!selectedZone || !selectedBuilding || !selectedDateTime) {
+        toast.error("กรุณาเลือก Zone, อาคาร และวันเวลานัดรับสินค้า")
+        return
+      }
+      
+      setActionLoading("accept")
+      setError(null)
+      
+      try {
+        // Parse time and combine with date
+        const dateTime = new Date(selectedDateTime)
+        const timeParts = selectedTime.match(/(\d+):(\d+)\s*(AM|PM)/i)
+        if (timeParts) {
+          let hours = parseInt(timeParts[1])
+          const minutes = parseInt(timeParts[2])
+          const isPM = timeParts[3].toUpperCase() === "PM"
+          
+          if (isPM && hours !== 12) hours += 12
+          if (!isPM && hours === 12) hours = 0
+          
+          dateTime.setHours(hours, minutes, 0, 0)
+        }
+        
+        await proposeOrder(
+          parseInt(orderId),
+          dateTime.toISOString(),
+          selectedBuilding,
+          meetingNoteInput || undefined
+        )
+        
+        // Refresh data
+        const res = await getOrderDetail(parseInt(orderId))
+        setData(res.data)
+        
+        toast.success("เสนอรายละเอียดการนัดรับสำเร็จ!")
+      } catch (e) {
+        handleApiError(e)
+      } finally {
+        setActionLoading(null)
+      }
+      return
+    }
+    
+    // For other statuses, use updateOrderStatus
     setActionLoading("accept")
     setError(null)
     try {
@@ -273,9 +437,22 @@ export default function StoreOrderDetailPage() {
 
         {order && !loading && !error && (
           <>
-            {/* Order Items Section */}
+            {/* Tabs */}
             <div className="mb-6">
-              <h3 className="text-lg font-bold mb-4">รายละเอียดสินค้า</h3>
+              <SwitchTabs
+                useNavLink={false}
+                activeKey={activeTab}
+                onChange={(key) => setActiveTab(key as "products" | "delivery")}
+                tabs={[
+                  { key: "products", label: "รายละเอียดสินค้า" },
+                  { key: "delivery", label: "รายละเอียดการจัดส่ง" },
+                ]}
+              />
+            </div>
+
+            {/* Tab Content: Product Details */}
+            {activeTab === "products" && (
+            <div className="mb-6">
               
               <div className="bg-gray-50 rounded-2xl p-4 md:p-6">
                 {/* Table Header */}
@@ -360,6 +537,121 @@ export default function StoreOrderDetailPage() {
                 </div>
               </div>
             </div>
+            )}
+
+            {/* Tab Content: Delivery Details */}
+            {activeTab === "delivery" && (
+            <div className="mb-6">
+              {/* Header with user */}
+              <div className="flex justify-between items-center mb-6">
+                <h3 className="text-xl font-bold">เลือกสถานที่ วัน/เวลานัดรับสินค้า</h3>
+                <div className="flex items-center gap-2 bg-gray-200 px-4 py-2 rounded-full">
+                  <span className="text-lg">✈️</span>
+                  <span className="font-medium text-gray-700">{data?.buyer?.display_name || "User"}</span>
+                </div>
+              </div>
+
+
+              {/* Row 1: Zone + DateTime */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {/* Zone Dropdown */}
+                <div>
+                  <ZoneDropdown
+                    value={selectedZone}
+                    onChange={handleZoneChange}
+                    zones={zones}
+                    disabled={isBuyer}
+                  />
+                </div>
+
+                {/* DateTime Picker */}
+                <div>
+                  <DateTimePicker
+                    value={selectedDateTime}
+                    onChange={(date, time) => {
+                      setSelectedDateTime(date)
+                      setSelectedTime(time)
+                    }}
+                    disabled={isBuyer}
+                  />
+                </div>
+              </div>
+
+              {/* Row 2: Building + MAP Button */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
+                {/* Building Dropdown */}
+                <div>
+                  <BuildingDropdown
+                    value={selectedBuilding}
+                    onChange={setSelectedBuilding}
+                    buildings={buildings}
+                    disabled={isBuyer || !selectedZone}
+                    placeholder={!selectedZone ? "เลือก Zone ก่อน" : "เลือกอาคาร"}
+                    label="หมายเลขตึก และชื่อตึก"
+                  />
+                </div>
+
+                {/* MAP KMUTT Button */}
+                <div>
+                  <label className="block text-base font-semibold mb-3 invisible">-</label>
+                  <a
+                    href="https://maps.kmutt.ac.th/"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-2 px-6 py-4 bg-orange-500 text-white rounded-xl hover:bg-orange-600 transition-colors font-semibold"
+                  >
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                    </svg>
+                    MAP KMUTT
+                  </a>
+                </div>
+              </div>
+
+              {/* Meeting Note Input */}
+              <div className="mt-6">
+                <label className="block text-base font-semibold mb-3">หมายเหตุเพิ่มเติม</label>
+                <textarea
+                  value={meetingNoteInput}
+                  onChange={(e) => setMeetingNoteInput(e.target.value)}
+                  disabled={isBuyer}
+                  placeholder="ระบุหมายเหตุเพิ่มเติมสำหรับการนัดหมาย..."
+                  className={`w-full bg-white border-2 border-gray-200 rounded-xl p-4 text-base min-h-[100px] resize-none
+                    ${isBuyer ? 'cursor-not-allowed opacity-70' : 'focus:border-orange-500 focus:ring-2 focus:ring-orange-100'}`}
+                />
+              </div>
+
+              {/* Save Button - only show when NOT in PENDING status */}
+              {!isBuyer && order.status !== "Pending" && (
+                <div className="mt-6 flex justify-end gap-3">
+                  <button
+                    type="button"
+                    onClick={handleProposeOrder}
+                    disabled={proposeLoading || !selectedDateTime}
+                    className={`px-8 py-3 rounded-xl text-base font-semibold text-white transition-colors
+                      ${proposeLoading || !selectedDateTime
+                        ? 'bg-orange-300 cursor-not-allowed'
+                        : 'bg-orange-500 hover:bg-orange-600'}`}
+                  >
+                    {proposeLoading ? 'กำลังบันทึก...' : 'บันทึกและเสนอวันเวลา'}
+                  </button>
+                </div>
+              )}
+
+              {/* Display existing notes (read-only) */}
+              {(order.campus_detail_note || order.meeting_note || order.notes) && (
+                <div className="mt-6 p-4 bg-gray-50 rounded-xl">
+                  <h4 className="text-sm font-semibold text-gray-700 mb-2">หมายเหตุที่บันทึกไว้:</h4>
+                  <div className="space-y-1 text-sm text-gray-600">
+                    {order.campus_detail_note && <p>• จุดรับ: {order.campus_detail_note}</p>}
+                    {order.meeting_note && <p>• นัดหมาย: {order.meeting_note}</p>}
+                    {order.notes && <p>• หมายเหตุทั่วไป: {order.notes}</p>}
+                  </div>
+                </div>
+              )}
+            </div>
+            )}
 
             {/* Action Buttons */}
             <div className="flex justify-center gap-4 mt-8">

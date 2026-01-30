@@ -20,6 +20,18 @@ export interface orderSellerData {
   cancelled_by?: string
   user_id: string
   store_id: number
+  notes?: string
+  
+  // Delivery fields
+  delivery_method: string
+  delivery_address_id?: number
+  campus_location_id?: number
+  campus_detail_note?: string
+  
+  // Meeting/Proposal fields
+  proposed_at?: string
+  meeting_location_id?: number
+  meeting_note?: string
 }
 export interface orderSellerResponse {
   order: orderSellerData
@@ -102,10 +114,24 @@ export function useOrderSellerApi() {
     return http.postItem(`/orders/${orderId}/cancel`, { reason })
   }
 
+  async function proposeOrder(
+    orderId: number,
+    proposedAt: string,
+    meetingLocationId?: number,
+    meetingNote?: string
+  ): Promise<ApiUpdatedResponse<orderSellerData>> {
+    return http.putItem(`/orders/${orderId}/propose`, { 
+      proposed_at: proposedAt,
+      meeting_location_id: meetingLocationId,
+      meeting_note: meetingNote
+    })
+  }
+
   return {
     getOrdersSellerByStatus,
     getOrderDetail,
     updateOrderStatus,
     cancelledOrder,
+    proposeOrder,
   }
 }
