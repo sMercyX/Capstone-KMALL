@@ -6,6 +6,7 @@ import { Store } from "lucide-react"
 import {
   useOrderSellerApi,
   type OrderDetailResponse,
+  type OrderStatus,
 } from "../../api/orderSellerApi"
 import { useUserStore } from "../../stores/userStore"
 import ConfirmationModal from "../../components/Modal/ConfirmationModal"
@@ -35,7 +36,7 @@ function getStepIndex(status: string): number {
       return 1
     case "Accepted":
       return 2
-    case "Out for delivery":
+    case "Out For Delivery":
       return 3
     case "Arrived":
       return 4
@@ -236,13 +237,22 @@ export default function StoreOrderDetailPage() {
   const isBuyer = !isSellerPath  // Buyer view is /orders/:id, Seller view is /store/orders/:id
   const isFinished = order?.status === "Completed" || order?.status === "Cancelled"
 
-  const canReject = !!order && !isFinished
+  // Buyer: no buttons after PROPOSED status
+  // Seller: has buttons throughout the order lifecycle
+  const canReject = !!order && !isFinished && (isSellerPath || order.status === "Proposed")
+  
   // Accept button visibility:
-  // - PENDING status: only seller can accept (to propose)
-  // - PROPOSED status: only buyer can accept (to confirm proposal)
+  // - PENDING (Seller): propose order
+  // - PROPOSED (Buyer): accept proposal
+  // - ACCEPTED (Seller): move to Out For Delivery
+  // - OUT_FOR_DELIVERY (Seller): move to Arrived
+  // - ARRIVED (Seller): move to Completed
   const canAccept = !!order && !isFinished && (
     (order.status === "Pending" && isSellerPath) || 
-    (order.status === "Proposed" && !isSellerPath)
+    (order.status === "Proposed" && !isSellerPath) ||
+    (order.status === "Accepted" && isSellerPath) ||
+    (order.status === "Out For Delivery" && isSellerPath) ||
+    (order.status === "Arrived" && isSellerPath)
   )
 
   const handleRejectClick = () => {
@@ -344,23 +354,40 @@ export default function StoreOrderDetailPage() {
       return
     }
     
-    // For other statuses, use updateOrderStatus
+    // For other statuses (Accepted, Out for delivery, Arrived), use updateOrderStatus to move to next status
+    // Status flow: Accepted → Out For Delivery → Arrived → Completed
+    let nextStatus = ""
+    let successMessage = ""
+    
+    switch (order.status) {
+      case "Accepted":
+        nextStatus = "Out For Delivery"
+        successMessage = "เปลี่ยนสถานะเป็น กำลังจัดส่ง"
+        break
+      case "Out For Delivery":
+        nextStatus = "Arrived"
+        successMessage = "เปลี่ยนสถานะเป็น ถึงจุดนัดพบแล้ว"
+        break
+      case "Arrived":
+        nextStatus = "Completed"
+        successMessage = "คำสั่งซื้อเสร็จสมบูรณ์!"
+        break
+      default:
+        return
+    }
+    
     setActionLoading("accept")
     setError(null)
     try {
       await updateOrderStatus(order.id, {
-        status: "Completed",
+        status: nextStatus as OrderStatus,
       })
 
-      setData((prev) =>
-        prev
-          ? {
-              ...prev,
-              order: { ...prev.order, status: "Completed" },
-            }
-          : prev
-      )
-      toast.success("ยืนยันคำสั่งซื้อเรียบร้อยแล้ว")
+      // Refresh data
+      const res = await getOrderDetail(parseInt(orderId))
+      setData(res.data)
+      
+      toast.success(successMessage)
     } catch (e) {
       handleApiError(e)
     } finally {
@@ -698,18 +725,20 @@ export default function StoreOrderDetailPage() {
                 </button>
               )}
 
-              <button
-                onClick={handleRejectClick}
-                disabled={!canReject || actionLoading === "reject"}
-                className={`px-16 py-3 rounded-lg text-base font-semibold text-white transition-colors
-                  ${
-                    !canReject || actionLoading === "reject"
-                      ? "bg-red-300 cursor-not-allowed"
-                      : "bg-red-500 hover:bg-red-600"
-                  }`}
-              >
-                {actionLoading === "reject" ? "กำลังยกเลิก..." : "Reject"}
-              </button>
+              {canReject && (
+                <button
+                  onClick={handleRejectClick}
+                  disabled={actionLoading === "reject"}
+                  className={`px-16 py-3 rounded-lg text-base font-semibold text-white transition-colors
+                    ${
+                      actionLoading === "reject"
+                        ? "bg-red-300 cursor-not-allowed"
+                        : "bg-red-500 hover:bg-red-600"
+                    }`}
+                >
+                  {actionLoading === "reject" ? "กำลังยกเลิก..." : "Reject"}
+                </button>
+              )}
             </div>
           </>
         )}
