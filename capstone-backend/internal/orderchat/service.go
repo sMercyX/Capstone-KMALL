@@ -13,7 +13,6 @@ import (
 // File Upload Abstraction
 // ============================================================================
 
-// UploadedFile is result returned by FileStore.
 type UploadedFile struct {
 	URL      string
 	FileName string
@@ -22,8 +21,6 @@ type UploadedFile struct {
 	SHA256   *string
 }
 
-// FileStore uploads files and returns accessible URLs.
-// Implement this with local /uploads, S3, etc.
 type FileStore interface {
 	Save(ctx context.Context, fh *multipart.FileHeader) (UploadedFile, error)
 }
@@ -74,9 +71,8 @@ type ModerateMessageServiceInput struct {
 }
 
 type MarkReadServiceInput struct {
-	ThreadID int64
-	UserID   string
-	// optional; if nil -> mark by latest visible message in thread would require extra query (ทำใน v2 ได้)
+	ThreadID          int64
+	UserID            string
 	LastReadMessageID *int64
 }
 
@@ -93,6 +89,8 @@ type Service interface {
 	ModerateMessage(ctx context.Context, in ModerateMessageServiceInput) (Message, error)
 
 	MarkRead(ctx context.Context, in MarkReadServiceInput) (ReadState, error)
+
+	GetOrCreateThreadByOrderID(ctx context.Context, actorUserID string, orderID int64) (GetOrCreateThreadResult, error)
 }
 
 type service struct {
@@ -105,7 +103,7 @@ func NewService(r Repo, fs FileStore) Service {
 }
 
 // ============================================================================
-// Helpers / Auth
+// Helpers / Validators
 // ============================================================================
 
 func isParticipant(t Thread, userID string) bool {
@@ -127,11 +125,8 @@ func detectMessageType(files []*multipart.FileHeader) string {
 	if len(files) == 0 {
 		return "TEXT"
 	}
-	// ถ้ามีไฟล์อย่างน้อย 1 ชิ้น: ถ้าทุกไฟล์เป็น image/* ให้ IMAGE ไม่งั้น FILE
 	allImage := true
 	for _, f := range files {
-		// Content-Type ใน multipart ไม่ชัวร์ 100% แต่พอใช้ heuristic ได้
-		// ถ้าคุณเช็ค mime จาก bytes จริง ให้ทำใน FileStore.Save
 		ct := strings.ToLower(strings.TrimSpace(f.Header.Get("Content-Type")))
 		if !strings.HasPrefix(ct, "image/") {
 			allImage = false
@@ -157,7 +152,6 @@ func (s *service) ListMessages(ctx context.Context, actorUserID string, in ListM
 		return ListMessagesResult{}, apperr.New(apperr.BadRequest, "invalid thread_id")
 	}
 
-	// auth: ต้องเป็น participant (admin จะเช็คใน handler ด้วย role) — ที่นี่เช็ค participant อย่างเดียวก่อน
 	th, err := s.repo.GetThread(ctx, in.ThreadID)
 	if err != nil {
 		return ListMessagesResult{}, err
@@ -171,7 +165,6 @@ func (s *service) ListMessages(ctx context.Context, actorUserID string, in ListM
 		return ListMessagesResult{}, err
 	}
 
-	// load attachments per message (N queries) — จำนวน message ต่อหน้าไม่เยอะ (default 30)
 	out := make([]MessageWithAttachments, 0, len(msgs))
 	for _, m := range msgs {
 		atts, err := s.repo.ListAttachmentsByMessageID(ctx, m.ID)
@@ -192,6 +185,7 @@ func (s *service) ListMessages(ctx context.Context, actorUserID string, in ListM
 
 func (s *service) CreateMessage(ctx context.Context, in CreateMessageServiceInput) (CreateMessageResult, error) {
 	in.SenderID = strings.TrimSpace(in.SenderID)
+
 	if in.ThreadID <= 0 {
 		return CreateMessageResult{}, apperr.New(apperr.BadRequest, "invalid thread_id")
 	}
@@ -200,7 +194,6 @@ func (s *service) CreateMessage(ctx context.Context, in CreateMessageServiceInpu
 	}
 	in.MessageText = normalizeTextPtr(in.MessageText)
 
-	// auth
 	th, err := s.repo.GetThread(ctx, in.ThreadID)
 	if err != nil {
 		return CreateMessageResult{}, err
@@ -209,7 +202,6 @@ func (s *service) CreateMessage(ctx context.Context, in CreateMessageServiceInpu
 		return CreateMessageResult{}, apperr.New(apperr.Forbidden, "not allowed")
 	}
 
-	// validate: ต้องมีอย่างน้อย text หรือไฟล์
 	if in.MessageText == nil && len(in.Files) == 0 {
 		return CreateMessageResult{}, apperr.New(apperr.BadRequest, "message_text or files is required")
 	}
@@ -226,26 +218,21 @@ func (s *service) CreateMessage(ctx context.Context, in CreateMessageServiceInpu
 		return CreateMessageResult{}, err
 	}
 
-	// ถ้าไม่มีไฟล์ก็จบ
 	if len(in.Files) == 0 {
 		return CreateMessageResult{Message: createdMsg}, nil
 	}
 
 	if s.fs == nil {
-		// กัน config พลาด
 		return CreateMessageResult{}, apperr.New(apperr.Internal, "file store is not configured")
 	}
 
-	// upload → insert attachments
 	attInputs := make([]CreateAttachmentInput, 0, len(in.Files))
 	for _, fh := range in.Files {
 		up, err := s.fs.Save(ctx, fh)
 		if err != nil {
-			// v1: ถ้า upload fail ให้คืน error (และข้อความจะถูกสร้างไปแล้ว)
-			// v2: ทำ tx + cleanup ได้ (soft delete message หรือ delete uploaded files)
 			return CreateMessageResult{}, err
 		}
-		// สร้าง attachment row
+
 		fileURL := strings.TrimSpace(up.URL)
 		if fileURL == "" {
 			return CreateMessageResult{}, apperr.New(apperr.Internal, "uploaded file url is empty")
@@ -290,7 +277,6 @@ func (s *service) EditMessageText(ctx context.Context, in EditMessageServiceInpu
 		return Message{}, apperr.New(apperr.BadRequest, "message_text is required")
 	}
 
-	// auth: ต้องเป็น sender (admin ให้ทำ moderation ไม่ใช่ edit)
 	msg, err := s.repo.GetMessage(ctx, in.MessageID)
 	if err != nil {
 		return Message{}, err
@@ -331,7 +317,6 @@ func (s *service) SoftDeleteMessage(ctx context.Context, in DeleteMessageService
 		return Message{}, err
 	}
 
-	// auth: sender เท่านั้น (admin จะใช้ moderation)
 	if msg.SenderID == nil || !strings.EqualFold(*msg.SenderID, in.ActorUserID) {
 		return Message{}, apperr.New(apperr.Forbidden, "only sender can delete message")
 	}
@@ -411,4 +396,42 @@ func (s *service) MarkRead(ctx context.Context, in MarkReadServiceInput) (ReadSt
 		return ReadState{}, err
 	}
 	return rs, nil
+}
+
+func (s *service) GetOrCreateThreadByOrderID(ctx context.Context, actorUserID string, orderID int64) (GetOrCreateThreadResult, error) {
+	actorUserID = strings.TrimSpace(actorUserID)
+	if actorUserID == "" {
+		return GetOrCreateThreadResult{}, apperr.New(apperr.BadRequest, "invalid actor_user_id")
+	}
+	if orderID <= 0 {
+		return GetOrCreateThreadResult{}, apperr.New(apperr.BadRequest, "invalid order_id")
+	}
+
+	th, err := s.repo.GetThreadByOrderID(ctx, orderID)
+	if err == nil {
+		if !isParticipant(th, actorUserID) {
+			return GetOrCreateThreadResult{}, apperr.New(apperr.Forbidden, "not allowed")
+		}
+		return GetOrCreateThreadResult{Thread: th}, nil
+	}
+	if !apperr.Is(err, apperr.NotFound) {
+		return GetOrCreateThreadResult{}, err
+	}
+
+	createIn, err := s.repo.GetThreadCreateInfoByOrderID(ctx, orderID)
+	if err != nil {
+		return GetOrCreateThreadResult{}, err
+	}
+
+	if !strings.EqualFold(createIn.BuyerID, actorUserID) &&
+		!strings.EqualFold(createIn.SellerID, actorUserID) {
+		return GetOrCreateThreadResult{}, apperr.New(apperr.Forbidden, "not allowed")
+	}
+
+	th, err = s.repo.CreateThread(ctx, createIn)
+	if err != nil {
+		return GetOrCreateThreadResult{}, err
+	}
+
+	return GetOrCreateThreadResult{Thread: th}, nil
 }

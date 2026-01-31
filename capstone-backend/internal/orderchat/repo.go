@@ -37,6 +37,10 @@ type Repo interface {
 	// Read state
 	UpsertReadState(ctx context.Context, in MarkReadInput) (ReadState, error)
 	GetReadState(ctx context.Context, threadID int64, userID string) (ReadState, error)
+
+	GetThreadCreateInfoByOrderID(ctx context.Context, orderID int64) (CreateThreadInput, error)
+	GetThreadByOrderID(ctx context.Context, orderID int64) (Thread, error)
+	CreateThread(ctx context.Context, in CreateThreadInput) (Thread, error)
 }
 
 type repo struct {
@@ -554,4 +558,88 @@ func itoa(n int) string {
 		n /= 10
 	}
 	return string(buf[i:])
+}
+
+func (r *repo) GetThreadByOrderID(ctx context.Context, orderID int64) (Thread, error) {
+	if orderID <= 0 {
+		return Thread{}, apperr.New(apperr.BadRequest, "invalid order_id")
+	}
+
+	var t Thread
+	err := scanThread(r.db.QueryRow(ctx, `
+SELECT
+  thread_id, order_id, store_id, buyer_id, seller_id, created_at, updated_at
+FROM order_chat_threads
+WHERE order_id = $1
+`, orderID), &t)
+
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return Thread{}, apperr.New(apperr.NotFound, "thread not found")
+		}
+		return Thread{}, apperr.Wrap(apperr.Internal, err, "get thread by order_id failed")
+	}
+	return t, nil
+}
+
+func (r *repo) CreateThread(ctx context.Context, in CreateThreadInput) (Thread, error) {
+	if in.OrderID <= 0 {
+		return Thread{}, apperr.New(apperr.BadRequest, "invalid order_id")
+	}
+	if in.StoreID <= 0 {
+		return Thread{}, apperr.New(apperr.BadRequest, "invalid store_id")
+	}
+	in.BuyerID = strings.TrimSpace(in.BuyerID)
+	in.SellerID = strings.TrimSpace(in.SellerID)
+	if in.BuyerID == "" || in.SellerID == "" {
+		return Thread{}, apperr.New(apperr.BadRequest, "buyer_id and seller_id are required")
+	}
+
+	var t Thread
+	err := scanThread(r.db.QueryRow(ctx, `
+INSERT INTO order_chat_threads (order_id, store_id, buyer_id, seller_id)
+VALUES ($1,$2,$3,$4)
+ON CONFLICT (order_id) DO UPDATE
+SET updated_at = NOW()
+RETURNING thread_id, order_id, store_id, buyer_id, seller_id, created_at, updated_at
+`, in.OrderID, in.StoreID, in.BuyerID, in.SellerID), &t)
+
+	if err != nil {
+		if pgErr, ok := err.(*pgconn.PgError); ok {
+			if pgErr.Code == "23503" { // FK
+				return Thread{}, apperr.WithFields(
+					apperr.Wrap(apperr.BadRequest, err, "invalid order_id/store_id/buyer_id/seller_id"),
+					map[string]any{"pg_code": pgErr.Code, "constraint": pgErr.ConstraintName},
+				)
+			}
+		}
+		return Thread{}, apperr.Wrap(apperr.Internal, err, "create thread failed")
+	}
+	return t, nil
+}
+
+func (r *repo) GetThreadCreateInfoByOrderID(ctx context.Context, orderID int64) (CreateThreadInput, error) {
+	if orderID <= 0 {
+		return CreateThreadInput{}, apperr.New(apperr.BadRequest, "invalid order_id")
+	}
+
+	var in CreateThreadInput
+	err := r.db.QueryRow(ctx, `
+SELECT
+  o.order_id,
+  o.store_id,
+  o.user_id AS buyer_id,
+  s.user_id AS seller_id
+FROM orders o
+JOIN stores s ON s.store_id = o.store_id
+WHERE o.order_id = $1
+`, orderID).Scan(&in.OrderID, &in.StoreID, &in.BuyerID, &in.SellerID)
+
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return CreateThreadInput{}, apperr.New(apperr.NotFound, "order not found")
+		}
+		return CreateThreadInput{}, apperr.Wrap(apperr.Internal, err, "get thread create info failed")
+	}
+	return in, nil
 }

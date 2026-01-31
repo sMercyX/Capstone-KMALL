@@ -103,6 +103,17 @@ func From(err error) *AppError {
 	return &AppError{Code: Internal, Msg: defaultMsg[Internal], Cause: err}
 }
 
+func Is(err error, code Code) bool {
+	if err == nil {
+		return false
+	}
+	var ae *AppError
+	if errors.As(err, &ae) {
+		return ae.Code == code
+	}
+	return false
+}
+
 func HTTPStatus(code Code) int {
 	switch code {
 	// Success

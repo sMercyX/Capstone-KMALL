@@ -40,6 +40,7 @@ func (h *Handler) Register(r *gin.RouterGroup) {
 		// list messages
 		g.GET("/:thread_id/messages", h.listMessages)
 
+		g.POST("/orders/:order_id/thread", h.getOrCreateThreadByOrderID)
 		// send message + files (multipart)
 		g.POST("/:thread_id/messages", h.createMessage)
 
@@ -51,7 +52,7 @@ func (h *Handler) Register(r *gin.RouterGroup) {
 		g.DELETE("/messages/:message_id", h.deleteMessage)
 
 		// moderation (Admin)
-		admin := g.Group("", middleware.RequireRolesAny(h.roleSvc, "Admin"))
+		admin := g.Group("", middleware.RequireRolesAny(h.roleSvc, "admin"))
 		{
 			admin.POST("/messages/:message_id/moderate", h.moderateMessage)
 		}
@@ -225,7 +226,6 @@ func (h *Handler) createMessage(c *gin.Context) {
 		return
 	}
 
-	// multipart
 	// message_text เป็น form field
 	msgText := strings.TrimSpace(c.PostForm("message_text"))
 	var textPtr *string
@@ -235,14 +235,11 @@ func (h *Handler) createMessage(c *gin.Context) {
 
 	form, err := c.MultipartForm()
 	if err != nil {
-		// ถ้าไม่มี multipart จริง ๆ
 		c.Error(apperr.New(apperr.BadRequest, "multipart/form-data is required"))
 		return
 	}
 
 	files := form.File["files"]
-	// NOTE: ถ้าจะรองรับ "file" ชื่อเดียวด้วย:
-	// if len(files) == 0 { files = form.File["file"] }
 
 	result, err := h.svc.CreateMessage(c.Request.Context(), CreateMessageServiceInput{
 		ThreadID:    threadID,
@@ -299,7 +296,7 @@ func (h *Handler) deleteMessage(c *gin.Context) {
 		return
 	}
 
-	// optional body (บาง client ส่ง DELETE body ไม่สะดวก) -> จะอ่านได้ก็อ่าน ไม่ได้ก็ปล่อย nil
+	// optional body (DELETE body บาง client ส่งไม่สะดวก)
 	var in deleteMessageReq
 	_ = c.ShouldBindJSON(&in)
 
@@ -383,4 +380,24 @@ func (h *Handler) markRead(c *gin.Context) {
 	}
 
 	respond.OK(c, apperr.OK, rs)
+}
+
+func (h *Handler) getOrCreateThreadByOrderID(c *gin.Context) {
+	userID, ok := h.resolveCurrentUserID(c)
+	if !ok {
+		return
+	}
+
+	orderID, ok := parsePathID(c, "order_id")
+	if !ok {
+		return
+	}
+
+	result, err := h.svc.GetOrCreateThreadByOrderID(c.Request.Context(), userID, orderID)
+	if err != nil {
+		c.Error(err)
+		return
+	}
+
+	respond.OK(c, apperr.OK, result)
 }

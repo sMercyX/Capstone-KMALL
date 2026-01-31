@@ -17,6 +17,7 @@ import (
 	images "github.com/Perpasit/Capstone-KMALL/internal/image"
 	"github.com/Perpasit/Capstone-KMALL/internal/middleware"
 	"github.com/Perpasit/Capstone-KMALL/internal/order"
+	"github.com/Perpasit/Capstone-KMALL/internal/orderchat"
 	"github.com/Perpasit/Capstone-KMALL/internal/product"
 	"github.com/Perpasit/Capstone-KMALL/internal/respond"
 	"github.com/Perpasit/Capstone-KMALL/internal/role"
@@ -106,6 +107,9 @@ func Attach(r *gin.Engine, db *pgxpool.Pool, cfg config.Config) {
 
 	addrRepo := address.NewRepo(db)
 	addrSvc := address.NewService(addrRepo)
+
+	ocRepo := orderchat.NewRepo(db)
+	ocSvc := orderchat.NewService(ocRepo, nil)
 
 	// v1 := r.Group("/api",
 	// 	apiLogger(),
@@ -223,6 +227,10 @@ func Attach(r *gin.Engine, db *pgxpool.Pool, cfg config.Config) {
 	// addresses (user private)
 	addrHdl := address.NewHandler(addrSvc, uSvc)
 	addrHdl.Register(v1)
+
+	// order chat
+	ocHdl := orderchat.NewHandler(ocSvc, ocRepo, rSvc, uSvc)
+	ocHdl.Register(v1)
 
 	// ---- debug local (ยิงตรง http://localhost:18080/debug/headers) ----
 	r.GET("/debug/headers", func(c *gin.Context) {

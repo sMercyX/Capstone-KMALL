@@ -122,3 +122,14 @@ type MarkReadInput struct {
 	LastReadMessageID *int64
 	LastReadAt        time.Time
 }
+
+type CreateThreadInput struct {
+	OrderID  int64
+	StoreID  int64
+	BuyerID  string
+	SellerID string
+}
+
+type GetOrCreateThreadResult struct {
+	Thread Thread `json:"thread"`
+}
