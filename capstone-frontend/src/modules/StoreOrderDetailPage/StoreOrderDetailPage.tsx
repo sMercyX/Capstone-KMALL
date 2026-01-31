@@ -12,8 +12,7 @@ import { useUserStore } from "../../stores/userStore"
 import ConfirmationModal from "../../components/Modal/ConfirmationModal"
 import { toast } from "react-toastify"
 import { handleApiError } from "../../utils/handleApiError"
-import SwitchTabs from "../../components/SwitchTabs/SwitchTabs"
-import { ZoneDropdown, BuildingDropdown, DateTimePicker } from "../../components/Dropdown"
+import PendingProposedPage from "./PendingProposedPage/PendingProposedPage"
 
 type StepKey = "PENDING" | "PROPOSED" | "ACCEPTED" | "OUT_FOR_DELIVERY" | "ARRIVED" | "DONE"
 
@@ -99,7 +98,6 @@ export default function StoreOrderDetailPage() {
   const [isRejectModalOpen, setIsRejectModalOpen] = useState(false)
   const [isAcceptModalOpen, setIsAcceptModalOpen] = useState(false)
   const [cancelReason, setCancelReason] = useState("")
-  const [activeTab, setActiveTab] = useState<"products" | "delivery">("products")
 
   // Delivery editing states
   const [selectedZone, setSelectedZone] = useState<string | null>(null)
@@ -499,220 +497,42 @@ export default function StoreOrderDetailPage() {
 
         {order && !loading && !error && (
           <>
-            {/* Tabs */}
-            <div className="mb-6">
-              <SwitchTabs
-                useNavLink={false}
-                activeKey={activeTab}
-                onChange={(key) => setActiveTab(key as "products" | "delivery")}
-                tabs={[
-                  { key: "products", label: "รายละเอียดสินค้า" },
-                  { key: "delivery", label: "รายละเอียดการจัดส่ง" },
-                ]}
+            {/* PendingProposedPage - Only for Pending/Proposed status */}
+            {(order.status === "Pending" || order.status === "Proposed") && (
+              <PendingProposedPage
+                items={items}
+                order={order}
+                subtotal={subtotal}
+                deliveryFee={deliveryFee}
+                total={total}
+                buyerDisplayName={data?.buyer?.display_name}
+                zones={zones}
+                buildings={buildings}
+                selectedZone={selectedZone}
+                selectedBuilding={selectedBuilding}
+                selectedDateTime={selectedDateTime}
+                selectedTime={selectedTime}
+                meetingNoteInput={meetingNoteInput}
+                isBuyer={isBuyer}
+                proposeLoading={proposeLoading}
+                onZoneChange={handleZoneChange}
+                onBuildingChange={setSelectedBuilding}
+                onDateTimeChange={(date, time) => {
+                  setSelectedDateTime(date)
+                  setSelectedTime(time)
+                }}
+                onMeetingNoteChange={setMeetingNoteInput}
+                onProposeOrder={handleProposeOrder}
               />
-            </div>
-
-            {/* Tab Content: Product Details */}
-            {activeTab === "products" && (
-            <div className="mb-6">
-              
-              <div className="bg-gray-50 rounded-2xl p-4 md:p-6">
-                {/* Table Header */}
-                <div className="grid grid-cols-12 gap-2 md:gap-4 mb-4 text-xs md:text-sm text-gray-500">
-                  <div className="col-span-1 text-center">ลำดับ</div>
-                  <div className="col-span-6 md:col-span-7">ชื่อสินค้า</div>
-                  <div className="col-span-2 text-center">จำนวน</div>
-                  <div className="col-span-3 md:col-span-2 text-right">ราคา</div>
-                </div>
-
-                {/* Table Body */}
-                <div className="space-y-3">
-                  {items.map((item, index) => (
-                    <div
-                      key={item.order_item_id}
-                      className="grid grid-cols-12 gap-2 md:gap-4 items-center bg-orange-50 rounded-lg p-3"
-                    >
-                      <div className="col-span-1 text-center text-sm font-medium">
-                        {index + 1}.
-                      </div>
-                      <div className="col-span-6 md:col-span-7 flex items-center gap-3">
-                        <div className="w-12 h-12 md:w-14 md:h-14 rounded-lg bg-gray-200 overflow-hidden flex-shrink-0">
-                          {item.product_image ? (
-                            <img
-                              src={item.product_image}
-                              alt={item.product_name}
-                              className="w-full h-full object-cover"
-                            />
-                          ) : (
-                            <div className="w-full h-full flex items-center justify-center text-gray-400 bg-gray-300">
-                              <Store className="w-6 h-6" />
-                            </div>
-                          )}
-                        </div>
-                        <p className="text-sm font-medium text-gray-900">
-                          {item.product_name}
-                        </p>
-                      </div>
-                      <div className="col-span-2 flex justify-center">
-                        <span className="inline-flex items-center justify-center bg-orange-500 text-white text-xs font-bold rounded-md px-3 py-1 min-w-[2rem]">
-                          {item.quantity}
-                        </span>
-                      </div>
-                      <div className="col-span-3 md:col-span-2 text-right">
-                        <p className="text-sm font-medium text-gray-900">
-                          {item.subtotal.toLocaleString()} บาท
-                        </p>
-                      </div>
-                    </div>
-                  ))}
-                  {items.length === 0 && (
-                    <p className="text-center text-sm text-gray-400 py-4">
-                      ยังไม่มีข้อมูลสินค้า
-                    </p>
-                  )}
-                </div>
-
-                {/* Notes Section */}
-                <div className="mt-6">
-                  <p className="text-sm font-semibold mb-2">หมายเหตุ</p>
-                  <div className="bg-white rounded-lg border border-gray-200 p-3 min-h-[60px]">
-                    <p className="text-sm text-gray-600">
-                      {order.notes || "ไม่มีหมายเหตุ"}
-                    </p>
-                  </div>
-                </div>
-
-                {/* Price Summary */}
-                <div className="mt-6 space-y-2">
-                  <div className="flex justify-between text-sm">
-                    <span className="text-gray-600">รวมการสั่งซื้อ</span>
-                    <span className="font-medium">{subtotal.toLocaleString()} บาท</span>
-                  </div>
-                  <div className="flex justify-between text-sm">
-                    <span className="text-gray-600">ค่าจัดส่งเพิ่มเติม</span>
-                    <span className="font-medium">{deliveryFee.toLocaleString()} บาท</span>
-                  </div>
-                  <div className="flex justify-between text-base md:text-lg font-bold pt-3 border-t border-gray-300">
-                    <span>ยอดชำระทั้งหมด</span>
-                    <span className="text-orange-500">{total.toLocaleString()} บาท</span>
-                  </div>
-                </div>
-              </div>
-            </div>
             )}
 
-            {/* Tab Content: Delivery Details */}
-            {activeTab === "delivery" && (
-            <div className="mb-6">
-              {/* Header with user */}
-              <div className="flex justify-between items-center mb-6">
-                <h3 className="text-xl font-bold">เลือกสถานที่ วัน/เวลานัดรับสินค้า</h3>
-                <div className="flex items-center gap-2 bg-gray-200 px-4 py-2 rounded-full">
-                  <span className="text-lg">✈️</span>
-                  <span className="font-medium text-gray-700">{data?.buyer?.display_name || "User"}</span>
-                </div>
+            {/* Placeholder for other statuses - will be implemented later */}
+            {order.status !== "Pending" && order.status !== "Proposed" && (
+              <div className="bg-gray-50 rounded-2xl p-8 text-center">
+                <p className="text-gray-500 text-lg">
+                  หน้าแสดงรายละเอียดสำหรับสถานะ "{order.status}" - จะพัฒนาในภายหลัง
+                </p>
               </div>
-
-
-              {/* Row 1: Zone + DateTime */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {/* Zone Dropdown */}
-                <div>
-                  <ZoneDropdown
-                    value={selectedZone}
-                    onChange={handleZoneChange}
-                    zones={zones}
-                    disabled={isBuyer}
-                  />
-                </div>
-
-                {/* DateTime Picker */}
-                <div>
-                  <DateTimePicker
-                    value={selectedDateTime}
-                    onChange={(date, time) => {
-                      setSelectedDateTime(date)
-                      setSelectedTime(time)
-                    }}
-                    disabled={isBuyer}
-                  />
-                </div>
-              </div>
-
-              {/* Row 2: Building + MAP Button */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
-                {/* Building Dropdown */}
-                <div>
-                  <BuildingDropdown
-                    value={selectedBuilding}
-                    onChange={setSelectedBuilding}
-                    buildings={buildings}
-                    disabled={isBuyer || !selectedZone}
-                    placeholder={!selectedZone ? "เลือก Zone ก่อน" : "เลือกอาคาร"}
-                    label="หมายเลขตึก และชื่อตึก"
-                  />
-                </div>
-
-                {/* MAP KMUTT Button */}
-                <div>
-                  <label className="block text-base font-semibold mb-3 invisible">-</label>
-                  <a
-                    href="https://maps.kmutt.ac.th/"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-2 px-6 py-4 bg-orange-500 text-white rounded-xl hover:bg-orange-600 transition-colors font-semibold"
-                  >
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-                    </svg>
-                    MAP KMUTT
-                  </a>
-                </div>
-              </div>
-
-              {/* Meeting Note Input */}
-              <div className="mt-6">
-                <label className="block text-base font-semibold mb-3">หมายเหตุเพิ่มเติม</label>
-                <textarea
-                  value={meetingNoteInput}
-                  onChange={(e) => setMeetingNoteInput(e.target.value)}
-                  disabled={isBuyer}
-                  placeholder="ระบุหมายเหตุเพิ่มเติมสำหรับการนัดหมาย..."
-                  className={`w-full bg-white border-2 border-gray-200 rounded-xl p-4 text-base min-h-[100px] resize-none
-                    ${isBuyer ? 'cursor-not-allowed opacity-70' : 'focus:border-orange-500 focus:ring-2 focus:ring-orange-100'}`}
-                />
-              </div>
-
-              {/* Save Button - only show when NOT in PENDING status */}
-              {!isBuyer && order.status !== "Pending" && (
-                <div className="mt-6 flex justify-end gap-3">
-                  <button
-                    type="button"
-                    onClick={handleProposeOrder}
-                    disabled={proposeLoading || !selectedDateTime}
-                    className={`px-8 py-3 rounded-xl text-base font-semibold text-white transition-colors
-                      ${proposeLoading || !selectedDateTime
-                        ? 'bg-orange-300 cursor-not-allowed'
-                        : 'bg-orange-500 hover:bg-orange-600'}`}
-                  >
-                    {proposeLoading ? 'กำลังบันทึก...' : 'บันทึกและเสนอวันเวลา'}
-                  </button>
-                </div>
-              )}
-
-              {/* Display existing notes (read-only) */}
-              {(order.campus_detail_note || order.meeting_note || order.notes) && (
-                <div className="mt-6 p-4 bg-gray-50 rounded-xl">
-                  <h4 className="text-sm font-semibold text-gray-700 mb-2">หมายเหตุที่บันทึกไว้:</h4>
-                  <div className="space-y-1 text-sm text-gray-600">
-                    {order.campus_detail_note && <p>• จุดรับ: {order.campus_detail_note}</p>}
-                    {order.meeting_note && <p>• นัดหมาย: {order.meeting_note}</p>}
-                    {order.notes && <p>• หมายเหตุทั่วไป: {order.notes}</p>}
-                  </div>
-                </div>
-              )}
-            </div>
             )}
           </>
         )}
