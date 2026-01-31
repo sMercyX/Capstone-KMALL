@@ -724,7 +724,7 @@ WHERE u.kms_id = 'dev-buyer-1'
   );
 
 -- ensure campus location exists (for CAMPUS + meeting_location)
-INSERT INTO campus_locations (name, area, latitude, longitude, is_active)
+INSERT INTO campus_locations (name, zone, latitude, longitude, is_active)
 SELECT 'KMUTT Main Gate', 'KMUTT', 13.6510000, 100.4960000, TRUE
 WHERE NOT EXISTS (SELECT 1 FROM campus_locations WHERE name = 'KMUTT Main Gate');
 

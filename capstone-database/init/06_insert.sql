@@ -180,7 +180,7 @@ VALUES
 -- ===== Services / Shops =====
 ('Cooperative Store (U Store)', 'Services', 13.6524000, 100.4962000),
 ('7-Eleven KMUTT', 'Services', 13.6525000, 100.4965000),
-('Health Care Center', 'Services', 13.6528000, 100.4961000);
+('Health Care Center', 'Services', 13.6528000, 100.4961000)
 
 
 ON CONFLICT (name) DO NOTHING;
