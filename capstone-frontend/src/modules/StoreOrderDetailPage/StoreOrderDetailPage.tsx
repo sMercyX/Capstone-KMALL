@@ -97,6 +97,7 @@ export default function StoreOrderDetailPage() {
   >(null)
 
   const [isRejectModalOpen, setIsRejectModalOpen] = useState(false)
+  const [isAcceptModalOpen, setIsAcceptModalOpen] = useState(false)
   const [cancelReason, setCancelReason] = useState("")
   const [activeTab, setActiveTab] = useState<"products" | "delivery">("products")
 
@@ -284,8 +285,14 @@ export default function StoreOrderDetailPage() {
     }
   }
 
+  const handleAcceptClick = () => {
+    if (!order || !orderId || !canAccept) return
+    setIsAcceptModalOpen(true)
+  }
+
   const handleAccept = async () => {
     if (!order || !orderId || !canAccept) return
+    setIsAcceptModalOpen(false)
     
     // If status is PENDING, call proposeOrder to move to PROPOSED
     if (order.status === "Pending") {
@@ -712,7 +719,7 @@ export default function StoreOrderDetailPage() {
             <div className="flex justify-center gap-4 mt-8">
               {canAccept && (
                 <button
-                  onClick={handleAccept}
+                  onClick={handleAcceptClick}
                   disabled={actionLoading === "accept"}
                   className={`px-16 py-3 rounded-lg text-base font-semibold text-white transition-colors
                     ${
@@ -767,6 +774,25 @@ export default function StoreOrderDetailPage() {
           />
         </div>
       </ConfirmationModal>
+
+      <ConfirmationModal
+        isOpen={isAcceptModalOpen}
+        onClose={() => setIsAcceptModalOpen(false)}
+        onConfirm={handleAccept}
+        title="ยืนยันการดำเนินการ"
+        message={order?.status === "Pending" 
+          ? "คุณต้องการเสนอวันเวลานัดรับหรือไม่?" 
+          : order?.status === "Proposed"
+          ? "คุณต้องการยืนยันรับข้อเสนอนี้หรือไม่?"
+          : order?.status === "Accepted"
+          ? "คุณต้องการเปลี่ยนสถานะเป็น \"กำลังจัดส่ง\" หรือไม่?"
+          : order?.status === "Out For Delivery"
+          ? "คุณต้องการเปลี่ยนสถานะเป็น \"ถึงจุดนัดพบ\" หรือไม่?"
+          : "คุณต้องการเปลี่ยนสถานะเป็น \"เสร็จสมบูรณ์\" หรือไม?"}
+        confirmText="ยืนยัน"
+        cancelText="ยกเลิก"
+        variant="info"
+      />
     </div>
   )
 }
