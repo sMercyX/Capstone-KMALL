@@ -714,42 +714,44 @@ export default function StoreOrderDetailPage() {
               )}
             </div>
             )}
-
-            {/* Action Buttons */}
-            <div className="flex justify-center gap-4 mt-8">
-              {canAccept && (
-                <button
-                  onClick={handleAcceptClick}
-                  disabled={actionLoading === "accept"}
-                  className={`px-16 py-3 rounded-lg text-base font-semibold text-white transition-colors
-                    ${
-                      actionLoading === "accept"
-                        ? "bg-green-300 cursor-not-allowed"
-                        : "bg-green-500 hover:bg-green-600"
-                    }`}
-                >
-                  {actionLoading === "accept" ? "กำลังยืนยัน..." : "Accept"}
-                </button>
-              )}
-
-              {canReject && (
-                <button
-                  onClick={handleRejectClick}
-                  disabled={actionLoading === "reject"}
-                  className={`px-16 py-3 rounded-lg text-base font-semibold text-white transition-colors
-                    ${
-                      actionLoading === "reject"
-                        ? "bg-red-300 cursor-not-allowed"
-                        : "bg-red-500 hover:bg-red-600"
-                    }`}
-                >
-                  {actionLoading === "reject" ? "กำลังยกเลิก..." : "Reject"}
-                </button>
-              )}
-            </div>
           </>
         )}
       </div>
+
+      {/* Action Buttons - Outside the card */}
+      {order && !isFinished && (canAccept || canReject) && (
+        <div className="flex justify-center gap-4 mt-8 mb-8">
+          {canAccept && (
+            <button
+              onClick={handleAcceptClick}
+              disabled={actionLoading === "accept"}
+              className={`px-16 py-3 rounded-lg text-base font-semibold text-white transition-colors
+                ${
+                  actionLoading === "accept"
+                    ? "bg-green-300 cursor-not-allowed"
+                    : "bg-green-500 hover:bg-green-600"
+                }`}
+            >
+              {actionLoading === "accept" ? "กำลังยืนยัน..." : "Accept"}
+            </button>
+          )}
+
+          {canReject && (
+            <button
+              onClick={handleRejectClick}
+              disabled={actionLoading === "reject"}
+              className={`px-16 py-3 rounded-lg text-base font-semibold text-white transition-colors
+                ${
+                  actionLoading === "reject"
+                    ? "bg-red-300 cursor-not-allowed"
+                    : "bg-red-500 hover:bg-red-600"
+                }`}
+            >
+              {actionLoading === "reject" ? "กำลังยกเลิก..." : "Reject"}
+            </button>
+          )}
+        </div>
+      )}
 
       <ConfirmationModal
         isOpen={isRejectModalOpen}
