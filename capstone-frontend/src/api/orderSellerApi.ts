@@ -30,6 +30,8 @@ export interface orderSellerData {
   
   // Meeting/Proposal fields
   proposed_at?: string
+  meeting_date?: string
+  meeting_time?: string
   meeting_location_id?: number
   meeting_note?: string
 }

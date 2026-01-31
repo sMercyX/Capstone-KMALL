@@ -13,6 +13,10 @@ import ConfirmationModal from "../../components/Modal/ConfirmationModal"
 import { toast } from "react-toastify"
 import { handleApiError } from "../../utils/handleApiError"
 import PendingProposedPage from "./PendingProposedPage/PendingProposedPage"
+import AcceptedPage from "./AcceptedPage/AcceptedPage"
+import OutOfDeliveryPage from "./OutOfDeliveryPage/OutOfDeliveryPage"
+import ArrivedPage from "./ArrivedPage/ArrivedPage"
+import CompletedPage from "./CompletedPage/CompletedPage"
 
 type StepKey = "PENDING" | "PROPOSED" | "ACCEPTED" | "OUT_FOR_DELIVERY" | "ARRIVED" | "DONE"
 
@@ -526,13 +530,33 @@ export default function StoreOrderDetailPage() {
               />
             )}
 
-            {/* Placeholder for other statuses - will be implemented later */}
-            {order.status !== "Pending" && order.status !== "Proposed" && (
+            {/* Accepted Status Page */}
+            {order.status === "Accepted" && (
+              <AcceptedPage order={order} />
+            )}
+
+            {/* Placeholder for other statuses
+            {order.status !== "Pending" && order.status !== "Proposed" && order.status !== "Accepted" && order.status !== "Out for delivery" && order.status !== "Arrived" && order.status !== "Completed" && (
               <div className="bg-gray-50 rounded-2xl p-8 text-center">
                 <p className="text-gray-500 text-lg">
                   หน้าแสดงรายละเอียดสำหรับสถานะ "{order.status}" - จะพัฒนาในภายหลัง
                 </p>
               </div>
+            )} */}
+
+            {/* Out for Delivery Page */}
+            {order.status === "Out For Delivery" && (
+              <OutOfDeliveryPage order={order} />
+            )}
+
+            {/* Arrived Page */}
+            {order.status === "Arrived" && (
+              <ArrivedPage order={order} />
+            )}
+
+            {/* Completed Page */}
+            {order.status === "Completed" && (
+              <CompletedPage order={order} />
             )}
           </>
         )}
