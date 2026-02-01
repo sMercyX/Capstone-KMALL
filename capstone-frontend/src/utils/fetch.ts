@@ -45,6 +45,11 @@ function attachUserHeadersFetch(h: Headers, identity: UserIdentity | null) {
   }
 }
 
+// ⭐ helper: แนบ X-Dev-User header สำหรับ dev mode
+function getDevModeHeader(): string {
+  return localStorage.getItem("kmall_dev_mode") || "seller"
+}
+
 // ==============================
 // 1) HTTP Client (fetch-based)
 // ==============================
@@ -69,6 +74,11 @@ export function useHttpClient(baseUrl: string) {
     // ⭐ แนบ uid / email / name จาก MSAL
     const identity = getUserIdentity()
     attachUserHeadersFetch(h, identity)
+
+    // ⭐ แนบ X-Dev-User header สำหรับ dev mode
+    if (!h.has("X-Dev-User")) {
+      h.set("X-Dev-User", getDevModeHeader())
+    }
 
     // ตั้ง Content-Type ให้อัตโนมัติถ้าเป็น JSON
     if (rest.body && !h.has("Content-Type") && !isFormData(rest.body)) {
@@ -191,6 +201,11 @@ function createAxiosInstance(baseUrl: string): AxiosInstance {
       if (name && !headers["name"]) {
         headers["name"] = name
       }
+    }
+
+    // ⭐ X-Dev-User header สำหรับ dev mode
+    if (!headers["X-Dev-User"]) {
+      headers["X-Dev-User"] = localStorage.getItem("kmall_dev_mode") || "seller"
     }
 
     return config

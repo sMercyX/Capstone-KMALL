@@ -1,0 +1,68 @@
+/* src/components/DevModeSwitcher/DevModeSwitcher.css */
+
+.dev-mode-switcher {
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+  padding: 10px 16px;
+  border-radius: 50px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.dev-mode-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: #a0a0a0;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.dev-mode-buttons {
+  display: flex;
+  gap: 6px;
+}
+
+.dev-mode-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border: none;
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.05);
+  color: #a0a0a0;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.dev-mode-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: #fff;
+  transform: translateY(-1px);
+}
+
+.dev-mode-btn.active {
+  background: linear-gradient(135deg, #f97316 0%, #fb923c 100%);
+  color: #fff;
+  box-shadow: 0 2px 10px rgba(249, 115, 22, 0.4);
+}
+
+.dev-mode-btn.active:hover {
+  background: linear-gradient(135deg, #ea580c 0%, #f97316 100%);
+}
+
+.dev-mode-icon {
+  font-size: 14px;
+}
+
+.dev-mode-text {
+  font-weight: 600;
+}

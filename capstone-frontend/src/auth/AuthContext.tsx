@@ -40,6 +40,63 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       try {
         setError(null)
 
+        // ⭐ DEV MODE: bypass MSAL และใช้ mock user แทน
+        // const isDevMode = import.meta.env.DEV
+        const isDevMode = true
+        const devMode = localStorage.getItem("kmall_dev_mode") || "seller"
+
+        if (isDevMode) {
+          console.log("[AUTH] DEV MODE - using mock user:", devMode)
+
+          // Mock user data ตาม dev mode
+          const mockUsers: Record<string, User> = {
+            buyer: {
+              id: "dev-buyer-1",
+              msid: "dev-buyer-1",
+              email: "buyer1@example.com",
+              name: "Dev Buyer 1",
+              roles: ["buyer"],
+              createdAt: new Date().toISOString(),
+              updatedAt: new Date().toISOString(),
+              lastLogin: new Date().toISOString(),
+            },
+            seller: {
+              id: "dev-seller-1",
+              msid: "dev-seller-1",
+              email: "seller1@example.com",
+              name: "Dev Seller 1",
+              roles: ["seller"],
+              createdAt: new Date().toISOString(),
+              updatedAt: new Date().toISOString(),
+              lastLogin: new Date().toISOString(),
+            },
+            admin: {
+              id: "dev-admin-1",
+              msid: "dev-admin-1",
+              email: "admin1@example.com",
+              name: "Dev Admin 1",
+              roles: ["admin"],
+              createdAt: new Date().toISOString(),
+              updatedAt: new Date().toISOString(),
+              lastLogin: new Date().toISOString(),
+            },
+          }
+
+          const mockUser = mockUsers[devMode] || mockUsers.seller
+          
+          setUser(mockUser)
+          setUserStore({
+            id: mockUser.id,
+            name: mockUser.name,
+            email: mockUser.email,
+          })
+          setRolesStore(mockUser.roles)
+          setAccessToken("dev-mock-token")
+          setReady(true)
+          return
+        }
+
+        // ⭐ PRODUCTION MODE: ใช้ MSAL จริง
         console.log("[AUTH] init MSAL...")
         await msalInstance.initialize()
         console.log("[AUTH] MSAL initialized")
