@@ -587,10 +587,10 @@ export default function StoreOrderDetailPage() {
         </div>
 
         {/* Timestamp */}
-        {order?.order_date && (
+        {order?.updated_at && (
           <div className="mb-6">
             <p className="text-sm text-gray-600">
-              {formatThaiDateTime(order.order_date)}
+              {formatThaiDateTime(order.updated_at)}
             </p>
           </div>
         )}
