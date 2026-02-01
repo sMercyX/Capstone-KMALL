@@ -1,19 +1,10 @@
 // src/modules/StoreOrderDetailPage/PendingProposedPage/PendingProposedPage.tsx
 import { useState } from "react"
 import type { OrderItemDetail, orderSellerData } from "../../../api/orderSellerApi"
+import type { CampusLocation } from "../../../api/campusLocationApi"
 import SwitchTabs from "../../../components/SwitchTabs/SwitchTabs"
 import { ZoneDropdown, BuildingDropdown, DateTimePicker } from "../../../components/Dropdown"
 import ProductList from "../components/ProductList"
-
-interface Zone {
-  id: string
-  name: string
-}
-
-interface Building {
-  id: number
-  name: string
-}
 
 interface PendingProposedPageProps {
   items: OrderItemDetail[]
@@ -23,8 +14,8 @@ interface PendingProposedPageProps {
   total: number
   // Delivery props
   buyerDisplayName?: string
-  zones: Zone[]
-  buildings: Building[]
+  zones: string[]
+  buildings: CampusLocation[]
   selectedZone: string | null
   selectedBuilding: number | null
   selectedDateTime: Date | null

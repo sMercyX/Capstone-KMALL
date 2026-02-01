@@ -13,6 +13,7 @@ import { useUserStore } from "../../stores/userStore"
 import ConfirmationModal from "../../components/Modal/ConfirmationModal"
 import { toast } from "react-toastify"
 import { handleApiError } from "../../utils/handleApiError"
+import { getZones, getLocationsByZone, type CampusLocation } from "../../api/campusLocationApi"
 import PendingProposedPage from "./PendingProposedPage/PendingProposedPage"
 import AcceptedPage from "./AcceptedPage/AcceptedPage"
 import OutOfDeliveryPage from "./OutOfDeliveryPage/OutOfDeliveryPage"
@@ -112,40 +113,48 @@ export default function StoreOrderDetailPage() {
   const [meetingNoteInput, setMeetingNoteInput] = useState("")
   const [proposeLoading, setProposeLoading] = useState(false)
 
-  // Zone data
-  const zones = [
-    { id: "A", name: "Zone A" },
-    { id: "B", name: "Zone B" },
-    { id: "C", name: "Zone C" },
-  ]
+  // Zone and building data from API
+  const [zones, setZones] = useState<string[]>([])
+  const [buildings, setBuildings] = useState<CampusLocation[]>([])
+  const [loadingZones, setLoadingZones] = useState(false)
+  const [loadingBuildings, setLoadingBuildings] = useState(false)
 
-  // Buildings grouped by zone
-  const buildingsByZone: Record<string, { id: number; name: string }[]> = {
-    "A": [
-      { id: 1, name: "อาคาร 1 ตึกบริหาร" },
-      { id: 2, name: "อาคาร 2 คณะวิศวกรรมศาสตร์" },
-      { id: 3, name: "อาคาร 3 คณะวิทยาศาสตร์" },
-      { id: 4, name: "อาคาร 4 คณะสถาปัตยกรรมศาสตร์" },
-      { id: 5, name: "อาคาร 5 สำนักหอสมุด" },
-    ],
-    "B": [
-      { id: 6, name: "อาคาร 6 คณะครุศาสตร์อุตสาหกรรม" },
-      { id: 7, name: "อาคาร 7 คณะเทคโนโลยีสารสนเทศ" },
-      { id: 8, name: "อาคาร 8 ศูนย์เรียนรวม" },
-      { id: 9, name: "อาคาร 9 โรงอาหาร" },
-      { id: 10, name: "อาคาร 10 สนามกีฬา" },
-    ],
-    "C": [
-      { id: 11, name: "อาคาร 11 หอพักนักศึกษา" },
-      { id: 12, name: "อาคาร 12 ศูนย์กิจกรรมนักศึกษา" },
-      { id: 13, name: "อาคาร 13 คลินิกสุขภาพ" },
-      { id: 14, name: "อาคาร 14 อาคารบริการกลาง" },
-      { id: 15, name: "อาคาร 15 ห้องประชุมใหญ่" },
-    ],
-  }
+  // Fetch zones on mount
+  useEffect(() => {
+    const fetchZones = async () => {
+      try {
+        setLoadingZones(true)
+        const zonesData = await getZones()
+        setZones(zonesData)
+      } catch (e) {
+        console.error('Failed to fetch zones:', e)
+      } finally {
+        setLoadingZones(false)
+      }
+    }
+    fetchZones()
+  }, [])
 
-  // Get buildings for selected zone
-  const buildings = selectedZone ? buildingsByZone[selectedZone] || [] : []
+  // Fetch buildings when zone changes
+  useEffect(() => {
+    const fetchBuildings = async () => {
+      if (!selectedZone) {
+        setBuildings([])
+        return
+      }
+      try {
+        setLoadingBuildings(true)
+        const locationsData = await getLocationsByZone(selectedZone)
+        setBuildings(locationsData)
+      } catch (e) {
+        console.error('Failed to fetch buildings:', e)
+        setBuildings([])
+      } finally {
+        setLoadingBuildings(false)
+      }
+    }
+    fetchBuildings()
+  }, [selectedZone])
 
   // Handle zone change - reset building when zone changes
   const handleZoneChange = (zoneId: string | null) => {

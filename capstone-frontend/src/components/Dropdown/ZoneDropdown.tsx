@@ -1,15 +1,10 @@
 // src/components/Dropdown/ZoneDropdown.tsx
 import { useState } from "react"
 
-interface Zone {
-  id: string
-  name: string
-}
-
 interface ZoneDropdownProps {
   value: string | null
   onChange: (zoneId: string | null) => void
-  zones: Zone[]
+  zones: string[]
   disabled?: boolean
   placeholder?: string
   label?: string
@@ -26,11 +21,10 @@ export default function ZoneDropdown({
   const [isOpen, setIsOpen] = useState(false)
   const [tempValue, setTempValue] = useState<string | null>(value)
 
-  const selectedZone = zones.find(z => z.id === value)
-  const displayText = selectedZone?.name || placeholder
+  const displayText = value || placeholder
 
-  const handleSelect = (id: string) => {
-    setTempValue(id)
+  const handleSelect = (zone: string) => {
+    setTempValue(zone)
   }
 
   const handleConfirm = () => {
@@ -72,15 +66,15 @@ export default function ZoneDropdown({
           <div className="absolute z-20 w-full mt-2 bg-white border-2 border-gray-200 rounded-xl shadow-lg max-h-60 overflow-auto">
             {zones.map((zone) => (
               <button
-                key={zone.id}
+                key={zone}
                 type="button"
-                onClick={() => handleSelect(zone.id)}
+                onClick={() => handleSelect(zone)}
                 className={`w-full text-left px-4 py-3 hover:bg-gray-50 border-l-4 transition-colors
-                  ${tempValue === zone.id 
+                  ${tempValue === zone 
                     ? 'bg-orange-500 text-white border-orange-500 hover:bg-orange-600' 
                     : 'border-transparent'}`}
               >
-                {zone.name}
+                {zone}
               </button>
             ))}
             <div className="flex justify-end gap-2 p-3 border-t sticky bottom-0 bg-white">
