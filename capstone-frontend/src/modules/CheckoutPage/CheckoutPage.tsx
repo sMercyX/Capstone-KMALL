@@ -4,7 +4,6 @@ import { useNavigate } from "react-router-dom"
 import { MapPin, ShoppingCart, Store as StoreIcon } from "lucide-react"
 import { useCartApi } from "../../api/cartApi"
 import { useCartStore } from "../../stores/cartStore"
-import { useUserStore } from "../../stores/userStore"
 import { useCheckkOutApi, type orderCreatedRequest } from "../../api/checkOutApi"
 
 
@@ -42,7 +41,6 @@ export default function CheckoutPage() {
   // ยิง checkout (checkOutOrder) จาก storeApi
   const { checkOutOrder } = useCheckkOutApi()
 
-  const { email } = useUserStore()
 
   const { reset } = useCartStore()
   const navigate = useNavigate()

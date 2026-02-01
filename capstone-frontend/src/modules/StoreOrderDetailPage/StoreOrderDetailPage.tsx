@@ -145,20 +145,15 @@ export default function StoreOrderDetailPage() {
   // Zone and building data from API
   const [zones, setZones] = useState<string[]>([])
   const [buildings, setBuildings] = useState<CampusLocation[]>([])
-  const [loadingZones, setLoadingZones] = useState(false)
-  const [loadingBuildings, setLoadingBuildings] = useState(false)
 
   // Fetch zones on mount
   useEffect(() => {
     const fetchZones = async () => {
       try {
-        setLoadingZones(true)
         const zonesData = await getZones()
         setZones(zonesData)
       } catch (e) {
         console.error('Failed to fetch zones:', e)
-      } finally {
-        setLoadingZones(false)
       }
     }
     fetchZones()
@@ -245,14 +240,11 @@ export default function StoreOrderDetailPage() {
       }
 
       try {
-        setLoadingBuildings(true)
         const locationsData = await getLocationsByZone(selectedZone)
         setBuildings(locationsData)
       } catch (e) {
         console.error('Failed to fetch buildings:', e)
         setBuildings([])
-      } finally {
-        setLoadingBuildings(false)
       }
     }
     fetchBuildings()

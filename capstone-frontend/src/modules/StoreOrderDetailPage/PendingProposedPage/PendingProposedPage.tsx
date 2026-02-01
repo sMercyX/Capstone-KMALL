@@ -42,7 +42,6 @@ export default function PendingProposedPage({
   selectedZone,
   selectedBuilding,
   selectedDateTime,
-  selectedTime,
   meetingNoteInput,
   isBuyer,
   proposeLoading,
