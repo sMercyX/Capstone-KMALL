@@ -8,13 +8,16 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"github.com/Perpasit/Capstone-KMALL/internal/address"
 	"github.com/Perpasit/Capstone-KMALL/internal/auth"
+	"github.com/Perpasit/Capstone-KMALL/internal/campus"
 	"github.com/Perpasit/Capstone-KMALL/internal/cart"
 	"github.com/Perpasit/Capstone-KMALL/internal/category"
 	"github.com/Perpasit/Capstone-KMALL/internal/config"
 	images "github.com/Perpasit/Capstone-KMALL/internal/image"
 	"github.com/Perpasit/Capstone-KMALL/internal/middleware"
 	"github.com/Perpasit/Capstone-KMALL/internal/order"
+	"github.com/Perpasit/Capstone-KMALL/internal/orderchat"
 	"github.com/Perpasit/Capstone-KMALL/internal/product"
 	"github.com/Perpasit/Capstone-KMALL/internal/respond"
 	"github.com/Perpasit/Capstone-KMALL/internal/role"
@@ -98,6 +101,15 @@ func Attach(r *gin.Engine, db *pgxpool.Pool, cfg config.Config) {
 
 	shRepo := searchhistory.NewRepo(db)
 	shSvc := searchhistory.NewService(shRepo)
+
+	campusRepo := campus.NewRepo(db)
+	campusSvc := campus.NewService(campusRepo)
+
+	addrRepo := address.NewRepo(db)
+	addrSvc := address.NewService(addrRepo)
+
+	ocRepo := orderchat.NewRepo(db)
+	ocSvc := orderchat.NewService(ocRepo, nil)
 
 	// v1 := r.Group("/api",
 	// 	apiLogger(),
@@ -207,6 +219,18 @@ func Attach(r *gin.Engine, db *pgxpool.Pool, cfg config.Config) {
 	//search history
 	shHdl := searchhistory.NewHandler(shSvc, rSvc, uSvc)
 	shHdl.Register(v1)
+
+	// register
+	campusHdl := campus.NewHandler(campusSvc, rSvc)
+	campusHdl.Register(v1)
+
+	// addresses (user private)
+	addrHdl := address.NewHandler(addrSvc, uSvc)
+	addrHdl.Register(v1)
+
+	// order chat
+	ocHdl := orderchat.NewHandler(ocSvc, ocRepo, rSvc, uSvc)
+	ocHdl.Register(v1)
 
 	// ---- debug local (ยิงตรง http://localhost:18080/debug/headers) ----
 	r.GET("/debug/headers", func(c *gin.Context) {

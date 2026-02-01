@@ -67,13 +67,13 @@ DROP INDEX IF EXISTS idx_categories_parent;
 CREATE INDEX IF NOT EXISTS idx_categories_parent
   ON categories(parent_id);
 
-DROP INDEX IF EXISTS idx_chat_messages_thread_time;
-CREATE INDEX IF NOT EXISTS idx_chat_messages_thread_time
-  ON order_chat_messages(thread_id, created_at ASC);
+-- DROP INDEX IF EXISTS idx_chat_messages_thread_time;
+-- CREATE INDEX IF NOT EXISTS idx_chat_messages_thread_time
+--   ON order_chat_messages(thread_id, created_at ASC);
 
-DROP INDEX IF EXISTS idx_chat_messages_thread_id;
-CREATE INDEX IF NOT EXISTS idx_chat_messages_thread_id
-  ON order_chat_messages(thread_id);
+-- DROP INDEX IF EXISTS idx_chat_messages_thread_id;
+-- CREATE INDEX IF NOT EXISTS idx_chat_messages_thread_id
+--   ON order_chat_messages(thread_id);
 
 
 
@@ -241,3 +241,15 @@ CREATE INDEX IF NOT EXISTS idx_chat_threads_order
 DROP INDEX IF EXISTS idx_chat_threads_updated_at;
 CREATE INDEX IF NOT EXISTS idx_chat_threads_updated_at
   ON order_chat_threads(updated_at DESC);
+ 
+DROP INDEX IF EXISTS idx_order_chat_messages_thread_created;
+CREATE INDEX IF NOT EXISTS idx_order_chat_messages_thread_created
+  ON order_chat_messages (thread_id, created_at DESC);
+
+DROP INDEX IF EXISTS idx_order_chat_messages_thread_message_id;
+CREATE INDEX IF NOT EXISTS idx_order_chat_messages_thread_message_id
+  ON order_chat_messages (thread_id, message_id DESC);
+
+DROP INDEX IF EXISTS idx_order_chat_attachments_message_id;
+CREATE INDEX IF NOT EXISTS idx_order_chat_attachments_message_id
+  ON order_chat_attachments (message_id);

@@ -40,7 +40,8 @@ type OrderItem struct {
 
 type OrderItemWithProduct struct {
 	OrderItem
-	ProductName string `json:"product_name"`
+	ProductName     string  `json:"product_name"`
+	ProductImageURL *string `json:"product_image_url,omitempty"`
 }
 
 type OrderWithItems struct {

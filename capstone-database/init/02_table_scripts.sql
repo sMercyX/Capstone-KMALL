@@ -119,7 +119,7 @@ CREATE TABLE IF NOT EXISTS products (
 CREATE TABLE IF NOT EXISTS campus_locations (
   campus_location_id SERIAL PRIMARY KEY,
   name VARCHAR(120) NOT NULL,    
-  area VARCHAR(80) NULL,          
+  zone VARCHAR(80) NULL,          
   latitude NUMERIC(10,7) NULL,
   longitude NUMERIC(10,7) NULL,
   is_active BOOLEAN NOT NULL DEFAULT TRUE,
@@ -371,15 +371,46 @@ CREATE TABLE IF NOT EXISTS order_chat_messages (
   thread_id BIGINT NOT NULL
     REFERENCES order_chat_threads(thread_id) ON DELETE CASCADE,
 
-  sender_id UUID NOT NULL
-    REFERENCES users(user_id) ON DELETE CASCADE,
+  sender_id UUID NULL
+    REFERENCES users(user_id) ON DELETE SET NULL,
 
-  message_text TEXT NOT NULL,
+  -- ข้อความ (อนุญาตให้ NULL ได้ เผื่อลบข้อความแล้วเหลือแต่ไฟล์)
+  message_text TEXT NULL,
 
+  -- ประเภทข้อความ
   message_type VARCHAR(20) NOT NULL DEFAULT 'TEXT'
-    CHECK (message_type IN ('TEXT','SYSTEM')),
+    CHECK (message_type IN ('TEXT','IMAGE','FILE','SYSTEM')),
 
-  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+
+  -- ===== Edit =====
+  edited_at TIMESTAMPTZ NULL,
+  edited_by UUID NULL REFERENCES users(user_id) ON DELETE SET NULL,
+
+  -- ===== Soft delete by user/system =====
+  deleted_at TIMESTAMPTZ NULL,
+  deleted_by UUID NULL REFERENCES users(user_id) ON DELETE SET NULL,
+  delete_reason VARCHAR(255) NULL,
+
+  -- ===== Moderation (admin) =====
+  moderation_status VARCHAR(10) NOT NULL DEFAULT 'VISIBLE'
+    CHECK (moderation_status IN ('VISIBLE','HIDDEN','REMOVED')),
+  moderated_at TIMESTAMPTZ NULL,
+  moderated_by UUID NULL REFERENCES users(user_id) ON DELETE SET NULL,
+  moderation_reason VARCHAR(255) NULL,
+
+  -- ===== sanity checks =====
+  CONSTRAINT chk_message_edit_meta CHECK (
+    edited_at IS NULL OR edited_by IS NOT NULL
+  ),
+
+  CONSTRAINT chk_message_delete_meta CHECK (
+    deleted_at IS NULL OR deleted_by IS NOT NULL
+  ),
+
+  CONSTRAINT chk_message_moderation_meta CHECK (
+    moderated_at IS NULL OR moderated_by IS NOT NULL
+  )
 );
 
 -- ========= READ STATE =========
@@ -397,6 +428,36 @@ CREATE TABLE IF NOT EXISTS order_chat_read_state (
 
   PRIMARY KEY (thread_id, user_id)
 );
+
+-- ========= ORDER CHAT: ATTACHMENTS =========
+CREATE TABLE IF NOT EXISTS order_chat_attachments (
+  attachment_id BIGSERIAL PRIMARY KEY,
+
+  message_id BIGINT NOT NULL
+    REFERENCES order_chat_messages(message_id) ON DELETE CASCADE,
+
+  file_url VARCHAR(255) NOT NULL,
+
+  file_name VARCHAR(120) NULL,
+  mime_type VARCHAR(80) NULL,
+  file_size_bytes BIGINT NULL,
+
+  sha256 CHAR(64) NULL,
+
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+
+  -- soft delete (user/admin)
+  deleted_at TIMESTAMPTZ NULL,
+  deleted_by UUID NULL REFERENCES users(user_id) ON DELETE SET NULL,
+  delete_reason VARCHAR(255) NULL,
+
+  CONSTRAINT chk_attachment_url_nonempty CHECK (btrim(file_url) <> ''),
+  CONSTRAINT chk_attachment_size_positive CHECK (file_size_bytes IS NULL OR file_size_bytes >= 0),
+  CONSTRAINT chk_attachment_delete_meta CHECK (
+    deleted_at IS NULL OR deleted_by IS NOT NULL
+  )
+);
+
 
 
 -- ========= ATTRIBUTE KEYS  =========

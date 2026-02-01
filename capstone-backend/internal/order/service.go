@@ -510,8 +510,12 @@ func (s *service) Propose(ctx context.Context, actorUserID string, id int64, in 
 		return Order{}, apperr.New(apperr.Forbidden, "only store owner can propose")
 	}
 
-	if ord.Status != "Pending" {
-		return Order{}, apperr.New(apperr.BadRequest, "can propose only when status is Pending")
+	switch ord.Status {
+	case "Pending", "Proposed":
+	case "Accepted":
+		return Order{}, apperr.New(apperr.BadRequest, "cannot propose after accepted")
+	default:
+		return Order{}, apperr.New(apperr.BadRequest, "cannot propose in this status")
 	}
 
 	return s.repo.Propose(ctx, id, in.ProposedAt, in.MeetingLocationID, in.MeetingNote)

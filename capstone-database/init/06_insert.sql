@@ -144,39 +144,44 @@ FROM categories c
 WHERE c.slug = 'handmade-products'
 ON CONFLICT (slug) DO NOTHING;
 
-
--- ========= SEED CAMPUS LOCATIONS (KMUTT) =========
-
-INSERT INTO campus_locations (name, area, latitude, longitude)
+-- ========= SEED CAMPUS LOCATIONS (KMUTT Bangmod) =========
+INSERT INTO campus_locations (name, zone, latitude, longitude)
 VALUES
--- ===== Central / Common Places =====
+
+-- ===== Central / Common (Green area, landmark) =====
 ('KMUTT Main Gate', 'Central', 13.6518000, 100.4949000),
 ('King Mongkut Memorial Building', 'Central', 13.6522000, 100.4954000),
 ('Central Canteen', 'Central', 13.6526000, 100.4959000),
-('University Library', 'Central', 13.6530000, 100.4963000),
+('University Library (N10)', 'Central', 13.6530000, 100.4963000),
 
--- ===== Academic Buildings (Zone A / Blue) =====
-('Engineering Building', 'Zone A', 13.6519000, 100.4968000),
-('Chemical Engineering Building', 'Zone A', 13.6523000, 100.4971000),
-('Mechanical Engineering Building', 'Zone A', 13.6527000, 100.4973000),
-('Production Engineering Building', 'Zone A', 13.6531000, 100.4976000),
+-- ===== Zone A : Engineering / Production (ORANGE) =====
+('Mechanical Engineering Building (S1)', 'Zone A', 13.6527000, 100.4973000),
+('Engineering Building (S4)', 'Zone A', 13.6522000, 100.4969000),
+('Production Engineering Lab 4 (N18)', 'Zone A', 13.6531000, 100.4976000),
+('Chemical Engineering Building (S15)', 'Zone A', 13.6523000, 100.4971000),
+('Foundry Engineering Laboratory', 'Zone A', 13.6519000, 100.4968000),
 
--- ===== Science & IT (Zone C / Green) =====
-('Science Laboratory Building', 'Zone C', 13.6535000, 100.4981000),
-('School of Information Technology', 'Zone C', 13.6539000, 100.4984000),
-('Department of Mathematics', 'Zone C', 13.6537000, 100.4979000),
-('Department of Physics', 'Zone C', 13.6533000, 100.4975000),
+-- ===== Zone B : Science / IT / Classroom (YELLOW) =====
+('School of Information Technology (N11)', 'Zone B', 13.6539000, 100.4984000),
+('Department of Mathematics (N3)', 'Zone B', 13.6537000, 100.4979000),
+('Department of Physics (N4)', 'Zone B', 13.6533000, 100.4975000),
+('Science Laboratory Building (N7)', 'Zone B', 13.6535000, 100.4981000),
+('Classroom Building 1 (N20)', 'Zone B', 13.6532000, 100.4972000),
 
--- ===== Student Facilities =====
-('Dormitory (Male)', 'Residence', 13.6514000, 100.4953000),
-('Dormitory (Female)', 'Residence', 13.6512000, 100.4957000),
+-- ===== Facilities / Sports (GREEN) =====
 ('Sports Complex', 'Facilities', 13.6529000, 100.4969000),
 ('Football Field', 'Facilities', 13.6532000, 100.4966000),
+('Commemoration Park', 'Facilities', 13.6530000, 100.4960000),
 
--- ===== Shops & Services =====
-('Cooperative Store', 'Services', 13.6524000, 100.4962000),
+-- ===== Residence =====
+('Dormitory (Male)', 'Residence', 13.6514000, 100.4953000),
+('Dormitory (Female)', 'Residence', 13.6512000, 100.4957000),
+
+-- ===== Services / Shops =====
+('Cooperative Store (U Store)', 'Services', 13.6524000, 100.4962000),
 ('7-Eleven KMUTT', 'Services', 13.6525000, 100.4965000),
 ('Health Care Center', 'Services', 13.6528000, 100.4961000)
+
 
 ON CONFLICT (name) DO NOTHING;
 

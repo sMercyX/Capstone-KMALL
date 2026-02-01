@@ -712,7 +712,6 @@ WHERE s.store_name = 'Local Craft Studio'
 ON CONFLICT (product_id, sort_order) DO NOTHING;
 
 -- ========= DEV DEMO ORDERS / ORDER ITEMS (FIXED FOR YOUR SCHEMA) =========
--- Optional reset (ถ้าต้องการให้สะอาดทุกครั้ง)
 TRUNCATE order_items, orders RESTART IDENTITY CASCADE;
 
 -- ensure buyer has 1 address (for ROUND_UNIVERSITY)
@@ -724,10 +723,11 @@ WHERE u.kms_id = 'dev-buyer-1'
     SELECT 1 FROM user_addresses ua WHERE ua.user_id = u.user_id AND ua.is_default = TRUE
   );
 
--- ensure campus location exists (for CAMPUS)
-INSERT INTO campus_locations (name, area, latitude, longitude, is_active)
+-- ensure campus location exists (for CAMPUS + meeting_location)
+INSERT INTO campus_locations (name, zone, latitude, longitude, is_active)
 SELECT 'KMUTT Main Gate', 'KMUTT', 13.6510000, 100.4960000, TRUE
 WHERE NOT EXISTS (SELECT 1 FROM campus_locations WHERE name = 'KMUTT Main Gate');
+
 DO $$
 DECLARE
   buyer_uuid UUID;
@@ -744,26 +744,34 @@ DECLARE
   dm VARCHAR(20);
 
   t_start TIMESTAMPTZ;
-  t_end   TIMESTAMPTZ;
 BEGIN
   -- buyer
-  SELECT user_id INTO buyer_uuid FROM users WHERE kms_id = 'dev-buyer-1' LIMIT 1;
-  IF buyer_uuid IS NULL THEN RAISE EXCEPTION 'dev-buyer-1 not found'; END IF;
+  SELECT user_id INTO buyer_uuid
+  FROM users
+  WHERE kms_id = 'dev-buyer-1'
+  LIMIT 1;
+  IF buyer_uuid IS NULL THEN
+    RAISE EXCEPTION 'dev-buyer-1 not found';
+  END IF;
 
-  -- default address id
+  -- default address id (ROUND_UNIVERSITY)
   SELECT address_id INTO addr_id
   FROM user_addresses
   WHERE user_id = buyer_uuid AND is_default = TRUE
   ORDER BY address_id DESC
   LIMIT 1;
-  IF addr_id IS NULL THEN RAISE EXCEPTION 'buyer default address not found'; END IF;
+  IF addr_id IS NULL THEN
+    RAISE EXCEPTION 'buyer default address not found';
+  END IF;
 
   -- campus id
   SELECT campus_location_id INTO campus_id
   FROM campus_locations
   WHERE name = 'KMUTT Main Gate'
   LIMIT 1;
-  IF campus_id IS NULL THEN RAISE EXCEPTION 'campus location not found'; END IF;
+  IF campus_id IS NULL THEN
+    RAISE EXCEPTION 'campus location not found';
+  END IF;
 
   FOR r IN
     SELECT p.product_id, p.store_id, p.price
@@ -779,21 +787,21 @@ BEGIN
       dm := 'CAMPUS';
     END IF;
 
-    -- ตั้งเวลานัดแบบมั่ว ๆ ให้ผ่าน constraint
+    -- ตั้ง proposed_at แบบมั่ว ๆ
     t_start := NOW() + INTERVAL '1 day' + ((r.product_id % 5) * INTERVAL '1 hour');
-    t_end   := t_start + INTERVAL '30 minutes';
 
-    -- 1) Pending
+    -- 1) Pending (ได้ทั้ง 2 method)
     q := 1; sub := unit*q;
     INSERT INTO orders (
       status, total_price, delivery_method,
-      delivery_address_id, campus_location_id,
+      delivery_address_id, campus_location_id, campus_detail_note,
       user_id, store_id
     )
     VALUES (
       'Pending', sub, dm,
       CASE WHEN dm='ROUND_UNIVERSITY' THEN addr_id ELSE NULL END,
       CASE WHEN dm='CAMPUS' THEN campus_id ELSE NULL END,
+      CASE WHEN dm='CAMPUS' THEN 'Meet at main gate (mock)' ELSE NULL END,
       buyer_uuid, r.store_id
     )
     RETURNING order_id INTO oid;
@@ -801,57 +809,76 @@ BEGIN
     INSERT INTO order_items (quantity, unit_price, fulfillment_type, subtotal, order_id, product_id)
     VALUES (q, unit, 'STANDARD', sub, oid, r.product_id);
 
-    -- 2) Proposed (ต้องมี deliver_at_start/end)
+    -- 2) Proposed (CAMPUS only) + ต้องมี proposed_at + meeting_location_id
+    IF dm = 'CAMPUS' THEN
+      q := 1; sub := unit*q;
+
+      INSERT INTO orders (
+        status, total_price, delivery_method,
+        delivery_address_id, campus_location_id, campus_detail_note,
+        proposed_at, meeting_location_id, meeting_note,
+        user_id, store_id
+      )
+      VALUES (
+        'Proposed', sub, dm,
+        NULL, campus_id, 'Meet at main gate (mock)',
+        t_start, campus_id, 'Mock proposal note',
+        buyer_uuid, r.store_id
+      )
+      RETURNING order_id INTO oid;
+
+      INSERT INTO order_items (quantity, unit_price, fulfillment_type, subtotal, order_id, product_id)
+      VALUES (q, unit, 'STANDARD', sub, oid, r.product_id);
+    END IF;
+
+    -- 3) Accepted
+    -- - CAMPUS: ต้องมี proposed_at + meeting_location_id ด้วย (ตาม chk_accepted_requires_data)
+    -- - ROUND_UNIVERSITY: ห้ามมี proposal fields และต้องมี delivery_address_id (ตาม chk_destination_by_method + chk_round_uni_no_proposal)
     q := 1; sub := unit*q;
-    INSERT INTO orders (
-      status, total_price, delivery_method,
-      delivery_address_id, campus_location_id,
-      deliver_at_start, deliver_at_end,
-      user_id, store_id
-    )
-    VALUES (
-      'Proposed', sub, dm,
-      CASE WHEN dm='ROUND_UNIVERSITY' THEN addr_id ELSE NULL END,
-      CASE WHEN dm='CAMPUS' THEN campus_id ELSE NULL END,
-      t_start, t_end,
-      buyer_uuid, r.store_id
-    )
-    RETURNING order_id INTO oid;
+
+    IF dm = 'CAMPUS' THEN
+      INSERT INTO orders (
+        status, total_price, delivery_method,
+        delivery_address_id, campus_location_id, campus_detail_note,
+        proposed_at, meeting_location_id, meeting_note,
+        user_id, store_id
+      )
+      VALUES (
+        'Accepted', sub, dm,
+        NULL, campus_id, 'Accepted meetup (mock)',
+        t_start, campus_id, 'Accepted with proposal data',
+        buyer_uuid, r.store_id
+      )
+      RETURNING order_id INTO oid;
+    ELSE
+      INSERT INTO orders (
+        status, total_price, delivery_method,
+        delivery_address_id, campus_location_id, campus_detail_note,
+        user_id, store_id
+      )
+      VALUES (
+        'Accepted', sub, dm,
+        addr_id, NULL, NULL,
+        buyer_uuid, r.store_id
+      )
+      RETURNING order_id INTO oid;
+    END IF;
 
     INSERT INTO order_items (quantity, unit_price, fulfillment_type, subtotal, order_id, product_id)
     VALUES (q, unit, 'STANDARD', sub, oid, r.product_id);
 
-    -- 3) Accepted (ต้องมี deliver_at_start/end + delivery_confirmed_at)
+    -- 4) Completed (ได้ทั้ง 2 method)
     q := 1; sub := unit*q;
     INSERT INTO orders (
       status, total_price, delivery_method,
-      delivery_address_id, campus_location_id,
-      deliver_at_start, deliver_at_end, delivery_confirmed_at,
-      user_id, store_id
-    )
-    VALUES (
-      'Accepted', sub, dm,
-      CASE WHEN dm='ROUND_UNIVERSITY' THEN addr_id ELSE NULL END,
-      CASE WHEN dm='CAMPUS' THEN campus_id ELSE NULL END,
-      t_start, t_end, NOW(),
-      buyer_uuid, r.store_id
-    )
-    RETURNING order_id INTO oid;
-
-    INSERT INTO order_items (quantity, unit_price, fulfillment_type, subtotal, order_id, product_id)
-    VALUES (q, unit, 'STANDARD', sub, oid, r.product_id);
-
-    -- 4) Completed (อย่างน้อย 1)
-    q := 1; sub := unit*q;
-    INSERT INTO orders (
-      status, total_price, delivery_method,
-      delivery_address_id, campus_location_id,
+      delivery_address_id, campus_location_id, campus_detail_note,
       user_id, store_id
     )
     VALUES (
       'Completed', sub, dm,
       CASE WHEN dm='ROUND_UNIVERSITY' THEN addr_id ELSE NULL END,
       CASE WHEN dm='CAMPUS' THEN campus_id ELSE NULL END,
+      CASE WHEN dm='CAMPUS' THEN 'Completed meetup (mock)' ELSE NULL END,
       buyer_uuid, r.store_id
     )
     RETURNING order_id INTO oid;
@@ -859,11 +886,11 @@ BEGIN
     INSERT INTO order_items (quantity, unit_price, fulfillment_type, subtotal, order_id, product_id)
     VALUES (q, unit, 'STANDARD', sub, oid, r.product_id);
 
-    -- 5) Cancelled (ต้องมี cancelled_at + cancelled_by)
+    -- 5) Cancelled (ได้ทั้ง 2 method) + ต้องมี cancelled_at/cancelled_by/cancelled_reason
     q := 1; sub := unit*q;
     INSERT INTO orders (
       status, total_price, delivery_method,
-      delivery_address_id, campus_location_id,
+      delivery_address_id, campus_location_id, campus_detail_note,
       cancelled_at, cancelled_by, cancelled_reason,
       user_id, store_id
     )
@@ -871,6 +898,7 @@ BEGIN
       'Cancelled', sub, dm,
       CASE WHEN dm='ROUND_UNIVERSITY' THEN addr_id ELSE NULL END,
       CASE WHEN dm='CAMPUS' THEN campus_id ELSE NULL END,
+      CASE WHEN dm='CAMPUS' THEN 'Cancelled meetup (mock)' ELSE NULL END,
       NOW(), 'BUYER', 'Mock cancel for testing',
       buyer_uuid, r.store_id
     )
@@ -884,13 +912,14 @@ BEGIN
     sub := unit*q;
     INSERT INTO orders (
       status, total_price, delivery_method,
-      delivery_address_id, campus_location_id,
+      delivery_address_id, campus_location_id, campus_detail_note,
       user_id, store_id
     )
     VALUES (
       'Completed', sub, dm,
       CASE WHEN dm='ROUND_UNIVERSITY' THEN addr_id ELSE NULL END,
       CASE WHEN dm='CAMPUS' THEN campus_id ELSE NULL END,
+      CASE WHEN dm='CAMPUS' THEN 'Extra completed meetup (mock)' ELSE NULL END,
       buyer_uuid, r.store_id
     )
     RETURNING order_id INTO oid;
@@ -898,12 +927,12 @@ BEGIN
     INSERT INTO order_items (quantity, unit_price, fulfillment_type, subtotal, order_id, product_id)
     VALUES (q, unit, 'STANDARD', sub, oid, r.product_id);
 
-    -- ===== Extra Cancelled =====
+    -- ===== Extra Cancelled (seller) =====
     q := (r.product_id % 2) + 1; -- 1..2
     sub := unit*q;
     INSERT INTO orders (
       status, total_price, delivery_method,
-      delivery_address_id, campus_location_id,
+      delivery_address_id, campus_location_id, campus_detail_note,
       cancelled_at, cancelled_by, cancelled_reason,
       user_id, store_id
     )
@@ -911,6 +940,7 @@ BEGIN
       'Cancelled', sub, dm,
       CASE WHEN dm='ROUND_UNIVERSITY' THEN addr_id ELSE NULL END,
       CASE WHEN dm='CAMPUS' THEN campus_id ELSE NULL END,
+      CASE WHEN dm='CAMPUS' THEN 'Seller cancelled meetup (mock)' ELSE NULL END,
       NOW(), 'SELLER', 'Mock seller cancel for testing',
       buyer_uuid, r.store_id
     )
