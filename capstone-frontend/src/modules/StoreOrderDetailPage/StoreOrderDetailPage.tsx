@@ -2,6 +2,7 @@
 import { useEffect, useState } from "react"
 import { Link, useNavigate, useParams } from "react-router-dom"
 import { Store } from "lucide-react"
+import { IoChevronBack } from "react-icons/io5"
 
 import {
   useOrderSellerApi,
@@ -16,7 +17,7 @@ import PendingProposedPage from "./PendingProposedPage/PendingProposedPage"
 import AcceptedPage from "./AcceptedPage/AcceptedPage"
 import OutOfDeliveryPage from "./OutOfDeliveryPage/OutOfDeliveryPage"
 import ArrivedPage from "./ArrivedPage/ArrivedPage"
-import CompletedPage from "./CompletedPage/CompletedPage"
+import CompletedCanceledPage from "./CompletedCanceledPage/CompletedCanceledPage"
 
 type StepKey = "PENDING" | "PROPOSED" | "ACCEPTED" | "OUT_FOR_DELIVERY" | "ARRIVED" | "DONE"
 
@@ -258,6 +259,9 @@ export default function StoreOrderDetailPage() {
     (order.status === "Arrived" && isSellerPath)
   )
 
+  // Return to order list button - show when order is finished
+  const canReturnToOrder = !!order && isFinished
+
   const handleRejectClick = () => {
     if (!order || !orderId || !canReject) return
     setCancelReason("")
@@ -411,6 +415,15 @@ export default function StoreOrderDetailPage() {
 
   return (
     <div className="max-w-5xl mx-auto py-10 px-4">
+      {/* Back Button */}
+      <button
+        onClick={() => navigate(isSellerPath ? '/store/orders' : '/orders/ongoing')}
+        className="flex items-center gap-2 text-gray-600 hover:text-gray-900 mb-4 transition-colors"
+      >
+        <IoChevronBack className="w-6 h-6" />
+        <span className="text-base font-medium">กลับ</span>
+      </button>
+
       {/* Title */}
       <div className="text-center mb-8">
         <h1 className="text-2xl md:text-3xl font-bold mb-3">
@@ -554,9 +567,9 @@ export default function StoreOrderDetailPage() {
               <ArrivedPage order={order} />
             )}
 
-            {/* Completed Page */}
-            {order.status === "Completed" && (
-              <CompletedPage order={order} />
+            {/* Completed/Cancelled Page */}
+            {(order.status === "Completed" || order.status === "Cancelled") && (
+              <CompletedCanceledPage order={order} items={items} total={total} />
             )}
           </>
         )}
@@ -594,6 +607,18 @@ export default function StoreOrderDetailPage() {
               {actionLoading === "reject" ? "กำลังยกเลิก..." : "Reject"}
             </button>
           )}
+        </div>
+      )}
+
+      {/* Return to Order List Button - Show when order is finished */}
+      {canReturnToOrder && (
+        <div className="flex justify-center mt-8 mb-8">
+          <button
+            onClick={() => navigate(isSellerPath ? `/store/orders` : '/orders/ongoing')}
+            className="px-16 py-3 rounded-lg text-base font-semibold text-white bg-blue-500 hover:bg-blue-600 transition-colors"
+          >
+            {isSellerPath ? 'กลับหน้าร้าน' : 'กลับหน้ารายการ'}
+          </button>
         </div>
       )}
 

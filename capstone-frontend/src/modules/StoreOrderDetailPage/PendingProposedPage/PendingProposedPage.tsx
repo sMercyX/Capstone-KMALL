@@ -1,9 +1,9 @@
 // src/modules/StoreOrderDetailPage/PendingProposedPage/PendingProposedPage.tsx
 import { useState } from "react"
-import { Store } from "lucide-react"
 import type { OrderItemDetail, orderSellerData } from "../../../api/orderSellerApi"
 import SwitchTabs from "../../../components/SwitchTabs/SwitchTabs"
 import { ZoneDropdown, BuildingDropdown, DateTimePicker } from "../../../components/Dropdown"
+import ProductList from "../components/ProductList"
 
 interface Zone {
   id: string
@@ -80,91 +80,19 @@ export default function PendingProposedPage({
 
       {/* Tab Content: Product Details */}
       {activeTab === "products" && (
-      <div className="mb-6">
-        <div className="bg-gray-50 rounded-2xl p-4 md:p-6">
-        {/* Table Header */}
-        <div className="grid grid-cols-12 gap-2 md:gap-4 mb-4 text-xs md:text-sm text-gray-500">
-          <div className="col-span-1 text-center">ลำดับ</div>
-          <div className="col-span-6 md:col-span-7">ชื่อสินค้า</div>
-          <div className="col-span-2 text-center">จำนวน</div>
-          <div className="col-span-3 md:col-span-2 text-right">ราคา</div>
+        <div className="mb-6">
+          <ProductList
+            items={items}
+            total={total}
+            notes={order.notes}
+            subtotal={subtotal}
+            deliveryFee={deliveryFee}
+            showHeader={false}
+            showNotes={true}
+            showBreakdown={true}
+          />
         </div>
-
-        {/* Table Body */}
-        <div className="space-y-3">
-          {items.map((item, index) => (
-            <div
-              key={item.order_item_id}
-              className="grid grid-cols-12 gap-2 md:gap-4 items-center bg-orange-50 rounded-lg p-3"
-            >
-              <div className="col-span-1 text-center text-sm font-medium">
-                {index + 1}.
-              </div>
-              <div className="col-span-6 md:col-span-7 flex items-center gap-3">
-                <div className="w-12 h-12 md:w-14 md:h-14 rounded-lg bg-gray-200 overflow-hidden flex-shrink-0">
-                  {item.product_image ? (
-                    <img
-                      src={item.product_image}
-                      alt={item.product_name}
-                      className="w-full h-full object-cover"
-                    />
-                  ) : (
-                    <div className="w-full h-full flex items-center justify-center text-gray-400 bg-gray-300">
-                      <Store className="w-6 h-6" />
-                    </div>
-                  )}
-                </div>
-                <p className="text-sm font-medium text-gray-900">
-                  {item.product_name}
-                </p>
-              </div>
-              <div className="col-span-2 flex justify-center">
-                <span className="inline-flex items-center justify-center bg-orange-500 text-white text-xs font-bold rounded-md px-3 py-1 min-w-[2rem]">
-                  {item.quantity}
-                </span>
-              </div>
-              <div className="col-span-3 md:col-span-2 text-right">
-                <p className="text-sm font-medium text-gray-900">
-                  {item.subtotal.toLocaleString()} บาท
-                </p>
-              </div>
-            </div>
-          ))}
-          {items.length === 0 && (
-            <p className="text-center text-sm text-gray-400 py-4">
-              ยังไม่มีข้อมูลสินค้า
-            </p>
-          )}
-        </div>
-
-        {/* Notes Section */}
-        <div className="mt-6">
-          <p className="text-sm font-semibold mb-2">หมายเหตุ</p>
-          <div className="bg-white rounded-lg border border-gray-200 p-3 min-h-[60px]">
-            <p className="text-sm text-gray-600">
-              {order.notes || "ไม่มีหมายเหตุ"}
-            </p>
-          </div>
-        </div>
-
-        {/* Price Summary */}
-        <div className="mt-6 space-y-2">
-          <div className="flex justify-between text-sm">
-            <span className="text-gray-600">รวมการสั่งซื้อ</span>
-            <span className="font-medium">{subtotal.toLocaleString()} บาท</span>
-          </div>
-          <div className="flex justify-between text-sm">
-            <span className="text-gray-600">ค่าจัดส่งเพิ่มเติม</span>
-            <span className="font-medium">{deliveryFee.toLocaleString()} บาท</span>
-          </div>
-          <div className="flex justify-between text-base md:text-lg font-bold pt-3 border-t border-gray-300">
-            <span>ยอดชำระทั้งหมด</span>
-            <span className="text-orange-500">{total.toLocaleString()} บาท</span>
-          </div>
-        </div>
-      </div>
-    </div>
-    )}
+      )}
 
     {/* Tab Content: Delivery Details */}
     {activeTab === "delivery" && (
