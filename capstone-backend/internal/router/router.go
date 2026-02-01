@@ -23,7 +23,9 @@ import (
 	"github.com/Perpasit/Capstone-KMALL/internal/role"
 	"github.com/Perpasit/Capstone-KMALL/internal/searchhistory"
 	"github.com/Perpasit/Capstone-KMALL/internal/store"
+
 	"github.com/Perpasit/Capstone-KMALL/internal/user"
+	"github.com/Perpasit/Capstone-KMALL/internal/websocket"
 )
 
 func Attach(r *gin.Engine, db *pgxpool.Pool, cfg config.Config) {
@@ -35,6 +37,10 @@ func Attach(r *gin.Engine, db *pgxpool.Pool, cfg config.Config) {
 		middleware.Recovery(),
 		middleware.CORSMiddleware(cfg.CORSAllowedOrigins),
 	)
+
+	// WebSocket Hub
+	hub := websocket.NewHub()
+	go hub.Run()
 
 	// health (ไม่ต้อง auth)
 	r.GET("/api/health", func(c *gin.Context) {
@@ -97,6 +103,7 @@ func Attach(r *gin.Engine, db *pgxpool.Pool, cfg config.Config) {
 		cartSvc,
 		pSvc,
 		sSvc,
+		hub, // Pass socket hub as notifier
 	)
 
 	shRepo := searchhistory.NewRepo(db)
@@ -243,9 +250,22 @@ func Attach(r *gin.Engine, db *pgxpool.Pool, cfg config.Config) {
 		c.JSON(200, gin.H{"headers": h})
 	})
 
+
+
 	// 404
 	r.NoRoute(func(c *gin.Context) {
 		respond.Error(c, 404, "NOT_FOUND", "route not found", nil)
+	})
+	
+	// WebSocket Endpoint
+	r.GET("/api/ws/orders/:orderId", func(c *gin.Context) {
+		orderId := c.Param("orderId")
+		if orderId == "" {
+			return
+		}
+		// roomID pattern: order_{id}
+		roomID := "order_" + orderId
+		websocket.ServeWs(hub, c, roomID)
 	})
 }
 

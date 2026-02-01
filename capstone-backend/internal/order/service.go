@@ -2,6 +2,7 @@ package order
 
 import (
 	"context"
+	"strconv"
 	"strings"
 	"time"
 
@@ -60,15 +61,21 @@ type Service interface {
 	) ([]Order, error)
 }
 
+// Notifier is an interface for sending notifications
+type Notifier interface {
+	BroadcastToRoom(roomID string, message interface{})
+}
+
 type service struct {
 	repo       Repo
 	cartSvc    cart.Service
 	productSvc product.Service
 	storeSvc   store.Service
+	notifier   Notifier
 }
 
-func NewService(r Repo, c cart.Service, p product.Service, st store.Service) Service {
-	return &service{repo: r, cartSvc: c, productSvc: p, storeSvc: st}
+func NewService(r Repo, c cart.Service, p product.Service, st store.Service, n Notifier) Service {
+	return &service{repo: r, cartSvc: c, productSvc: p, storeSvc: st, notifier: n}
 }
 
 // ============================================================================
@@ -185,6 +192,37 @@ func (s *service) isStoreOwner(ctx context.Context, ord Order, actorUserID strin
 		return false, err
 	}
 	return strings.EqualFold(st.UserID.String(), actorUserID), nil
+}
+
+// notifyUpdate broadcasts the latest order state to the room
+func (s *service) notifyUpdate(ctx context.Context, orderID int64) {
+	// Re-fetch the full order with items to send the latest state
+	// We use a background context or the existing context, but simpler to use existing
+	// If context is cancelled (e.g. request timeout), we might fail to fetch.
+	// But usually notification is best-effort.
+	
+	// We need a way to get *full* order details similar to GetOrderWithItems or GetOrderDetail
+	// reusing GetOrderWithItems logic:
+	items, err := s.repo.ListItemsByOrderID(ctx, orderID)
+	if err != nil {
+		return // log error?
+	}
+	ord, err := s.repo.GetOrder(ctx, orderID)
+	if err != nil {
+		return
+	}
+	
+	payload := map[string]interface{}{
+		"type": "ORDER_UPDATE",
+		"data": map[string]interface{}{
+			"order": ord,
+			"items": items,
+		},
+	}
+	
+	// Room ID: order_{id}
+	roomID := "order_" + strconv.FormatInt(orderID, 10)
+	s.notifier.BroadcastToRoom(roomID, payload)
 }
 
 // ============================================================================
@@ -351,7 +389,11 @@ func (s *service) UpdateStatus(ctx context.Context, actorUserID string, id int64
 		}
 	}
 
-	return s.repo.UpdateOrderStatus(ctx, id, to)
+	ord, err = s.repo.UpdateOrderStatus(ctx, id, to)
+	if err == nil {
+		s.notifyUpdate(ctx, id)
+	}
+	return ord, err
 }
 
 func allowedSellerTransition(from, to string) bool {
@@ -444,7 +486,11 @@ func (s *service) Cancel(ctx context.Context, actorUserID string, id int64, reas
 		cancelledBy = "BUYER"
 	}
 
-	return s.repo.CancelOrder(ctx, id, cancelledBy, reason)
+	ord, err = s.repo.CancelOrder(ctx, id, cancelledBy, reason)
+	if err == nil {
+		s.notifyUpdate(ctx, id)
+	}
+	return ord, err
 }
 
 func (s *service) ListBuyerOrders(ctx context.Context, userID string, statusGroup string) ([]Order, error) {
@@ -518,7 +564,11 @@ func (s *service) Propose(ctx context.Context, actorUserID string, id int64, in 
 		return Order{}, apperr.New(apperr.BadRequest, "cannot propose in this status")
 	}
 
-	return s.repo.Propose(ctx, id, in.ProposedAt, in.MeetingLocationID, in.MeetingNote)
+	ord, err = s.repo.Propose(ctx, id, in.ProposedAt, in.MeetingLocationID, in.MeetingNote)
+	if err == nil {
+		s.notifyUpdate(ctx, id)
+	}
+	return ord, err
 }
 
 func (s *service) AcceptProposed(ctx context.Context, actorUserID string, id int64, in AcceptProposedInput) (Order, error) {
@@ -549,5 +599,9 @@ func (s *service) AcceptProposed(ctx context.Context, actorUserID string, id int
 		return Order{}, apperr.New(apperr.BadRequest, "can accept/reject only when status is Proposed")
 	}
 
-	return s.repo.RespondProposal(ctx, id, in.Accept)
+	ord, err = s.repo.RespondProposal(ctx, id, in.Accept)
+	if err == nil {
+		s.notifyUpdate(ctx, id)
+	}
+	return ord, err
 }

@@ -1,5 +1,5 @@
 // src/pages/store/StoreOrderDetailPage.tsx
-import { useEffect, useState } from "react"
+import { useEffect, useState, useCallback } from "react"
 import { Link, useNavigate, useParams } from "react-router-dom"
 import { Store } from "lucide-react"
 import { IoChevronBack } from "react-icons/io5"
@@ -19,6 +19,7 @@ import AcceptedPage from "./AcceptedPage/AcceptedPage"
 import OutOfDeliveryPage from "./OutOfDeliveryPage/OutOfDeliveryPage"
 import ArrivedPage from "./ArrivedPage/ArrivedPage"
 import CompletedCanceledPage from "./CompletedCanceledPage/CompletedCanceledPage"
+import { useOrderWebSocket } from "../../hooks/useOrderWebSocket"
 
 type StepKey = "PENDING" | "PROPOSED" | "ACCEPTED" | "OUT_FOR_DELIVERY" | "ARRIVED" | "DONE"
 
@@ -104,6 +105,31 @@ export default function StoreOrderDetailPage() {
   const [isRejectModalOpen, setIsRejectModalOpen] = useState(false)
   const [isAcceptModalOpen, setIsAcceptModalOpen] = useState(false)
   const [cancelReason, setCancelReason] = useState("")
+
+
+
+  // WebSocket Integration
+  const handleWebSocketUpdate = useCallback((updatedData: { order: any, items: any[] }) => {
+    // Merge with existing data to keep other fields like buyer/seller name if not in payload
+    // actually our payload has order and items.
+    // data has { order, items, buyer, ... }
+    setData(prev => {
+        if (!prev) return null
+        return {
+            ...prev,
+            order: updatedData.order,
+            items: updatedData.items
+        }
+    })
+    
+    // Show toast only if status is Proposed (After clicking 'Propose'/'Save and Propose')
+    // This allows the user (both buyer/seller) to see the update specifically when proposal changes
+    if (updatedData.order.status === "Proposed") {
+      toast.info("ข้อมูลคำสั่งซื้อมีการเปลี่ยนแปลง")
+    }
+  }, [])
+
+  useOrderWebSocket(orderId, handleWebSocketUpdate)
 
   // Delivery editing states
   const [selectedZone, setSelectedZone] = useState<string | null>(null)
@@ -590,7 +616,7 @@ export default function StoreOrderDetailPage() {
         {order?.updated_at && (
           <div className="mb-6">
             <p className="text-sm text-gray-600">
-              {formatThaiDateTime(order.updated_at)}
+              ข้อมูลถูกอัปเดตล่าสุด : {formatThaiDateTime(order.updated_at)}
             </p>
           </div>
         )}
