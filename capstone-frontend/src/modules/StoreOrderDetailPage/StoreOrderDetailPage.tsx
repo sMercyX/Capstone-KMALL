@@ -13,7 +13,7 @@ import { useUserStore } from "../../stores/userStore"
 import ConfirmationModal from "../../components/Modal/ConfirmationModal"
 import { toast } from "react-toastify"
 import { handleApiError } from "../../utils/handleApiError"
-import { getZones, getLocationsByZone, type CampusLocation } from "../../api/campusLocationApi"
+import { getZones, getLocationsByZone, getAllLocations, type CampusLocation } from "../../api/campusLocationApi"
 import PendingProposedPage from "./PendingProposedPage/PendingProposedPage"
 import AcceptedPage from "./AcceptedPage/AcceptedPage"
 import OutOfDeliveryPage from "./OutOfDeliveryPage/OutOfDeliveryPage"
@@ -135,13 +135,80 @@ export default function StoreOrderDetailPage() {
     fetchZones()
   }, [])
 
+  // Populate dropdowns when order data is loaded
+  useEffect(() => {
+    const populateDropdowns = async () => {
+      const order = data?.order
+
+      if (!order) return
+
+      // If order has a meeting location, populate the dropdowns
+      if (order.meeting_location_id) {
+        try {
+          // 1. Fetch ALL locations to find the zone of the meeting location
+          const allLocations = await getAllLocations()
+          const location = allLocations.find(loc => loc.id === order.meeting_location_id)
+          
+          if (location) {
+            // 2. Set selected Zone
+            setSelectedZone(location.zone)
+            
+            // 3. Set selected Building
+            // But since we have all locations, we can set buildings immediately for better UX
+            // Filter buildings for this zone
+            const zoneBuildings = allLocations.filter(loc => loc.zone === location.zone)
+            setBuildings(zoneBuildings)
+            setSelectedBuilding(location.id)
+          }
+        } catch (e) {
+          console.error('Failed to fetch location details:', e)
+        }
+      }
+      
+      // If order has proposed_at, populate date and time
+      if (order.proposed_at) {
+        const proposedDate = new Date(order.proposed_at)
+        setSelectedDateTime(proposedDate)
+        
+        // Format time to "HH:mm" or "HH:mm AM/PM" depending on what DateTimePicker expects
+        // For time part string:
+        const hours = proposedDate.getHours()
+        const minutes = proposedDate.getMinutes()
+        const ampm = hours >= 12 ? 'PM' : 'AM'
+        const displayHours = hours % 12 || 12
+        const displayMinutes = minutes < 10 ? `0${minutes}` : minutes
+        const timeString = `${displayHours}:${displayMinutes} ${ampm}`
+        
+        setSelectedTime(timeString)
+      }
+      
+      // Populate meeting note
+      if (order.meeting_note) {
+        setMeetingNoteInput(order.meeting_note)
+      }
+    }
+
+    if (data?.order) {
+      populateDropdowns()
+    }
+  }, [data])
+
   // Fetch buildings when zone changes
   useEffect(() => {
     const fetchBuildings = async () => {
       if (!selectedZone) {
-        setBuildings([])
+        // Only clear buildings if we aren't currently viewing a proposed order with correct data
+        // Check if the current selected building exists in current buildings list
+        // If it does, we assume it's correctly set by the populate useEffect
+        // Actually, safer to check if user manually changed zone
         return
       }
+      
+      // If we already have buildings for this zone (e.g. from populate logic), skip fetch
+      if (buildings.length > 0 && buildings[0].zone === selectedZone) {
+        return
+      }
+
       try {
         setLoadingBuildings(true)
         const locationsData = await getLocationsByZone(selectedZone)
@@ -158,8 +225,13 @@ export default function StoreOrderDetailPage() {
 
   // Handle zone change - reset building when zone changes
   const handleZoneChange = (zoneId: string | null) => {
+    // Only clear selected building if zone literally changes to something else
+    if (zoneId !== selectedZone) {
+       setSelectedBuilding(null)
+       // Clear buildings so useEffect refetches for new zone
+       setBuildings([]) 
+    }
     setSelectedZone(zoneId)
-    setSelectedBuilding(null) // Reset building when zone changes
   }
 
   // Handle propose order
@@ -556,15 +628,6 @@ export default function StoreOrderDetailPage() {
             {order.status === "Accepted" && (
               <AcceptedPage order={order} />
             )}
-
-            {/* Placeholder for other statuses
-            {order.status !== "Pending" && order.status !== "Proposed" && order.status !== "Accepted" && order.status !== "Out for delivery" && order.status !== "Arrived" && order.status !== "Completed" && (
-              <div className="bg-gray-50 rounded-2xl p-8 text-center">
-                <p className="text-gray-500 text-lg">
-                  หน้าแสดงรายละเอียดสำหรับสถานะ "{order.status}" - จะพัฒนาในภายหลัง
-                </p>
-              </div>
-            )} */}
 
             {/* Out for Delivery Page */}
             {order.status === "Out For Delivery" && (

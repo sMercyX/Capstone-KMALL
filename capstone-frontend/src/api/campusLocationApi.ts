@@ -41,3 +41,10 @@ export const getLocationsByZone = async (zone: string): Promise<CampusLocation[]
   const response = await getItems(`/campus-locations?zone=${encodeURIComponent(zone)}`) as LocationsResponse
   return response.data.items
 }
+
+// Get ALL buildings/locations (for reverse lookup)
+export const getAllLocations = async (): Promise<CampusLocation[]> => {
+  const { getItems } = useCrudApi()
+  const response = await getItems(`/campus-locations`) as LocationsResponse
+  return response.data.items
+}
