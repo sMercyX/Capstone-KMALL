@@ -1,6 +1,7 @@
 // src/modules/StoreOrderDetailPage/components/ProductList.tsx
 import { Store } from "lucide-react"
 import type { OrderItemDetail } from "../../../api/orderSellerApi"
+import { resolveImageUrl } from "../../../utils/resolve"
 
 interface ProductListProps {
   items: OrderItemDetail[]
@@ -50,9 +51,9 @@ export default function ProductList({
             </div>
             <div className="col-span-6 md:col-span-7 flex items-center gap-3">
               <div className="w-12 h-12 md:w-14 md:h-14 rounded-lg bg-gray-200 overflow-hidden flex-shrink-0">
-                {item.product_image ? (
+                {item.product_image_url ? (
                   <img
-                    src={item.product_image}
+                    src={resolveImageUrl(item.product_image_url)}
                     alt={item.product_name}
                     className="w-full h-full object-cover"
                   />

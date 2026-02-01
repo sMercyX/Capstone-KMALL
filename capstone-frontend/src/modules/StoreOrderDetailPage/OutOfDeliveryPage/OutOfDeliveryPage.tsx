@@ -3,9 +3,10 @@ import type { orderSellerData } from "../../../api/orderSellerApi"
 
 interface OutOfDeliveryPageProps {
   order: orderSellerData
+  locationName?: string
 }
 
-export default function OutOfDeliveryPage({ order }: OutOfDeliveryPageProps) {
+export default function OutOfDeliveryPage({ order, locationName }: OutOfDeliveryPageProps) {
   // Parse proposed_at to get date and time
   const proposedDate = order.proposed_at
     ? new Date(order.proposed_at)
@@ -26,13 +27,16 @@ export default function OutOfDeliveryPage({ order }: OutOfDeliveryPageProps) {
         hour12: false
       })
     : '--:--'
+  
+  // Use passed locationName, or fallback to IDs if not provided
+  const displayLocation = locationName || order.meeting_location_id || order.campus_location_id || '--'
 
   return (
     <div className="flex flex-col items-center">
       {/* Delivery Info Header */}
       <div className="w-full bg-gray-100 rounded-xl p-4 mb-8 text-center">
         <p className="text-xl font-semibold text-gray-800">
-          {formattedDate} เวลา {formattedTime} บริเวณ ตึก {order.campus_detail_note || '--'}
+          {formattedDate} เวลา {formattedTime} บริเวณ ตึก {displayLocation}
         </p>
       </div>
 

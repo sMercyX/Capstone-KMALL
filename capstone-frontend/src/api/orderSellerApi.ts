@@ -55,7 +55,7 @@ export interface OrderItemDetail {
   order_id: number
   product_id: number
   product_name: string
-  product_image?: string
+  product_image_url?: string
 }
 
 export interface OrderBuyerDetail {

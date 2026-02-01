@@ -112,6 +112,9 @@ export default function StoreOrderDetailPage() {
   const [selectedTime, setSelectedTime] = useState<string>("10:00 AM")
   const [meetingNoteInput, setMeetingNoteInput] = useState("")
   const [proposeLoading, setProposeLoading] = useState(false)
+  
+  // Display states
+  const [meetingLocationName, setMeetingLocationName] = useState("")
 
   // Zone and building data from API
   const [zones, setZones] = useState<string[]>([])
@@ -143,13 +146,17 @@ export default function StoreOrderDetailPage() {
       if (!order) return
 
       // If order has a meeting location, populate the dropdowns
-      if (order.meeting_location_id) {
+      if (order.meeting_location_id || order.campus_location_id) {
         try {
+          const locationId = order.meeting_location_id || order.campus_location_id
           // 1. Fetch ALL locations to find the zone of the meeting location
           const allLocations = await getAllLocations()
-          const location = allLocations.find(loc => loc.id === order.meeting_location_id)
+          const location = allLocations.find(loc => loc.id === locationId)
           
           if (location) {
+            // Set display name
+            setMeetingLocationName(location.name)
+
             // 2. Set selected Zone
             setSelectedZone(location.zone)
             
@@ -159,6 +166,8 @@ export default function StoreOrderDetailPage() {
             const zoneBuildings = allLocations.filter(loc => loc.zone === location.zone)
             setBuildings(zoneBuildings)
             setSelectedBuilding(location.id)
+          } else {
+             setMeetingLocationName(`${locationId}`)
           }
         } catch (e) {
           console.error('Failed to fetch location details:', e)
@@ -626,17 +635,17 @@ export default function StoreOrderDetailPage() {
 
             {/* Accepted Status Page */}
             {order.status === "Accepted" && (
-              <AcceptedPage order={order} />
+              <AcceptedPage order={order} locationName={meetingLocationName} />
             )}
 
             {/* Out for Delivery Page */}
             {order.status === "Out For Delivery" && (
-              <OutOfDeliveryPage order={order} />
+              <OutOfDeliveryPage order={order} locationName={meetingLocationName} />
             )}
 
             {/* Arrived Page */}
             {order.status === "Arrived" && (
-              <ArrivedPage order={order} />
+              <ArrivedPage order={order} locationName={meetingLocationName} />
             )}
 
             {/* Completed/Cancelled Page */}
