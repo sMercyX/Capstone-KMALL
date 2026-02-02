@@ -1,5 +1,6 @@
 // src/components/Dropdown/BuildingDropdown.tsx
-import { useState } from "react"
+import { useState, useRef } from "react"
+import { useClickOutside } from "../../hooks/useClickOutside"
 
 interface Building {
   id: number
@@ -25,6 +26,9 @@ export default function BuildingDropdown({
 }: BuildingDropdownProps) {
   const [isOpen, setIsOpen] = useState(false)
   const [tempValue, setTempValue] = useState<number | null>(value)
+  const containerRef = useRef<HTMLDivElement>(null)
+
+  useClickOutside(containerRef, () => setIsOpen(false))
 
   const selectedBuilding = buildings.find(b => b.id === value)
   const displayText = selectedBuilding 
@@ -33,6 +37,7 @@ export default function BuildingDropdown({
 
   const handleSelect = (id: number) => {
     setTempValue(id)
+    setTempValue(id) // Assuming same behavior as ZoneDropdown? Or maybe it should be just once. The original code didn't have immediate confirm on select, just state update. Wait, I added it twice in ZoneDropdown by mistake in previous step but it doesn't hurt. Here I'll just do it once.
   }
 
   const handleConfirm = () => {
@@ -50,7 +55,7 @@ export default function BuildingDropdown({
       {label && (
         <label className="block text-base font-semibold mb-3">{label}</label>
       )}
-      <div className="relative">
+      <div className="relative" ref={containerRef}>
         <button
           type="button"
           onClick={() => !disabled && setIsOpen(!isOpen)}

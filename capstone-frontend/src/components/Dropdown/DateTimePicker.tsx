@@ -1,4 +1,6 @@
-import { useState, useEffect } from "react"
+// src/components/Dropdown/DateTimePicker.tsx
+import { useState, useEffect, useRef } from "react"
+import { useClickOutside } from "../../hooks/useClickOutside"
 
 interface DateTimePickerProps {
   value: Date | null
@@ -35,6 +37,9 @@ export default function DateTimePicker({
   const [calendarMonth, setCalendarMonth] = useState(value || new Date())
   const [tempDate, setTempDate] = useState<Date | null>(value)
   const [selectedTime, setSelectedTime] = useState(time || defaultTime)
+  
+  const containerRef = useRef<HTMLDivElement>(null)
+  useClickOutside(containerRef, () => setIsOpen(false))
 
   // Update internal selectedTime if parent passes a new time prop
   useEffect(() => {
@@ -149,7 +154,7 @@ export default function DateTimePicker({
       {label && (
         <label className="block text-base font-semibold mb-3">{label}</label>
       )}
-      <div className="relative">
+      <div className="relative" ref={containerRef}>
         <button
           type="button"
           onClick={() => !disabled && setIsOpen(!isOpen)}

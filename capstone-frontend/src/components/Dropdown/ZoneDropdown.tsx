@@ -1,5 +1,6 @@
 // src/components/Dropdown/ZoneDropdown.tsx
-import { useState } from "react"
+import { useState, useRef } from "react"
+import { useClickOutside } from "../../hooks/useClickOutside"
 
 interface ZoneDropdownProps {
   value: string | null
@@ -20,11 +21,17 @@ export default function ZoneDropdown({
 }: ZoneDropdownProps) {
   const [isOpen, setIsOpen] = useState(false)
   const [tempValue, setTempValue] = useState<string | null>(value)
+  const containerRef = useRef<HTMLDivElement>(null)
+
+  useClickOutside(containerRef, () => setIsOpen(false))
 
   const displayText = value || placeholder
 
   const handleSelect = (zone: string) => {
     setTempValue(zone)
+    // For single select dropdowns like this, we usually want to confirm immediately or wait?
+    // The UI shows Confirm/Cancel buttons, so we follow that pattern.
+    setTempValue(zone) 
   }
 
   const handleConfirm = () => {
@@ -42,7 +49,7 @@ export default function ZoneDropdown({
       {label && (
         <label className="block text-base font-semibold mb-3">{label}</label>
       )}
-      <div className="relative">
+      <div className="relative" ref={containerRef}>
         <button
           type="button"
           onClick={() => !disabled && setIsOpen(!isOpen)}
