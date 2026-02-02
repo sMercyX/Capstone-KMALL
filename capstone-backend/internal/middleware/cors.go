@@ -3,6 +3,7 @@ package middleware
 import (
 	"github.com/gin-gonic/gin"
 	"net/http"
+	"strings"
 )
 
 func CORSMiddleware(allowedOrigins string) gin.HandlerFunc {
@@ -11,11 +12,21 @@ func CORSMiddleware(allowedOrigins string) gin.HandlerFunc {
 		if allowedOrigins == "*" {
 			c.Writer.Header().Set("Access-Control-Allow-Origin", "*")
 		} else if allowedOrigins != "" {
-			c.Writer.Header().Set("Access-Control-Allow-Origin", allowedOrigins)
-			// ถ้าจะรองรับหลาย origin ต้อง parse string แล้ว check ว่า clientOrigin อยู่ใน list ไหม
-			// แต่ง่ายๆ คือถ้าตรงกับที่ config ไว้ก็ให้ผ่าน
-			if clientOrigin == allowedOrigins {
+			// Split comma-separated origins
+			origins := strings.Split(allowedOrigins, ",")
+			allowed := false
+			for _, origin := range origins {
+				if strings.TrimSpace(origin) == clientOrigin {
+					allowed = true
+					break
+				}
+			}
+
+			if allowed {
 				c.Writer.Header().Set("Access-Control-Allow-Origin", clientOrigin)
+			} else if len(origins) > 0 {
+				// Default to first origin if not matched, or verify functionality
+				// c.Writer.Header().Set("Access-Control-Allow-Origin", strings.TrimSpace(origins[0]))
 			}
 		} else {
              // Fallback for local dev if empty (or keep it strict)

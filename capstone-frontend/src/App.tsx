@@ -15,7 +15,8 @@ export default function App() {
         <ThemeProvider>
           <AppRoutes />
           {/* Dev Mode Switcher - แสดงเฉพาะ dev environment */}
-          {import.meta.env.DEV && <DevModeSwitcher />}
+          {/* {import.meta.env.DEV && <DevModeSwitcher />} */}
+          <DevModeSwitcher />
           <ToastContainer
             position="top-right"
             autoClose={3000}

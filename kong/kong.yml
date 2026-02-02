@@ -32,22 +32,25 @@ services:
           - /api/*
         strip_path: false
         preserve_host: true
-    plugins:
-      - name: cors
-        config:
-          origins:
-            - https://bscit.sit.kmutt.ac.th
-          methods: ["GET","POST","PUT","PATCH","DELETE","OPTIONS"]
-          credentials: true
-          headers:
-            - Authorization
-            - Content-Type
-            - Cookie
-            - X-Requested-With
-          exposed_headers:
-            - Set-Cookie
-            - Authorization
-          max_age: 3600
+    # plugins:
+    #   - name: cors
+    #     config:
+    #       origins:
+    #         - https://bscit.sit.kmutt.ac.th
+    #         - http://localhost:5173
+    #         - http://localhost:8080
+    #         - http://localhost
+    #       methods: ["GET","POST","PUT","PATCH","DELETE","OPTIONS"]
+    #       credentials: true
+    #       headers:
+    #         - Authorization
+    #         - Content-Type
+    #         - Cookie
+    #         - X-Requested-With
+    #       exposed_headers:
+    #         - Set-Cookie
+    #         - Authorization
+    #       max_age: 3600
 
   - name: uploads-service
     url: http://backend:8080 
