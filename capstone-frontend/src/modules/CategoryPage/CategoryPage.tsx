@@ -177,6 +177,7 @@ export default function CategoryPage() {
                     priceMin={apiMinPrice}
                     priceMax={apiMaxPrice}
                     onChangePriceRange={handlePriceRangeChange}
+                    maxPriceLimit={apiMaxPrice}
                 />
             </div>
         </aside>

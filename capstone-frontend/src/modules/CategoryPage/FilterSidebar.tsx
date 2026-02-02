@@ -1,5 +1,5 @@
 import { Check, ChevronUp } from "lucide-react"
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import Slider from "rc-slider"
 import "rc-slider/assets/index.css"
 
@@ -12,6 +12,7 @@ interface FilterSidebarProps {
   priceMin?: number
   priceMax?: number
   onChangePriceRange?: (min: number, max: number) => void
+  maxPriceLimit?: number
 }
 
 // Section Card wrapper
@@ -31,10 +32,16 @@ export default function FilterSidebar({
   priceMin = 15,
   priceMax = 250,
   onChangePriceRange,
+  maxPriceLimit = 500
 }: FilterSidebarProps) {
   
   // Local state for price range
   const [priceRange, setPriceRange] = useState<[number, number]>([priceMin, priceMax])
+
+  // Sync state with props when data loads
+  useEffect(() => {
+    setPriceRange([priceMin, maxPriceLimit])
+  }, [priceMin, maxPriceLimit])
 
   // Collapsible sections state
   const [isCategoryOpen, setIsCategoryOpen] = useState(true)
@@ -63,7 +70,7 @@ export default function FilterSidebar({
 
   const handleClearAll = () => {
     onChangeCategory([])
-    setPriceRange([15, 250])
+    setPriceRange([0, maxPriceLimit])
     if (onClearAll) onClearAll()
   }
 
@@ -157,7 +164,7 @@ export default function FilterSidebar({
               <Slider
                 range
                 min={0}
-                max={500}
+                max={maxPriceLimit}
                 value={priceRange}
                 onChange={handlePriceChange}
                 onChangeComplete={handlePriceChangeComplete}
@@ -194,7 +201,7 @@ export default function FilterSidebar({
                 value={priceRange[1]}
                 onChange={(e) => {
                   const val = Number(e.target.value)
-                  if (val >= priceRange[0] && val <= 500) {
+                  if (val >= priceRange[0] && val <= maxPriceLimit) {
                     setPriceRange([priceRange[0], val])
                   }
                 }}

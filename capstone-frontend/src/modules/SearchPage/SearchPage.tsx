@@ -156,6 +156,7 @@ export default function SearchPage() {
                     priceMin={apiMinPrice}
                     priceMax={apiMaxPrice}
                     onChangePriceRange={handlePriceRangeChange}
+                    maxPriceLimit={apiMaxPrice}
                 />
             </div>
         </aside>
