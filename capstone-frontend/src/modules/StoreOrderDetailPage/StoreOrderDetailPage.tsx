@@ -351,7 +351,7 @@ export default function StoreOrderDetailPage() {
 
   // Buyer: no buttons after PROPOSED status
   // Seller: has buttons throughout the order lifecycle
-  const canReject = !!order && !isFinished && (isSellerPath || order.status === "Proposed")
+  const canReject = !!order && !isFinished && (isSellerPath || order.status === "Proposed" || order.status === "Pending")
   
   // Accept button visibility:
   // - PENDING (Seller): propose order
