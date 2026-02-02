@@ -167,6 +167,12 @@ export default function CartPage() {
 
   const [deleteId, setDeleteId] = useState<number | null>(null)
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false)
+  const [isCheckoutModalOpen, setIsCheckoutModalOpen] = useState(false)
+
+  function handleConfirmCheckout() {
+    setIsCheckoutModalOpen(false)
+    navigate("/checkout")
+  }
 
   useEffect(() => {
     let cancelled = false
@@ -342,7 +348,7 @@ export default function CartPage() {
           </div>
           
           <button
-            onClick={() => navigate("/checkout")}
+            onClick={() => setIsCheckoutModalOpen(true)}
             className="rounded-full bg-orange-500 px-8 py-3 text-base font-semibold text-white shadow-lg shadow-orange-200 transition-all hover:bg-orange-600 hover:scale-105 active:scale-95"
           >
             ถัดไป
@@ -359,6 +365,17 @@ export default function CartPage() {
         confirmText="ลบสินค้า"
         cancelText="ยกเลิก"
         variant="danger"
+      />
+
+      <ConfirmationModal
+        isOpen={isCheckoutModalOpen}
+        onClose={() => setIsCheckoutModalOpen(false)}
+        onConfirm={handleConfirmCheckout}
+        title="ยืนยันการสั่งซื้อ"
+        message="คุณต้องการดำเนินการต่อเพื่อทำการสั่งซื้อสินค้าใช่หรือไม่?"
+        confirmText="ยืนยัน"
+        cancelText="ยกเลิก"
+        variant="info"
       />
     </div>
   )
