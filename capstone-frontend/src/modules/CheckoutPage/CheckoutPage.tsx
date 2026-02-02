@@ -1,10 +1,18 @@
 // src/pages/cart/CheckoutPage.tsx
 import { useEffect, useState } from "react"
 import { useNavigate } from "react-router-dom"
-import { MapPin, ShoppingCart, Store as StoreIcon } from "lucide-react"
+import { ShoppingCart, Store as StoreIcon, Truck, Package } from "lucide-react"
 import { useCartApi } from "../../api/cartApi"
 import { useCartStore } from "../../stores/cartStore"
 import { useCheckkOutApi, type orderCreatedRequest } from "../../api/checkOutApi"
+import DeliveryAddressDropdown from "../../components/Dropdown/DeliveryAddressDropdown"
+import { resolveImageUrl } from "../../utils/resolve"
+
+const MOCK_ADDRESSES = [
+  { id: 1, detail: "ที่อยู่ 1 - บ้านเลขที่ 123 ถนนสุขุมวิท" },
+  { id: 2, detail: "ที่อยู่ 2 - บ้านเลขที่ 456 ถนนพระราม 2" },
+  { id: 3, detail: "ที่อยู่ 3 - หอพักมหาวิทยาลัย" },
+]
 
 
 type CheckoutItem = {
@@ -46,8 +54,7 @@ export default function CheckoutPage() {
   const navigate = useNavigate()
 
   const [deliveryMethod, setDeliveryMethod] = useState<"CAMPUS" | "ROUND_UNIVERSITY">("CAMPUS")
-  const [campusLocationId, setCampusLocationId] = useState<number>(1) // Default campus location
-  const [campusDetailNote, setCampusDetailNote] = useState("")
+  const [campusLocationId] = useState<number>(1) // Default campus location
   const [deliveryAddressId, setDeliveryAddressId] = useState<number>(1) // Default delivery address
   const [addressExtra, setAddressExtra] = useState("")
   const [note, setNote] = useState("")
@@ -136,9 +143,6 @@ export default function CheckoutPage() {
       // เพิ่มข้อมูลตาม delivery method ที่เลือก
       if (deliveryMethod === "CAMPUS") {
         payload.campus_location_id = campusLocationId
-        if (campusDetailNote) {
-          payload.campus_detail_note = campusDetailNote
-        }
       } else if (deliveryMethod === "ROUND_UNIVERSITY") {
         payload.delivery_address_id = deliveryAddressId
       }
@@ -188,107 +192,103 @@ export default function CheckoutPage() {
           <section className="space-y-10">
             {/* Delivery Method Selection */}
             <div>
-              <h2 className="text-lg font-semibold mb-4">วิธีการจัดส่ง</h2>
-              <div className="space-y-3">
-                <label className="flex items-center gap-3 cursor-pointer">
-                  <input
-                    type="radio"
-                    name="deliveryMethod"
-                    value="CAMPUS"
-                    checked={deliveryMethod === "CAMPUS"}
-                    onChange={(e) => setDeliveryMethod(e.target.value as "CAMPUS")}
-                    className="w-5 h-5 text-orange-600 focus:ring-orange-500"
-                  />
-                  <span className="text-sm font-medium">ส่งภายในมหาวิทยาลัย (CAMPUS)</span>
-                </label>
-                <label className="flex items-center gap-3 cursor-pointer">
-                  <input
-                    disabled={true}
-                    type="radio"
-                    name="deliveryMethod"
-                    value="ROUND_UNIVERSITY"
-                    checked={deliveryMethod === "ROUND_UNIVERSITY"}
-                    onChange={(e) => setDeliveryMethod(e.target.value as "ROUND_UNIVERSITY")}
-                    className="w-5 h-5 text-orange-600 focus:ring-orange-500"
-                  />
-                  <span className="text-sm font-medium">ส่งบริเวณมหาวิทยาลัย (ROUND_UNIVERSITY)</span>
-                </label>
+              <h2 className="text-2xl font-bold mb-6">วิธีการจัดส่ง</h2>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* Card 1: Campus Pickup */}
+                <div 
+                  onClick={() => setDeliveryMethod("CAMPUS")}
+                  className={`
+                    cursor-pointer rounded-xl border-2 p-6 transition-all duration-200
+                    flex flex-col gap-4 text-left relative overflow-hidden group hover:shadow-md
+                    ${deliveryMethod === "CAMPUS" 
+                      ? "border-green-500 bg-white ring-1 ring-green-500" 
+                      : "border-gray-200 bg-white hover:border-gray-300"}
+                  `}
+                >
+                  <div className="text-gray-900">
+                    <Truck className="h-8 w-8" strokeWidth={1.5} />
+                  </div>
+                  <div>
+                    <h3 className="font-semibold text-base mb-1">นัดรับ</h3>
+                    <p className="text-sm text-gray-500">รอวันและเวลาที่ชัดเจนจากผู้ขาย</p>
+                  </div>
+                </div>
+
+                {/* Card 2: Round University (Disabled) */}
+                <div 
+                  className={`
+                    rounded-xl border-2 p-6 transition-all duration-200
+                    flex flex-col gap-4 text-left relative overflow-hidden
+                    border-gray-200 bg-gray-50 opacity-50 grayscale cursor-not-allowed
+                  `}
+                >
+                  <div className="absolute top-3 right-3 bg-gray-200 text-gray-500 text-xs px-2 py-1 rounded-full font-medium">
+                    Coming Soon
+                  </div>
+                  <div className="text-gray-900">
+                    <Package className="h-8 w-8" strokeWidth={1.5} />
+                  </div>
+                  <div>
+                    <h3 className="font-semibold text-base mb-1">ส่งรอบมหาวิทยาลัย</h3>
+                    <p className="text-sm text-gray-500">เลือกที่จัดส่งที่ตนเองบันทึกไว้</p>
+                  </div>
+                </div>
+
+                {/* Card 2: Round University */}
+                {/* <div 
+                  onClick={() => setDeliveryMethod("ROUND_UNIVERSITY")}
+                  className={`
+                    cursor-pointer rounded-xl border-2 p-6 transition-all duration-200
+                    flex flex-col gap-4 text-left relative overflow-hidden group hover:shadow-md
+                    ${deliveryMethod === "ROUND_UNIVERSITY" 
+                      ? "border-green-500 bg-white ring-1 ring-green-500" 
+                      : "border-gray-200 bg-white hover:border-gray-300"}
+                  `}
+                >
+                  <div className="text-gray-900">
+                    <Package className="h-8 w-8" strokeWidth={1.5} />
+                  </div>
+                  <div>
+                    <h3 className="font-semibold text-base mb-1">ส่งรอบมหาวิทยาลัย</h3>
+                    <p className="text-sm text-gray-500">เลือกที่จัดส่งที่ตนเองบันทึกไว้</p>
+                  </div>
+                </div> */}
+
               </div>
             </div>
 
             {/* Conditional Fields Based on Delivery Method */}
             {deliveryMethod === "CAMPUS" ? (
-              <div>
-                <h2 className="text-lg font-semibold">สถานที่รับภายในมหาวิทยาลัย</h2>
-                <select
-                  value={campusLocationId}
-                  onChange={(e) => setCampusLocationId(Number(e.target.value))}
-                  className="mt-3 w-full rounded-lg border border-gray-200 bg-white px-4 py-3 text-sm shadow-sm focus:border-orange-400 focus:ring-2 focus:ring-orange-100"
-                >
-                  <option value={1}>จุดรับที่ 1 - CBI Building</option>
-                  <option value={2}>จุดรับที่ 2 - Faculty of Engineering</option>
-                  <option value={3}>จุดรับที่ 3 - Library</option>
-                  <option value={4}>จุดรับที่ 4 - Student Union</option>
-                </select>
-                <input
-                  type="text"
-                  placeholder="ระบุจุดรับเพิ่มเติม เช่น รออยู่ CBI ตรงร้านถ่ายเอกสารนะครับ"
-                  value={campusDetailNote}
-                  onChange={(e) => setCampusDetailNote(e.target.value)}
-                  className="mt-3 w-full rounded-lg border border-gray-200 bg-white px-4 py-3 text-sm shadow-sm focus:border-orange-400 focus:ring-2 focus:ring-orange-100"
-                />
-              </div>
+              <></>
             ) : (
-              <div>
-                <h2 className="text-lg font-semibold">ที่อยู่จัดส่ง</h2>
-                <select
+              <div className="space-y-4">
+                <DeliveryAddressDropdown
                   value={deliveryAddressId}
-                  onChange={(e) => setDeliveryAddressId(Number(e.target.value))}
-                  className="mt-3 w-full rounded-lg border border-gray-200 bg-white px-4 py-3 text-sm shadow-sm focus:border-orange-400 focus:ring-2 focus:ring-orange-100"
-                >
-                  <option value={1}>ที่อยู่ 1 - บ้านเลขที่ 123 ถนนสุขุมวิท</option>
-                  <option value={2}>ที่อยู่ 2 - บ้านเลขที่ 456 ถนนพระราม 2</option>
-                  <option value={3}>ที่อยู่ 3 - หอพักมหาวิทยาลัย</option>
-                </select>
+                  onChange={(val) => setDeliveryAddressId(val || 1)}
+                  addresses={MOCK_ADDRESSES}
+                />
                 <input
                   type="text"
                   placeholder="ข้อมูลเพิ่มเติมสำหรับการจัดส่ง"
                   value={addressExtra}
                   onChange={(e) => setAddressExtra(e.target.value)}
-                  className="mt-3 w-full rounded-lg border border-gray-200 bg-white px-4 py-3 text-sm shadow-sm focus:border-orange-400 focus:ring-2 focus:ring-orange-100"
+                  className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm shadow-sm focus:border-orange-400 focus:ring-2 focus:ring-orange-100 outline-none transition-all placeholder:text-gray-400"
                 />
               </div>
             )}
 
             <div>
-              <h2 className="text-lg font-semibold">หมายเหตุ</h2>
+              <h2 className="text-2xl font-bold mb-4">หมายเหตุ</h2>
               <input
                 type="text"
                 placeholder="ระบุหมายเหตุเพิ่มเติม"
                 value={note}
                 onChange={(e) => setNote(e.target.value)}
-                className="mt-3 w-full rounded-lg border border-gray-200 bg-white px-4 py-3 text-sm shadow-sm focus:border-orange-400 focus:ring-2 focus:ring-orange-100"
+                className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm shadow-sm focus:border-orange-400 focus:ring-2 focus:ring-orange-100 outline-none transition-all placeholder:text-gray-400"
               />
             </div>
 
-            <div className="mt-10 flex items-center justify-between">
-              <button
-                type="button"
-                className="inline-flex items-center justify-center gap-2 rounded-xl border border-gray-200 bg-white px-6 py-3 text-sm font-semibold text-orange-600 shadow-[0_10px_20px_rgba(0,0,0,0.08)] hover:border-orange-300"
-              >
-                <MapPin className="h-4 w-4" />
-                <span>Map KMUTT</span>
-              </button>
 
-              <button
-                type="button"
-                onClick={handleSubmit}
-                disabled={submitting || !cart || totalItems === 0}
-                className="rounded-xl bg-[#f0532c] px-10 py-3 text-sm font-semibold text-white shadow-lg hover:bg-[#e24420] disabled:opacity-60 disabled:cursor-not-allowed"
-              >
-                ยืนยันออเดอร์
-              </button>
-            </div>
           </section>
 
           {/* RIGHT SUMMARY */}
@@ -325,7 +325,7 @@ export default function CheckoutPage() {
                                 <div className="rounded-[18px] border border-orange-100 bg-white p-1">
                                   <div className="overflow-hidden rounded-[14px]">
                                     <img
-                                      src={item.image}
+                                      src={resolveImageUrl(item.image)}
                                       className="h-20 w-20 object-cover"
                                       alt={item.name}
                                     />
@@ -380,6 +380,17 @@ export default function CheckoutPage() {
             )}
           </section>
         </div>
+      </div>
+      
+      <div className="mt-12 flex justify-center w-full">
+        <button
+          type="button"
+          onClick={handleSubmit}
+          disabled={submitting || !cart || totalItems === 0}
+          className="rounded-xl bg-[#f0532c] px-20 py-4 text-base font-semibold text-white shadow-lg hover:bg-[#e24420] disabled:opacity-60 disabled:cursor-not-allowed transition-all transform hover:scale-105"
+        >
+          ยืนยันออเดอร์
+        </button>
       </div>
     </div>
   )
