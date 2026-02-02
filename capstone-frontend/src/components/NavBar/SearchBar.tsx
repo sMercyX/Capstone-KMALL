@@ -1,31 +1,8 @@
 // src/components/NavBar/SearchBar.tsx
 import { useState, useEffect, useRef } from "react"
 import { useNavigate, useLocation } from "react-router-dom"
-import { useCrudApi } from "../../utils/fetch"
-
-interface SearchHistoryItem {
-  id: number
-  user_id: string
-  query_text: string
-  searched_at: string
-}
-
-interface SearchHistoryResponse {
-  code: number
-  data: {
-    items: SearchHistoryItem[]
-  }
-  status: string
-}
-
-interface SuggestResponse {
-  code: number
-  data: {
-    history: string[]
-    suggest: string[]
-  }
-  status: string
-}
+import { useSearchApi } from "../../api/searchApi"
+import type { SearchHistoryItem } from "../../api/searchApi"
 
 export default function SearchBar() {
   const [query, setQuery] = useState("")
@@ -39,7 +16,13 @@ export default function SearchBar() {
   const inputRef = useRef<HTMLInputElement>(null)
   const navigate = useNavigate()
   const location = useLocation()
-  const http = useCrudApi()
+  
+  const { 
+    getSearchHistory, 
+    deleteSearchHistoryItem, 
+    clearSearchHistory, 
+    getSuggestions 
+  } = useSearchApi()
 
   // Sync query from URL parameter
   useEffect(() => {
@@ -54,9 +37,7 @@ export default function SearchBar() {
   const fetchSearchHistory = async () => {
     setIsHistoryLoading(true)
     try {
-      const res: SearchHistoryResponse = await http.getItems(
-        `/search-history?limit=20&page=1`
-      )
+      const res = await getSearchHistory()
       setSearchHistory(res.data?.items || [])
     } catch (err) {
       console.error("Failed to fetch search history:", err)
@@ -96,9 +77,7 @@ export default function SearchBar() {
     const timer = setTimeout(async () => {
       setIsLoading(true)
       try {
-        const res: SuggestResponse = await http.getItems(
-          `/products/suggest?q=${encodeURIComponent(query)}`
-        )
+        const res = await getSuggestions(query)
         setSuggestions(res.data?.suggest || [])
         setMatchingHistory(res.data?.history || [])
       } catch (err) {
@@ -126,11 +105,21 @@ export default function SearchBar() {
 
   const handleClearAllHistory = async () => {
     try {
-      await http.deleteItem(`/search-history`)
+      await clearSearchHistory()
       setSearchHistory([])
       setMatchingHistory([])
     } catch (err) {
       console.error("Failed to clear search history:", err)
+    }
+  }
+
+  const handleDeleteHistoryItem = async (id: number, e: React.MouseEvent) => {
+    e.stopPropagation()
+    try {
+      await deleteSearchHistoryItem(id)
+      setSearchHistory((prev) => prev.filter((item) => item.id !== id))
+    } catch (err) {
+      console.error("Failed to delete history item:", err)
     }
   }
 
@@ -241,7 +230,7 @@ export default function SearchBar() {
                   <div
                     key={item.id}
                     onClick={() => handleHistoryClick(item.query_text)}
-                    className="px-4 py-3 flex items-center justify-between cursor-pointer 
+                    className="group px-4 py-3 flex items-center justify-between cursor-pointer 
                                hover:bg-gray-50 transition-colors duration-150"
                   >
                     <div className="flex items-center gap-3">
@@ -262,10 +251,11 @@ export default function SearchBar() {
                       </svg>
                       <span className="text-gray-700">{item.query_text}</span>
                     </div>
-                    {/* Arrow icon */}
+                    
+                    {/* Arrow icon - hidden on hover */}
                     <svg 
                       xmlns="http://www.w3.org/2000/svg" 
-                      className="h-4 w-4 text-gray-400" 
+                      className="h-4 w-4 text-gray-400 group-hover:hidden" 
                       fill="none" 
                       viewBox="0 0 24 24" 
                       stroke="currentColor"
@@ -277,6 +267,28 @@ export default function SearchBar() {
                         d="M7 17l9.2-9.2M17 17V8H8" 
                       />
                     </svg>
+
+                    {/* Delete (X) icon - shown on hover */}
+                    <button
+                      onClick={(e) => handleDeleteHistoryItem(item.id, e)}
+                      className="hidden group-hover:block p-1 hover:bg-gray-200 rounded-full text-gray-400 hover:text-red-500 transition-colors"
+                      title="ลบรายการนี้"
+                    >
+                      <svg 
+                        xmlns="http://www.w3.org/2000/svg" 
+                        className="h-4 w-4" 
+                        fill="none" 
+                        viewBox="0 0 24 24" 
+                        stroke="currentColor"
+                      >
+                        <path 
+                          strokeLinecap="round" 
+                          strokeLinejoin="round" 
+                          strokeWidth={2} 
+                          d="M6 18L18 6M6 6l12 12" 
+                        />
+                      </svg>
+                    </button>
                   </div>
                 ))
               ) : (
