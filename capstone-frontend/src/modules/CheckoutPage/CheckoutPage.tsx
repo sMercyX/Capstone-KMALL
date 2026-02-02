@@ -7,6 +7,7 @@ import { useCartStore } from "../../stores/cartStore"
 import { useCheckkOutApi, type orderCreatedRequest } from "../../api/checkOutApi"
 import DeliveryAddressDropdown from "../../components/Dropdown/DeliveryAddressDropdown"
 import { resolveImageUrl } from "../../utils/resolve"
+import ConfirmationModal from "../../components/Modal/ConfirmationModal"
 
 const MOCK_ADDRESSES = [
   { id: 1, detail: "ที่อยู่ 1 - บ้านเลขที่ 123 ถนนสุขุมวิท" },
@@ -59,6 +60,11 @@ export default function CheckoutPage() {
   const [addressExtra, setAddressExtra] = useState("")
   const [note, setNote] = useState("")
   const [submitting, setSubmitting] = useState(false)
+  const [isConfirmModalOpen, setIsConfirmModalOpen] = useState(false)
+
+  function handleConfirmClick() {
+    setIsConfirmModalOpen(true)
+  }
 
   // โหลด cart ถ้ายังไม่มี
   useEffect(() => {
@@ -385,13 +391,24 @@ export default function CheckoutPage() {
       <div className="mt-12 flex justify-center w-full">
         <button
           type="button"
-          onClick={handleSubmit}
+          onClick={handleConfirmClick}
           disabled={submitting || !cart || totalItems === 0}
           className="rounded-xl bg-[#f0532c] px-20 py-4 text-base font-semibold text-white shadow-lg hover:bg-[#e24420] disabled:opacity-60 disabled:cursor-not-allowed transition-all transform hover:scale-105"
         >
           ยืนยันออเดอร์
         </button>
       </div>
+
+      <ConfirmationModal
+        isOpen={isConfirmModalOpen}
+        onClose={() => setIsConfirmModalOpen(false)}
+        onConfirm={handleSubmit}
+        title="ยืนยันการสั่งซื้อ"
+        message="คุณต้องการยืนยันการสั่งซื้อสินค้าใช่หรือไม่?"
+        confirmText="ยืนยัน"
+        cancelText="ยกเลิก"
+        variant="info"
+      />
     </div>
   )
 }
