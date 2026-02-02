@@ -1,5 +1,4 @@
-// src/components/Dropdown/DateTimePicker.tsx
-import { useState } from "react"
+import { useState, useEffect } from "react"
 
 interface DateTimePickerProps {
   value: Date | null
@@ -9,6 +8,9 @@ interface DateTimePickerProps {
   label?: string
   timeSlots?: string[]
   defaultTime?: string
+  time?: string
+  minDate?: Date
+  maxDate?: Date
 }
 
 const DEFAULT_TIME_SLOTS = [
@@ -24,12 +26,22 @@ export default function DateTimePicker({
   placeholder = "เลือกวันและเวลา",
   label = "วันและเวลา",
   timeSlots = DEFAULT_TIME_SLOTS,
-  defaultTime = "10:00 AM"
+  defaultTime = "10:00 AM",
+  time,
+  minDate,
+  maxDate
 }: DateTimePickerProps) {
   const [isOpen, setIsOpen] = useState(false)
   const [calendarMonth, setCalendarMonth] = useState(value || new Date())
   const [tempDate, setTempDate] = useState<Date | null>(value)
-  const [selectedTime, setSelectedTime] = useState(defaultTime)
+  const [selectedTime, setSelectedTime] = useState(time || defaultTime)
+
+  // Update internal selectedTime if parent passes a new time prop
+  useEffect(() => {
+    if (time) {
+      setSelectedTime(time)
+    }
+  }, [time])
 
   // Format display text
   const formatDisplayText = () => {
@@ -69,6 +81,57 @@ export default function DateTimePicker({
     }
     
     return days
+  }
+
+  // Helper to check if a date is strictly before minDate (ignoring time) or after maxDate
+  const isDateDisabled = (date: Date) => {
+    const d = new Date(date)
+    d.setHours(0, 0, 0, 0)
+
+    if (minDate) {
+        const min = new Date(minDate)
+        min.setHours(0, 0, 0, 0)
+        if (d < min) return true
+    }
+
+    if (maxDate) {
+        const max = new Date(maxDate)
+        max.setHours(0, 0, 0, 0)
+        if (d > max) return true
+    }
+
+    return false
+  }
+
+  // Helper to check if time is in the past (only if selected date is today)
+  const isTimeDisabled = (timeStr: string) => {
+    if (!tempDate) return false
+    
+    // Check if tempDate is today
+    const now = new Date()
+    const isToday = tempDate.getDate() === now.getDate() &&
+                    tempDate.getMonth() === now.getMonth() &&
+                    tempDate.getFullYear() === now.getFullYear()
+    
+    if (!isToday) return false
+
+    // Parse time string (e.g. "10:30 AM")
+    const timeParts = timeStr.match(/(\d+):(\d+)\s*(AM|PM)/i)
+    if (!timeParts) return false
+
+    let hours = parseInt(timeParts[1])
+    const minutes = parseInt(timeParts[2])
+    const isPM = timeParts[3].toUpperCase() === "PM"
+
+    if (isPM && hours !== 12) hours += 12
+    if (!isPM && hours === 12) hours = 0
+
+    const slotDate = new Date(tempDate)
+    slotDate.setHours(hours, minutes, 0, 0)
+
+    // strict check: slot must be > now
+    // e.g. now is 10:00, slot 10:00 -> disabled
+    return slotDate <= now
   }
 
   const handleConfirm = () => {
@@ -151,39 +214,50 @@ export default function DateTimePicker({
                 
                 {/* Calendar Days */}
                 <div className="grid grid-cols-7 gap-1">
-                  {generateCalendarDays(calendarMonth).map((day, index) => (
-                    <button
-                      key={index}
-                      type="button"
-                      onClick={() => day.isCurrentMonth && setTempDate(day.date)}
-                      disabled={!day.isCurrentMonth}
-                      className={`p-2 text-sm rounded-full transition-colors
-                        ${!day.isCurrentMonth ? 'text-gray-300' : 'hover:bg-gray-100'}
-                        ${tempDate && day.date.toDateString() === tempDate.toDateString() 
-                          ? 'bg-orange-500 text-white hover:bg-orange-600' 
-                          : ''}`}
-                    >
-                      {day.date.getDate()}
-                    </button>
-                  ))}
+                  {generateCalendarDays(calendarMonth).map((day, index) => {
+                    const isDisabled = !day.isCurrentMonth || isDateDisabled(day.date)
+                    return (
+                        <button
+                        key={index}
+                        type="button"
+                        onClick={() => !isDisabled && setTempDate(day.date)}
+                        disabled={isDisabled}
+                        className={`p-2 text-sm rounded-full transition-colors
+                            ${isDisabled 
+                                ? 'text-gray-300 cursor-not-allowed' 
+                                : 'hover:bg-gray-100'
+                            }
+                            ${tempDate && day.date.toDateString() === tempDate.toDateString() && !isDisabled
+                            ? 'bg-orange-500 text-white hover:bg-orange-600' 
+                            : ''}`}
+                        >
+                        {day.date.getDate()}
+                        </button>
+                    )
+                  })}
                 </div>
               </div>
               
               {/* Time Selection */}
               <div className="w-28 max-h-60 overflow-auto border-l pl-4">
-                {timeSlots.map((time) => (
-                  <button
-                    key={time}
-                    type="button"
-                    onClick={() => setSelectedTime(time)}
-                    className={`w-full text-left px-3 py-2 text-sm rounded-lg transition-colors
-                      ${selectedTime === time 
-                        ? 'bg-orange-500 text-white' 
-                        : 'hover:bg-gray-100'}`}
-                  >
-                    {time}
-                  </button>
-                ))}
+                {timeSlots.map((time) => {
+                    const disabledTime = isTimeDisabled(time)
+                    return (
+                        <button
+                            key={time}
+                            type="button"
+                            onClick={() => !disabledTime && setSelectedTime(time)}
+                            disabled={disabledTime}
+                            className={`w-full text-left px-3 py-2 text-sm rounded-lg transition-colors
+                            ${disabledTime ? 'text-gray-300 cursor-not-allowed' : ''}
+                            ${selectedTime === time && !disabledTime
+                                ? 'bg-orange-500 text-white' 
+                                : !disabledTime ? 'hover:bg-gray-100' : ''}`}
+                        >
+                            {time}
+                        </button>
+                    )
+                })}
               </div>
             </div>
             

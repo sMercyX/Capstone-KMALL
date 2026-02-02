@@ -36,12 +36,12 @@ export default function PendingProposedPage({
   subtotal,
   deliveryFee,
   total,
-  buyerDisplayName,
   zones,
   buildings,
   selectedZone,
   selectedBuilding,
   selectedDateTime,
+  selectedTime,
   meetingNoteInput,
   isBuyer,
   proposeLoading,
@@ -90,10 +90,6 @@ export default function PendingProposedPage({
         {/* Header with user */}
         <div className="flex justify-between items-center mb-6">
           <h3 className="text-xl font-bold">เลือกสถานที่ วัน/เวลานัดรับสินค้า</h3>
-          <div className="flex items-center gap-2 bg-gray-200 px-4 py-2 rounded-full">
-            <span className="text-lg">✈️</span>
-            <span className="font-medium text-gray-700">{buyerDisplayName || "User"}</span>
-          </div>
         </div>
 
         {/* Row 1: Zone + DateTime */}
@@ -114,6 +110,9 @@ export default function PendingProposedPage({
               value={selectedDateTime}
               onChange={onDateTimeChange}
               disabled={isBuyer}
+              time={selectedTime}
+              minDate={new Date()}
+              maxDate={new Date(new Date().setDate(new Date().getDate() + 14))}
             />
           </div>
         </div>
