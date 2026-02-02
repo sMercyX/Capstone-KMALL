@@ -4,9 +4,10 @@ import type { orderSellerData } from "../../../api/orderSellerApi"
 interface ArrivedPageProps {
   order: orderSellerData
   locationName?: string
+  viewMode: "buyer" | "seller"
 }
 
-export default function ArrivedPage({ order, locationName }: ArrivedPageProps) {
+export default function ArrivedPage({ order, locationName, viewMode }: ArrivedPageProps) {
   // Parse proposed_at to get date and time
   const proposedDate = order.proposed_at
     ? new Date(order.proposed_at)
@@ -31,6 +32,11 @@ export default function ArrivedPage({ order, locationName }: ArrivedPageProps) {
   // Use passed locationName, or fallback to IDs if not provided
   const displayLocation = locationName || order.meeting_location_id || order.campus_location_id || '--'
 
+  const statusText =
+    viewMode === "buyer"
+      ? "ผู้ขายถึงจุดนัดรับแล้ว"
+      : "ส่งมอบสินค้าเรียบร้อยแล้วหรือไม่"
+
   return (
     <div className="flex flex-col items-center">
       {/* Delivery Info Header */}
@@ -48,9 +54,7 @@ export default function ArrivedPage({ order, locationName }: ArrivedPageProps) {
       </div>
 
       {/* Status Message */}
-      <p className="text-xl font-semibold text-orange-500">
-        ผู้ขายมาถึงจุดนัดพบแล้ว
-      </p>
+           <p className="text-xl font-semibold text-orange-500">{statusText}</p>
     </div>
   )
 }

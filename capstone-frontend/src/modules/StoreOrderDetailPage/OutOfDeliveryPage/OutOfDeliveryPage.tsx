@@ -4,9 +4,10 @@ import type { orderSellerData } from "../../../api/orderSellerApi"
 interface OutOfDeliveryPageProps {
   order: orderSellerData
   locationName?: string
+  viewMode: "buyer" | "seller"
 }
 
-export default function OutOfDeliveryPage({ order, locationName }: OutOfDeliveryPageProps) {
+export default function OutOfDeliveryPage({ order, locationName, viewMode  }: OutOfDeliveryPageProps) {
   // Parse proposed_at to get date and time
   const proposedDate = order.proposed_at
     ? new Date(order.proposed_at)
@@ -31,6 +32,11 @@ export default function OutOfDeliveryPage({ order, locationName }: OutOfDelivery
   // Use passed locationName, or fallback to IDs if not provided
   const displayLocation = locationName || order.meeting_location_id || order.campus_location_id || '--'
 
+  const statusText =
+    viewMode === "buyer"
+      ? "ผู้ขายกำลังนำสินค้าไปส่ง / เดินทางไปจุดนัดรับ"
+      : "ถึงจุดนัดรับสินค้าแล้วหรือไม่"
+
   return (
     <div className="flex flex-col items-center">
       {/* Delivery Info Header */}
@@ -48,9 +54,7 @@ export default function OutOfDeliveryPage({ order, locationName }: OutOfDelivery
       </div>
 
       {/* Status Message */}
-      <p className="text-xl font-semibold text-orange-500">
-        ผู้ขายกำลังเดินทางไปส่งสินค้า
-      </p>
+      <p className="text-xl font-semibold text-orange-500">{statusText}</p>
     </div>
   )
 }

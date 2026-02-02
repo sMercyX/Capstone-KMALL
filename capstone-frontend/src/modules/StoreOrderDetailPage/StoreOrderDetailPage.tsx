@@ -653,17 +653,19 @@ export default function StoreOrderDetailPage() {
 
             {/* Accepted Status Page */}
             {order.status === "Accepted" && (
-              <AcceptedPage order={order} locationName={meetingLocationName} />
+              <AcceptedPage order={order} locationName={meetingLocationName} viewMode={isBuyer ? "buyer" : "seller"} />
             )}
+            
 
             {/* Out for Delivery Page */}
             {order.status === "Out For Delivery" && (
-              <OutOfDeliveryPage order={order} locationName={meetingLocationName} />
+              <OutOfDeliveryPage order={order} locationName={meetingLocationName} viewMode={isBuyer ? "buyer" : "seller"} />
             )}
 
             {/* Arrived Page */}
             {order.status === "Arrived" && (
-              <ArrivedPage order={order} locationName={meetingLocationName} />
+              <ArrivedPage order={order} locationName={meetingLocationName} viewMode={isBuyer ? "buyer" : "seller"}
+  />
             )}
 
             {/* Completed/Cancelled Page */}
