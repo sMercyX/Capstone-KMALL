@@ -5,16 +5,17 @@ import (
 )
 
 type Product struct {
-	ID          int       `db:"product_id"  json:"id"`
-	Name        string    `db:"name"        json:"name"`
-	Description *string   `db:"product_desc" json:"description,omitempty"`
-	Price       float64   `db:"price"       json:"price"`
-	ImageURL    *string   `db:"image_url"   json:"image_url,omitempty"`
-	CreatedAt   time.Time `db:"created_at"  json:"created_at"`
-	UpdatedAt   time.Time `db:"updated_at"  json:"updated_at"`
-	IsActive    string    `db:"is_active"   json:"is_active"`
-	StoreID     int       `db:"store_id"    json:"store_id"`
-	CategoryID  int       `db:"category_id" json:"category_id"`
-	StoreName   string    `db:"store_name" json:"store_name"`
-	SoldCount   int64     `db:"sold_count"  json:"sold_count"`
+	ID           int       `db:"product_id"  json:"id"`
+	Name         string    `db:"name"        json:"name"`
+	Description  *string   `db:"product_desc" json:"description,omitempty"`
+	Price        float64   `db:"price"       json:"price"`
+	ImageURL     *string   `db:"image_url"   json:"image_url,omitempty"`
+	CreatedAt    time.Time `db:"created_at"  json:"created_at"`
+	UpdatedAt    time.Time `db:"updated_at"  json:"updated_at"`
+	IsActive     string    `db:"is_active"   json:"is_active"`
+	StoreID      int       `db:"store_id"    json:"store_id"`
+	CategoryID   int       `db:"category_id" json:"category_id"`
+	StoreName    string    `db:"store_name" json:"store_name"`
+	CategoryName string    `db:"category_name" json:"category_name"`
+	SoldCount    int64     `db:"sold_count"  json:"sold_count"`
 }

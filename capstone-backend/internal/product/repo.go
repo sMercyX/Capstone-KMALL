@@ -585,41 +585,45 @@ func (r *repo) GetPublic(ctx context.Context, id int64) (Product, error) {
 	var p Product
 
 	err := r.db.QueryRow(ctx, `
-        SELECT
-            p.product_id,
-            p.name,
-            p.product_desc,
-            p.price,
-            p.image_url,
-            p.created_at,
-            p.updated_at,
-            p.is_active,
-            p.store_id,
-            p.category_id,
-            s.store_name,
-            COALESCE(SUM(CASE WHEN o.order_id IS NOT NULL THEN oi.quantity ELSE 0 END), 0) AS sold_count
-        FROM products p
-        JOIN stores s ON p.store_id = s.store_id
+    SELECT
+        p.product_id,
+        p.name,
+        p.product_desc,
+        p.price,
+        p.image_url,
+        p.created_at,
+        p.updated_at,
+        p.is_active,
+        p.store_id,
+        p.category_id,
+        s.store_name,
+        c.name AS category_name,
+        COALESCE(SUM(CASE WHEN o.order_id IS NOT NULL THEN oi.quantity ELSE 0 END), 0) AS sold_count
+    FROM products p
+    JOIN stores s ON p.store_id = s.store_id
+    JOIN categories c ON c.category_id = p.category_id
 
-        LEFT JOIN order_items oi ON oi.product_id = p.product_id
-        LEFT JOIN orders o ON o.order_id = oi.order_id AND o.status = 'Completed'
+    LEFT JOIN order_items oi ON oi.product_id = p.product_id
+    LEFT JOIN orders o ON o.order_id = oi.order_id AND o.status = 'Completed'
 
-        WHERE p.product_id = $1
-          AND p.is_active = 'YES'
-          AND s.is_active = 'YES'
-        GROUP BY
-            p.product_id,
-            p.name,
-            p.product_desc,
-            p.price,
-            p.image_url,
-            p.created_at,
-            p.updated_at,
-            p.is_active,
-            p.store_id,
-            p.category_id,
-            s.store_name;
-    `, id).Scan(
+    WHERE p.product_id = $1
+      AND p.is_active = 'YES'
+      AND s.is_active = 'YES'
+      AND c.is_active = 'YES'
+    GROUP BY
+        p.product_id,
+        p.name,
+        p.product_desc,
+        p.price,
+        p.image_url,
+        p.created_at,
+        p.updated_at,
+        p.is_active,
+        p.store_id,
+        p.category_id,
+        s.store_name,
+        c.name;
+`, id).Scan(
 		&p.ID,
 		&p.Name,
 		&p.Description,
@@ -631,6 +635,7 @@ func (r *repo) GetPublic(ctx context.Context, id int64) (Product, error) {
 		&p.StoreID,
 		&p.CategoryID,
 		&p.StoreName,
+		&p.CategoryName,
 		&p.SoldCount,
 	)
 
