@@ -71,6 +71,9 @@ export default function FilterSidebar({
   const handleClearAll = () => {
     onChangeCategory([])
     setPriceRange([0, maxPriceLimit])
+    if (onChangePriceRange) {
+      onChangePriceRange(0, maxPriceLimit)
+    }
     if (onClearAll) onClearAll()
   }
 
