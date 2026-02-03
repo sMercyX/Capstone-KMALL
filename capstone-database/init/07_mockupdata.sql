@@ -723,11 +723,6 @@ WHERE u.kms_id = 'dev-buyer-1'
     SELECT 1 FROM user_addresses ua WHERE ua.user_id = u.user_id AND ua.is_default = TRUE
   );
 
--- ensure campus location exists (for CAMPUS + meeting_location)
-INSERT INTO campus_locations (name, zone, latitude, longitude, is_active)
-SELECT 'KMUTT Main Gate', 'KMUTT', 13.6510000, 100.4960000, TRUE
-WHERE NOT EXISTS (SELECT 1 FROM campus_locations WHERE name = 'KMUTT Main Gate');
-
 DO $$
 DECLARE
   buyer_uuid UUID;
@@ -767,11 +762,14 @@ BEGIN
   -- campus id
   SELECT campus_location_id INTO campus_id
   FROM campus_locations
-  WHERE name = 'KMUTT Main Gate'
+  WHERE zone = 'North'
+  ORDER BY campus_location_id
   LIMIT 1;
+
   IF campus_id IS NULL THEN
-    RAISE EXCEPTION 'campus location not found';
+    RAISE EXCEPTION 'no campus_locations found in Zone North';
   END IF;
+
 
   FOR r IN
     SELECT p.product_id, p.store_id, p.price
@@ -801,7 +799,7 @@ BEGIN
       'Pending', sub, dm,
       CASE WHEN dm='ROUND_UNIVERSITY' THEN addr_id ELSE NULL END,
       CASE WHEN dm='CAMPUS' THEN campus_id ELSE NULL END,
-      CASE WHEN dm='CAMPUS' THEN 'Meet at main gate (mock)' ELSE NULL END,
+      CASE WHEN dm='CAMPUS' THEN 'Meet at Zone North (mock)' ELSE NULL END,
       buyer_uuid, r.store_id
     )
     RETURNING order_id INTO oid;
@@ -821,7 +819,7 @@ BEGIN
       )
       VALUES (
         'Proposed', sub, dm,
-        NULL, campus_id, 'Meet at main gate (mock)',
+        NULL, campus_id, 'Meet at Zone North (mock)',
         t_start, campus_id, 'Mock proposal note',
         buyer_uuid, r.store_id
       )
@@ -878,7 +876,7 @@ BEGIN
       'Completed', sub, dm,
       CASE WHEN dm='ROUND_UNIVERSITY' THEN addr_id ELSE NULL END,
       CASE WHEN dm='CAMPUS' THEN campus_id ELSE NULL END,
-      CASE WHEN dm='CAMPUS' THEN 'Completed meetup (mock)' ELSE NULL END,
+      CASE WHEN dm='CAMPUS' THEN 'Meet at Zone North (mock)' ELSE NULL END,
       buyer_uuid, r.store_id
     )
     RETURNING order_id INTO oid;
