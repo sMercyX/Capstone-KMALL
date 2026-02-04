@@ -7,6 +7,7 @@ networks:
 volumes:
   db_data:
   redis_data:
+  ollama_data:
 
 services:
   kong:
@@ -44,6 +45,24 @@ services:
     networks:
       - capstone_net
 
+  ollama:
+    image: ollama/ollama:latest
+    container_name: capstone-ollama
+    restart: unless-stopped
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+    networks:
+      - capstone_net
+
+    entrypoint: ["/bin/sh", "-lc"]
+    command:
+      - >
+        ollama serve &
+        sleep 2;
+        ollama pull nomic-embed-text;
+        wait
 
 
   # oauth2-proxy:
@@ -88,6 +107,7 @@ services:
       - capstone_net
     depends_on:
       - database
+      - ollama
 
   frontend:
     build: ./capstone-frontend
@@ -102,3 +122,5 @@ services:
       - capstone_net
     depends_on:
       - backend
+  
+

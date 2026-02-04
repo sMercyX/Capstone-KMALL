@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	apperr "github.com/Perpasit/Capstone-KMALL/internal/apperr"
+	"github.com/Perpasit/Capstone-KMALL/internal/embedding"
 )
 
 type CreateInput struct {
@@ -53,9 +54,12 @@ type Service interface {
 
 type service struct {
 	repo Repo
+	emb  embedding.Client
 }
 
-func NewService(r Repo) Service { return &service{repo: r} }
+func NewService(r Repo, emb embedding.Client) Service {
+	return &service{repo: r, emb: emb}
+}
 
 // ===== Helpers =====
 
@@ -195,12 +199,51 @@ func normalizeFulfillment(s string) string {
 	}
 }
 
+func buildEmbeddingText(name string, desc *string) string {
+	name = strings.TrimSpace(name)
+	d := ""
+	if desc != nil {
+		d = strings.TrimSpace(*desc)
+	}
+	if d == "" {
+		return name
+	}
+	return name + "\n" + d
+}
+
 func (s *service) Create(ctx context.Context, in CreateInput) (Product, error) {
 	if err := validateCreate(&in); err != nil {
 		return Product{}, err
 	}
 
-	params := CreateParams(in)
+	// ===== optional embedding =====
+	var vec []float64 = nil
+	if s.emb != nil {
+		text := buildEmbeddingText(in.Name, in.Description)
+		v, err := s.emb.Embed(ctx, text)
+		if err != nil {
+			return Product{}, apperr.Wrap(apperr.Internal, err, "embed product failed")
+		}
+		// ปล่อยให้ v เป็น nil/len>0 ตามที่ client คืนมา
+		// (ถ้า client คืน empty slice แปลว่าแปลกแล้ว แต่เราจะไม่บังคับ)
+		if len(v) > 0 {
+			vec = v
+		} else {
+			vec = nil
+		}
+	}
+
+	params := CreateParams{
+		Name:        in.Name,
+		Description: in.Description,
+		Price:       in.Price,
+		ImageURL:    in.ImageURL,
+		IsActive:    in.IsActive,
+		StoreID:     in.StoreID,
+		CategoryID:  in.CategoryID,
+		Embedding:   vec,
+	}
+
 	return s.repo.Create(ctx, params)
 }
 
@@ -238,7 +281,66 @@ func (s *service) Update(ctx context.Context, id int64, in UpdateInput) (Product
 		return Product{}, err
 	}
 
-	params := UpdateParams(in)
+	old, err := s.repo.Get(ctx, id)
+	if err != nil {
+		return Product{}, err
+	}
+
+	newName := old.Name
+	if in.Name != nil {
+		newName = strings.TrimSpace(*in.Name)
+	}
+
+	var newDesc *string = old.Description
+	if in.Description != nil {
+		newDesc = in.Description
+	}
+
+	needEmbed := false
+
+	if in.Name != nil && strings.TrimSpace(old.Name) != strings.TrimSpace(*in.Name) {
+		needEmbed = true
+	}
+
+	if in.Description != nil {
+		oldD := ""
+		if old.Description != nil {
+			oldD = strings.TrimSpace(*old.Description)
+		}
+		newD := strings.TrimSpace(*in.Description)
+		if newD != oldD {
+			needEmbed = true
+		}
+	}
+
+	if in.CategoryID != nil && *in.CategoryID != old.CategoryID {
+		needEmbed = true
+	}
+
+	var vecPtr *[]float64 = nil
+	if needEmbed && s.emb != nil {
+		text := buildEmbeddingText(newName, newDesc)
+		v, err := s.emb.Embed(ctx, text)
+		if err != nil {
+			return Product{}, apperr.Wrap(apperr.Internal, err, "embed product failed")
+		}
+		if len(v) > 0 {
+			vecPtr = &v
+		} else {
+			vecPtr = nil
+		}
+	}
+
+	params := UpdateParams{
+		Name:        in.Name,
+		Description: in.Description,
+		Price:       in.Price,
+		ImageURL:    in.ImageURL,
+		IsActive:    in.IsActive,
+		CategoryID:  in.CategoryID,
+		Embedding:   vecPtr,
+	}
+
 	return s.repo.Update(ctx, id, params)
 }
 

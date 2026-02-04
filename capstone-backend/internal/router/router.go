@@ -24,6 +24,7 @@ import (
 	"github.com/Perpasit/Capstone-KMALL/internal/searchhistory"
 	"github.com/Perpasit/Capstone-KMALL/internal/store"
 
+	"github.com/Perpasit/Capstone-KMALL/internal/embedding"
 	"github.com/Perpasit/Capstone-KMALL/internal/user"
 	"github.com/Perpasit/Capstone-KMALL/internal/websocket"
 )
@@ -91,8 +92,15 @@ func Attach(r *gin.Engine, db *pgxpool.Pool, cfg config.Config) {
 	cRepo := category.NewRepo(db)
 	cSvc := category.NewService(cRepo)
 
+	embedClient := embedding.NewOllama(embedding.Config{
+		BaseURL: "http://ollama:11434",
+		Model:   "nomic-embed-text",
+		Dim:     768,
+		Timeout: 8 * time.Second,
+	})
+
 	pRepo := product.NewRepo(db)
-	pSvc := product.NewService(pRepo)
+	pSvc := product.NewService(pRepo, embedClient)
 
 	cartRepo := cart.NewRepo(db)
 	cartSvc := cart.NewService(cartRepo)
@@ -250,13 +258,11 @@ func Attach(r *gin.Engine, db *pgxpool.Pool, cfg config.Config) {
 		c.JSON(200, gin.H{"headers": h})
 	})
 
-
-
 	// 404
 	r.NoRoute(func(c *gin.Context) {
 		respond.Error(c, 404, "NOT_FOUND", "route not found", nil)
 	})
-	
+
 	// WebSocket Endpoint
 	r.GET("/api/ws/orders/:orderId", func(c *gin.Context) {
 		orderId := c.Param("orderId")

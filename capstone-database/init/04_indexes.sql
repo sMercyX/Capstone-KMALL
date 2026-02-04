@@ -253,3 +253,13 @@ CREATE INDEX IF NOT EXISTS idx_order_chat_messages_thread_message_id
 DROP INDEX IF EXISTS idx_order_chat_attachments_message_id;
 CREATE INDEX IF NOT EXISTS idx_order_chat_attachments_message_id
   ON order_chat_attachments (message_id);
+
+DROP INDEX IF EXISTS idx_products_embedding_hnsw;
+CREATE INDEX IF NOT EXISTS idx_products_embedding_hnsw
+ON products USING hnsw (embedding vector_cosine_ops);
+
+DROP INDEX IF EXISTS idx_products_embedding_ivfflat;
+CREATE INDEX IF NOT EXISTS idx_products_embedding_ivfflat
+ON products USING ivfflat (embedding vector_cosine_ops) WITH (lists = 100);
+
+ANALYZE products;

@@ -49,6 +49,7 @@ type CreateParams struct {
 	IsActive    string
 	StoreID     int
 	CategoryID  int
+	Embedding   []float64
 }
 
 type UpdateParams struct {
@@ -58,11 +59,32 @@ type UpdateParams struct {
 	ImageURL    *string
 	IsActive    *string
 	CategoryID  *int
+	Embedding   *[]float64
 }
 
 type SuggestSplitResult struct {
 	History []string `json:"history"`
 	Suggest []string `json:"suggest"`
+}
+
+func vectorLiteral(v []float64) (string, error) {
+	if len(v) == 0 {
+		return "", nil
+	}
+
+	var b strings.Builder
+	b.Grow(len(v) * 8)
+
+	b.WriteByte('[')
+	for i, f := range v {
+		if i > 0 {
+			b.WriteByte(',')
+		}
+		b.WriteString(strconv.FormatFloat(f, 'f', -1, 64))
+	}
+	b.WriteByte(']')
+
+	return b.String(), nil
 }
 
 func (r *repo) Create(ctx context.Context, in CreateParams) (Product, error) {
@@ -84,22 +106,44 @@ func (r *repo) Create(ctx context.Context, in CreateParams) (Product, error) {
 		return Product{}, apperr.New(apperr.BadRequest, "product name already exists")
 	}
 
-	// ----- INSERT ปกติ -----
+	// ===== embedding (optional) =====
+	var vec any = nil
+	if in.Embedding != nil {
+		vl, err := vectorLiteral(in.Embedding)
+		if err != nil {
+			return Product{}, apperr.Wrap(apperr.Internal, err, "format embedding failed")
+		}
+		if strings.TrimSpace(vl) != "" {
+			vec = vl // string => $8::vector
+		}
+	}
+
+	// ----- INSERT -----
 	var p Product
 	err := r.db.QueryRow(ctx, `
-		INSERT INTO products (name, product_desc, price, image_url, is_active, store_id, category_id)
-		VALUES ($1, $2, $3, $4, $5, $6, $7)
-		RETURNING product_id, name, product_desc, price, image_url, created_at, updated_at,
-		          is_active, store_id, category_id;
+		INSERT INTO products (
+			name, product_desc, price, image_url,
+			is_active, store_id, category_id,
+			embedding
+		)
+		VALUES (
+			$1, $2, $3, $4,
+			$5, $6, $7,
+			COALESCE($8::vector, NULL)
+		)
+		RETURNING
+			product_id, name, product_desc, price, image_url,
+			created_at, updated_at, is_active, store_id, category_id;
 	`,
-		in.Name, in.Description, in.Price, in.ImageURL, in.IsActive, in.StoreID, in.CategoryID,
+		in.Name, in.Description, in.Price, in.ImageURL,
+		in.IsActive, in.StoreID, in.CategoryID,
+		vec,
 	).Scan(
 		&p.ID, &p.Name, &p.Description, &p.Price, &p.ImageURL,
 		&p.CreatedAt, &p.UpdatedAt, &p.IsActive, &p.StoreID, &p.CategoryID,
 	)
 
 	if err != nil {
-		// ถ้าอยากดัก FK ผิดก็ยังใช้ได้เหมือนเดิม
 		var pgErr *pgconn.PgError
 		if errors.As(err, &pgErr) && pgErr.Code == "23503" {
 			return Product{}, apperr.New(apperr.BadRequest, "invalid store_id or category_id")
@@ -206,7 +250,25 @@ func (r *repo) Update(ctx context.Context, id int64, in UpdateParams) (Product, 
 		}
 	}
 
-	// ----- UPDATE ปกติ -----
+	// ===== embedding (optional) =====
+	// vecArg:
+	// - nil => COALESCE($8::vector, embedding) => keep old
+	// - string => set new
+	var vecArg any = nil
+	if in.Embedding != nil {
+		vl, err := vectorLiteral(*in.Embedding)
+		if err != nil {
+			return Product{}, apperr.Wrap(apperr.Internal, err, "format embedding failed")
+		}
+		if strings.TrimSpace(vl) != "" {
+			vecArg = vl
+		} else {
+			// ถ้าส่งมาว่างจริง ๆ จะไม่ set (ถือว่า ignore)
+			vecArg = nil
+		}
+	}
+
+	// ----- UPDATE -----
 	var p Product
 	err := r.db.QueryRow(ctx, `
 		UPDATE products
@@ -216,12 +278,21 @@ func (r *repo) Update(ctx context.Context, id int64, in UpdateParams) (Product, 
 		    image_url = COALESCE($5, image_url),
 		    is_active = COALESCE($6, is_active),
 		    category_id = COALESCE($7, category_id),
+		    embedding = COALESCE($8::vector, embedding),
 		    updated_at = NOW()
 		WHERE product_id = $1
-		RETURNING product_id, name, product_desc, price, image_url,
-		          created_at, updated_at, is_active, store_id, category_id;
+		RETURNING
+			product_id, name, product_desc, price, image_url,
+			created_at, updated_at, is_active, store_id, category_id;
 	`,
-		id, in.Name, in.Description, in.Price, in.ImageURL, in.IsActive, in.CategoryID,
+		id,
+		in.Name,
+		in.Description,
+		in.Price,
+		in.ImageURL,
+		in.IsActive,
+		in.CategoryID,
+		vecArg,
 	).Scan(
 		&p.ID, &p.Name, &p.Description, &p.Price, &p.ImageURL,
 		&p.CreatedAt, &p.UpdatedAt, &p.IsActive, &p.StoreID, &p.CategoryID,
