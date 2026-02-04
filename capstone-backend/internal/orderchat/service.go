@@ -39,9 +39,15 @@ type CreateMessageResult struct {
 	Attachments []Attachment `json:"attachments,omitempty"`
 }
 
+type ReadStateBundle struct {
+	Me    ReadState `json:"me"`
+	Other ReadState `json:"other"`
+}
+
 type ListMessagesResult struct {
-	ThreadID int64                    `json:"thread_id"`
-	Messages []MessageWithAttachments `json:"messages"`
+	ThreadID  int64                    `json:"thread_id"`
+	Messages  []MessageWithAttachments `json:"messages"`
+	ReadState ReadStateBundle          `json:"read_state"`
 }
 
 type CreateMessageServiceInput struct {
@@ -142,7 +148,6 @@ func detectMessageType(files []*multipart.FileHeader) string {
 // ============================================================================
 // Service Methods
 // ============================================================================
-
 func (s *service) ListMessages(ctx context.Context, actorUserID string, in ListMessagesParams) (ListMessagesResult, error) {
 	actorUserID = strings.TrimSpace(actorUserID)
 	if actorUserID == "" {
@@ -160,6 +165,23 @@ func (s *service) ListMessages(ctx context.Context, actorUserID string, in ListM
 		return ListMessagesResult{}, apperr.New(apperr.Forbidden, "not allowed")
 	}
 
+	// ---- NEW: figure out "other" user id ----
+	otherUserID := th.SellerID
+	if strings.EqualFold(actorUserID, th.SellerID) {
+		otherUserID = th.BuyerID
+	}
+
+	// ---- NEW: read_state (me + other) ----
+	meRS, err := s.repo.GetReadState(ctx, in.ThreadID, actorUserID)
+	if err != nil {
+		return ListMessagesResult{}, err
+	}
+	otherRS, err := s.repo.GetReadState(ctx, in.ThreadID, otherUserID)
+	if err != nil {
+		return ListMessagesResult{}, err
+	}
+
+	// list messages
 	msgs, err := s.repo.ListMessages(ctx, in)
 	if err != nil {
 		return ListMessagesResult{}, err
@@ -178,8 +200,9 @@ func (s *service) ListMessages(ctx context.Context, actorUserID string, in ListM
 	}
 
 	return ListMessagesResult{
-		ThreadID: in.ThreadID,
-		Messages: out,
+		ThreadID:  in.ThreadID,
+		Messages:  out,
+		ReadState: ReadStateBundle{Me: meRS, Other: otherRS},
 	}, nil
 }
 

@@ -491,10 +491,29 @@ INSERT INTO order_chat_read_state (
 ) VALUES ($1,$2,$3,$4)
 ON CONFLICT (thread_id, user_id)
 DO UPDATE SET
-  last_read_message_id = EXCLUDED.last_read_message_id,
-  last_read_at = EXCLUDED.last_read_at
+  last_read_message_id =
+    CASE
+      WHEN EXCLUDED.last_read_message_id IS NULL
+        THEN order_chat_read_state.last_read_message_id
+      WHEN order_chat_read_state.last_read_message_id IS NULL
+        THEN EXCLUDED.last_read_message_id
+      WHEN EXCLUDED.last_read_message_id > order_chat_read_state.last_read_message_id
+        THEN EXCLUDED.last_read_message_id
+      ELSE order_chat_read_state.last_read_message_id
+    END,
+  last_read_at =
+    CASE
+      -- อัปเดตเวลาเฉพาะตอนที่ “อ่านคืบหน้า”
+      WHEN EXCLUDED.last_read_message_id IS NOT NULL
+       AND (
+         order_chat_read_state.last_read_message_id IS NULL
+         OR EXCLUDED.last_read_message_id > order_chat_read_state.last_read_message_id
+       )
+        THEN EXCLUDED.last_read_at
+      ELSE order_chat_read_state.last_read_at
+    END
 RETURNING
-  thread_id, user_id, last_read_message_id, last_read_at
+  thread_id, user_id, last_read_message_id, last_read_at;
 `, in.ThreadID, in.UserID, in.LastReadMessageID, in.LastReadAt), &rs)
 
 	if err != nil {
