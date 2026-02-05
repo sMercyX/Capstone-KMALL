@@ -12,9 +12,11 @@ RUN mkdir -p /app/uploads && chown -R 65532:65532 /app/uploads
 
 FROM gcr.io/distroless/base-debian12
 WORKDIR /app
+
 COPY --from=builder /app/server /app/server
-# uploading
-COPY --from=builder /app/uploads /app/uploads
+
+COPY --from=builder --chown=nonroot:nonroot /app/uploads /app/uploads
+
 ENV PORT=8080
 EXPOSE 8080
 USER nonroot:nonroot

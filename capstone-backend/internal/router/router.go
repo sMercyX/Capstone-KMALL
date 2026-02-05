@@ -25,6 +25,7 @@ import (
 	"github.com/Perpasit/Capstone-KMALL/internal/store"
 
 	"github.com/Perpasit/Capstone-KMALL/internal/embedding"
+	"github.com/Perpasit/Capstone-KMALL/internal/filestore"
 	"github.com/Perpasit/Capstone-KMALL/internal/user"
 	"github.com/Perpasit/Capstone-KMALL/internal/websocket"
 )
@@ -124,7 +125,8 @@ func Attach(r *gin.Engine, db *pgxpool.Pool, cfg config.Config) {
 	addrSvc := address.NewService(addrRepo)
 
 	ocRepo := orderchat.NewRepo(db)
-	ocSvc := orderchat.NewService(ocRepo, nil)
+	fs := filestore.NewLocalStore("./uploads", "/uploads")
+	ocSvc := orderchat.NewService(ocRepo, fs)
 
 	// v1 := r.Group("/api",
 	// 	apiLogger(),

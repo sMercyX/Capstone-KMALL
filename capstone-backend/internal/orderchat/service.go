@@ -6,23 +6,26 @@ import (
 	"strings"
 	"time"
 
+	"strconv"
+
 	apperr "github.com/Perpasit/Capstone-KMALL/internal/apperr"
+	"github.com/Perpasit/Capstone-KMALL/internal/filestore"
 )
 
 // ============================================================================
 // File Upload Abstraction
 // ============================================================================
 
-type UploadedFile struct {
-	URL      string
-	FileName string
-	MimeType string
-	Size     int64
-	SHA256   *string
-}
+// type UploadedFile struct {
+// 	URL      string
+// 	FileName string
+// 	MimeType string
+// 	Size     int64
+// 	SHA256   *string
+// }
 
 type FileStore interface {
-	Save(ctx context.Context, fh *multipart.FileHeader) (UploadedFile, error)
+	Save(ctx context.Context, keyPrefix string, fh *multipart.FileHeader) (filestore.UploadedFile, error)
 }
 
 // ============================================================================
@@ -251,7 +254,8 @@ func (s *service) CreateMessage(ctx context.Context, in CreateMessageServiceInpu
 
 	attInputs := make([]CreateAttachmentInput, 0, len(in.Files))
 	for _, fh := range in.Files {
-		up, err := s.fs.Save(ctx, fh)
+		prefix := "attachment/" + strconv.FormatInt(in.ThreadID, 10)
+		up, err := s.fs.Save(ctx, prefix, fh)
 		if err != nil {
 			return CreateMessageResult{}, err
 		}
