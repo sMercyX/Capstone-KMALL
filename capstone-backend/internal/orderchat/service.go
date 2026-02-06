@@ -28,6 +28,11 @@ type FileStore interface {
 	Save(ctx context.Context, keyPrefix string, fh *multipart.FileHeader) (filestore.UploadedFile, error)
 }
 
+// Notifier broadcasts messages via WebSocket
+type Notifier interface {
+	BroadcastToRoom(roomID string, message interface{})
+}
+
 // ============================================================================
 // DTOs
 // ============================================================================
@@ -105,10 +110,11 @@ type Service interface {
 type service struct {
 	repo Repo
 	fs   FileStore
+	hub  Notifier
 }
 
-func NewService(r Repo, fs FileStore) Service {
-	return &service{repo: r, fs: fs}
+func NewService(r Repo, fs FileStore, hub Notifier) Service {
+	return &service{repo: r, fs: fs, hub: hub}
 }
 
 // ============================================================================
@@ -146,6 +152,18 @@ func detectMessageType(files []*multipart.FileHeader) string {
 		return "IMAGE"
 	}
 	return "FILE"
+}
+
+// broadcastNewMessage sends a new message event to all WebSocket clients in the chat room
+func (s *service) broadcastNewMessage(threadID int64, result CreateMessageResult) {
+	if s.hub == nil {
+		return
+	}
+	roomID := "chat_" + strconv.FormatInt(threadID, 10)
+	s.hub.BroadcastToRoom(roomID, map[string]interface{}{
+		"type": "NEW_MESSAGE",
+		"data": result,
+	})
 }
 
 // ============================================================================
@@ -245,7 +263,9 @@ func (s *service) CreateMessage(ctx context.Context, in CreateMessageServiceInpu
 	}
 
 	if len(in.Files) == 0 {
-		return CreateMessageResult{Message: createdMsg}, nil
+		result := CreateMessageResult{Message: createdMsg}
+		s.broadcastNewMessage(in.ThreadID, result)
+		return result, nil
 	}
 
 	if s.fs == nil {
@@ -284,10 +304,15 @@ func (s *service) CreateMessage(ctx context.Context, in CreateMessageServiceInpu
 		return CreateMessageResult{}, err
 	}
 
-	return CreateMessageResult{
+	result := CreateMessageResult{
 		Message:     createdMsg,
 		Attachments: atts,
-	}, nil
+	}
+
+	// Broadcast to WebSocket clients
+	s.broadcastNewMessage(in.ThreadID, result)
+
+	return result, nil
 }
 
 func (s *service) EditMessageText(ctx context.Context, in EditMessageServiceInput) (Message, error) {

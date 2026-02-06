@@ -126,7 +126,7 @@ func Attach(r *gin.Engine, db *pgxpool.Pool, cfg config.Config) {
 
 	ocRepo := orderchat.NewRepo(db)
 	fs := filestore.NewLocalStore("./uploads", "/uploads")
-	ocSvc := orderchat.NewService(ocRepo, fs)
+	ocSvc := orderchat.NewService(ocRepo, fs, hub)
 
 	// v1 := r.Group("/api",
 	// 	apiLogger(),
@@ -265,7 +265,7 @@ func Attach(r *gin.Engine, db *pgxpool.Pool, cfg config.Config) {
 		respond.Error(c, 404, "NOT_FOUND", "route not found", nil)
 	})
 
-	// WebSocket Endpoint
+	// WebSocket Endpoint for Orders
 	r.GET("/api/ws/orders/:orderId", func(c *gin.Context) {
 		orderId := c.Param("orderId")
 		if orderId == "" {
@@ -273,6 +273,17 @@ func Attach(r *gin.Engine, db *pgxpool.Pool, cfg config.Config) {
 		}
 		// roomID pattern: order_{id}
 		roomID := "order_" + orderId
+		websocket.ServeWs(hub, c, roomID)
+	})
+
+	// WebSocket Endpoint for Chat
+	r.GET("/api/ws/chats/:threadId", func(c *gin.Context) {
+		threadId := c.Param("threadId")
+		if threadId == "" {
+			return
+		}
+		// roomID pattern: chat_{threadId}
+		roomID := "chat_" + threadId
 		websocket.ServeWs(hub, c, roomID)
 	})
 }
