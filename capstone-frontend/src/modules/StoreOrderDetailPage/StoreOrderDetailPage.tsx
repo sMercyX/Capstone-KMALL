@@ -9,7 +9,6 @@ import {
   type OrderDetailResponse,
   type OrderStatus,
 } from "../../api/orderSellerApi"
-import { useChatApi } from "../../api/chatApi"
 import { useUserStore } from "../../stores/userStore"
 import ConfirmationModal from "../../components/Modal/ConfirmationModal"
 import { toast } from "react-toastify"
@@ -93,7 +92,6 @@ export default function StoreOrderDetailPage() {
   const { orderId } = useParams<{ orderId: string }>()
   const { getOrderDetail, updateOrderStatus, cancelledOrder, proposeOrder, acceptOrder } =
     useOrderSellerApi()
-  const { openThread } = useChatApi()
   const { name: userName } = useUserStore()
   const navigate = useNavigate()
 
@@ -109,22 +107,13 @@ export default function StoreOrderDetailPage() {
   const [cancelReason, setCancelReason] = useState("")
 
   // Handle chat button click
-  const handleChatClick = async () => {
+  const handleChatClick = () => {
     if (!orderId) return
-    setActionLoading("chat")
-    try {
-      await openThread(parseInt(orderId))
-      // Navigate to chat page
-      const isSeller = window.location.pathname.includes('/store/orders/')
-      const chatPath = isSeller 
-        ? `/store/orders/${orderId}/chat` 
-        : `/orders/${orderId}/chat`
-      navigate(chatPath)
-    } catch (e) {
-      handleApiError(e)
-    } finally {
-      setActionLoading(null)
-    }
+    const isSeller = window.location.pathname.includes('/store/orders/')
+    const chatPath = isSeller 
+      ? `/store/orders/${orderId}/chat` 
+      : `/orders/${orderId}/chat`
+    navigate(chatPath)
   }
 
 
@@ -622,10 +611,9 @@ export default function StoreOrderDetailPage() {
           </div>
           <button 
             onClick={handleChatClick}
-            disabled={actionLoading === "chat"}
-            className="text-sm font-semibold text-gray-700 hover:text-black hover:underline disabled:text-gray-400 cursor-pointer"
+            className="text-sm font-semibold text-gray-700 hover:text-black hover:underline cursor-pointer"
           >
-            {actionLoading === "chat" ? "กำลังเปิดแชท..." : "Chat"}
+            Chat
           </button>
         </div>
 
