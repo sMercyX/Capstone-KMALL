@@ -1,10 +1,11 @@
-import React, { useState, useRef, useEffect } from "react"
+import React, { useState, useRef, useEffect, useCallback } from "react"
 import { useParams, useLocation, useNavigate } from "react-router-dom"
 import { Send, Plus, MessageCircle, User, ChevronLeft } from "lucide-react"
 import { useChatApi, type MessageWithAttachments, type ChatThread } from "../../api/chatApi"
 import { useUserStore } from "../../stores/userStore"
 import { handleApiError } from "../../utils/handleApiError"
 import { resolveImageUrl } from "../../utils/resolve"
+import { useChatWebSocket, type ChatMessagePayload } from "../../hooks/useChatWebSocket"
 
 // Types for UI messages
 type DisplayMessage = {
@@ -93,9 +94,6 @@ export default function ChatPage() {
         // Fetch messages
         const messagesRes = await getMessages(threadData.thread_id)
         
-        console.log("=== Chat Debug ===")
-        console.log("userId:", userId)
-        
         const displayMessages = transformMessages(
           messagesRes.data.messages || [],
           userId
@@ -110,6 +108,40 @@ export default function ChatPage() {
     
     loadChatData()
   }, [orderId, userId])
+
+  // Handler for new messages from WebSocket
+  const handleNewMessage = useCallback((data: ChatMessagePayload['data']) => {
+    const msg = data.message
+    const createdAt = new Date(msg.created_at)
+    const isMyMessage = msg.sender_id === userId
+    
+    const newDisplayMessage: DisplayMessage = {
+      id: msg.message_id.toString(),
+      text: msg.message_text,
+      sender: isMyMessage ? "user" : "seller",
+      timestamp: createdAt.toLocaleTimeString("th-TH", {
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: false,
+      }),
+      attachments: data.attachments?.map(att => ({
+        file_url: att.file_url,
+        file_name: att.file_name || "",
+        mime_type: att.mime_type || "",
+      })),
+    }
+    
+    // Only add if not already in the list (avoid duplicates from own sends)
+    setMessages(prev => {
+      if (prev.some(m => m.id === newDisplayMessage.id)) {
+        return prev
+      }
+      return [...prev, newDisplayMessage]
+    })
+  }, [userId])
+
+  // WebSocket for real-time updates
+  useChatWebSocket(thread?.thread_id, handleNewMessage)
 
   // Auto-scroll to bottom (within container only)
   const scrollToBottom = () => {
@@ -130,29 +162,9 @@ export default function ChatPage() {
     setSending(true)
     try {
       const attachments = selectedImage ? [selectedImage] : undefined
-      const res = await sendMessage(thread.thread_id, inputText, attachments)
+      await sendMessage(thread.thread_id, inputText, attachments)
       
-      // Add new message to display
-      const newMsg = res.data.message
-      const createdAt = new Date(newMsg.created_at)
-      
-      const displayMsg: DisplayMessage = {
-        id: newMsg.message_id.toString(),
-        text: newMsg.message_text,
-        sender: "user",
-        timestamp: createdAt.toLocaleTimeString("th-TH", {
-          hour: "2-digit",
-          minute: "2-digit",
-          hour12: false,
-        }),
-        attachments: res.data.attachments?.map(att => ({
-          file_url: att.file_url,
-          file_name: att.file_name,
-          mime_type: att.mime_type,
-        })),
-      }
-      
-      setMessages(prev => [...prev, displayMsg])
+      // Message will be added via WebSocket broadcast
       setInputText("")
       setSelectedImage(null)
       setImagePreview(null)
