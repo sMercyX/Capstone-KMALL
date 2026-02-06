@@ -27,6 +27,7 @@ const StoreOrderDetailPage = lazy(
   () => import("../modules/StoreOrderDetailPage/StoreOrderDetailPage")
 )
 const OrderPage = lazy(() => import("../modules/OrderPage/OrderPage"))
+const ChatPage = lazy(() => import("../modules/ChatPage/ChatPage"))
 
 export default function AppRoutes() {
   return (
@@ -132,6 +133,14 @@ export default function AppRoutes() {
               }
             />
             <Route
+              path="/store/orders/:orderId/chat"
+              element={
+                <ProtectedRoute>
+                  <ChatPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
               path="/store/settings"
               element={
                 <ProtectedRoute>
@@ -184,6 +193,14 @@ export default function AppRoutes() {
               element={
                 <ProtectedRoute>
                   <StoreOrderDetailPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/orders/:orderId/chat"
+              element={
+                <ProtectedRoute>
+                  <ChatPage />
                 </ProtectedRoute>
               }
             />
