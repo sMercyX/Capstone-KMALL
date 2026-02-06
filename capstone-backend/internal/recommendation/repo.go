@@ -48,6 +48,18 @@ func scoreFromDist(dist float64) float64 {
 	return 1.0 / (1.0 + dist)
 }
 
+func thaiSeasonLabel(t time.Time) string {
+	m := t.Month()
+	switch m {
+	case time.November, time.December, time.January, time.February:
+		return "Cool season (Thailand)"
+	case time.March, time.April, time.May:
+		return "Hot season (Thailand)"
+	default:
+		return "Rainy season (Thailand)"
+	}
+}
+
 func (r *repo) GetLatestOrderEvent(ctx context.Context, userID string, orderID int64, trigger TriggerType) (*Event, error) {
 	userID = strings.TrimSpace(userID)
 	if userID == "" {
@@ -294,12 +306,15 @@ func (r *repo) BuildHome(ctx context.Context, userID string, perSection int) (Ho
 	}
 	perSection = clampLimit(perSection, 12, 30)
 
-	seasonal, err := r.listLatest(ctx, perSection)
+	now := time.Now()
+	season := thaiSeasonLabel(now)
+
+	seasonal, err := r.listSeasonalVector(ctx, perSection, season)
 	if err != nil {
 		return HomeRecommendationsResponse{}, err
 	}
 
-	searchItems, err := r.listFromSearchHistory(ctx, userID, perSection)
+	searchItems, err := r.listFromSearchHistoryVector(ctx, userID, perSection)
 	if err != nil {
 		return HomeRecommendationsResponse{}, err
 	}
@@ -310,9 +325,9 @@ func (r *repo) BuildHome(ctx context.Context, userID string, perSection int) (Ho
 	}
 
 	resp := HomeRecommendationsResponse{
-		GeneratedAt: time.Now(),
+		GeneratedAt: now,
 		Sections: []HomeSection{
-			{Key: SectionSeasonal, Title: "Seasonal picks", Items: seasonal},
+			{Key: SectionSeasonal, Title: "Seasonal picks • " + season, Items: seasonal},
 			{Key: SectionSearchHistory, Title: "Based on your searches", Items: searchItems},
 			{Key: SectionOrderHistory, Title: "Based on your orders", Items: orderItems},
 		},
@@ -320,173 +335,197 @@ func (r *repo) BuildHome(ctx context.Context, userID string, perSection int) (Ho
 	return resp, nil
 }
 
-func (r *repo) listLatest(ctx context.Context, limit int) ([]Item, error) {
-	limit = clampLimit(limit, 12, 30)
+// func (r *repo) listLatest(
+// 	ctx context.Context,
+// 	limit int,
+// 	season string,
+// ) ([]Item, error) {
+// 	limit = clampLimit(limit, 12, 30)
 
-	rows, err := r.db.Query(ctx, `
-		WITH sold AS (
-			SELECT oi.product_id, SUM(oi.quantity)::bigint AS sold_count
-			FROM order_items oi
-			JOIN orders o ON o.order_id = oi.order_id AND o.status = 'Completed'
-			GROUP BY oi.product_id
-		)
-		SELECT
-			p.product_id,
-			p.name,
-			p.product_desc,
-			p.price,
-			p.image_url,
-			p.is_active,
-			p.store_id,
-			s.store_name,
-			p.category_id,
-			c.name AS category_name,
-			COALESCE(sold.sold_count, 0) AS sold_count
-		FROM products p
-		JOIN stores s ON s.store_id = p.store_id
-		JOIN categories c ON c.category_id = p.category_id
-		LEFT JOIN sold ON sold.product_id = p.product_id
-		WHERE p.is_active='YES' AND s.is_active='YES' AND c.is_active='YES'
-		ORDER BY p.created_at DESC, p.product_id ASC
-		LIMIT $1;
-	`, limit)
-	if err != nil {
-		return nil, apperr.Wrap(apperr.Internal, err, "list latest failed")
-	}
-	defer rows.Close()
+// 	rows, err := r.db.Query(ctx, `
+// 	WITH sold AS (
+// 		SELECT oi.product_id, SUM(oi.quantity)::bigint AS sold_count
+// 		FROM order_items oi
+// 		JOIN orders o ON o.order_id = oi.order_id AND o.status = 'Completed'
+// 		GROUP BY oi.product_id
+// 	)
+// 	SELECT
+// 		p.product_id,
+// 		p.name,
+// 		p.product_desc,
+// 		p.price,
+// 		p.image_url,
+// 		p.is_active,
+// 		p.store_id,
+// 		s.store_name,
+// 		p.category_id,
+// 		c.name AS category_name,
+// 		COALESCE(sold.sold_count, 0) AS sold_count,
 
-	out := make([]Item, 0, limit)
-	for rows.Next() {
-		var p ProductDetail
-		if err := rows.Scan(
-			&p.ID, &p.Name, &p.Description, &p.Price, &p.ImageURL, &p.IsActive,
-			&p.StoreID, &p.StoreName, &p.CategoryID, &p.CategoryName, &p.SoldCount,
-		); err != nil {
-			return nil, apperr.Wrap(apperr.Internal, err, "scan latest failed")
-		}
-		out = append(out, Item{
-			Product: p,
-			Score:   nil,
-			RankNo:  len(out) + 1,
-			Reason:  ptrString("latest"),
-		})
-	}
-	if err := rows.Err(); err != nil {
-		return nil, apperr.Wrap(apperr.Internal, err, "latest rows failed")
-	}
-	return out, nil
-}
+// 		CASE
+// 			WHEN $2 = 'Cool season (Thailand)'
+// 			     AND c.name IN ('Outerwear & Jackets') THEN 1
+// 			WHEN $2 = 'Hot season (Thailand)'
+// 			     AND c.name IN ('Beverages') THEN 1
+// 			WHEN $2 = 'Rainy season (Thailand)'
+// 			     AND c.name IN ('Outerwear & Jackets','Bags') THEN 1
+// 			ELSE 0
+// 		END AS season_score
 
-func (r *repo) listFromSearchHistory(ctx context.Context, userID string, limit int) ([]Item, error) {
-	limit = clampLimit(limit, 12, 30)
+// 	FROM products p
+// 	JOIN stores s ON s.store_id = p.store_id
+// 	JOIN categories c ON c.category_id = p.category_id
+// 	LEFT JOIN sold ON sold.product_id = p.product_id
+// 	WHERE p.is_active='YES'
+// 	  AND s.is_active='YES'
+// 	  AND c.is_active='YES'
+// 	ORDER BY
+// 		season_score DESC,
+// 		p.created_at DESC,
+// 		p.product_id ASC
+// 	LIMIT $1;
+// `, limit, season)
+// 	if err != nil {
+// 		return nil, apperr.Wrap(apperr.Internal, err, "list latest failed")
+// 	}
+// 	defer rows.Close()
 
-	var q string
-	err := r.db.QueryRow(ctx, `
-		SELECT query_text
-		FROM search_history
-		WHERE user_id = $1
-		ORDER BY searched_at DESC, search_id DESC
-		LIMIT 1;
-	`, userID).Scan(&q)
-	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			return []Item{}, nil
-		}
-		return nil, apperr.Wrap(apperr.Internal, err, "get recent search query failed")
-	}
-	q = strings.TrimSpace(q)
-	if q == "" {
-		return []Item{}, nil
-	}
+// 	out := make([]Item, 0, limit)
+// 	for rows.Next() {
+// 		var p ProductDetail
+// 		if err := rows.Scan(
+// 			&p.ID, &p.Name, &p.Description, &p.Price, &p.ImageURL, &p.IsActive,
+// 			&p.StoreID, &p.StoreName, &p.CategoryID, &p.CategoryName, &p.SoldCount,
+// 		); err != nil {
+// 			return nil, apperr.Wrap(apperr.Internal, err, "scan latest failed")
+// 		}
+// 		rank := len(out) + 1
+// 		sc := 1.0 - (float64(rank-1) / float64(limit))
 
-	terms := strings.Fields(strings.ToLower(q))
-	if len(terms) == 0 {
-		return []Item{}, nil
-	}
-	if len(terms) > 4 {
-		terms = terms[:4]
-	}
+// 		out = append(out, Item{
+// 			Product: p,
+// 			Score:   &sc,
+// 			RankNo:  rank,
+// 			Reason:  ptrString("latest"),
+// 		})
+// 	}
+// 	if err := rows.Err(); err != nil {
+// 		return nil, apperr.Wrap(apperr.Internal, err, "latest rows failed")
+// 	}
+// 	return out, nil
+// }
 
-	args := []any{}
-	where := []string{
-		"p.is_active='YES'",
-		"s.is_active='YES'",
-		"c.is_active='YES'",
-	}
-	for _, t := range terms {
-		args = append(args, t)
-		pos := len(args)
-		where = append(where, `
-			(
-				lower(p.name) LIKE '%' || $`+strconv.Itoa(pos)+` || '%'
-				OR lower(s.store_name) LIKE '%' || $`+strconv.Itoa(pos)+` || '%'
-				OR lower(coalesce(p.product_desc,'')) LIKE '%' || $`+strconv.Itoa(pos)+` || '%'
-			)
-		`)
-	}
-	args = append(args, limit)
+// func (r *repo) listFromSearchHistory(ctx context.Context, userID string, limit int) ([]Item, error) {
+// 	limit = clampLimit(limit, 12, 30)
 
-	query := `
-WITH sold AS (
-	SELECT oi.product_id, SUM(oi.quantity)::bigint AS sold_count
-	FROM order_items oi
-	JOIN orders o ON o.order_id = oi.order_id AND o.status = 'Completed'
-	GROUP BY oi.product_id
-)
-SELECT
-	p.product_id,
-	p.name,
-	p.product_desc,
-	p.price,
-	p.image_url,
-	p.is_active,
-	p.store_id,
-	s.store_name,
-	p.category_id,
-	c.name AS category_name,
-	COALESCE(sold.sold_count, 0) AS sold_count
-FROM products p
-JOIN stores s ON s.store_id = p.store_id
-JOIN categories c ON c.category_id = p.category_id
-LEFT JOIN sold ON sold.product_id = p.product_id
-WHERE ` + strings.Join(where, " AND ") + `
-ORDER BY
-	COALESCE(sold.sold_count, 0) DESC,
-	p.created_at DESC,
-	p.product_id ASC
-LIMIT $` + strconv.Itoa(len(args)) + `;
-`
+// 	var q string
+// 	err := r.db.QueryRow(ctx, `
+// 		SELECT query_text
+// 		FROM search_history
+// 		WHERE user_id = $1
+// 		ORDER BY searched_at DESC, search_id DESC
+// 		LIMIT 1;
+// 	`, userID).Scan(&q)
+// 	if err != nil {
+// 		if errors.Is(err, pgx.ErrNoRows) {
+// 			return []Item{}, nil
+// 		}
+// 		return nil, apperr.Wrap(apperr.Internal, err, "get recent search query failed")
+// 	}
+// 	q = strings.TrimSpace(q)
+// 	if q == "" {
+// 		return []Item{}, nil
+// 	}
 
-	rows, err := r.db.Query(ctx, query, args...)
-	if err != nil {
-		return nil, apperr.Wrap(apperr.Internal, err, "list from search history failed")
-	}
-	defer rows.Close()
+// 	terms := strings.Fields(strings.ToLower(q))
+// 	if len(terms) == 0 {
+// 		return []Item{}, nil
+// 	}
+// 	if len(terms) > 4 {
+// 		terms = terms[:4]
+// 	}
 
-	out := make([]Item, 0, limit)
-	for rows.Next() {
-		var p ProductDetail
-		if err := rows.Scan(
-			&p.ID, &p.Name, &p.Description, &p.Price, &p.ImageURL, &p.IsActive,
-			&p.StoreID, &p.StoreName, &p.CategoryID, &p.CategoryName, &p.SoldCount,
-		); err != nil {
-			return nil, apperr.Wrap(apperr.Internal, err, "scan latest failed")
-		}
+// 	args := []any{}
+// 	where := []string{
+// 		"p.is_active='YES'",
+// 		"s.is_active='YES'",
+// 		"c.is_active='YES'",
+// 	}
+// 	for _, t := range terms {
+// 		args = append(args, t)
+// 		pos := len(args)
+// 		where = append(where, `
+// 			(
+// 				lower(p.name) LIKE '%' || $`+strconv.Itoa(pos)+` || '%'
+// 				OR lower(s.store_name) LIKE '%' || $`+strconv.Itoa(pos)+` || '%'
+// 				OR lower(coalesce(p.product_desc,'')) LIKE '%' || $`+strconv.Itoa(pos)+` || '%'
+// 			)
+// 		`)
+// 	}
+// 	args = append(args, limit)
 
-		rank := len(out) + 1
-		sc := 1.0 - (float64(rank-1) / float64(limit))
-		out = append(out, Item{
-			Product: p,
-			Score:   &sc,
-			RankNo:  rank,
-			Reason:  ptrString("latest"),
-		})
-	}
-	if err := rows.Err(); err != nil {
-		return nil, apperr.Wrap(apperr.Internal, err, "search items rows failed")
-	}
-	return out, nil
-}
+// 	query := `
+// WITH sold AS (
+// 	SELECT oi.product_id, SUM(oi.quantity)::bigint AS sold_count
+// 	FROM order_items oi
+// 	JOIN orders o ON o.order_id = oi.order_id AND o.status = 'Completed'
+// 	GROUP BY oi.product_id
+// )
+// SELECT
+// 	p.product_id,
+// 	p.name,
+// 	p.product_desc,
+// 	p.price,
+// 	p.image_url,
+// 	p.is_active,
+// 	p.store_id,
+// 	s.store_name,
+// 	p.category_id,
+// 	c.name AS category_name,
+// 	COALESCE(sold.sold_count, 0) AS sold_count
+// FROM products p
+// JOIN stores s ON s.store_id = p.store_id
+// JOIN categories c ON c.category_id = p.category_id
+// LEFT JOIN sold ON sold.product_id = p.product_id
+// WHERE ` + strings.Join(where, " AND ") + `
+// ORDER BY
+// 	COALESCE(sold.sold_count, 0) DESC,
+// 	p.created_at DESC,
+// 	p.product_id ASC
+// LIMIT $` + strconv.Itoa(len(args)) + `;
+// `
+
+// 	rows, err := r.db.Query(ctx, query, args...)
+// 	if err != nil {
+// 		return nil, apperr.Wrap(apperr.Internal, err, "list from search history failed")
+// 	}
+// 	defer rows.Close()
+
+// 	out := make([]Item, 0, limit)
+// 	for rows.Next() {
+// 		var p ProductDetail
+// 		if err := rows.Scan(
+// 			&p.ID, &p.Name, &p.Description, &p.Price, &p.ImageURL, &p.IsActive,
+// 			&p.StoreID, &p.StoreName, &p.CategoryID, &p.CategoryName, &p.SoldCount,
+// 		); err != nil {
+// 			return nil, apperr.Wrap(apperr.Internal, err, "scan latest failed")
+// 		}
+
+// 		rank := len(out) + 1
+// 		sc := 1.0 - (float64(rank-1) / float64(limit))
+
+// 		out = append(out, Item{
+// 			Product: p,
+// 			Score:   &sc,
+// 			RankNo:  rank,
+// 			Reason:  ptrString("latest"),
+// 		})
+// 	}
+// 	if err := rows.Err(); err != nil {
+// 		return nil, apperr.Wrap(apperr.Internal, err, "search items rows failed")
+// 	}
+// 	return out, nil
+// }
 
 func (r *repo) listFromOrderHistory(ctx context.Context, userID string, limit int) ([]Item, error) {
 	limit = clampLimit(limit, 12, 30)
@@ -601,4 +640,338 @@ func safeFloat(v float64) float64 {
 		return 0
 	}
 	return v
+}
+
+func (r *repo) listSeasonalVector(ctx context.Context, limit int, season string) ([]Item, error) {
+	limit = clampLimit(limit, 12, 30)
+
+	// season -> category names ที่คุณอยากถือว่า “เกี่ยวข้อง”
+	cats := seasonCategories(season)
+	if len(cats) == 0 {
+		// fallback: ถ้าไม่มี mapping ก็ใช้ล่าสุดแบบเดิม (หรือจะ return [] ก็ได้)
+		return r.listLatestFallback(ctx, limit)
+	}
+
+	// สร้าง IN ($2,$3,...) ให้ category names
+	args := []any{limit}
+	placeholders := make([]string, 0, len(cats))
+	for _, c := range cats {
+		args = append(args, c)
+		placeholders = append(placeholders, "$"+strconv.Itoa(len(args)))
+	}
+
+	// seed = embedding ของสินค้าในหมวดที่เกี่ยวข้อง (ล่าสุด ๆ) -> centroid -> cand vector search
+	query := `
+WITH
+seed AS (
+	SELECT p.embedding
+	FROM products p
+	JOIN stores s ON s.store_id = p.store_id
+	JOIN categories c ON c.category_id = p.category_id
+	WHERE p.is_active='YES' AND s.is_active='YES' AND c.is_active='YES'
+	  AND p.embedding IS NOT NULL
+	  AND c.name IN (` + strings.Join(placeholders, ",") + `)
+	ORDER BY p.created_at DESC, p.product_id DESC
+	LIMIT 40
+),
+centroid AS (
+	SELECT avg(embedding) AS v FROM seed
+),
+sold AS (
+	SELECT oi.product_id, SUM(oi.quantity)::bigint AS sold_count
+	FROM order_items oi
+	JOIN orders o ON o.order_id = oi.order_id AND o.status = 'Completed'
+	GROUP BY oi.product_id
+),
+cand AS (
+	SELECT
+		p.product_id,
+		(p.embedding <=> (SELECT v FROM centroid)) AS dist,
+		COALESCE(sold.sold_count, 0) AS sold_count
+	FROM products p
+	JOIN stores s ON s.store_id = p.store_id
+	JOIN categories c ON c.category_id = p.category_id
+	LEFT JOIN sold ON sold.product_id = p.product_id
+	WHERE p.is_active='YES' AND s.is_active='YES' AND c.is_active='YES'
+	  AND p.embedding IS NOT NULL
+)
+SELECT
+	cand.dist,
+	p.product_id,
+	p.name,
+	p.product_desc,
+	p.price,
+	p.image_url,
+	p.is_active,
+	p.store_id,
+	s.store_name,
+	p.category_id,
+	c.name AS category_name,
+	COALESCE(cand.sold_count, 0) AS sold_count
+FROM cand
+JOIN products p ON p.product_id = cand.product_id
+JOIN stores s ON s.store_id = p.store_id
+JOIN categories c ON c.category_id = p.category_id
+ORDER BY (cand.dist + LEAST(0.08, ln(1 + cand.sold_count) * 0.01)) ASC
+LIMIT $1;
+`
+
+	rows, err := r.db.Query(ctx, query, args...)
+	if err != nil {
+		return nil, apperr.Wrap(apperr.Internal, err, "list seasonal (vector) failed")
+	}
+	defer rows.Close()
+
+	out := make([]Item, 0, limit)
+	rs := "seasonal_vector"
+	for rows.Next() {
+		var dist float64
+		var p ProductDetail
+		if err := rows.Scan(
+			&dist,
+			&p.ID, &p.Name, &p.Description, &p.Price, &p.ImageURL, &p.IsActive,
+			&p.StoreID, &p.StoreName, &p.CategoryID, &p.CategoryName, &p.SoldCount,
+		); err != nil {
+			return nil, apperr.Wrap(apperr.Internal, err, "scan seasonal (vector) failed")
+		}
+		sc := scoreFromDist(dist)
+		out = append(out, Item{
+			Product: p,
+			Score:   &sc,
+			RankNo:  len(out) + 1,
+			Reason:  &rs,
+		})
+	}
+	if err := rows.Err(); err != nil {
+		return nil, apperr.Wrap(apperr.Internal, err, "seasonal (vector) rows failed")
+	}
+	return out, nil
+}
+
+func seasonCategories(season string) []string {
+	switch season {
+	case "Cool season (Thailand)":
+		return []string{
+			"Outerwear & Jackets",
+			"Tops",
+			// ใส่เพิ่มได้ เช่น "Hot Drinks", "Soups" ถ้าคุณมีหมวดพวกนี้
+		}
+	case "Hot season (Thailand)":
+		return []string{
+			"Beverages",
+			"Tops",
+			// เช่น "Ice Cream", "Smoothies"
+		}
+	case "Rainy season (Thailand)":
+		return []string{
+			"Outerwear & Jackets",
+			"Bags",
+			// เช่น "Umbrellas", "Raincoats"
+		}
+	default:
+		return nil
+	}
+}
+
+// fallback เดิม (ถ้ายังอยากมี)
+func (r *repo) listLatestFallback(ctx context.Context, limit int) ([]Item, error) {
+	limit = clampLimit(limit, 12, 30)
+
+	rows, err := r.db.Query(ctx, `
+WITH sold AS (
+	SELECT oi.product_id, SUM(oi.quantity)::bigint AS sold_count
+	FROM order_items oi
+	JOIN orders o ON o.order_id = oi.order_id AND o.status = 'Completed'
+	GROUP BY oi.product_id
+)
+SELECT
+	p.product_id,
+	p.name,
+	p.product_desc,
+	p.price,
+	p.image_url,
+	p.is_active,
+	p.store_id,
+	s.store_name,
+	p.category_id,
+	c.name AS category_name,
+	COALESCE(sold.sold_count, 0) AS sold_count
+FROM products p
+JOIN stores s ON s.store_id = p.store_id
+JOIN categories c ON c.category_id = p.category_id
+LEFT JOIN sold ON sold.product_id = p.product_id
+WHERE p.is_active='YES' AND s.is_active='YES' AND c.is_active='YES'
+ORDER BY p.created_at DESC, p.product_id ASC
+LIMIT $1;
+`, limit)
+	if err != nil {
+		return nil, apperr.Wrap(apperr.Internal, err, "list latest fallback failed")
+	}
+	defer rows.Close()
+
+	out := make([]Item, 0, limit)
+	rs := "latest_fallback"
+	for rows.Next() {
+		var p ProductDetail
+		if err := rows.Scan(
+			&p.ID, &p.Name, &p.Description, &p.Price, &p.ImageURL, &p.IsActive,
+			&p.StoreID, &p.StoreName, &p.CategoryID, &p.CategoryName, &p.SoldCount,
+		); err != nil {
+			return nil, apperr.Wrap(apperr.Internal, err, "scan latest fallback failed")
+		}
+		sc := 1.0 - (float64(len(out)) / float64(limit))
+		out = append(out, Item{
+			Product: p,
+			Score:   &sc,
+			RankNo:  len(out) + 1,
+			Reason:  &rs,
+		})
+	}
+	if err := rows.Err(); err != nil {
+		return nil, apperr.Wrap(apperr.Internal, err, "latest fallback rows failed")
+	}
+	return out, nil
+}
+
+func (r *repo) listFromSearchHistoryVector(ctx context.Context, userID string, limit int) ([]Item, error) {
+	limit = clampLimit(limit, 12, 30)
+
+	var q string
+	err := r.db.QueryRow(ctx, `
+		SELECT query_text
+		FROM search_history
+		WHERE user_id = $1
+		ORDER BY searched_at DESC, search_id DESC
+		LIMIT 1;
+	`, userID).Scan(&q)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return []Item{}, nil
+		}
+		return nil, apperr.Wrap(apperr.Internal, err, "get recent search query failed")
+	}
+
+	q = strings.TrimSpace(strings.ToLower(q))
+	if q == "" {
+		return []Item{}, nil
+	}
+
+	terms := strings.Fields(q)
+	if len(terms) == 0 {
+		return []Item{}, nil
+	}
+	if len(terms) > 4 {
+		terms = terms[:4]
+	}
+
+	// เอา terms ไปหา seed products แบบ keyword (เพื่อดึง embedding มาทำ centroid)
+	args := []any{limit}
+	where := []string{
+		"p.is_active='YES'",
+		"s.is_active='YES'",
+		"c.is_active='YES'",
+		"p.embedding IS NOT NULL",
+	}
+
+	for _, t := range terms {
+		args = append(args, t)
+		pos := len(args)
+		where = append(where, `
+			(
+				lower(p.name) LIKE '%' || $`+strconv.Itoa(pos)+` || '%'
+				OR lower(s.store_name) LIKE '%' || $`+strconv.Itoa(pos)+` || '%'
+				OR lower(coalesce(p.product_desc,'')) LIKE '%' || $`+strconv.Itoa(pos)+` || '%'
+			)
+		`)
+	}
+
+	query := `
+WITH
+seed AS (
+	SELECT p.embedding
+	FROM products p
+	JOIN stores s ON s.store_id = p.store_id
+	JOIN categories c ON c.category_id = p.category_id
+	WHERE ` + strings.Join(where, " AND ") + `
+	ORDER BY p.created_at DESC, p.product_id DESC
+	LIMIT 40
+),
+centroid AS (
+	SELECT avg(embedding) AS v FROM seed
+),
+sold AS (
+	SELECT oi.product_id, SUM(oi.quantity)::bigint AS sold_count
+	FROM order_items oi
+	JOIN orders o ON o.order_id = oi.order_id AND o.status = 'Completed'
+	GROUP BY oi.product_id
+),
+cand AS (
+	SELECT
+		p.product_id,
+		(p.embedding <=> (SELECT v FROM centroid)) AS dist,
+		COALESCE(sold.sold_count, 0) AS sold_count
+	FROM products p
+	JOIN stores s ON s.store_id = p.store_id
+	JOIN categories c ON c.category_id = p.category_id
+	LEFT JOIN sold ON sold.product_id = p.product_id
+	WHERE p.is_active='YES' AND s.is_active='YES' AND c.is_active='YES'
+	  AND p.embedding IS NOT NULL
+)
+SELECT
+	cand.dist,
+	p.product_id,
+	p.name,
+	p.product_desc,
+	p.price,
+	p.image_url,
+	p.is_active,
+	p.store_id,
+	s.store_name,
+	p.category_id,
+	c.name AS category_name,
+	COALESCE(cand.sold_count, 0) AS sold_count
+FROM cand
+JOIN products p ON p.product_id = cand.product_id
+JOIN stores s ON s.store_id = p.store_id
+JOIN categories c ON c.category_id = p.category_id
+ORDER BY (cand.dist + LEAST(0.08, ln(1 + cand.sold_count) * 0.01)) ASC
+LIMIT $1;
+`
+
+	rows, err := r.db.Query(ctx, query, args...)
+	if err != nil {
+		return nil, apperr.Wrap(apperr.Internal, err, "list from search history (vector) failed")
+	}
+	defer rows.Close()
+
+	out := make([]Item, 0, limit)
+	rs := "search_vector"
+	for rows.Next() {
+		var dist float64
+		var p ProductDetail
+		if err := rows.Scan(
+			&dist,
+			&p.ID, &p.Name, &p.Description, &p.Price, &p.ImageURL, &p.IsActive,
+			&p.StoreID, &p.StoreName, &p.CategoryID, &p.CategoryName, &p.SoldCount,
+		); err != nil {
+			return nil, apperr.Wrap(apperr.Internal, err, "scan search history (vector) failed")
+		}
+		sc := scoreFromDist(dist)
+		out = append(out, Item{
+			Product: p,
+			Score:   &sc,
+			RankNo:  len(out) + 1,
+			Reason:  &rs,
+		})
+	}
+	if err := rows.Err(); err != nil {
+		return nil, apperr.Wrap(apperr.Internal, err, "search history (vector) rows failed")
+	}
+
+	// ถ้า seed หาไม่ได้ centroid จะ null แล้ว query จะพัง/ได้ผลแปลก
+	// ถ้าอยากกันชัวร์: ถ้า out ว่าง -> fallback latest
+	if len(out) == 0 {
+		return r.listLatestFallback(ctx, limit)
+	}
+	return out, nil
 }
