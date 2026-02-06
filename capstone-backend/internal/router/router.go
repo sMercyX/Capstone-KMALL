@@ -26,6 +26,7 @@ import (
 
 	"github.com/Perpasit/Capstone-KMALL/internal/embedding"
 	"github.com/Perpasit/Capstone-KMALL/internal/filestore"
+	"github.com/Perpasit/Capstone-KMALL/internal/recommendation"
 	"github.com/Perpasit/Capstone-KMALL/internal/user"
 	"github.com/Perpasit/Capstone-KMALL/internal/websocket"
 )
@@ -127,6 +128,9 @@ func Attach(r *gin.Engine, db *pgxpool.Pool, cfg config.Config) {
 	ocRepo := orderchat.NewRepo(db)
 	fs := filestore.NewLocalStore("./uploads", "/uploads")
 	ocSvc := orderchat.NewService(ocRepo, fs)
+
+	recRepo := recommendation.NewRepo(db)
+	recSvc := recommendation.NewService(recRepo)
 
 	// v1 := r.Group("/api",
 	// 	apiLogger(),
@@ -248,6 +252,9 @@ func Attach(r *gin.Engine, db *pgxpool.Pool, cfg config.Config) {
 	// order chat
 	ocHdl := orderchat.NewHandler(ocSvc, ocRepo, rSvc, uSvc)
 	ocHdl.Register(v1)
+
+	recHdl := recommendation.NewHandler(recSvc, uSvc)
+	recHdl.Register(v1)
 
 	// ---- debug local (ยิงตรง http://localhost:18080/debug/headers) ----
 	r.GET("/debug/headers", func(c *gin.Context) {
