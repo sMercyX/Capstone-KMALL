@@ -21,6 +21,7 @@ type Repo interface {
 	BuildOrderCancelledSnapshot(ctx context.Context, userID string, orderID int64, limit int) (eventID int64, createdAt time.Time, items []Item, err error)
 
 	BuildHome(ctx context.Context, userID string, perSection int) (HomeRecommendationsResponse, error)
+	ListCancelledOrderItems(ctx context.Context, userID string, orderID int64) ([]CancelledItem, error)
 }
 
 type repo struct {
@@ -972,6 +973,66 @@ LIMIT $1;
 	// ถ้าอยากกันชัวร์: ถ้า out ว่าง -> fallback latest
 	if len(out) == 0 {
 		return r.listLatestFallback(ctx, limit)
+	}
+	return out, nil
+}
+
+func (r *repo) ListCancelledOrderItems(ctx context.Context, userID string, orderID int64) ([]CancelledItem, error) {
+	rows, err := r.db.Query(ctx, `
+SELECT
+  oi.quantity,
+  oi.unit_price,
+  oi.subtotal,
+
+  p.product_id,
+  p.name,
+  p.product_desc,
+  p.price,
+  p.image_url,
+  p.is_active,
+  p.store_id,
+  s.store_name,
+  p.category_id,
+  c.name AS category_name,
+
+  COALESCE(sold.sold_count, 0) AS sold_count
+FROM orders o
+JOIN order_items oi ON oi.order_id = o.order_id
+JOIN products p ON p.product_id = oi.product_id
+JOIN stores s ON s.store_id = p.store_id
+JOIN categories c ON c.category_id = p.category_id
+LEFT JOIN (
+  SELECT oi2.product_id, SUM(oi2.quantity)::bigint AS sold_count
+  FROM order_items oi2
+  JOIN orders o2 ON o2.order_id = oi2.order_id AND o2.status = 'Completed'
+  GROUP BY oi2.product_id
+) sold ON sold.product_id = p.product_id
+WHERE o.order_id = $1
+  AND o.user_id = $2
+  AND o.status = 'Cancelled'
+ORDER BY oi.order_item_id ASC;
+`, orderID, userID)
+	if err != nil {
+		return nil, apperr.Wrap(apperr.Internal, err, "list cancelled order items failed")
+	}
+	defer rows.Close()
+
+	out := []CancelledItem{}
+	for rows.Next() {
+		var ci CancelledItem
+		var p ProductDetail
+		if err := rows.Scan(
+			&ci.Quantity,
+			&ci.UnitPrice,
+			&ci.Subtotal,
+
+			&p.ID, &p.Name, &p.Description, &p.Price, &p.ImageURL, &p.IsActive,
+			&p.StoreID, &p.StoreName, &p.CategoryID, &p.CategoryName, &p.SoldCount,
+		); err != nil {
+			return nil, apperr.Wrap(apperr.Internal, err, "scan cancelled order item failed")
+		}
+		ci.Product = p
+		out = append(out, ci)
 	}
 	return out, nil
 }

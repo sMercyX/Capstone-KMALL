@@ -53,14 +53,22 @@ type Item struct {
 	Reason  *string       `json:"reason,omitempty"`
 }
 
+type CancelledItem struct {
+	Product   ProductDetail `json:"product"`
+	Quantity  int           `json:"quantity"`
+	UnitPrice float64       `json:"unit_price"`
+	Subtotal  float64       `json:"subtotal"`
+}
+
 type OrderRecommendationsResponse struct {
-	OrderID     int64     `json:"order_id"`
-	Context     Context   `json:"context"`
-	Items       []Item    `json:"items"`
-	Source      string    `json:"source"`
-	EventID     int64     `json:"event_id"`
-	CreatedAt   time.Time `json:"created_at"`
-	GeneratedAt time.Time `json:"generated_at"`
+	OrderID        int64           `json:"order_id"`
+	Context        Context         `json:"context"`
+	CancelledItems []CancelledItem `json:"cancelled_items"`
+	Items          []Item          `json:"items"`
+	Source         string          `json:"source"`
+	EventID        int64           `json:"event_id"`
+	CreatedAt      time.Time       `json:"created_at"`
+	GeneratedAt    time.Time       `json:"generated_at"`
 }
 
 type HomeSection struct {

@@ -55,14 +55,17 @@ func (s *service) GetOrderRecommendations(
 	}
 
 	limit = clamp(limit, 12, 30)
+	now := time.Now()
 
-	// 1) snapshot-first
-	latest, err := s.repo.GetLatestOrderEvent(ctx, userID, orderID, TriggerOrderCancelled)
+	cancelledItems, err := s.repo.ListCancelledOrderItems(ctx, userID, orderID)
 	if err != nil {
 		return OrderRecommendationsResponse{}, err
 	}
 
-	now := time.Now()
+	latest, err := s.repo.GetLatestOrderEvent(ctx, userID, orderID, TriggerOrderCancelled)
+	if err != nil {
+		return OrderRecommendationsResponse{}, err
+	}
 
 	if latest != nil {
 		items, err := s.repo.ListEventItemsDetailed(ctx, latest.ID, limit)
@@ -70,14 +73,34 @@ func (s *service) GetOrderRecommendations(
 			return OrderRecommendationsResponse{}, err
 		}
 
+		if len(items) == 0 {
+			eventID, createdAt, items2, err :=
+				s.repo.BuildOrderCancelledSnapshot(ctx, userID, orderID, limit)
+			if err != nil {
+				return OrderRecommendationsResponse{}, err
+			}
+
+			return OrderRecommendationsResponse{
+				OrderID:        orderID,
+				Context:        Context(context),
+				CancelledItems: cancelledItems,
+				Items:          items2,
+				Source:         "snapshot",
+				EventID:        eventID,
+				CreatedAt:      createdAt,
+				GeneratedAt:    now,
+			}, nil
+		}
+
 		return OrderRecommendationsResponse{
-			OrderID:     orderID,
-			Context:     Context(context),
-			Items:       items,
-			Source:      "snapshot",
-			EventID:     latest.ID,
-			CreatedAt:   latest.CreatedAt,
-			GeneratedAt: now,
+			OrderID:        orderID,
+			Context:        Context(context),
+			CancelledItems: cancelledItems,
+			Items:          items,
+			Source:         "snapshot",
+			EventID:        latest.ID,
+			CreatedAt:      latest.CreatedAt,
+			GeneratedAt:    now,
 		}, nil
 	}
 
@@ -88,13 +111,14 @@ func (s *service) GetOrderRecommendations(
 	}
 
 	return OrderRecommendationsResponse{
-		OrderID:     orderID,
-		Context:     Context(context),
-		Items:       items,
-		Source:      "snapshot",
-		EventID:     eventID,
-		CreatedAt:   createdAt,
-		GeneratedAt: now,
+		OrderID:        orderID,
+		Context:        Context(context),
+		CancelledItems: cancelledItems,
+		Items:          items,
+		Source:         "snapshot",
+		EventID:        eventID,
+		CreatedAt:      createdAt,
+		GeneratedAt:    now,
 	}, nil
 }
 
