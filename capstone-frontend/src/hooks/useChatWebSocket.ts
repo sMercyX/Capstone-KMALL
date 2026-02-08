@@ -38,17 +38,27 @@ export type ChatMessagePayload = {
   }
 }
 
+export type ReadUpdatePayload = {
+  thread_id: number
+  user_id: string
+  last_read_message_id: number
+  last_read_at: string
+}
+
 export function useChatWebSocket(
   threadId: number | undefined, 
-  onNewMessage: (data: ChatMessagePayload['data']) => void
+  onNewMessage: (data: ChatMessagePayload['data']) => void,
+  onReadUpdate?: (data: ReadUpdatePayload) => void
 ) {
   const ws = useRef<WebSocket | null>(null)
   const onNewMessageRef = useRef(onNewMessage)
+  const onReadUpdateRef = useRef(onReadUpdate)
 
   // Update ref when callback changes
   useEffect(() => {
     onNewMessageRef.current = onNewMessage
-  }, [onNewMessage])
+    onReadUpdateRef.current = onReadUpdate
+  }, [onNewMessage, onReadUpdate])
 
   useEffect(() => {
     if (!threadId) return
@@ -65,10 +75,15 @@ export function useChatWebSocket(
 
     socket.onmessage = (event) => {
       try {
-        const payload: ChatMessagePayload = JSON.parse(event.data)
+        const payload = JSON.parse(event.data)
         if (payload.type === 'NEW_MESSAGE') {
           console.log('[Chat WebSocket] New Message Received:', payload.data)
           onNewMessageRef.current(payload.data)
+        } else if (payload.type === 'READ_UPDATE') {
+           console.log('[Chat WebSocket] Read Update Received:', payload.data)
+           if (onReadUpdateRef.current) {
+             onReadUpdateRef.current(payload.data)
+           }
         }
       } catch (e) {
         console.error('[Chat WebSocket] Failed to parse message:', e)
