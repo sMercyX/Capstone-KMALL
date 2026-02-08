@@ -26,12 +26,18 @@ export default function SearchBar() {
 
   // Sync query from URL parameter
   useEffect(() => {
+    // If not on search page, clear query
+    if (location.pathname !== '/search') {
+      setQuery("")
+      return
+    }
+
     const params = new URLSearchParams(location.search)
     const q = params.get("q")
     if (q) {
       setQuery(q)
     }
-  }, [location.search])
+  }, [location.pathname, location.search])
 
   // Fetch search history from API
   const fetchSearchHistory = async () => {
