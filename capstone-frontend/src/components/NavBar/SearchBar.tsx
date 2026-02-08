@@ -167,7 +167,7 @@ export default function SearchBar() {
           onChange={(e) => setQuery(e.target.value)}
           onFocus={handleFocus}
           onKeyDown={handleKeyDown}
-          placeholder="ค้นหาสินค้า..."
+          placeholder="ค้นหาสินค้าและะร้านค้า..."
           className="w-full rounded-full border border-gray-300 pl-4 pr-12 py-2 
                      focus:outline-none focus:ring-2 focus:ring-orange-400 focus:border-orange-400
                      transition-all duration-200 bg-white text-gray-700 placeholder-gray-400"
