@@ -12,15 +12,17 @@ export default function ProductCard({ product }: ProductCardProps) {
   return (
     <Link
       to={`/product/${product.id}`}
-      className="group block overflow-hidden rounded-xl bg-white"
+      className="group block overflow-hidden rounded-[8px] bg-white"
     >
-      {/* Image - approximately 212x160 for aspect ratio matching the design */}
-      <div className="relative aspect-[4/3] overflow-hidden rounded-xl">
+      {/* Image - fixed 200px height */}
+      <div className="relative h-[200px] overflow-hidden rounded-[8px]">
         <img
           src={resolveImageUrl(product.image_url)}
           alt={product.name}
           className="h-full w-full object-cover transition duration-300 group-hover:scale-105"
         />
+        {/* Hover Overlay - gray tint */}
+        <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
       </div>
 
       {/* Content */}
