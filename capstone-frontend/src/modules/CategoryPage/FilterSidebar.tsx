@@ -18,7 +18,7 @@ interface FilterSidebarProps {
 // Section Card wrapper
 function SectionCard({ children, className = "" }: { children: React.ReactNode; className?: string }) {
   return (
-    <div className={`rounded-2xl border border-gray-100 bg-white p-5 shadow-sm ${className}`}>
+    <div className={`rounded-[4px] border border-gray-100 bg-white p-5 shadow-sm ${className}`}>
       {children}
     </div>
   )
@@ -79,16 +79,16 @@ export default function FilterSidebar({
 
   return (
     <div className="space-y-4">
-      {/* Header & Clear Button */}
-      <SectionCard>
-        <h2 className="text-lg font-bold text-gray-900 mb-4">ตัวกรองสินค้า</h2>
+      {/* Header & Clear Button (no card wrapper) */}
+      <div>
+        <h2 className="text-lg font-bold text-gray-900 pb-4 border-b border-gray-200">ตัวกรองสินค้า</h2>
         <button 
           onClick={handleClearAll}
-          className="w-full rounded-lg bg-gray-900 py-3 text-sm font-medium text-white hover:bg-gray-800 transition"
+          className="w-full rounded-[4px] bg-gray-900 py-4 text-base font-medium text-white hover:bg-gray-800 transition mt-6"
         >
           ลบการกรองสินค้าทั้งหมด
         </button>
-      </SectionCard>
+      </div>
 
       {/* Categories Section */}
       <SectionCard>
@@ -102,9 +102,6 @@ export default function FilterSidebar({
         
         {isCategoryOpen && (
           <div className="mt-4 space-y-1">
-            {/* Category Label */}
-            {/* <p className="text-sm font-semibold text-gray-800 mb-3">อาหาร</p> */}
-            
             {filterOptions.map((opt) => {
               const isSelected = selectedCategories.includes(Number(opt.value))
               return (
@@ -152,8 +149,8 @@ export default function FilterSidebar({
 
         {isPriceOpen && (
           <div className="mt-6 space-y-4">
-            {/* Min/Max labels above slider */}
-            <div className="flex items-center justify-center gap-3 mb-2">
+            {/* Min/Max labels at edges of slider */}
+            <div className="flex items-center justify-between mb-2">
               <span className="rounded-lg bg-gray-800 px-3 py-1.5 text-sm font-semibold text-white min-w-[50px] text-center">
                 {priceRange[0]}
               </span>
