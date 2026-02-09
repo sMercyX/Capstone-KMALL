@@ -57,7 +57,7 @@ export default function CategoriesCard() {
         setItems(res.data ?? [])
       } catch {
         if (!isMounted) return
-        setError("ไม่สามารถโหลดหมวดหมู่ได้")
+        setError("Unable to load categories.")
       } finally {
         if (isMounted) {
           setLoading(false)
@@ -98,7 +98,7 @@ export default function CategoriesCard() {
   if (!items.length) {
     return (
       <div className="mt-5 text-center text-sm text-gray-500">
-        ไม่มีหมวดหมู่ที่เปิดใช้งาน
+        No categories are currently available.
       </div>
     )
   }

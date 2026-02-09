@@ -43,10 +43,10 @@ function OrderListHeader() {
     <div className="flex items-center gap-6 px-6 pb-3 text-center text-xs md:text-sm font-medium text-gray-500">
       <div className="w-14 flex-shrink-0"></div>
       <div className="flex-1 grid grid-cols-4">
-        <span>หมายเลขคำสั่งซื้อ</span>
-        <span>วันที่สั่งซื้อ</span>
-        <span>ยอดรวมทั้งหมด</span>
-        <span>สถานะคำสั่งซื้อ</span>
+        <span>Order ID</span>
+        <span>Order Date</span>
+        <span>Total</span>
+        <span>Status</span>
       </div>
     </div>
   )
@@ -102,7 +102,7 @@ export default function OrderPage() {
         }
       } catch (err) {
         if (!isCancelled) {
-          setError("ไม่สามารถโหลดข้อมูลคำสั่งซื้อได้")
+          setError("Unable to load orders.")
         }
       }
     })()
@@ -135,7 +135,7 @@ export default function OrderPage() {
           {titleMap[activeKey]}
         </h2>
         <p className="mt-2 text-xs text-gray-500">
-          คลิกเพื่อดูรายละเอียดออเดอร์
+          Click an order to view details.
         </p>
       </div>
 
@@ -145,14 +145,14 @@ export default function OrderPage() {
         <OrderListHeader />
 
         {isLoading && (
-          <p className="text-center text-sm text-gray-500 mt-6">กำลังโหลด...</p>
+          <p className="text-center text-sm text-gray-500 mt-6">Loading...</p>
         )}
 
         {error && <p className="text-center text-sm text-red-500 mt-6">{error}</p>}
 
         {!isLoading && !error && orders.length === 0 && (
           <p className="text-center text-sm text-gray-500 mt-6">
-            ยังไม่มีคำสั่งซื้อในหมวดนี้
+            No orders in this category.
           </p>
         )}
 

@@ -28,13 +28,13 @@ const storeEditSchema = yup.object({
   name: yup
     .string()
     .trim()
-    .required("กรุณากรอกชื่อร้าน")
-    .max(100, "ชื่อร้านต้องไม่เกิน 100 ตัวอักษร"),
+    .required("Please enter a store name.")
+    .max(100, "Store name must be at most 100 characters."),
   description: yup
     .string()
     .trim()
-    .required("กรุณากรอกคำอธิบายร้าน")
-    .max(255, "คำอธิบายร้านต้องไม่เกิน 255 ตัวอักษร"),
+    .required("Please enter a store description.")
+    .max(255, "Store description must be at most 255 characters."),
 })
 
 export default function StoreEditModal({
@@ -48,7 +48,7 @@ export default function StoreEditModal({
   const [name, setName] = useState("")
   const [description, setDescription] = useState("")
   const [profileUrl, setProfileUrl] = useState("")
-  const [fileName, setFileName] = useState("ยังไม่ได้เลือกไฟล์")
+  const [fileName, setFileName] = useState("No file selected.")
   const [logoFile, setLogoFile] = useState<File | null>(null)
   const [previewUrl, setPreviewUrl] = useState<string | null>(null)
   const [errors, setErrors] = useState<{ name?: boolean; description?: boolean }>({})
@@ -69,7 +69,7 @@ export default function StoreEditModal({
     setName(initialName || "")
     setDescription(initialDescription || "")
     setProfileUrl(initialProfileUrl || "")
-    setFileName(initialProfileUrl || "ยังไม่ได้เลือกไฟล์")
+    setFileName(initialProfileUrl || "No file selected.")
     setLogoFile(null)
   }, [isOpen, initialName, initialDescription, initialProfileUrl])
 
@@ -87,7 +87,7 @@ export default function StoreEditModal({
 
     if (!file) {
       setLogoFile(null)
-      setFileName("ยังไม่ได้เลือกไฟล์")
+      setFileName("No file selected.")
       if (previewUrl) URL.revokeObjectURL(previewUrl)
       setPreviewUrl(null)
       return
@@ -95,10 +95,10 @@ export default function StoreEditModal({
 
     // ✅ รับเฉพาะไฟล์ภาพ
     if (!file.type.startsWith("image/")) {
-      toast.error("กรุณาอัปโหลดเฉพาะไฟล์รูปภาพ")
+      toast.error("Please upload an image file only.")
       e.target.value = ""
       setLogoFile(null)
-      setFileName("ยังไม่ได้เลือกไฟล์")
+      setFileName("No file selected.")
       if (previewUrl) URL.revokeObjectURL(previewUrl)
       setPreviewUrl(null)
       return
@@ -106,10 +106,10 @@ export default function StoreEditModal({
 
     // ✅ เช็คขนาดไฟล์ไม่เกิน 2MB
     if (file.size > 2 * 1024 * 1024) {
-      toast.error("ขนาดไฟล์ต้องไม่เกิน 2MB")
+      toast.error("File size must not exceed 2MB.")
       e.target.value = ""
       setLogoFile(null)
-      setFileName("ยังไม่ได้เลือกไฟล์")
+      setFileName("No file selected.")
       if (previewUrl) URL.revokeObjectURL(previewUrl)
       setPreviewUrl(null)
       return
@@ -148,7 +148,7 @@ export default function StoreEditModal({
         setErrors(newErrors)
         toast.error(firstMsg)
       } else {
-        toast.error("ข้อมูลไม่ถูกต้อง กรุณาลองใหม่อีกครั้ง")
+        toast.error("Invalid input. Please try again.")
       }
       return
     }
@@ -181,28 +181,28 @@ export default function StoreEditModal({
           </button>
 
           <h2 className="text-center text-lg font-semibold mb-6">
-            แก้ไขข้อมูลร้านค้า
+            Edit Store Information
           </h2>
 
           <form onSubmit={handleFormSubmit} className="space-y-6">
             {/* ชื่อร้าน */}
             <div className="space-y-1">
               <Input
-                label="ชื่อร้าน"
+                label="Store Name"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 maxLength={100}
                 error={errors.name}
               />
               <p className="text-xs text-gray-500 text-right">
-                {name.length} / 100 ตัวอักษร
+                {name.length} / 100 characters
               </p>
             </div>
 
             {/* คำอธิบายร้าน */}
             <div className="space-y-1">
               <Textarea
-                label="คำอธิบายร้าน"
+                label="Store Description"
                 rows={3}
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
@@ -211,14 +211,14 @@ export default function StoreEditModal({
                 className="resize-none"
               />
               <p className="text-xs text-gray-500 text-right">
-                {description.length} / 255 ตัวอักษร
+                {description.length} / 255 characters
               </p>
             </div>
 
             {/* โลโก้ร้าน */}
             <div className="space-y-1">
               <label className="font-medium flex items-center gap-1">
-                โลโก้ร้าน
+                Store Logo
               </label>
 
               <label className="flex flex-col bg-white items-center justify-center cursor-pointer border border-dashed rounded-xl py-6 hover:bg-gray-50 transition relative overflow-hidden">
@@ -251,7 +251,7 @@ export default function StoreEditModal({
                 type="submit"
                 className="min-w-[160px] rounded-full bg-orange-500 text-white py-2.5 text-sm font-medium hover:bg-orange-600"
               >
-                บันทึก
+                Save
               </button>
             </div>
           </form>

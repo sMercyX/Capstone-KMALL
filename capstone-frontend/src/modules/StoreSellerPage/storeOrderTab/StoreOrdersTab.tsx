@@ -57,7 +57,7 @@ export default function StoreOrdersTab() {
         const res = await getOrdersSellerByStatus(store.id, status);
         setOrders(res.data ?? []);
       } catch (e) {
-        setError("ไม่สามารถโหลดคำสั่งซื้อของร้านค้าได้");
+        setError("Unable to load store orders.");
       }
     })();
   }, [activeKey, store?.id]);
@@ -77,14 +77,14 @@ export default function StoreOrdersTab() {
       {/* list */}
       <div className="mt-4 space-y-3">
         {isLoading && (
-          <p className="text-center text-sm text-gray-500">กำลังโหลด...</p>
+          <p className="text-center text-sm text-gray-500">Loading...</p>
         )}
         {error && (
           <p className="text-center text-sm text-red-500">{error}</p>
         )}
         {!isLoading && !error && orders.length === 0 && (
           <p className="text-center text-sm text-gray-500">
-            ยังไม่มีคำสั่งซื้อในหมวดนี้
+             No orders in this category yet.
           </p>
         )}
         {!isLoading &&

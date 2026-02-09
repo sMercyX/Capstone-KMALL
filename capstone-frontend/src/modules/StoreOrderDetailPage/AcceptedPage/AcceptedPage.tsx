@@ -35,15 +35,15 @@ export default function AcceptedPage({ order, locationName, viewMode }: Accepted
   
    const statusText =
     viewMode === "buyer"
-      ? "ยืนยันคำสั่งซื้อแล้ว ผู้ขายกำลังเตรียมสินค้า"
-      : "สินค้าพร้อมสำหรับจัดส่งแล้วหรือไม่"
+      ? "Order confirmed. The seller is preparing your items."
+      : "Are the items ready for pickup/delivery?"
 
   return (
     <div className="flex flex-col items-center">
       {/* Delivery Info Header */}
       <div className="w-full bg-gray-100 rounded-xl p-4 mb-8 text-center">
         <p className="text-xl font-semibold text-gray-800">
-          {formattedDate} เวลา {formattedTime} บริเวณ ตึก {displayLocation}
+          {formattedDate} at {formattedTime} · Building {displayLocation}
         </p>
       </div>
 

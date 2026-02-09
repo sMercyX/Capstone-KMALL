@@ -37,11 +37,11 @@ function StatusBadge({ context }: { context: StoreOrderStatusContext }) {
 
 function mapStatusLabel(status: string): string {
   const map: Record<string, string> = {
-    PENDING: "กำลังดำเนินการ",
-    ACTIVE: "กำลังดำเนินการ",
-    COMPLETED: "เสร็จสิ้น",
-    CANCELLED: "ยกเลิกแล้ว",
-  }
+    PENDING: "In Progress",
+    ACTIVE: "In Progress",
+    COMPLETED: "Completed",
+    CANCELLED: "Cancelled",
+}
   return map[status] ?? status
 }
 
@@ -65,12 +65,12 @@ export default function StoreOrderListItem({ data, context }: Props) {
 
         {/* text */}
         <div className="flex-1 text-sm md:text-base text-gray-800">
-          <div className="font-semibold">ชื่อผู้ซื้อ {buyer_display_name}</div>
+          <div className="font-semibold">Buyer: {buyer_display_name}</div>
           <div className="text-xs md:text-sm text-gray-500">
-            ช่องทางติดต่อ {buyer_email}
+           Contact: {buyer_email}
           </div>
           <div className="text-xs md:text-sm mt-1">
-            สถานะ {mapStatusLabel(order.status)}
+           Status: {mapStatusLabel(order.status)}
           </div>
         </div>
       </div>

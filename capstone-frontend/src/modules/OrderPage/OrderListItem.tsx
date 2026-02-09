@@ -76,7 +76,7 @@ export default function OrderListItem({
         <div className="flex-1 grid grid-cols-4 items-center text-center text-sm md:text-base">
           <div className="font-medium">#{order.id}</div>
           <div>{orderDate}</div>
-          <div>{order.total_price.toLocaleString()} บาท</div>
+          <div>฿ {order.total_price.toLocaleString()}</div>
           <div className="font-semibold uppercase">{order.status}</div>
         </div>
       </div>

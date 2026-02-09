@@ -51,10 +51,10 @@ export default function StoreAgreementModal({
         <div className="space-y-4 md:space-y-6">
           <div>
             <h2 className="text-2xl md:text-3xl font-bold">
-              ข้อตกลงในการเปิดร้านค้า
+            Store Opening Agreement
             </h2>
             <p className="mt-2 text-sm md:text-base text-gray-600">
-              กรุณาอ่านและยอมรับเงื่อนไขในการเป็นผู้ขายบนแพลตฟอร์ม KMALL
+              Please read and accept the terms and conditions for becoming a seller on the KMALL platform.
             </p>
           </div>
 
@@ -63,21 +63,21 @@ export default function StoreAgreementModal({
             className="max-h-80 md:max-h-96 overflow-y-auto pr-2 text-sm md:text-base text-gray-700 space-y-3 border rounded-xl px-4 py-3 bg-gray-50"
             onScroll={handleScroll}
           >
-            <p>การเปิดร้านค้าบน KMALL หมายถึงคุณยอมปฏิบัติตามเงื่อนไขดังต่อไปนี้:</p>
+            <p>By opening a store on KMALL, you agree to comply with the following terms:</p>
             <ol className="list-decimal pl-5 space-y-1.5">
-              <li>สินค้าทั้งหมดต้องถูกต้องตามกฎหมาย ไม่ละเมิดลิขสิทธิ์ และไม่เป็นสินค้าต้องห้ามตามข้อกำหนดของมหาวิทยาลัยและกฎหมายไทย</li>
-              <li>ข้อมูลสินค้า ราคา โปรโมชั่น และสต็อกสินค้าต้องเป็นความจริง ไม่หลอกลวง หรือทำให้ผู้ซื้อเข้าใจผิด</li>
-              <li>ผู้ขายต้องรับผิดชอบต่อการจัดส่งสินค้าให้ถึงมือลูกค้าตรงเวลาตามที่ระบุ รวมถึงการแพ็กสินค้าอย่างเหมาะสมและปลอดภัย</li>
-              <li>หากเกิดปัญหา เช่น สินค้าเสียหาย ส่งผิด หรือส่งไม่ครบ ผู้ขายต้องให้ความร่วมมือในการแก้ไขปัญหาและบริการหลังการขายอย่างเหมาะสม</li>
-              <li>ห้ามขายสินค้าที่เกี่ยวข้องกับแอลกอฮอล์ ยาเสพติด อาวุธ สื่อลามก หรือสินค้าที่ขัดต่อศีลธรรมและนโยบายของ KMUTT ทุกกรณี</li>
-              <li>ผู้ขายต้องไม่ใช้ข้อมูลของผู้ซื้อในทางที่ผิด เช่น การนำข้อมูลติดต่อไปใช้ในเชิงการตลาดโดยไม่ได้รับอนุญาต</li>
-              <li>ผู้ขายต้องยินยอมให้ทีมงาน KMALL ตรวจสอบข้อมูลร้านค้า รายการสินค้า และประวัติการสั่งซื้อเพื่อความปลอดภัยของผู้ใช้ทุกฝ่าย</li>
-              <li>หากพบการกระทำที่เข้าข่ายทุจริต เช่น ปั่นยอดสั่งซื้อ รีวิวปลอม หรือใช้งานระบบผิดวัตถุประสงค์ แพลตฟอร์มมีสิทธิ์ระงับหรือปิดร้านค้าได้ทันที</li>
-              <li>ผู้ขายต้องติดตามการแจ้งเตือนและประกาศอัปเดตจากระบบอย่างสม่ำเสมอ และปรับตัวตามกฎระเบียบใหม่ที่แพลตฟอร์มกำหนด</li>
-              <li>การเปิดร้านบน KMALL ถือเป็นการยอมรับว่า คุณเข้าใจและยอมปฏิบัติตามข้อตกลงทั้งหมดนี้ หากฝ่าฝืนอาจมีการระงับการใช้งานหรือดำเนินการตามความเหมาะสม</li>
+              <li>All products must comply with applicable laws, must not infringe intellectual property rights, and must not be prohibited under KMUTT regulations or Thai law.</li>
+              <li>Product information, prices, promotions, and stock availability must be accurate and must not be misleading to buyers.</li>
+              <li>Sellers are responsible for delivering products on time as stated, including proper and safe packaging.</li>
+              <li>In the event of issues such as damaged items, incorrect shipments, or missing items, sellers must cooperate in resolving the issue and provide appropriate after-sales support.</li>
+              <li>Selling alcohol, illegal drugs, weapons, pornographic materials, or any items that violate morality or KMUTT/KMALL policies is strictly prohibited.</li>
+              <li>Sellers must not misuse buyer information, such as using contact details for marketing purposes without consent.</li>
+              <li>Sellers agree that the KMALL team may review store information, product listings, and order history to ensure user safety.</li>
+              <li>If fraudulent behavior is detected (e.g., order manipulation, fake reviews, or misuse of the system), the platform reserves the right to suspend or close the store immediately.</li>
+              <li>Sellers must regularly review notifications and announcements and comply with any updated rules and policies issued by the platform.</li>
+              <li>Opening a store on KMALL indicates that you understand and accept all terms above. Violations may result in account suspension or other actions as appropriate.</li>
             </ol>
             <p className="text-xs md:text-sm text-gray-500 pt-2">
-              *โปรดเลื่อนอ่านจนสุดเพื่อเปิดใช้งานปุ่ม &quot;ฉันยอมรับ&quot;
+              *Please scroll to the bottom to enable the &quot;I Agree&quot; button.
             </p>
           </div>
 
@@ -87,7 +87,7 @@ export default function StoreAgreementModal({
               onClick={onClose}
               className="rounded-xl border px-4 py-2 text-sm md:text-base text-gray-700 hover:bg-gray-50"
             >
-              ปิด
+              Close
             </button>
             <button
               type="button"
@@ -99,7 +99,7 @@ export default function StoreAgreementModal({
                   : "bg-orange-300 cursor-not-allowed opacity-70"
               }`}
             >
-              ฉันยอมรับ
+              I Agree
             </button>
           </div>
         </div>

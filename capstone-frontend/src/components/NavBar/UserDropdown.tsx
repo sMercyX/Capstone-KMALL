@@ -122,7 +122,7 @@ export default function UserDropdown({
                 <span className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-gray-100">
                   <Image className="h-4 w-4 text-gray-400" />
                 </span>
-                <span>ร้านค้าของฉัน</span>
+                <span>My Store</span>
               </div>
 
               {isStoreActive && <Check className="h-4 w-4 text-orange-500" />}
@@ -143,7 +143,7 @@ export default function UserDropdown({
                 <span className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-gray-100">
                   <Image className="h-4 w-4 text-gray-400" />
                 </span>
-                การซื้อของฉัน
+                My Orders
               </div>
 
               {isCartActive && <Check className="h-4 w-4 text-orange-500" />}
@@ -159,7 +159,7 @@ export default function UserDropdown({
               <span className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-gray-100">
                 <Image className="h-4 w-4 text-gray-400" />
               </span>
-              <span>ออกจากระบบ</span>
+              <span>Sign Out</span>
             </button>
           </div>
         </div>

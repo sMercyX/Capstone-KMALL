@@ -173,7 +173,7 @@ export default function StoreEditProductModal({
     const validFiles: File[] = []
     Array.from(selectedFiles).forEach((file) => {
       if (file.size > 2 * 1024 * 1024) {
-        toast.error(`ไฟล์ ${file.name} มีขนาดเกิน 2MB`)
+        toast.error(`File ${file.name} exceeds 2MB.`)
         return
       }
       validFiles.push(file)
@@ -207,8 +207,8 @@ export default function StoreEditProductModal({
     
     setConfirmModal({
       isOpen: true,
-      title: "เปลี่ยนรูปหลัก",
-      message: "คุณต้องการเปลี่ยนรูปนี้ให้เป็นรูปหลักใช่หรือไม่?",
+      title: "Change Main Image",
+      message: "Set this image as the main image?",
       variant: "warning",
       onConfirm: () => setMainIndex(index),
     })
@@ -217,8 +217,8 @@ export default function StoreEditProductModal({
   const handleDeleteImage = (index: number) => {
     setConfirmModal({
       isOpen: true,
-      title: "ลบรูปภาพ",
-      message: "คุณต้องการลบรูปภาพนี้ใช่หรือไม่?",
+      title: "Delete Image",
+      message: "Are you sure you want to delete this image?",
       variant: "danger",
       onConfirm: () => {
         const target = images[index]
@@ -258,33 +258,33 @@ export default function StoreEditProductModal({
     if (!name.trim()) {
       newErrors.name = true
       hasError = true
-      toast.error("กรุณากรอกชื่อสินค้า")
+      toast.error("Please enter a product name.")
     }
 
     if (!description.trim()) {
       newErrors.description = true
       hasError = true
-      toast.error("กรุณากรอกคำอธิบายสินค้า")
+      toast.error("Please enter a product description.")
     }
 
     const priceNum = Number(price)
     if (Number.isNaN(priceNum) || priceNum <= 0) {
       newErrors.price = true
       hasError = true
-      toast.error("ราคาไม่ถูกต้อง")
+      toast.error("Invalid price.")
     }
     
     if (!categoryId) {
       newErrors.category = true
       hasError = true
-      toast.error("กรุณาเลือกหมวดหมู่สินค้า")
+      toast.error("Please select a category.")
     }
 
     // Check if there are any images left (excluding deleted ones, but here images state reflects current UI)
     if (images.length === 0) {
       newErrors.images = true
       hasError = true
-      toast.error("กรุณาเพิ่มรูปภาพสินค้าอย่างน้อย 1 รูป")
+      toast.error("Please add at least 1 product image.")
     }
 
     if (hasError) {
@@ -343,7 +343,7 @@ export default function StoreEditProductModal({
         }
       }
 
-      toast.success("บันทึกข้อมูลสำเร็จ")
+      toast.success("Changes saved successfully.")
       onSuccess()
       onClose()
     } catch (err) {
@@ -395,7 +395,7 @@ export default function StoreEditProductModal({
                   />
                 ) : (
                   <span className="text-gray-400 text-sm">
-                    ภาพหลักของสินค้า
+                    Main product image
                   </span>
                 )}
                 {mainImageSrc && (
@@ -419,7 +419,7 @@ export default function StoreEditProductModal({
                   className="flex gap-4 overflow-x-auto scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-transparent py-2"
                 >
                   {images.length === 0 && (
-                     <div className="text-xs text-gray-400 w-full text-center py-4">ไม่มีรูปภาพ</div>
+                     <div className="text-xs text-gray-400 w-full text-center py-4">No images</div>
                   )}
 
                   {images.map((img, index) => {
@@ -476,7 +476,7 @@ export default function StoreEditProductModal({
                 className="mt-6 inline-flex items-center gap-2 px-5 py-2.5 rounded-xl border border-orange-500 text-orange-500 text-sm font-medium bg-white shadow-sm hover:bg-orange-50 w-full justify-center md:w-auto"
               >
                 <ImagePlus className="w-4 h-4" />
-                <span>เพิ่มรูปภาพ</span>
+                <span>Add Images</span>
               </button>
 
               <input
@@ -493,7 +493,7 @@ export default function StoreEditProductModal({
             <div className="flex flex-col h-full">
               <div className="space-y-5 flex-1">
                 <Input
-                  label="ชื่อสินค้า"
+                  label="Product Name"
                   placeholder="Product Name"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
@@ -501,7 +501,7 @@ export default function StoreEditProductModal({
                 />
 
                 <Textarea
-                  label="คำอธิบายสินค้า"
+                  label="Product Description"
                   placeholder="Product Description"
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
@@ -512,7 +512,7 @@ export default function StoreEditProductModal({
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                       <Input
-                        label="ราคา"
+                        label="Price"
                         type="number"
                         placeholder="Price"
                         value={price}
@@ -522,22 +522,22 @@ export default function StoreEditProductModal({
                   </div>
                   <div>
                       <label className="block mb-1 text-sm font-semibold text-gray-800">
-                      สถานะ
+                      Status
                       </label>
                       <select
                           value={isActive}
                           onChange={(e) => setIsActive(e.target.value as "YES" | "NO")}
                           className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400"
                       >
-                          <option value="YES">แสดงสินค้า</option>
-                          <option value="NO">ซ่อนสินค้า</option>
+                          <option value="YES">Show product</option>
+                          <option value="NO">Hide product</option>
                       </select>
                   </div>
                 </div>
 
                 <div>
                   <label className="block mb-1 text-sm font-semibold text-gray-800">
-                    หมวดหมู่
+                    Category
                   </label>
                   <select
                     value={categoryId || ""}
@@ -549,7 +549,7 @@ export default function StoreEditProductModal({
                           : "border-gray-300 focus:ring-orange-400"
                       }`}
                   >
-                    <option value="">เลือกหมวดหมู่</option>
+                    <option value="">Select a category</option>
                     {categories.map((cat) => (
                       <option key={cat.id} value={cat.id}>
                         {cat.name}
@@ -570,7 +570,7 @@ export default function StoreEditProductModal({
                     className="px-6 py-2.5 rounded-xl bg-white border border-gray-200 text-gray-700 text-sm font-semibold hover:bg-gray-50"
                     disabled={isSubmitting}
                   >
-                    ยกเลิก
+                    Cancel
                   </button>
                 <button
                   type="button"
@@ -579,7 +579,7 @@ export default function StoreEditProductModal({
                   className="inline-flex items-center gap-2 px-8 py-2.5 rounded-xl bg-orange-500 text-white text-sm font-semibold shadow-md hover:bg-orange-600 disabled:opacity-60"
                 >
                   <Save className="w-4 h-4" />
-                  {isSubmitting ? "กำลังบันทึก..." : "บันทึกการแก้ไข"}
+                  {isSubmitting ? "Saving..." : "Save Changes"}
                 </button>
               </div>
             </div>

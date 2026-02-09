@@ -46,7 +46,7 @@ export default function CartDropdown({ isOpen, onToggle, onClose }: Props) {
         setCart(res.data)
       } catch (err) {
         console.error("Failed to load cart", err)
-        setCartError("โหลดตะกร้าไม่สำเร็จ")
+        setCartError("Unable to load your cart.")
       }
     })()
   }, [isOpen, cart, cartLoading, getCart, setCart, setCartError, startCartLoading])
@@ -81,10 +81,10 @@ export default function CartDropdown({ isOpen, onToggle, onClose }: Props) {
       await deleteItemCart(itemToDelete)
       const res = await getCart()
       setCart(res.data)
-      toast.success("ลบสินค้าออกจากตะกร้าเรียบร้อยแล้ว")
+      toast.success("Item removed from your cart.")
     } catch (err) {
       console.error("Failed to delete cart item", err)
-      setCartError("ลบสินค้าไม่สำเร็จ")
+      setCartError("Unable to remove the item.")
     } finally {
       setDeletingId(null)
       setItemToDelete(null)
@@ -119,7 +119,7 @@ export default function CartDropdown({ isOpen, onToggle, onClose }: Props) {
             <div className="flex items-center gap-2">
               <ShoppingCart className="h-5 w-5 text-orange-500" />
               <span className="font-semibold text-gray-900">
-                สินค้าทั้งหมดในตะกร้า ({totalQuantity})
+                Cart Items ({totalQuantity})
               </span>
             </div>
             <button onClick={onClose}>
@@ -133,7 +133,7 @@ export default function CartDropdown({ isOpen, onToggle, onClose }: Props) {
           <div className="mt-4 max-h-72 overflow-y-auto space-y-3">
             {cartLoading && (
               <p className="text-center text-sm text-gray-400">
-                กำลังโหลดสินค้า...
+                Loading items...
               </p>
             )}
 
@@ -147,7 +147,7 @@ export default function CartDropdown({ isOpen, onToggle, onClose }: Props) {
               !cartError &&
               (!cart || cart.items.length === 0) && (
                 <p className="text-center text-sm text-gray-400">
-                  ยังไม่มีสินค้าในตะกร้า
+                  Your cart is empty.
                 </p>
               )}
 
@@ -181,7 +181,7 @@ export default function CartDropdown({ isOpen, onToggle, onClose }: Props) {
                       {item.product_name || `สินค้า #${item.product_id}`}
                     </p>
                     <p className="text-xs text-gray-500 mt-0.5">
-                      จำนวน {item.quantity} ชิ้น
+                      Quantity: {item.quantity}
                     </p>
                   </div>
 
@@ -215,7 +215,7 @@ export default function CartDropdown({ isOpen, onToggle, onClose }: Props) {
               onClick={handleGoToCart}
               className="w-full rounded-full bg-orange-500 py-2.5 text-sm font-semibold text-white shadow-md hover:bg-orange-600"
             >
-              ดูตะกร้าของฉัน
+              View My Cart
             </button>
               )}
           </div>
@@ -224,10 +224,10 @@ export default function CartDropdown({ isOpen, onToggle, onClose }: Props) {
       {/* Modal Confirm Delete */}
       <ConfirmationModal
         isOpen={isConfirmModalOpen}
-        title="ลบสินค้าออกจากตะกร้า?"
-        message="คุณต้องการลบสินค้านี้ออกจากตะกร้าใช่หรือไม่?"
-        confirmText="ลบสินค้า"
-        cancelText="ยกเลิก"
+        title="Remove item from cart?"
+        message="Are you sure you want to remove this item from your cart?"
+        confirmText="Remove"
+        cancelText="Cancel"
         onConfirm={handleConfirmDelete}
         onClose={() => setIsConfirmModalOpen(false)}
         variant="danger"

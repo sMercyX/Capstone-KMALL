@@ -11,7 +11,7 @@ export default function ProductGrid({ items }: ProductGridProps) {
   if (!safeItems.length)
     return (
       <div className="py-10 text-center text-gray-500">
-        ยังไม่มีสินค้าในหมวดนี้
+        No products available in this category.
       </div>
     )
 

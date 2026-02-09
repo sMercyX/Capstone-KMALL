@@ -70,7 +70,7 @@ export default function ProductPage() {
   // โหลด product และ images
   useEffect(() => {
     if (!id) {
-      setError("ไม่พบสินค้า")
+      setError("Product not found.")
       return
     }
 
@@ -92,7 +92,7 @@ export default function ProductPage() {
           setImages(imageRes.data || [])
         }
       } catch {
-        if (!cancelled) setError("ไม่สามารถโหลดสินค้าได้")
+        if (!cancelled) setError("Unable to load product.")
       }
     }
 
@@ -127,7 +127,7 @@ export default function ProductPage() {
       const currentQty = existingItem ? existingItem.quantity : 0
       
       if (currentQty + qty > 99) {
-        toast.warn(`คุณมีสินค้านี้ในตะกร้าแล้ว ${currentQty} ชิ้น รวมกับที่เลือก ${qty} ชิ้น เกินลิมิต 99 ชิ้น`)
+        toast.warn(`You already have ${currentQty} in your cart. Adding ${qty} would exceed the 99-item limit.`)
         return
       }
 
@@ -141,7 +141,7 @@ export default function ProductPage() {
       const res = await getCart()
       setCart(res.data)
 
-      toast.success("เพิ่มสินค้าลงตะกร้าเรียบร้อยแล้ว")
+      toast.success("Added to cart.")
     } catch (err) {
       handleApiError(err)
     }
@@ -166,7 +166,7 @@ export default function ProductPage() {
       const res = await getCart()
       setCart(res.data)
 
-      toast.success("ล้างตะกร้าและเพิ่มสินค้าเรียบร้อยแล้ว")
+      toast.success("Cart cleared and item added.")
     } catch (err) {
       handleApiError(err)
     }
@@ -176,7 +176,7 @@ export default function ProductPage() {
   if (isLoading && !product) {
     return (
       <main className="max-w-6xl mx-auto px-4 py-10">
-        <p className="text-center text-gray-500 text-sm">กำลังโหลดสินค้า...</p>
+        <p className="text-center text-gray-500 text-sm">Loading product...</p>
       </main>
     )
   }
@@ -190,11 +190,11 @@ export default function ProductPage() {
           className="mb-4 inline-flex items-center gap-2 text-sm text-gray-600 hover:text-gray-900"
         >
           <ChevronLeft className="h-4 w-4" />
-          กลับ
+          Back
         </button>
 
         <div className="rounded-xl border bg-white p-8 text-center text-red-500">
-          {error || "ไม่พบสินค้า"}
+          {error || "Product not found."}
         </div>
       </main>
     )
@@ -236,7 +236,7 @@ export default function ProductPage() {
 
   const handleIncreaseQty = () => {
     if (qty >= 99) {
-      toast.warn("ซื้อได้แค่ 99 ชิ้นต่อ 1 สินค้า")
+      toast.warn("You can buy up to 99 units per item.")
       return
     }
     setQty((prev) => prev + 1)
@@ -320,11 +320,11 @@ export default function ProductPage() {
             </div> */}
 
             <p className="text-2xl md:text-3xl font-bold text-gray-900">
-              {product.price ? `${product.price} บาท` : "—"}
+              {product.price ? `฿ ${product.price}` : "—"}
             </p>
 
             <p className="text-sm text-gray-600 leading-relaxed">
-              {product.description || "ไม่มีรายละเอียดสินค้า"}
+              {product.description || "No product description."}
             </p>
 
             <div className="flex flex-wrap items-center gap-4 pt-4">
@@ -354,7 +354,7 @@ export default function ProductPage() {
                 className="flex-1 min-w-[200px] rounded-full bg-orange-500 px-6 py-3 text-sm font-semibold text-white shadow-sm hover:bg-orange-600 transition inline-flex items-center justify-center gap-2"
               >
                 <ShoppingCart className="h-5 w-5" />
-                เพิ่มลงในตะกร้า
+                Add to cart
               </button>
             </div>
 
@@ -367,10 +367,10 @@ export default function ProductPage() {
 
       <ConfirmationModal
         isOpen={isConfirmModalOpen}
-        title="เปลี่ยนร้านค้า?"
-        message="สินค้าที่คุณเลือกมาจากร้านค้าที่ต่างกัน หากคุณดำเนินการต่อ สินค้าในตะกร้าของคุณจะถูกลบออก คุณต้องการดำเนินการต่อหรือไม่?"
-        confirmText="ตกลง, ล้างตะกร้า"
-        cancelText="ยกเลิก"
+        title="Switch store?"
+        message="Your cart contains items from a different store. If you continue, your cart will be cleared. Do you want to continue?"
+        confirmText="Yes, clear cart"
+        cancelText="Cancel"
         onConfirm={handleConfirmClearCart}
         onClose={() => setIsConfirmModalOpen(false)}
         variant="danger"

@@ -63,7 +63,7 @@ export default function ProductCard({ product }: ProductCardProps) {
 
         {/* Price */}
         <p className="text-base font-bold text-orange-500">
-          {product.price ? `${product.price} บาท` : "—"}
+          {product.price ? `฿${product.price}` : "—"}
         </p>
       </div>
     </Link>

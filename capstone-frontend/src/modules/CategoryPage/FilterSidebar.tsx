@@ -81,12 +81,12 @@ export default function FilterSidebar({
     <div className="space-y-4">
       {/* Header & Clear Button */}
       <SectionCard>
-        <h2 className="text-lg font-bold text-gray-900 mb-4">ตัวกรองสินค้า</h2>
+        <h2 className="text-lg font-bold text-gray-900 mb-4">Product Filters</h2>
         <button 
           onClick={handleClearAll}
           className="w-full rounded-lg bg-gray-900 py-3 text-sm font-medium text-white hover:bg-gray-800 transition"
         >
-          ลบการกรองสินค้าทั้งหมด
+          Clear all filters
         </button>
       </SectionCard>
 
@@ -96,7 +96,7 @@ export default function FilterSidebar({
           onClick={() => setIsCategoryOpen(!isCategoryOpen)}
           className="flex w-full items-center justify-between text-left"
         >
-          <span className="font-semibold text-gray-900">หมวดหมู่</span>
+          <span className="font-semibold text-gray-900">Categories</span>
           <ChevronUp className={`h-4 w-4 text-gray-500 transition-transform ${isCategoryOpen ? '' : 'rotate-180'}`} />
         </button>
         
@@ -146,7 +146,7 @@ export default function FilterSidebar({
           onClick={() => setIsPriceOpen(!isPriceOpen)}
           className="flex w-full items-center justify-between text-left"
         >
-          <span className="font-semibold text-gray-900">ช่วงราคา</span>
+          <span className="font-semibold text-gray-900">Price Range</span>
           <ChevronUp className={`h-4 w-4 text-gray-500 transition-transform ${isPriceOpen ? '' : 'rotate-180'}`} />
         </button>
 
@@ -221,7 +221,7 @@ export default function FilterSidebar({
           onClick={() => setIsDeliveryOpen(!isDeliveryOpen)}
           className="flex w-full items-center justify-between text-left"
         >
-          <span className="font-semibold text-gray-900">ตัวเลือกการจัดส่ง</span>
+          <span className="font-semibold text-gray-900">Delivery Options</span>
           <ChevronUp className={`h-4 w-4 text-gray-500 transition-transform ${isDeliveryOpen ? '' : 'rotate-180'}`} />
         </button>
 
@@ -232,14 +232,14 @@ export default function FilterSidebar({
                 <div className="flex h-6 w-6 items-center justify-center rounded-lg border-2 border-orange-500 bg-orange-500">
                   <Check className="h-4 w-4 text-white" strokeWidth={3} />
                 </div>
-                <span className="text-sm text-orange-600 font-medium">นัดรับใน มจธ.</span>
+                <span className="text-sm text-orange-600 font-medium">Campus Pickup</span>
               </div>
               <span className="text-sm text-gray-400">11</span>
             </label>
             <label className="flex cursor-pointer items-center justify-between py-2 group">
               <div className="flex items-center gap-3">
                 <div className="h-6 w-6 rounded-lg border-2 border-gray-300 group-hover:border-gray-400"></div>
-                <span className="text-sm text-gray-600">ส่งรอบมอ</span>
+                <span className="text-sm text-gray-600">Round University Delivery</span>
               </div>
               <span className="text-sm text-gray-400">23</span>
             </label>

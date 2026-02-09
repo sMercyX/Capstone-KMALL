@@ -135,7 +135,7 @@ export default function StoreOrderDetailPage() {
     // Show toast only if status is Proposed (After clicking 'Propose'/'Save and Propose')
     // This allows the user (both buyer/seller) to see the update specifically when proposal changes
     if (updatedData.order.status === "Proposed") {
-      toast.info("ข้อมูลคำสั่งซื้อมีการเปลี่ยนแปลง")
+      toast.info("Order details have been updated.")
     }
   }, [])
 
@@ -298,7 +298,7 @@ export default function StoreOrderDetailPage() {
         meetingNoteInput || undefined
       )
       
-      toast.success("เสนอวันเวลาสำเร็จ!")
+      toast.success("Meeting time proposed successfully!")
       
       // Refresh data
       const res = await getOrderDetail(parseInt(orderId))
@@ -320,7 +320,7 @@ export default function StoreOrderDetailPage() {
         const res = await getOrderDetail(Number(orderId))
         setData(res.data ?? null)
       } catch {
-        setError("ไม่สามารถโหลดข้อมูลคำสั่งซื้อได้")
+        setError("Unable to load order details.")
       } finally {
         setLoading(false)
       }
@@ -337,13 +337,13 @@ export default function StoreOrderDetailPage() {
       if (isSellerPath) {
         // Seller must match seller_name
         if (data.seller_name !== userName) {
-          toast.error("คุณไม่มีสิทธิ์เข้าถึงคำสั่งซื้อนี้")
+          toast.error("You don't have permission to access this order.")
           navigate("/dashboard")
         }
       } else {
         // Buyer must match buyer_name
         if (data.buyer_name !== userName) {
-          toast.error("คุณไม่มีสิทธิ์เข้าถึงคำสั่งซื้อนี้")
+          toast.error("You don't have permission to access this order.")
           navigate("/dashboard")
         }
       }
@@ -401,7 +401,7 @@ export default function StoreOrderDetailPage() {
           : prev
       )
       setIsRejectModalOpen(false)
-      toast.success("ยกเลิกคำสั่งซื้อเรียบร้อยแล้ว")
+      toast.success("Order canceled successfully.")
     } catch (e) {
       handleApiError(e)
     } finally {
@@ -422,7 +422,7 @@ export default function StoreOrderDetailPage() {
     if (order.status === "Pending") {
       // Validate required fields
       if (!selectedZone || !selectedBuilding || !selectedDateTime) {
-        toast.error("กรุณาเลือก Zone, อาคาร และวันเวลานัดรับสินค้า")
+        toast.error("Please select a zone, building, and meeting time.")
         return
       }
       
@@ -455,7 +455,7 @@ export default function StoreOrderDetailPage() {
         const res = await getOrderDetail(parseInt(orderId))
         setData(res.data)
         
-        toast.success("เสนอรายละเอียดการนัดรับสำเร็จ!")
+        toast.success("Meeting details proposed successfully!")
       } catch (e) {
         handleApiError(e)
       } finally {
@@ -476,7 +476,7 @@ export default function StoreOrderDetailPage() {
         const res = await getOrderDetail(parseInt(orderId))
         setData(res.data)
         
-        toast.success("ยืนยันรับสินค้าสำเร็จ!")
+        toast.success("Proposal accepted successfully!")
       } catch (e) {
         handleApiError(e)
       } finally {
@@ -493,15 +493,15 @@ export default function StoreOrderDetailPage() {
     switch (order.status) {
       case "Accepted":
         nextStatus = "Out For Delivery"
-        successMessage = "เปลี่ยนสถานะเป็น กำลังจัดส่ง"
+        successMessage = "Status updated to Out for delivery."
         break
       case "Out For Delivery":
         nextStatus = "Arrived"
-        successMessage = "เปลี่ยนสถานะเป็น ถึงจุดนัดพบแล้ว"
+        successMessage = "Status updated to Arrived."
         break
       case "Arrived":
         nextStatus = "Completed"
-        successMessage = "คำสั่งซื้อเสร็จสมบูรณ์!"
+        successMessage = "Order completed successfully!"
         break
       default:
         return
@@ -539,13 +539,13 @@ export default function StoreOrderDetailPage() {
         className="flex items-center gap-2 text-gray-600 hover:text-gray-900 mb-4 transition-colors"
       >
         <IoChevronBack className="w-6 h-6" />
-        <span className="text-base font-medium">กลับ</span>
+        <span className="text-base font-medium">Back</span>
       </button>
 
       {/* Title */}
       <div className="text-center mb-8">
         <h1 className="text-2xl md:text-3xl font-bold mb-3">
-          ข้อมูลการสั่งซื้อ
+          Order details
         </h1>
         <div className="inline-block bg-black text-white px-6 py-2 rounded-lg">
           <p className="text-base md:text-lg font-semibold tracking-wider">
@@ -621,7 +621,7 @@ export default function StoreOrderDetailPage() {
         {order?.updated_at && (
           <div className="mb-6">
             <p className="text-sm text-gray-600">
-              ข้อมูลถูกอัปเดตล่าสุด : {formatThaiDateTime(order.updated_at)}
+               Latest update: {formatThaiDateTime(order.updated_at)}
             </p>
           </div>
         )}
@@ -629,7 +629,7 @@ export default function StoreOrderDetailPage() {
         <hr className="border-gray-200 mb-6" />
 
         {loading && (
-          <p className="text-center text-sm text-gray-500 py-8">กำลังโหลด...</p>
+          <p className="text-center text-sm text-gray-500 py-8">Loading...</p>
         )}
         {error && <p className="text-center text-sm text-red-500 py-8">{error}</p>}
 
@@ -703,7 +703,7 @@ export default function StoreOrderDetailPage() {
                     : "bg-green-500 hover:bg-green-600"
                 }`}
             >
-              {actionLoading === "accept" ? "กำลังยืนยัน..." : "Accept"}
+              {actionLoading === "accept" ? "Confirming..." : "Accept"}
             </button>
           )}
 
@@ -718,7 +718,7 @@ export default function StoreOrderDetailPage() {
                     : "bg-red-500 hover:bg-red-600"
                 }`}
             >
-              {actionLoading === "reject" ? "กำลังยกเลิก..." : "Reject"}
+              {actionLoading === "reject" ? "Canceling..." : "Reject"}
             </button>
           )}
         </div>
@@ -731,7 +731,7 @@ export default function StoreOrderDetailPage() {
             onClick={() => navigate(isSellerPath ? `/store/orders` : '/orders/ongoing')}
             className="px-16 py-3 rounded-lg text-base font-semibold text-white bg-blue-500 hover:bg-blue-600 transition-colors"
           >
-            {isSellerPath ? 'กลับหน้าร้าน' : 'กลับหน้ารายการ'}
+            {isSellerPath ? 'Back to store orders' : 'Back to orders'}
           </button>
         </div>
       )}
@@ -740,20 +740,20 @@ export default function StoreOrderDetailPage() {
         isOpen={isRejectModalOpen}
         onClose={() => setIsRejectModalOpen(false)}
         onConfirm={confirmReject}
-        title="ยืนยันการยกเลิก"
-        message="คุณต้องการที่จะยกเลิกจริงๆ ใช่ไหม?"
-        confirmText="ยืนยัน"
-        cancelText="ยกเลิก"
+        title="Cancel order"
+        message="Are you sure you want to cancel this order?"
+        confirmText="Confirm"
+        cancelText="Close"
         variant="danger"
       >
         <div className="flex flex-col gap-2">
           <label className="text-sm font-medium text-gray-700">
-            ระบุเหตุผล (ถ้ามี)
+            Reason (optional)
           </label>
           <textarea
             className="w-full rounded-lg border border-gray-300 p-2 text-sm focus:border-red-500 focus:outline-none focus:ring-1 focus:ring-red-500"
             rows={3}
-            placeholder="เช่น สินค้าหมด, ไม่สามารถจัดส่งได้"
+            placeholder="e.g., Out of stock, unable to fulfill"
             value={cancelReason}
             onChange={(e) => setCancelReason(e.target.value)}
           />
@@ -764,18 +764,18 @@ export default function StoreOrderDetailPage() {
         isOpen={isAcceptModalOpen}
         onClose={() => setIsAcceptModalOpen(false)}
         onConfirm={handleAccept}
-        title="ยืนยันการดำเนินการ"
+        title="Confirm action"
         message={order?.status === "Pending" 
-          ? "คุณต้องการเสนอวันเวลานัดรับหรือไม่?" 
+          ? "Do you want to propose a meeting time?" 
           : order?.status === "Proposed"
-          ? "คุณต้องการยืนยันรับข้อเสนอนี้หรือไม่?"
+          ? "Do you want to accept this proposal?"
           : order?.status === "Accepted"
-          ? "คุณต้องการเปลี่ยนสถานะเป็น \"กำลังจัดส่ง\" หรือไม่?"
+          ? "Change status to \"Out for delivery\"?"
           : order?.status === "Out For Delivery"
-          ? "คุณต้องการเปลี่ยนสถานะเป็น \"ถึงจุดนัดพบ\" หรือไม่?"
-          : "คุณต้องการเปลี่ยนสถานะเป็น \"เสร็จสมบูรณ์\" หรือไม?"}
-        confirmText="ยืนยัน"
-        cancelText="ยกเลิก"
+          ? "Change status to \"Arrived\"?"
+          : "Change status to \"Completed\"?"}
+        confirmText="Confirm"
+        cancelText="Cancel"
         variant="info"
       />
     </div>

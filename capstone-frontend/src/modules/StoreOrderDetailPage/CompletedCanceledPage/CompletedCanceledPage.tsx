@@ -65,20 +65,20 @@ export default function CompletedCanceledPage({ order, items, total }: Completed
 
       {/* Status Message */}
       <p className={`text-2xl font-bold mb-2 ${isCancelled ? 'text-red-500' : 'text-green-500'}`}>
-        {isCancelled ? 'คำสั่งซื้อถูกยกเลิก' : 'คำสั่งซื้อเสร็จสมบูรณ์'}
+        {isCancelled ? 'Order Cancelled' : 'Order Completed'}
       </p>
 
       {/* Cancellation Reason */}
       {isCancelled && order.cancelled_reason && (
         <p className="text-gray-600 mb-4">
-          เหตุผล: {order.cancelled_reason}
+          Reason: {order.cancelled_reason}
         </p>
       )}
 
       {/* Order Info */}
       <div className="text-center text-gray-600 mb-8">
         <p className="text-lg">ORDER : #{order.id}</p>
-        <p className="text-lg">{formattedDate} เวลา {formattedTime}</p>
+        <p className="text-lg">{formattedDate} at {formattedTime}</p>
       </div>
 
       {/* Product List */}

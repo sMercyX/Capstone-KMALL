@@ -193,9 +193,9 @@ export default function ChatPage() {
           <div className="flex flex-col items-center justify-center gap-1">
             <div className="flex items-center gap-2 text-2xl font-semibold text-gray-800">
               <MessageCircle className="h-7 w-7" />
-              <span>{isSeller ? "แชทกับลูกค้า" : "แชทกับผู้ขาย"}</span>
+              <span>{isSeller ? "Chat with Customer" : "Chat with Seller"}</span>
             </div>
-            <p className="text-base font-bold text-gray-800">Order : #{orderId || "1111"}</p>
+            <p className="text-base font-bold text-gray-800">Order: #{orderId || "1111"}</p>
           </div>
         </div>
 
@@ -209,20 +209,20 @@ export default function ChatPage() {
           >
             {loading ? (
               <div className="flex items-center justify-center h-full">
-                <p className="text-gray-400">กำลังโหลดข้อความ...</p>
+                <p className="text-gray-400">Loading messages...</p>
               </div>
             ) : (
               <div className="space-y-6">
                 {/* Date Divider */}
                 <div className="relative flex justify-center">
                   <span className="rounded-[4px] bg-white px-3 py-1 text-xs text-gray-400 shadow-sm border border-gray-100">
-                    วันนี้
+                    Today
                   </span>
                 </div>
 
                 {messages.length === 0 && (
                   <div className="flex items-center justify-center py-8">
-                    <p className="text-gray-400">ยังไม่มีข้อความ</p>
+                    <p className="text-gray-400">No messages yet</p>
                   </div>
                 )}
 
@@ -353,7 +353,7 @@ export default function ChatPage() {
                   type="text"
                   value={inputText}
                   onChange={(e) => setInputText(e.target.value)}
-                  placeholder="พิมพ์ข้อความ..."
+                  placeholder="Type a message..."
                   disabled={sending || loading}
                   className="flex-1 rounded-full border border-gray-200 bg-white px-5 py-3 text-sm outline-none focus:border-gray-300 focus:ring-0 transition-all placeholder:text-gray-300 shadow-inner disabled:bg-gray-50"
                 />

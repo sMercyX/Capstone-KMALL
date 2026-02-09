@@ -34,15 +34,15 @@ export default function ArrivedPage({ order, locationName, viewMode }: ArrivedPa
 
   const statusText =
     viewMode === "buyer"
-      ? "ผู้ขายถึงจุดนัดรับแล้ว"
-      : "ส่งมอบสินค้าเรียบร้อยแล้วหรือไม่"
+      ? "The seller has arrived at the meeting point."
+      : "Has the item been handed over successfully?"
 
   return (
     <div className="flex flex-col items-center">
       {/* Delivery Info Header */}
       <div className="w-full bg-gray-100 rounded-xl p-4 mb-8 text-center">
         <p className="text-xl font-semibold text-gray-800">
-          {formattedDate} เวลา {formattedTime} บริเวณ ตึก {displayLocation}
+          {formattedDate} at {formattedTime} · Building {displayLocation}
         </p>
       </div>
 

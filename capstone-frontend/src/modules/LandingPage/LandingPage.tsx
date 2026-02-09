@@ -48,7 +48,7 @@ const LandingPage = () => {
           className="px-6 py-2 text-slate-600 font-medium transition-all duration-300 hover:underline cursor-pointer"
           onClick={() => navigate("/")}
         >
-          ข้อกำหนดการเข้าใช้งาน KMALL
+          KMALL Terms of Use
         </button>
       </header>
 

@@ -17,9 +17,9 @@ export default function StoreInfoTab() {
 
   
 
-  if (loading) return <p className="text-center">กำลังโหลดข้อมูลร้าน...</p>
+  if (loading) return <p className="text-center">Loading store information...</p>
   if (error) return <p className="text-center text-red-500">{error}</p>
-  if (!store) return <p className="text-center text-red-500">ไม่พบข้อมูลร้าน</p>
+  if (!store) return <p className="text-center text-red-500">Store information not found.</p>
 
   // เวลากด "บันทึก" จาก Modal
   async function handleSubmitEdit(data: StoreEditForm, logoFile: File | null) {
@@ -52,7 +52,7 @@ export default function StoreInfoTab() {
           }
         } catch {
           imageError = true
-          toast.error("อัปโหลดโลโก้ใหม่ไม่สำเร็จ")
+          toast.error("Failed to upload the new logo.")
         }
       }
 
@@ -79,7 +79,7 @@ export default function StoreInfoTab() {
       })
 
       if (!imageError) {
-        toast.success("แก้ไขข้อมูลร้านค้าสำเร็จแล้ว!")
+        toast.success("Store information updated successfully!")
       }
 
       setIsModalOpen(false)
@@ -95,10 +95,10 @@ return (
       <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
         <div>
           <h2 className="text-xl md:text-2xl font-extrabold tracking-tight text-gray-900">
-            ข้อมูลร้านค้า
+            Store Information
           </h2>
           <p className="mt-1 text-sm text-gray-600">
-            ตรวจสอบรายละเอียดร้านของคุณ และแก้ไขเพื่อให้หน้าร้านดูน่าเชื่อถือมากขึ้น
+            Review your store details and update them to make your storefront more trustworthy.
           </p>
         </div>
 
@@ -108,7 +108,7 @@ return (
           type="button"
           onClick={() => setIsModalOpen(true)}
         >
-          แก้ไขข้อมูลร้านค้า
+          Edit Store Information
         </button>
       </div>
 
@@ -123,10 +123,10 @@ return (
             <div className="flex items-start justify-between gap-3">
               <div>
                 <label className="block text-xs font-semibold text-gray-500">
-                  ชื่อร้าน
+                  Store Name
                 </label>
                 <p className="mt-1 text-sm text-gray-600">
-                  ชื่อที่ผู้ซื้อจะเห็นบนหน้าร้านและรายการสินค้า
+                  This is the name customers will see on your storefront and product listings.
                 </p>
               </div>
               <span className="shrink-0 rounded-full border border-gray-200 bg-gray-50 px-3 py-1 text-[11px] font-semibold text-gray-700">
@@ -147,10 +147,10 @@ return (
             <div className="flex items-start justify-between gap-3">
               <div>
                 <label className="block text-xs font-semibold text-gray-500">
-                  คำอธิบายร้าน
+                  Store Description
                 </label>
                 <p className="mt-1 text-sm text-gray-600">
-                  เขียนให้สั้น กระชับ และชัดเจน เพื่อเพิ่มความมั่นใจให้ผู้ซื้อ
+                  Keep it short, clear, and concise to build customer confidence.
                 </p>
               </div>
               <span className="shrink-0 rounded-full border border-gray-200 bg-gray-50 px-3 py-1 text-[11px] font-semibold text-gray-700">
@@ -171,9 +171,9 @@ return (
           <div className="rounded-3xl border border-gray-200 bg-white p-5 md:p-6">
             <div className="flex items-start justify-between gap-3">
               <div>
-                <p className="text-sm font-bold text-gray-900">โลโก้ร้าน</p>
+                <p className="text-sm font-bold text-gray-900">Store Logo</p>
                 <p className="mt-1 text-xs text-gray-600">
-                  โลโก้ที่ชัดเจนช่วยให้ร้านดูมืออาชีพ
+                  A clear logo helps your store look more professional.
                 </p>
               </div>
 
@@ -184,7 +184,7 @@ return (
                     : "border-gray-200 bg-gray-50 text-gray-700"
                 }`}
               >
-                {store.profile_url ? "ตั้งค่าแล้ว" : "ยังไม่มี"}
+                {store.profile_url ? "Set" : "Not set"}
               </span>
             </div>
 
@@ -207,7 +207,7 @@ return (
 
             <div className="mt-5 rounded-2xl bg-gray-50 px-4 py-3">
               <p className="text-xs text-gray-700">
-                แนะนำ: ใช้รูปสี่เหลี่ยม พื้นหลังเรียบ และตัวหนังสือชัดเจน
+                Tip: Use a square image, simple background, and clear text.
               </p>
             </div>
           </div>
