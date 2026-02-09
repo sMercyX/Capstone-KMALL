@@ -46,7 +46,7 @@ export default function FilterSidebar({
   // Collapsible sections state
   const [isCategoryOpen, setIsCategoryOpen] = useState(true)
   const [isPriceOpen, setIsPriceOpen] = useState(true)
-  const [isDeliveryOpen, setIsDeliveryOpen] = useState(true)
+  // const [isDeliveryOpen, setIsDeliveryOpen] = useState(true)
 
   const handleCategoryToggle = (idStr: string) => {
     const id = Number(idStr)
@@ -216,7 +216,7 @@ export default function FilterSidebar({
       </SectionCard>
 
       {/* Delivery Options Section */}
-      <SectionCard>
+      {/* <SectionCard>
         <button 
           onClick={() => setIsDeliveryOpen(!isDeliveryOpen)}
           className="flex w-full items-center justify-between text-left"
@@ -245,7 +245,7 @@ export default function FilterSidebar({
             </label>
           </div>
         )}
-      </SectionCard>
+      </SectionCard> */}
 
     </div>
   )
