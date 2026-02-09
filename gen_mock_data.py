@@ -155,6 +155,74 @@ HANDMADE_NAMES = [
     "Acrylic Keychain", "Cute Cat Keychain", "Handmade Bracelet", "Mini Woven Bag",
     "Crochet Pouch", "Canvas Tote Bag", "Knitted Coaster Set", "Sticker Pack"
 ]
+CATEGORY_NAME_POOLS = {
+  # ===== FOOD =====
+  "single-dish-meals": [
+    "Pad Kra Pao", "Fried Rice", "Hainanese Chicken Rice", "Tom Yum Noodles",
+    "Green Curry Rice", "Pork Basil Rice", "Chicken Teriyaki Rice", "Veggie Bento"
+  ],
+  "snacks-desserts": [
+    "Chocolate Brownie", "Butter Croissant", "Strawberry Cheesecake", "Banana Muffin",
+    "Cookie Box", "Donut", "Crepe", "Pancake"
+  ],
+  "beverages": [
+    "Iced Latte", "Cold Brew Coffee", "Thai Milk Tea", "Matcha Latte",
+    "Lemon Soda", "Mixed Berry Smoothie"
+  ],
+  "healthy-food": [
+    "Chicken Breast Salad", "Greek Yogurt Bowl", "Oatmeal Cup", "Tuna Sandwich",
+    "Protein Smoothie", "Fruit Salad"
+  ],
+  "fruits-fresh-produce": [
+    "Banana", "Apple", "Orange", "Grapes", "Strawberries", "Avocado",
+    "Cherry Tomato", "Mixed Fruit Box"
+  ],
+
+  # ===== CLOTHING =====
+  "tops": [
+    "KMUTT Tee", "Minimal Black T-Shirt", "Campus Polo Shirt", "Long Sleeve Shirt",
+    "Graphic Tee", "Crop Top"
+  ],
+  "pants": [
+    "Jogger Pants", "Chino Pants", "Cargo Pants", "Denim Jeans", "Shorts"
+  ],
+  "skirts-dresses": [
+    "Pleated Skirt", "Denim Skirt", "Midi Skirt", "Casual Dress", "Summer Dress"
+  ],
+  "outerwear-jackets": [
+    "Windbreaker Jacket", "Denim Jacket", "Hoodie", "Bomber Jacket", "Cardigan"
+  ],
+  "unisex-clothing": [
+    "Unisex Tee", "Unisex Hoodie", "Unisex Jacket", "Unisex Shorts"
+  ],
+  "secondhand-vintage": [
+    "Vintage Tee", "Second-hand Jacket", "Vintage Jeans", "Retro Hoodie"
+  ],
+  "university-uniforms": [
+    "University Uniform Shirt", "University Uniform Skirt", "University Belt",
+    "KMUTT Uniform Set"
+  ],
+
+  # ===== HANDMADE =====
+  "accessories": [
+    "Canvas Tote Bag", "Mini Woven Bag", "Handmade Bracelet", "Crochet Pouch"
+  ],
+  "art-artwork": [
+    "Art Print", "Mini Painting", "Sticker Pack", "Postcard Set"
+  ],
+  "home-decor": [
+    "Knitted Coaster Set", "Candle Holder", "Mini Vase", "Wall Decor"
+  ],
+  "textile-knitting": [
+    "Crochet Pouch", "Knitted Coaster Set", "Handmade Scarf", "Crochet Hat"
+  ],
+  "keychains": [
+    "Acrylic Keychain", "Cute Cat Keychain", "Name Keychain", "Resin Keychain"
+  ],
+  "gifts-custom-orders": [
+    "Custom Name Bracelet", "Gift Box Set", "Custom Tote Bag", "Custom Sticker Pack"
+  ],
+}
 ADJ = ["Minimal", "Cute", "Premium", "Handmade", "Local", "Limited", "Classic", "Fresh"]
 DESC_BITS = [
     "perfect for daily use", "made with care", "popular among students",
@@ -163,7 +231,19 @@ DESC_BITS = [
 MATERIALS = ["cotton", "polyester", "acrylic", "canvas", "rubber", "paper", "mixed"]
 COLORS = ["black", "white", "navy", "pink", "green", "brown", "cream"]
 SIZES = ["XS", "S", "M", "L", "XL"]
+BEVERAGE_NAMES = [
+    "Iced Latte", "Cold Brew Coffee", "Matcha Latte", "Thai Milk Tea",
+    "Mixed Berry Smoothie", "Lemon Soda"
+]
+SNACK_DESSERT_NAMES = [
+    "Chocolate Brownie", "Butter Croissant", "Strawberry Cheesecake", "Banana Muffin"
+]
 
+TOPS_NAMES = ["KMUTT Tee", "Minimal Black T-Shirt", "Campus Polo Shirt", "Graphic Tee"]
+OUTERWEAR_NAMES = ["Oversized Hoodie", "Windbreaker Jacket", "Denim Jacket", "Black Zip Hoodie"]
+
+KEYCHAIN_NAMES = ["Acrylic Keychain", "Cute Cat Keychain"]
+TEXTILE_NAMES = ["Canvas Tote Bag", "Knitted Coaster Set", "Crochet Pouch", "Mini Woven Bag"]
 
 # =============================
 # Args
@@ -397,6 +477,13 @@ def update_embedding(cur, product_id: int, vec_literal: str):
         (vec_literal, product_id),
     )
 
+def base_name_from_subcat_slug(sub_slug: str, parent_slug: str) -> str:
+    pool = CATEGORY_NAME_POOLS.get(sub_slug)
+    if pool:
+        return pick(pool)
+
+    # fallback เผื่อ slug ใหม่ในอนาคต
+    return base_name_from_domain(domain_from_parent_slug(parent_slug))
 
 # =============================
 # Generators
@@ -434,6 +521,62 @@ def domain_from_parent_slug(parent_slug: str) -> str:
         return "handmade"
     return "handmade"
 
+def category_profile(cat_slug: str, parent_slug: str) -> dict:
+    s = (cat_slug or "").lower()
+    p = (parent_slug or "").lower()
+
+    # Food subcategories
+    if "beverage" in s:
+        return {"domain": "food", "pool": BEVERAGE_NAMES, "desc_kind": "beverage"}
+    if "snack" in s or "dessert" in s:
+        return {"domain": "food", "pool": SNACK_DESSERT_NAMES, "desc_kind": "snack"}
+
+    # Clothing subcategories
+    if "top" in s:
+        return {"domain": "clothing", "pool": TOPS_NAMES, "desc_kind": "tops"}
+    if "outerwear" in s or "jacket" in s:
+        return {"domain": "clothing", "pool": OUTERWEAR_NAMES, "desc_kind": "outerwear"}
+
+    # Handmade subcategories
+    if "keychain" in s:
+        return {"domain": "handmade", "pool": KEYCHAIN_NAMES, "desc_kind": "keychain"}
+    if "textile" in s or "knitting" in s:
+        return {"domain": "handmade", "pool": TEXTILE_NAMES, "desc_kind": "textile"}
+
+    # Fallback: ใช้ parent เป็นตัวช่วย ถ้า slug ไม่เข้ากฎ
+    if p == "food":
+        return {"domain": "food", "pool": FOOD_NAMES, "desc_kind": "food"}
+    if p == "clothing":
+        return {"domain": "clothing", "pool": CLOTHING_NAMES, "desc_kind": "clothing"}
+    if p == "handmade-products":
+        return {"domain": "handmade", "pool": HANDMADE_NAMES, "desc_kind": "handmade"}
+
+    return {"domain": "handmade", "pool": HANDMADE_NAMES, "desc_kind": "handmade"}
+
+
+def gen_desc_by_kind(kind: str) -> str:
+    m = pick(MATERIALS)
+    bit = pick(DESC_BITS)
+
+    if kind == "beverage":
+        return f"{pick(ADJ)} drink, {bit}. Served chilled."
+    if kind == "snack":
+        return f"{pick(ADJ)} snack/dessert, {bit}. Freshly prepared."
+    if kind == "tops":
+        return f"{pick(ADJ)} top, made from {m}, {bit}."
+    if kind == "outerwear":
+        return f"{pick(ADJ)} outerwear, made from {m}, {bit}."
+    if kind == "keychain":
+        return f"{pick(ADJ)} keychain, made from {m}, {bit}."
+    if kind == "textile":
+        return f"{pick(ADJ)} textile item, made from {m}, {bit}."
+
+    # fallback
+    if kind in ("food",):
+        return f"{pick(ADJ)} menu item, {bit}. Freshly prepared."
+    if kind in ("clothing",):
+        return f"{pick(ADJ)} apparel, made from {m}, {bit}."
+    return f"{pick(ADJ)} handmade item, made from {m}, {bit}."
 
 # =============================
 # Main
@@ -521,11 +664,16 @@ def main():
                 for _ in range(n):
                     global_idx += 1
                     cat = pick(subcats)
-                    domain = domain_from_parent_slug(cat["parent_slug"])
+                    sub_slug = cat["slug"]
+                    parent_slug = cat["parent_slug"]
 
-                    base = base_name_from_domain(domain)
+                    profile = category_profile(sub_slug, parent_slug)
+
+                    base = base_name_from_subcat_slug(sub_slug, parent_slug)
+                    domain = profile["domain"]
+
                     pname = f"{pick(ADJ)} {base} #{global_idx:06d}-{random.randint(10,99)}"[:100]
-                    pdesc = gen_desc(domain)
+                    pdesc = gen_desc_by_kind(profile["desc_kind"])
                     price = gen_price(domain)
 
                     pid = create_or_update_product(
