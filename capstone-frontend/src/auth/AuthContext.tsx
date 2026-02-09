@@ -1,141 +1,224 @@
-// src/auth/AuthContext.tsx
-import React, {
+// src/contexts/AuthContext.tsx
+import {
   createContext,
   useContext,
   useEffect,
   useMemo,
-  useRef,
   useState,
 } from "react"
-import { useNavigate } from "react-router-dom"
-import { decodeJwt, isTokenExpired, makeFakeJwt, msUntilExpiry } from "./jwt" // ตามโค้ดที่ทำไว้
+import type { ReactNode } from "react"
 
-type User = { id: string; name: string; email: string }
+import { useUserApi, type User } from "../api/userApi"
+import { useUserStore } from "../stores/userStore"
+import { msalInstance } from "../auth/msalConfig"
+import { setAccessToken } from "../auth/tokenStore"
 
 type AuthContextType = {
   user: User | null
-  token: string | null
-  isExpired: boolean
-  ready: boolean // ✅ เพิ่มตัวนี้
-  login: (email: string, password: string) => Promise<void>
+  ready: boolean
+  error: string | null
+  login: () => void
   logout: () => void
+  hasRole: (...roles: string[]) => boolean
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
 
-export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
-  children,
-}) => {
+export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<User | null>(null)
-  const [token, setToken] = useState<string | null>(null)
-  const [isExpired, setIsExpired] = useState<boolean>(true)
-  const [ready, setReady] = useState<boolean>(false) // ✅
+  const [ready, setReady] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
-  const navigate = useNavigate()
-  const expiryTimerRef = useRef<number | null>(null)
+  const { getMe } = useUserApi()
 
-  function clearExpiryTimer() {
-    if (expiryTimerRef.current) {
-      window.clearTimeout(expiryTimerRef.current)
-      expiryTimerRef.current = null
-    }
-  }
-  function handleTokenExpired() {
-    setIsExpired(true)
-    setUser(null)
-    setToken(null)
-    localStorage.removeItem("auth")
-    navigate("/", { replace: true })
-  }
-  function scheduleExpiryWatcher(jwt: string) {
-    clearExpiryTimer()
-    const ms = msUntilExpiry(jwt)
-    if (ms === 0) return handleTokenExpired()
-    expiryTimerRef.current = window.setTimeout(handleTokenExpired, ms)
-  }
+  const setUserStore = useUserStore((s) => s.setUser)
+  const setRolesStore = useUserStore((s) => s.setRoles)
+  const clearUserStore = useUserStore((s) => s.clearUser)
 
-  // โหลดจาก localStorage ครั้งเดียวหลัง mount
   useEffect(() => {
-    const saved = localStorage.getItem("auth")
-    if (saved) {
+    ;(async () => {
       try {
-        const parsed = JSON.parse(saved) as { user?: User; token?: string }
-        const savedToken = parsed.token ?? null
-        if (!savedToken || isTokenExpired(savedToken)) {
-          handleTokenExpired()
-        } else {
-          const payload = decodeJwt(savedToken)
-          const nextUser: User | null = payload
-            ? {
-                id: (payload.id || payload.sub || "unknown") as string,
-                name: (payload.name || payload.username || "User") as string,
-                email: (payload.email || "") as string,
-              }
-            : parsed.user ?? null
+        setError(null)
 
-          setUser(nextUser)
-          setToken(savedToken)
-          setIsExpired(false)
-          scheduleExpiryWatcher(savedToken)
+        // ⭐ DEV MODE: bypass MSAL และใช้ mock user แทน
+        // const isDevMode = import.meta.env.DEV
+        const isDevMode = true
+        const devMode = localStorage.getItem("kmall_dev_mode") || "seller"
+
+        if (isDevMode) {
+          console.log("[AUTH] DEV MODE - using mock user:", devMode)
+
+          // Mock user data ตาม dev mode
+          const mockUsers: Record<string, User> = {
+            buyer: {
+              id: "00000000-0000-0000-0000-000000000003",
+              msid: "dev-buyer-1",
+              email: "buyer1@example.com",
+              name: "Dev Buyer 1",
+              roles: ["buyer"],
+              createdAt: new Date().toISOString(),
+              updatedAt: new Date().toISOString(),
+              lastLogin: new Date().toISOString(),
+            },
+            seller: {
+              id: "00000000-0000-0000-0000-000000000002",
+              msid: "dev-seller-1",
+              email: "seller1@example.com",
+              name: "Dev Seller 1",
+              roles: ["seller"],
+              createdAt: new Date().toISOString(),
+              updatedAt: new Date().toISOString(),
+              lastLogin: new Date().toISOString(),
+            },
+            admin: {
+              id: "dev-admin-1",
+              msid: "dev-admin-1",
+              email: "admin1@example.com",
+              name: "Dev Admin 1",
+              roles: ["admin"],
+              createdAt: new Date().toISOString(),
+              updatedAt: new Date().toISOString(),
+              lastLogin: new Date().toISOString(),
+            },
+          }
+
+          const mockUser = mockUsers[devMode] || mockUsers.seller
+          
+          setUser(mockUser)
+          setUserStore({
+            id: mockUser.id,
+            name: mockUser.name,
+            email: mockUser.email,
+          })
+          setRolesStore(mockUser.roles)
+          setAccessToken("dev-mock-token")
+          setReady(true)
+          return
         }
-      } catch {
-        handleTokenExpired()
+
+        // ⭐ PRODUCTION MODE: ใช้ MSAL จริง
+        console.log("[AUTH] init MSAL...")
+        await msalInstance.initialize()
+        console.log("[AUTH] MSAL initialized")
+
+        // 1) เคลียร์ state redirect ของ MSAL
+        const redirectResult = await msalInstance.handleRedirectPromise()
+        console.log("[AUTH] redirectResult:", redirectResult)
+
+        if (redirectResult && redirectResult.account) {
+          msalInstance.setActiveAccount(redirectResult.account)
+          console.log("[AUTH] set active account from redirect")
+        }
+
+        // 2) หา account ปัจจุบัน
+        const account =
+          msalInstance.getActiveAccount() ||
+          msalInstance.getAllAccounts()[0]
+
+        console.log("[AUTH] active account:", account)
+
+        if (!account) {
+          console.log("[AUTH] no account → not logged in")
+          setUser(null)
+          clearUserStore()
+          setAccessToken(null)
+          return
+        }
+
+        // 3) ขอ token แบบ silent
+        const result = await msalInstance.acquireTokenSilent({
+          account,
+          scopes: ["openid", "profile", "email"],
+        })
+
+        // idToken จะมี claim OIDC ครบ และ aud = clientId
+        const rawIdToken = result.idToken;  // ⭐ ตรงนี้แหละสำคัญ
+
+        console.log(
+          "[AUTH] got id_token:",
+          rawIdToken ? rawIdToken.slice(0, 20) + "..." : "none"
+        )
+
+        setAccessToken(rawIdToken)
+
+
+
+        // 4) โหลด /api/users/me
+        console.log("[AUTH] calling /api/users/me ...")
+        const u = await getMe()
+        console.log("[AUTH] /api/users/me OK:", u)
+
+        setUser(u)
+
+        setUserStore({
+          id: u.id,
+          name: u.name,
+          email: u.email,
+        })
+        setRolesStore(u.roles ?? [])
+      } catch (err: any) {
+        console.error("load /api/users/me (via MSAL token) failed", err)
+
+        setUser(null)
+        clearUserStore()
+        setAccessToken(null)
+        setError(null)
+      } finally {
+        setReady(true)
       }
-    }
-    setReady(true) // ✅ แจ้งว่าโหลดเสร็จแล้ว ไม่ว่าจะสำเร็จ/ล้มเหลว
-    return clearExpiryTimer
+    })()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  // ✅ ใช้ makeFakeJwt ใน login (เดโม่)
-  async function login(email: string, password: string) {
-    await new Promise((r) => setTimeout(r, 300)) // mock latency
-
-    // mock เงื่อนไขผ่าน
-    if (email === "admin@example.com" && password === "123456") {
-      const exp = Math.floor(Date.now() / 1000) + 1 * 60 // หมดอายุใน 15 นาที
-      const payload = {
-        sub: "1",
-        id: "1",
-        name: "Admin",
-        username: "admin",
-        email,
-        exp,
-      }
-      const fakeToken = makeFakeJwt(payload)
-      const decoded = decodeJwt(fakeToken)!
-
-      const nextUser: User = {
-        id: (decoded.id || decoded.sub || "1") as string,
-        name: (decoded.name || decoded.username || "Admin") as string,
-        email: (decoded.email || email) as string,
-      }
-
-      setUser(nextUser)
-      setToken(fakeToken)
-      setIsExpired(false)
-      localStorage.setItem(
-        "auth",
-        JSON.stringify({ user: nextUser, token: fakeToken })
-      )
-      scheduleExpiryWatcher(fakeToken)
-      return
-    }
-
-    throw new Error("อีเมลหรือรหัสผ่านไม่ถูกต้อง")
+  const login = () => {
+    console.log("[AUTH] loginRedirect() called")
+    msalInstance
+      .loginRedirect({
+        scopes: ["openid", "profile", "email"],
+      })
+      .catch((e: any) => {
+        if (e?.errorCode === "interaction_in_progress") {
+          console.warn("[AUTH] interaction_in_progress, ignore duplicate login")
+          return
+        }
+        console.error("loginRedirect error:", e)
+        setError("ไม่สามารถเข้าสู่ระบบได้ กรุณาลองใหม่อีกครั้ง")
+      })
   }
-  function logout() {
-    clearExpiryTimer()
+
+  const logout = () => {
+
+    console.log("[AUTH] logoutRedirect() called")
     setUser(null)
-    setToken(null)
-    setIsExpired(true)
-    localStorage.removeItem("auth")
-    navigate("/", { replace: true })
+    clearUserStore()
+    setRolesStore([])
+    setAccessToken(null)
+
+    msalInstance.logoutRedirect().catch((e) => {
+      console.error("logoutRedirect error:", e)
+    })
+
+    // const appLogout = import.meta.env.VITE_AUTH_LOGOUT
+    // const msLogout = import.meta.env.VITE_MS_LOGOUT
+    // const feBase = import.meta.env.VITE_FE_BASE
+
+    // if (appLogout && msLogout && feBase) {
+    //   window.location.assign(`${appLogout}?rd=${feBase}`)
+    // } else {
+    //   window.location.assign(`${appLogout}?rd=${feBase}`)
+    // }
+
+  }
+
+  const hasRole = (...roles: string[]) => {
+    if (!user) return false
+    const lower = user.roles.map((r) => r.toLowerCase())
+    return roles.some((r) => lower.includes(r.toLowerCase()))
   }
 
   const value = useMemo(
-    () => ({ user, token, isExpired, ready, login, logout }),
-    [user, token, isExpired, ready]
+    () => ({ user, ready, error, login, logout, hasRole }),
+    [user, ready, error]
   )
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>

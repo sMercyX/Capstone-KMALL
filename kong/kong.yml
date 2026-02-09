@@ -1,0 +1,64 @@
+_format_version: "3.0"
+_transform: true
+
+services:
+  - name: frontend
+    url: http://frontend:80
+    routes:
+      - name: frontend-route
+        paths:
+          - /
+        strip_path: false
+        preserve_host: true
+
+  # - name: oauth2-public
+  #   url: http://oauth2-proxy:4180
+  #   routes:
+  #     - name: oauth2-route
+  #       paths:
+  #         - /oauth2
+  #         - /oauth2/
+  #         - /oauth2/*
+  #       strip_path: false
+  #       preserve_host: true
+
+  - name: api-service
+    url: http://backend:8080 
+    routes:
+      - name: api-route
+        paths:
+          - /api
+          - /api/
+          - /api/*
+        strip_path: false
+        preserve_host: true
+    # plugins:
+    #   - name: cors
+    #     config:
+    #       origins:
+    #         - https://bscit.sit.kmutt.ac.th
+    #         - http://localhost:5173
+    #         - http://localhost:8080
+    #         - http://localhost
+    #       methods: ["GET","POST","PUT","PATCH","DELETE","OPTIONS"]
+    #       credentials: true
+    #       headers:
+    #         - Authorization
+    #         - Content-Type
+    #         - Cookie
+    #         - X-Requested-With
+    #       exposed_headers:
+    #         - Set-Cookie
+    #         - Authorization
+    #       max_age: 3600
+
+  - name: uploads-service
+    url: http://backend:8080 
+    routes:
+      - name: uploads-route
+        paths:
+          - /uploads
+          - /uploads/
+          - /uploads/*
+        strip_path: false
+        preserve_host: true

@@ -1,15 +1,22 @@
 package apperr
 
-
 import (
 	"context"
 	"errors"
 	"fmt"
+	"net/http"
 )
 
 type Code string
 
 const (
+	// Success
+	OK      Code = "OK"
+	Created Code = "CREATED"
+	Updated Code = "UPDATED"
+	Deleted Code = "DELETED"
+
+	// Client / Server errors
 	BadRequest   Code = "BAD_REQUEST"
 	Unauthorized Code = "UNAUTHORIZED"
 	Forbidden    Code = "FORBIDDEN"
@@ -20,6 +27,13 @@ const (
 )
 
 var defaultMsg = map[Code]string{
+	// Success
+	OK:      "ok",
+	Created: "created",
+	Updated: "updated",
+	Deleted: "deleted",
+
+	// Error
 	BadRequest:   "bad request",
 	Unauthorized: "unauthorized",
 	Forbidden:    "forbidden",
@@ -76,33 +90,54 @@ func From(err error) *AppError {
 	if err == nil {
 		return nil
 	}
+
 	var ae *AppError
 	if errors.As(err, &ae) {
 		return ae
 	}
-	
+
 	if errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled) {
 		return &AppError{Code: Timeout, Msg: defaultMsg[Timeout], Cause: err}
 	}
-	
+
 	return &AppError{Code: Internal, Msg: defaultMsg[Internal], Cause: err}
+}
+
+func Is(err error, code Code) bool {
+	if err == nil {
+		return false
+	}
+	var ae *AppError
+	if errors.As(err, &ae) {
+		return ae.Code == code
+	}
+	return false
 }
 
 func HTTPStatus(code Code) int {
 	switch code {
+	// Success
+	case OK, Updated:
+		return http.StatusOK
+	case Created:
+		return http.StatusCreated
+	case Deleted:
+		return http.StatusOK
+
+	// Client/Server errors
 	case BadRequest:
-		return 400
+		return http.StatusBadRequest
 	case Unauthorized:
-		return 401
+		return http.StatusUnauthorized
 	case Forbidden:
-		return 403
+		return http.StatusForbidden
 	case NotFound:
-		return 404
+		return http.StatusNotFound
 	case Conflict:
-		return 409
+		return http.StatusConflict
 	case Timeout:
-		return 504 
+		return http.StatusGatewayTimeout
 	default:
-		return 500
+		return http.StatusInternalServerError
 	}
 }

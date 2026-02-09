@@ -1,20 +1,20 @@
 // src/components/ProtectedRoute/ProtectedRoute.tsx
-import { Navigate } from "react-router-dom"
-import { useAuth } from "../../auth/AuthContext"
-import type { JSX } from "react"
+import { Navigate } from "react-router-dom";
+import { useAuth } from "../../auth/AuthContext";
+import type { JSX } from "react";
 
 export default function ProtectedRoute({ children }: { children: JSX.Element }) {
-  const { user, token, isExpired, ready } = useAuth()
+  const { ready, user } = useAuth();
 
-  // ⏳ ยังโหลดไม่เสร็จ อย่าเพิ่ง redirect
   if (!ready) {
-    return null // หรือใส่ Skeleton/Spinner ก็ได้
+    // จะใส่ spinner ก็ได้
+    return null;
   }
 
-  const authed = !!(user && token) && !isExpired
-  if (!authed) {
-    return <Navigate to="/" replace />
+  if (!user) {
+    // ยังไม่ได้ login → เด้งไปหน้า LandingPage (สมมติ path = /)
+    return <Navigate to="/" replace />;
   }
 
-  return children
+  return children;
 }

@@ -1,176 +1,227 @@
-// // src/hooks/useCrudApi.ts
-// export function useHttpClient(baseUrl: string) {
-//   async function fetchData(path: string, options: RequestInit = {}) {
-//     try {
-//       const url = new URL(path, baseUrl)
-//       const response = await fetch(url, options)
-//       if (!response.ok) {
-//         throw new Error(`HTTP error! Status: ${response.status}`)
-//       }
-//       const contentType = response.headers.get("content-type")
-//       if (contentType && contentType.includes("application/json")) {
-//         return await response.json()
-//       }
-//       return response.text()
-//     } catch (error) {
-//       console.error("Fetch error:", error)
-//       throw error
-//     }
-//   }
+// src/api/fetch.ts
+import { API_BASE } from "../config"
+import {
+  getAccessToken,
+  getUserIdentity,
+  type UserIdentity,
+} from "../auth/tokenStore"
 
-//   const getItems = async (url: string) => {
-//     return fetchData(url, {
-//       method: "GET",
-//       headers: {
-//         "Content-Type": "application/json",
-//       },
-//     })
-//   }
+import axios, {
+  type AxiosInstance,
+  type InternalAxiosRequestConfig,
+} from "axios"
 
-//   const postItem = async (url: string, item: {}) => {
-//     return fetchData(url, {
-//       method: "POST",
-//       headers: {
-//         "Content-Type": "application/json",
-//       },
-//       body: JSON.stringify(item),
-//     })
-//   }
- 
-//   return {
-//     getItems,
-//     postItem,
-//   }
-// }
-
-// export function useCrudApi() {
-//   const baseUrl =
-//     (import.meta as any)?.env?.VITE_BASE_URL ||
-//     process.env.NEXT_PUBLIC_BASE_URL ||
-//     ""
-//   return useHttpClient(baseUrl)
-// }
-
-
-// src/hooks/useCrudApi.ts
-type AuthMode = "auto" | "required" | "none";
+type AuthMode = "auto" | "required" | "none"
 
 type ExtraOptions = {
-  auth?: AuthMode;
-  headers?: HeadersInit;
-  // headers?: Record<string, string>;
-  // ระบุว่าจะส่ง cookie ไปด้วยไหม (ถ้าหลังบ้านใช้ httpOnly cookie)
-  credentials?: RequestCredentials;
-};
+  auth?: AuthMode
+  headers?: HeadersInit
+  credentials?: RequestCredentials
+}
 
-function getToken() {
-  try {
-    const saved = localStorage.getItem("auth");
-    if (!saved) return null;
-    const parsed = JSON.parse(saved);
-    return parsed?.token ?? null;
-  } catch {
-    return null;
+function isFormData(body: unknown): body is FormData {
+  return typeof FormData !== "undefined" && body instanceof FormData
+}
+
+function joinUrl(base: string, path: string): string {
+  const b = base.replace(/\/+$/, "") // ตัด / ท้าย base
+  const p = path.replace(/^\/+/, "") // ตัด / หน้า path
+  return `${b}/${p}` // ต่อให้เหลือ / เดียว
+}
+
+// ⭐ helper: แนบ uid / email / name ลงใน Headers ของ fetch
+function attachUserHeadersFetch(h: Headers, identity: UserIdentity | null) {
+  if (!identity) return
+  const { uid, email, name } = identity
+
+  if (uid && !h.has("uid")) {
+    h.set("uid", uid)
+  }
+  if (email && !h.has("email")) {
+    h.set("email", email)
+  }
+  if (name && !h.has("name")) {
+    h.set("name", name)
   }
 }
 
+// ⭐ helper: แนบ X-Dev-User header สำหรับ dev mode
+function getDevModeHeader(): string {
+  return localStorage.getItem("kmall_dev_mode") || "seller"
+}
+
+// ==============================
+// 1) HTTP Client (fetch-based)
+// ==============================
 export function useHttpClient(baseUrl: string) {
   async function fetchData(
     path: string,
     options: RequestInit & ExtraOptions = {}
   ) {
-    const {
-      auth = "auto",
-      headers = {},
-      credentials, // optional
-      ...rest
-    } = options;
+    const { auth = "auto", headers = {}, credentials, ...rest } = options
 
-    const url = new URL(path, baseUrl);
-    const token = getToken();
+    const url = joinUrl(baseUrl, path)
+    const h = new Headers(headers)
 
-     // ✅ Normalize headers ให้เป็น Headers เสมอ
-    const h = new Headers(headers);
-
-    // ใส่ Content-Type อัตโนมัติถ้ามี body และยังไม่ได้ใส่
-    if (rest.body && !h.has("Content-Type")) {
-      h.set("Content-Type", "application/json");
-    }
+    // ⭐ แนบ Bearer token ถ้าไม่ใช่ auth="none"
     if (auth !== "none") {
-      if (token) {
-        h.set("Authorization", `Bearer ${token}`);
-      } else if (auth === "required") {
-        // ไม่มี token แต่ต้องการ -> ให้โยน Unauthorized เพื่อให้ UI เด้ง Login
-        const err = new Error("Unauthorized");
-        // @ts-expect-error แนบ code เพื่อให้ส่วนอื่นเช็คได้
-        err.code = 401;
-        throw err;
+      const token = getAccessToken()
+      if (token && !h.has("Authorization")) {
+        h.set("Authorization", `Bearer ${token}`)
       }
     }
 
-    const response = await fetch(url, {
+    // ⭐ แนบ uid / email / name จาก MSAL
+    const identity = getUserIdentity()
+    attachUserHeadersFetch(h, identity)
+
+    // ⭐ แนบ X-Dev-User header สำหรับ dev mode
+    if (!h.has("X-Dev-User")) {
+      h.set("X-Dev-User", getDevModeHeader())
+    }
+
+    // ตั้ง Content-Type ให้อัตโนมัติถ้าเป็น JSON
+    if (rest.body && !h.has("Content-Type") && !isFormData(rest.body)) {
+      h.set("Content-Type", "application/json")
+    }
+
+    // ใช้ same-origin พอ เพราะเรา auth ด้วย Bearer token แล้ว
+    const finalCredentials: RequestCredentials | undefined =
+      credentials ?? "same-origin"
+
+    const res = await fetch(url, {
       ...rest,
       headers: h,
-      // เปิดให้กำหนดได้กรณีใช้ cookie-based session
-      ...(credentials ? { credentials } : {}),
-    });
+      credentials: finalCredentials,
+    })
 
-    if (response.status === 401) {
-      const err = new Error("Unauthorized");
+    if (res.status === 401 && auth === "required") {
+      const err = new Error("Unauthorized")
       // @ts-expect-error
-      err.code = 401;
-      throw err;
-    }
-    if (!response.ok) {
-      throw new Error(`HTTP error! Status: ${response.status}`);
+      err.code = 401
+      throw err
     }
 
-    const contentType = response.headers.get("content-type");
-    if (contentType && contentType.includes("application/json")) {
-      return await response.json();
+    if (!res.ok) {
+      let errorData: any
+      try {
+        const ct = res.headers.get("content-type")
+        if (ct && ct.includes("application/json")) {
+          errorData = await res.json()
+        } else {
+          errorData = await res.text()
+        }
+      } catch (e) {
+        errorData = null
+      }
+
+      const error = new Error(
+        (errorData && errorData.message) || `HTTP error! Status: ${res.status}`
+      )
+      ;(error as any).response = {
+        status: res.status,
+        data: errorData,
+      }
+      throw error
     }
-    return response.text();
+
+    const ct = res.headers.get("content-type")
+    if (ct && ct.includes("application/json")) return res.json()
+    return res.text()
   }
 
-  const getItems = async (url: string, opt: ExtraOptions = {}) => {
-    return fetchData(url, { method: "GET", ...opt });
-  };
+  const getItems = (url: string, opt: ExtraOptions = {}) =>
+    fetchData(url, { method: "GET", ...opt })
 
-  const postItem = async (
-    url: string,
-    item: unknown,
-    opt: ExtraOptions = {}
-  ) => {
-    return fetchData(url, {
+  const postItem = (url: string, item?: unknown, opt: ExtraOptions = {}) =>
+    fetchData(url, {
       method: "POST",
-      body: JSON.stringify(item ?? {}),
+      body: isFormData(item) ? (item as any) : JSON.stringify(item ?? {}),
       ...opt,
-    });
-  };
+    })
 
-  const putItem = async (
-    url: string,
-    item: unknown,
-    opt: ExtraOptions = {}
-  ) => {
-    return fetchData(url, {
+  const putItem = (url: string, item: unknown, opt: ExtraOptions = {}) =>
+    fetchData(url, {
       method: "PUT",
-      body: JSON.stringify(item ?? {}),
+      body: isFormData(item) ? (item as any) : JSON.stringify(item ?? {}),
       ...opt,
-    });
-  };
+    })
 
-  const deleteItem = async (url: string, opt: ExtraOptions = {}) => {
-    return fetchData(url, { method: "DELETE", ...opt });
-  };
+  const deleteItem = (url: string, opt: ExtraOptions = {}) =>
+    fetchData(url, { method: "DELETE", ...opt })
 
-  return { getItems, postItem, putItem, deleteItem };
+  return { getItems, postItem, putItem, deleteItem }
 }
 
 export function useCrudApi() {
-  const baseUrl =
-    (import.meta as any)?.env?.VITE_BASE_URL ||
-    process.env.NEXT_PUBLIC_BASE_URL ||
-    "";
-  return useHttpClient(baseUrl);
+  let baseUrl = import.meta.env.VITE_API_BASE || API_BASE
+  baseUrl = baseUrl.replace(/\/+$/, "")
+  return useHttpClient(baseUrl)
+}
+
+// ==============================
+// 2) Axios Client (ใหม่)
+// ==============================
+
+let axiosInstance: AxiosInstance | null = null
+
+// ⭐ helper: สร้าง axios instance พร้อมแนบ token + user header อัตโนมัติ
+function createAxiosInstance(baseUrl: string): AxiosInstance {
+  const instance = axios.create({
+    baseURL: baseUrl.replace(/\/+$/, ""),
+    withCredentials: true,
+  })
+
+  // Request interceptor: แนบ Authorization + uid/email/name
+  instance.interceptors.request.use((config: InternalAxiosRequestConfig) => {
+    const token = getAccessToken()
+
+    // ให้แน่ใจว่ามี headers ก่อน
+    if (!config.headers) {
+      config.headers = {} as any
+    }
+
+    const headers = config.headers as any
+
+    // ⭐ Authorization
+    if (token && !headers["Authorization"]) {
+      headers["Authorization"] = `Bearer ${token}`
+    }
+
+    // ⭐ uid / email / name
+    const identity = getUserIdentity()
+    if (identity) {
+      const { uid, email, name } = identity
+      if (uid && !headers["uid"]) {
+        headers["uid"] = uid
+      }
+      if (email && !headers["email"]) {
+        headers["email"] = email
+      }
+      if (name && !headers["name"]) {
+        headers["name"] = name
+      }
+    }
+
+    // ⭐ X-Dev-User header สำหรับ dev mode
+    if (!headers["X-Dev-User"]) {
+      headers["X-Dev-User"] = localStorage.getItem("kmall_dev_mode") || "seller"
+    }
+
+    return config
+  })
+
+  return instance
+}
+
+// ใช้ตัวนี้เวลาอยากเรียก axios แทน fetch client
+export function useAxiosApi(): AxiosInstance {
+  let baseUrl = import.meta.env.VITE_API_BASE || API_BASE
+  baseUrl = baseUrl.replace(/\/+$/, "")
+
+  if (!axiosInstance) {
+    axiosInstance = createAxiosInstance(baseUrl)
+  }
+
+  return axiosInstance
 }

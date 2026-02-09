@@ -1,30 +1,34 @@
-import { BrowserRouter, Routes, Route } from "react-router-dom"
+import { BrowserRouter } from "react-router-dom"
 import { AuthProvider } from "./auth/AuthContext"
 import { ThemeProvider } from "./theme/ThemeContext"
-import ProtectedRoute from "./components/ProtectedRoute/ProtectedRoute"
-import Login from "./modules/Login/Login"
-import LandingPage from "./modules/LandingPage/LandingPage"
-import Dashboard from "./modules/DashBoard/Dashboard"
+import { ToastContainer } from "react-toastify"
+import "react-toastify/dist/ReactToastify.css"
 import "./i18n"
 import "./App.css"
+import AppRoutes from "./routes"
+import DevModeSwitcher from "./components/DevModeSwitcher/DevModeSwitcher"
 
 export default function App() {
   return (
-    <BrowserRouter>
+    <BrowserRouter basename={import.meta.env.BASE_URL}>
       <AuthProvider>
         <ThemeProvider>
-          <Routes>
-            <Route path="/" element={<LandingPage />} />
-            <Route path="/login" element={<Login />} />
-            <Route
-              path="/dashboard"
-              element={
-                <ProtectedRoute>
-                  <Dashboard />
-                </ProtectedRoute>
-              }
-            />
-          </Routes>
+          <AppRoutes />
+          {/* Dev Mode Switcher - แสดงเฉพาะ dev environment */}
+          {/* {import.meta.env.DEV && <DevModeSwitcher />} */}
+          <DevModeSwitcher />
+          <ToastContainer
+            position="top-right"
+            autoClose={3000}
+            hideProgressBar={false}
+            newestOnTop
+            closeOnClick
+            pauseOnFocusLoss
+            draggable
+            pauseOnHover
+            theme="light"
+            style={{ zIndex: 99999 }}
+          />
         </ThemeProvider>
       </AuthProvider>
     </BrowserRouter>
