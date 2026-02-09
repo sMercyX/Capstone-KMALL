@@ -234,14 +234,12 @@ export default function FilterSidebar({
                 </div>
                 <span className="text-sm text-orange-600 font-medium">Campus Pickup</span>
               </div>
-              <span className="text-sm text-gray-400">11</span>
             </label>
             <label className="flex cursor-pointer items-center justify-between py-2 group">
               <div className="flex items-center gap-3">
                 <div className="h-6 w-6 rounded-lg border-2 border-gray-300 group-hover:border-gray-400"></div>
                 <span className="text-sm text-gray-600">Round University Delivery</span>
               </div>
-              <span className="text-sm text-gray-400">23</span>
             </label>
           </div>
         )}

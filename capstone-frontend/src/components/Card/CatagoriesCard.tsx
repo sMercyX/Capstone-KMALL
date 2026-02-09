@@ -14,9 +14,9 @@ const CATEGORY_ICON_MAP: Record<string, React.ElementType> = {
 
 // map name อังกฤษ -> ไทย (จะใช้/ไม่ใช้ก็ได้)
 const CATEGORY_NAME_MAP: Record<string, string> = {
-  Food: "อาหาร",
-  Clothing: "เสื้อผ้า",
-  "Handmade Products": "สินค้าทำมือ",
+  Food: "Food",
+  Clothing: "Clothing",
+  "Handmade Products": "Handmade Products",
 }
 
 function SingleCategoryCard({ item }: { item: CatagoriesResponse }) {
