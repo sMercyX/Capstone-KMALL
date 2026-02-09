@@ -192,10 +192,20 @@ export default function FilterSidebar({
                 type="number" 
                 value={priceRange[0]}
                 onChange={(e) => {
-                  const val = Number(e.target.value)
-                  if (val >= 0 && val <= priceRange[1]) {
-                    setPriceRange([val, priceRange[1]])
-                  }
+                  const val = e.target.value === "" ? 0 : Number(e.target.value)
+                   setPriceRange([val, priceRange[1]])
+                }}
+                onBlur={() => {
+                   let val = priceRange[0]
+                   if (val < 0) val = 0
+                   if (val > priceRange[1]) val = priceRange[1]
+                   setPriceRange([val, priceRange[1]])
+                   if (onChangePriceRange) onChangePriceRange(val, priceRange[1])
+                }}
+                onKeyDown={(e) => {
+                   if (e.key === 'Enter') {
+                       e.currentTarget.blur()
+                   }
                 }}
                 className="w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-center font-medium focus:border-orange-500 focus:outline-none"
               />
@@ -203,10 +213,20 @@ export default function FilterSidebar({
                 type="number" 
                 value={priceRange[1]}
                 onChange={(e) => {
-                  const val = Number(e.target.value)
-                  if (val >= priceRange[0] && val <= maxPriceLimit) {
-                    setPriceRange([priceRange[0], val])
-                  }
+                  const val = e.target.value === "" ? 0 : Number(e.target.value)
+                  setPriceRange([priceRange[0], val])
+                }}
+                onBlur={() => {
+                   let val = priceRange[1]
+                   if (val > maxPriceLimit) val = maxPriceLimit
+                   if (val < priceRange[0]) val = priceRange[0]
+                   setPriceRange([priceRange[0], val])
+                   if (onChangePriceRange) onChangePriceRange(priceRange[0], val)
+                }}
+                onKeyDown={(e) => {
+                   if (e.key === 'Enter') {
+                       e.currentTarget.blur()
+                   }
                 }}
                 className="w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-center font-medium focus:border-orange-500 focus:outline-none"
               />
