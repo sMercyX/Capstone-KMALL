@@ -99,12 +99,22 @@ export default function StoreOrderDetailPage() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [actionLoading, setActionLoading] = useState<
-    "accept" | "reject" | null
+    "accept" | "reject" | "chat" | null
   >(null)
 
   const [isRejectModalOpen, setIsRejectModalOpen] = useState(false)
   const [isAcceptModalOpen, setIsAcceptModalOpen] = useState(false)
   const [cancelReason, setCancelReason] = useState("")
+
+  // Handle chat button click
+  const handleChatClick = () => {
+    if (!orderId) return
+    const isSeller = window.location.pathname.includes('/store/orders/')
+    const chatPath = isSeller 
+      ? `/store/orders/${orderId}/chat` 
+      : `/orders/${orderId}/chat`
+    navigate(chatPath)
+  }
 
 
 
@@ -599,7 +609,10 @@ export default function StoreOrderDetailPage() {
               </span>
             </Link>
           </div>
-          <button className="text-sm font-semibold text-gray-700 hover:text-black">
+          <button 
+            onClick={handleChatClick}
+            className="text-sm font-semibold text-gray-700 hover:text-black hover:underline cursor-pointer"
+          >
             Chat
           </button>
         </div>

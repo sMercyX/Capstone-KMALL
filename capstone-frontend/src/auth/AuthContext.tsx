@@ -51,7 +51,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           // Mock user data ตาม dev mode
           const mockUsers: Record<string, User> = {
             buyer: {
-              id: "dev-buyer-1",
+              id: "00000000-0000-0000-0000-000000000003",
               msid: "dev-buyer-1",
               email: "buyer1@example.com",
               name: "Dev Buyer 1",
@@ -61,7 +61,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
               lastLogin: new Date().toISOString(),
             },
             seller: {
-              id: "dev-seller-1",
+              id: "00000000-0000-0000-0000-000000000002",
               msid: "dev-seller-1",
               email: "seller1@example.com",
               name: "Dev Seller 1",

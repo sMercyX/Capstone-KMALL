@@ -18,7 +18,7 @@ interface FilterSidebarProps {
 // Section Card wrapper
 function SectionCard({ children, className = "" }: { children: React.ReactNode; className?: string }) {
   return (
-    <div className={`rounded-2xl border border-gray-100 bg-white p-5 shadow-sm ${className}`}>
+    <div className={`rounded-[4px] border border-gray-100 bg-white p-5 shadow-sm ${className}`}>
       {children}
     </div>
   )
@@ -46,7 +46,7 @@ export default function FilterSidebar({
   // Collapsible sections state
   const [isCategoryOpen, setIsCategoryOpen] = useState(true)
   const [isPriceOpen, setIsPriceOpen] = useState(true)
-  const [isDeliveryOpen, setIsDeliveryOpen] = useState(true)
+  // const [isDeliveryOpen, setIsDeliveryOpen] = useState(true)
 
   const handleCategoryToggle = (idStr: string) => {
     const id = Number(idStr)
@@ -79,16 +79,16 @@ export default function FilterSidebar({
 
   return (
     <div className="space-y-4">
-      {/* Header & Clear Button */}
-      <SectionCard>
-        <h2 className="text-lg font-bold text-gray-900 mb-4">ตัวกรองสินค้า</h2>
+      {/* Header & Clear Button (no card wrapper) */}
+      <div>
+        <h2 className="text-lg font-bold text-gray-900 pb-4 border-b border-gray-200">ตัวกรองสินค้า</h2>
         <button 
           onClick={handleClearAll}
-          className="w-full rounded-lg bg-gray-900 py-3 text-sm font-medium text-white hover:bg-gray-800 transition"
+          className="w-full rounded-[4px] bg-gray-900 py-4 text-base font-medium text-white hover:bg-gray-800 transition mt-6"
         >
           ลบการกรองสินค้าทั้งหมด
         </button>
-      </SectionCard>
+      </div>
 
       {/* Categories Section */}
       <SectionCard>
@@ -102,9 +102,6 @@ export default function FilterSidebar({
         
         {isCategoryOpen && (
           <div className="mt-4 space-y-1">
-            {/* Category Label */}
-            {/* <p className="text-sm font-semibold text-gray-800 mb-3">อาหาร</p> */}
-            
             {filterOptions.map((opt) => {
               const isSelected = selectedCategories.includes(Number(opt.value))
               return (
@@ -152,8 +149,8 @@ export default function FilterSidebar({
 
         {isPriceOpen && (
           <div className="mt-6 space-y-4">
-            {/* Min/Max labels above slider */}
-            <div className="flex items-center justify-center gap-3 mb-2">
+            {/* Min/Max labels at edges of slider */}
+            <div className="flex items-center justify-between mb-2">
               <span className="rounded-lg bg-gray-800 px-3 py-1.5 text-sm font-semibold text-white min-w-[50px] text-center">
                 {priceRange[0]}
               </span>
@@ -192,10 +189,20 @@ export default function FilterSidebar({
                 type="number" 
                 value={priceRange[0]}
                 onChange={(e) => {
-                  const val = Number(e.target.value)
-                  if (val >= 0 && val <= priceRange[1]) {
-                    setPriceRange([val, priceRange[1]])
-                  }
+                  const val = e.target.value === "" ? 0 : Number(e.target.value)
+                   setPriceRange([val, priceRange[1]])
+                }}
+                onBlur={() => {
+                   let val = priceRange[0]
+                   if (val < 0) val = 0
+                   if (val > priceRange[1]) val = priceRange[1]
+                   setPriceRange([val, priceRange[1]])
+                   if (onChangePriceRange) onChangePriceRange(val, priceRange[1])
+                }}
+                onKeyDown={(e) => {
+                   if (e.key === 'Enter') {
+                       e.currentTarget.blur()
+                   }
                 }}
                 className="w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-center font-medium focus:border-orange-500 focus:outline-none"
               />
@@ -203,10 +210,20 @@ export default function FilterSidebar({
                 type="number" 
                 value={priceRange[1]}
                 onChange={(e) => {
-                  const val = Number(e.target.value)
-                  if (val >= priceRange[0] && val <= maxPriceLimit) {
-                    setPriceRange([priceRange[0], val])
-                  }
+                  const val = e.target.value === "" ? 0 : Number(e.target.value)
+                  setPriceRange([priceRange[0], val])
+                }}
+                onBlur={() => {
+                   let val = priceRange[1]
+                   if (val > maxPriceLimit) val = maxPriceLimit
+                   if (val < priceRange[0]) val = priceRange[0]
+                   setPriceRange([priceRange[0], val])
+                   if (onChangePriceRange) onChangePriceRange(priceRange[0], val)
+                }}
+                onKeyDown={(e) => {
+                   if (e.key === 'Enter') {
+                       e.currentTarget.blur()
+                   }
                 }}
                 className="w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-center font-medium focus:border-orange-500 focus:outline-none"
               />
@@ -216,7 +233,7 @@ export default function FilterSidebar({
       </SectionCard>
 
       {/* Delivery Options Section */}
-      <SectionCard>
+      {/* <SectionCard>
         <button 
           onClick={() => setIsDeliveryOpen(!isDeliveryOpen)}
           className="flex w-full items-center justify-between text-left"
@@ -245,7 +262,7 @@ export default function FilterSidebar({
             </label>
           </div>
         )}
-      </SectionCard>
+      </SectionCard> */}
 
     </div>
   )
