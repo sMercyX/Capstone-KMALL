@@ -42,7 +42,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
         // ⭐ DEV MODE: bypass MSAL และใช้ mock user แทน
         // const isDevMode = import.meta.env.DEV
-        const isDevMode = true
+        const isDevMode = false
         const devMode = localStorage.getItem("kmall_dev_mode") || "seller"
 
         if (isDevMode) {
