@@ -6,7 +6,7 @@ import "react-toastify/dist/ReactToastify.css"
 import "./i18n"
 import "./App.css"
 import AppRoutes from "./routes"
-import DevModeSwitcher from "./components/DevModeSwitcher/DevModeSwitcher"
+// import DevModeSwitcher from "./components/DevModeSwitcher/DevModeSwitcher"
 
 export default function App() {
   return (
@@ -16,7 +16,7 @@ export default function App() {
           <AppRoutes />
           {/* Dev Mode Switcher - แสดงเฉพาะ dev environment */}
           {/* {import.meta.env.DEV && <DevModeSwitcher />} */}
-          <DevModeSwitcher />
+          {/* <DevModeSwitcher /> */}
           <ToastContainer
             position="top-right"
             autoClose={3000}
