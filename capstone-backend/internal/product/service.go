@@ -214,20 +214,6 @@ func normalizeFulfillment(s string) string {
 	}
 }
 
-func buildEmbeddingText(name string, desc *string, price float64, categoryName string) string {
-	d := ""
-	if desc != nil {
-		d = strings.TrimSpace(*desc)
-	}
-	return fmt.Sprintf(
-		"Name: %s\nCategory: %s\nDescription: %s\nPrice: %.2f THB",
-		strings.TrimSpace(name),
-		strings.TrimSpace(categoryName),
-		d,
-		price,
-	)
-}
-
 func readFloatEnv(key string, def float64) float64 {
 	v := strings.TrimSpace(os.Getenv(key))
 	if v == "" {
@@ -245,19 +231,31 @@ func loadEmbWeights() EmbWeights {
 		Name:     readFloatEnv("REC_W_NAME", 0.45),
 		Desc:     readFloatEnv("REC_W_DESC", 0.35),
 		Category: readFloatEnv("REC_W_CATEGORY", 0.15),
-		Price:    readFloatEnv("REC_W_PRICE", 0.05),
 	}
 
 	// normalize ให้รวม = 1 (กันพลาด)
-	sum := w.Name + w.Desc + w.Category + w.Price
+	sum := w.Name + w.Desc + w.Category
 	if sum <= 0 {
-		return EmbWeights{Name: 1, Desc: 0, Category: 0, Price: 0}
+		return EmbWeights{Name: 1, Desc: 0, Category: 0}
 	}
 	w.Name /= sum
 	w.Desc /= sum
 	w.Category /= sum
-	w.Price /= sum
 	return w
+}
+
+func buildNameText(name string) string {
+	return fmt.Sprintf("Name: %s", strings.TrimSpace(name))
+}
+func buildDescText(desc *string) string {
+	d := ""
+	if desc != nil {
+		d = strings.TrimSpace(*desc)
+	}
+	return fmt.Sprintf("Description: %s", d)
+}
+func buildCategoryText(categoryName string) string {
+	return fmt.Sprintf("Category: %s", strings.TrimSpace(categoryName))
 }
 
 func (s *service) Create(ctx context.Context, in CreateInput) (Product, error) {
@@ -265,21 +263,32 @@ func (s *service) Create(ctx context.Context, in CreateInput) (Product, error) {
 		return Product{}, err
 	}
 
-	var vec []float64 = nil
+	var vName, vDesc, vCat []float64
+
 	if s.emb != nil {
 		catName, err := s.repo.GetCategoryName(ctx, in.CategoryID)
 		if err != nil {
 			return Product{}, err
 		}
 
-		text := buildEmbeddingText(in.Name, in.Description, in.Price, catName)
-		v, err := s.emb.Embed(ctx, text)
+		// embed แยก field
+		rawName, err := s.emb.Embed(ctx, buildNameText(in.Name))
 		if err != nil {
-			return Product{}, apperr.Wrap(apperr.Internal, err, "embed product failed")
+			return Product{}, apperr.Wrap(apperr.Internal, err, "embed name failed")
 		}
-		if len(v) > 0 {
-			vec = v
+		rawDesc, err := s.emb.Embed(ctx, buildDescText(in.Description))
+		if err != nil {
+			return Product{}, apperr.Wrap(apperr.Internal, err, "embed desc failed")
 		}
+		rawCat, err := s.emb.Embed(ctx, buildCategoryText(catName))
+		if err != nil {
+			return Product{}, apperr.Wrap(apperr.Internal, err, "embed category failed")
+		}
+
+		// apply weight (จาก env ที่คุณโหลดไว้ใน s.w)
+		vName = rawName
+		vDesc = rawDesc
+		vCat = rawCat
 	}
 
 	params := CreateParams{
@@ -290,7 +299,10 @@ func (s *service) Create(ctx context.Context, in CreateInput) (Product, error) {
 		IsActive:    in.IsActive,
 		StoreID:     in.StoreID,
 		CategoryID:  in.CategoryID,
-		Embedding:   vec,
+
+		EmbName:     vName,
+		EmbDesc:     vDesc,
+		EmbCategory: vCat,
 	}
 
 	return s.repo.Create(ctx, params)
@@ -345,11 +357,6 @@ func (s *service) Update(ctx context.Context, id int64, in UpdateInput) (Product
 		newDesc = in.Description
 	}
 
-	newPrice := old.Price
-	if in.Price != nil {
-		newPrice = *in.Price
-	}
-
 	newCatID := old.CategoryID
 	if in.CategoryID != nil {
 		newCatID = *in.CategoryID
@@ -372,29 +379,38 @@ func (s *service) Update(ctx context.Context, id int64, in UpdateInput) (Product
 		}
 	}
 
-	if in.Price != nil && old.Price != *in.Price {
-		needEmbed = true
-	}
-
 	if in.CategoryID != nil && *in.CategoryID != old.CategoryID {
 		needEmbed = true
 	}
 
-	var vecPtr *[]float64 = nil
+	var embNamePtr, embDescPtr, embCatPtr *[]float64 = nil, nil, nil
+
 	if needEmbed && s.emb != nil {
 		catName, err := s.repo.GetCategoryName(ctx, newCatID)
 		if err != nil {
 			return Product{}, err
 		}
 
-		text := buildEmbeddingText(newName, newDesc, newPrice, catName)
-		v, err := s.emb.Embed(ctx, text)
+		rawName, err := s.emb.Embed(ctx, buildNameText(newName))
 		if err != nil {
-			return Product{}, apperr.Wrap(apperr.Internal, err, "embed product failed")
+			return Product{}, apperr.Wrap(apperr.Internal, err, "embed name failed")
 		}
-		if len(v) > 0 {
-			vecPtr = &v
+		rawDesc, err := s.emb.Embed(ctx, buildDescText(newDesc))
+		if err != nil {
+			return Product{}, apperr.Wrap(apperr.Internal, err, "embed desc failed")
 		}
+		rawCat, err := s.emb.Embed(ctx, buildCategoryText(catName))
+		if err != nil {
+			return Product{}, apperr.Wrap(apperr.Internal, err, "embed category failed")
+		}
+
+		vName := rawName
+		vDesc := rawDesc
+		vCat := rawCat
+
+		embNamePtr = &vName
+		embDescPtr = &vDesc
+		embCatPtr = &vCat
 	}
 
 	params := UpdateParams{
@@ -404,7 +420,10 @@ func (s *service) Update(ctx context.Context, id int64, in UpdateInput) (Product
 		ImageURL:    in.ImageURL,
 		IsActive:    in.IsActive,
 		CategoryID:  in.CategoryID,
-		Embedding:   vecPtr,
+
+		EmbName:     embNamePtr,
+		EmbDesc:     embDescPtr,
+		EmbCategory: embCatPtr,
 	}
 
 	return s.repo.Update(ctx, id, params)
@@ -437,13 +456,12 @@ func (s *service) ListPublic(
 	}
 
 	q = strings.TrimSpace(q)
+	rawSort := strings.TrimSpace(sortBy)
 	sortBy = normalizeSortBy(sortBy)
-	fulfillment = normalizeFulfillment(fulfillment)
-
-	// ถ้าส่ง sort_by แปลก ๆ มา
-	if sortBy == "" && strings.TrimSpace(strings.ToLower(sortBy)) != "" {
+	if sortBy == "" && rawSort != "" {
 		return nil, 0, 0, apperr.New(apperr.BadRequest, "invalid sort_by (use latest, sold, price_asc, price_desc)")
 	}
+	fulfillment = normalizeFulfillment(fulfillment)
 
 	// ===== normalize price range =====
 	// goal: UI slider length should start at 0 always
@@ -468,10 +486,12 @@ func (s *service) ListPublic(
 
 	// if both provided and min > max -> swap (friendly)
 	if minPrice != nil && maxPrice != nil && *minPrice > *maxPrice {
-		*minPrice, *maxPrice = *maxPrice, *minPrice
-		if *minPrice < 0 {
-			*minPrice = 0
+		a, b := *maxPrice, *minPrice
+		if a < 0 {
+			a = 0
 		}
+		minPrice = &a
+		maxPrice = &b
 	}
 
 	return s.repo.ListPublic(

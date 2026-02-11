@@ -14,19 +14,20 @@ OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "nomic-embed-text")
 BATCH_SIZE = int(os.getenv("BATCH_SIZE", "50"))
 SLEEP_SEC = float(os.getenv("SLEEP_SEC", "0.0"))
 
+EMBED_DIM = int(os.getenv("EMBED_DIM", "768"))
+
 
 def parse_args():
     ap = argparse.ArgumentParser(description="Backfill split embeddings for products (with weights)")
     ap.add_argument("--w-name", type=float, default=1.0)
     ap.add_argument("--w-desc", type=float, default=1.0)
     ap.add_argument("--w-category", type=float, default=1.0)
-    ap.add_argument("--w-price", type=float, default=1.0)
     ap.add_argument("--batch-size", type=int, default=BATCH_SIZE)
     ap.add_argument("--sleep-sec", type=float, default=SLEEP_SEC)
     return ap.parse_args()
 
 
-def ensure_embed_dim(vec: list, dim: int = 768) -> list:
+def ensure_embed_dim(vec: list, dim: int = EMBED_DIM) -> list:
     if not isinstance(vec, list):
         raise RuntimeError("embedding is not a list")
     if len(vec) == dim:
@@ -44,7 +45,7 @@ def embed_text(text: str) -> list[float]:
     vec = data.get("embedding")
     if not isinstance(vec, list) or len(vec) == 0:
         raise RuntimeError(f"Invalid embedding response: {json.dumps(data)[:300]}")
-    return ensure_embed_dim(vec, 768)
+    return ensure_embed_dim(vec, EMBED_DIM)
 
 
 def apply_weight(vec: list[float], w: float) -> list[float]:
@@ -56,7 +57,7 @@ def vec_to_pgvector_literal(vec: list[float]) -> str:
     return "[" + ",".join(f"{float(x):.8f}" for x in vec) + "]"
 
 
-def update_split_embeddings(cur, product_id: int, emb_name: str, emb_desc: str, emb_cat: str, emb_price: str):
+def update_split_embeddings(cur, product_id: int, emb_name: str, emb_desc: str, emb_cat: str):
     cur.execute(
         """
         UPDATE products
@@ -64,19 +65,23 @@ def update_split_embeddings(cur, product_id: int, emb_name: str, emb_desc: str, 
           embedding_name=%s::vector,
           embedding_desc=%s::vector,
           embedding_category=%s::vector,
-          embedding_price=%s::vector,
           updated_at=NOW()
         WHERE product_id=%s;
         """,
-        (emb_name, emb_desc, emb_cat, emb_price, product_id),
+        (emb_name, emb_desc, emb_cat, product_id),
     )
 
+def normalize_weights(w_name: float, w_desc: float, w_cat: float):
+    s = float(w_name) + float(w_desc) + float(w_cat)
+    if s <= 0:
+        return 1.0, 0.0, 0.0
+    return w_name/s, w_desc/s, w_cat/s
 
 def main():
     args = parse_args()
     batch_size = args.batch_size
     sleep_sec = args.sleep_sec
-
+    wn, wd, wc = normalize_weights(args.w_name, args.w_desc, args.w_category)
     conn = psycopg2.connect(DATABASE_URL)
     conn.autocommit = False
 
@@ -96,7 +101,6 @@ def main():
                 p.product_id,
                 p.name,
                 COALESCE(p.product_desc,'') AS product_desc,
-                p.price,
                 COALESCE(c.name,'') AS category_name
             FROM products p
             JOIN categories c ON c.category_id = p.category_id
@@ -122,25 +126,21 @@ def main():
                 pname = (r["name"] or "").strip()
                 pdesc = (r["product_desc"] or "").strip()
                 cname = (r["category_name"] or "").strip()
-                price = float(r["price"] or 0.0)
 
                 try:
                     name_text = f"Name: {pname}".strip()
                     desc_text = f"Description: {pdesc}".strip()
                     cat_text = f"Category: {cname}".strip()
-                    price_text = f"Price: {price:.2f} THB".strip()
 
-                    v_name = apply_weight(embed_text(name_text), args.w_name)
-                    v_desc = apply_weight(embed_text(desc_text), args.w_desc)
-                    v_cat = apply_weight(embed_text(cat_text), args.w_category)
-                    v_price = apply_weight(embed_text(price_text), args.w_price)
+                    v_name = apply_weight(embed_text(name_text), wn)
+                    v_desc = apply_weight(embed_text(desc_text), wd)
+                    v_cat  = apply_weight(embed_text(cat_text), wc)
 
                     lit_name = vec_to_pgvector_literal(v_name)
                     lit_desc = vec_to_pgvector_literal(v_desc)
                     lit_cat = vec_to_pgvector_literal(v_cat)
-                    lit_price = vec_to_pgvector_literal(v_price)
 
-                    update_split_embeddings(cur, pid, lit_name, lit_desc, lit_cat, lit_price)
+                    update_split_embeddings(cur, pid, lit_name, lit_desc, lit_cat)
                     updated += 1
 
                 except Exception as e:

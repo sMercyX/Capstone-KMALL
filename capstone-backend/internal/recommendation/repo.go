@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"math"
+	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -59,6 +60,49 @@ func thaiSeasonLabel(t time.Time) string {
 	default:
 		return "Rainy season (Thailand)"
 	}
+}
+
+func seasonTerms(season string) []string {
+	switch season {
+	case "Cool season (Thailand)":
+		return []string{"jacket", "hoodie", "sweater", "hot", "soup", "coffee", "long sleeve"}
+	case "Hot season (Thailand)":
+		return []string{"iced", "cold", "smoothie", "tea", "juice", "refreshing", "tshirt"}
+	case "Rainy season (Thailand)":
+		return []string{"rain", "umbrella", "raincoat", "waterproof", "bag", "cover", "boots"}
+	default:
+		return nil
+	}
+}
+
+func readFloatEnv(key string, def float64) float64 {
+	v := strings.TrimSpace(os.Getenv(key))
+	if v == "" {
+		return def
+	}
+	f, err := strconv.ParseFloat(v, 64)
+	if err != nil || math.IsNaN(f) || math.IsInf(f, 0) || f < 0 {
+		return def
+	}
+	return f
+}
+
+type EmbWeights struct{ Name, Desc, Category float64 }
+
+func loadEmbWeights() EmbWeights {
+	w := EmbWeights{
+		Name:     readFloatEnv("REC_W_NAME", 0.45),
+		Desc:     readFloatEnv("REC_W_DESC", 0.35),
+		Category: readFloatEnv("REC_W_CATEGORY", 0.15),
+	}
+	sum := w.Name + w.Desc + w.Category
+	if sum <= 0 {
+		return EmbWeights{Name: 1}
+	}
+	w.Name /= sum
+	w.Desc /= sum
+	w.Category /= sum
+	return w
 }
 
 func (r *repo) GetLatestOrderEvent(ctx context.Context, userID string, orderID int64, trigger TriggerType) (*Event, error) {
@@ -209,6 +253,7 @@ func (r *repo) BuildOrderCancelledSnapshot(ctx context.Context, userID string, o
 
 	reason := "similar_to_cancelled_order"
 
+	w := loadEmbWeights()
 	rows, err := tx.Query(ctx, `
 WITH
 op AS (
@@ -217,14 +262,31 @@ op AS (
   WHERE o.order_id = $2 AND o.user_id = $1
 ),
 seed AS (
-  SELECT p.embedding
+  SELECT
+    p.embedding_name     AS v_name,
+    p.embedding_desc     AS v_desc,
+    p.embedding_category AS v_cat,
+    p.price,
+    c.parent_id          AS parent_id
   FROM order_items oi
   JOIN products p ON p.product_id = oi.product_id
+  JOIN categories c ON c.category_id = p.category_id
   WHERE oi.order_id = $2
-    AND p.embedding IS NOT NULL
+    AND p.embedding_name IS NOT NULL
+    AND p.embedding_desc IS NOT NULL
+    AND p.embedding_category IS NOT NULL
+),
+seed_parent AS (
+  SELECT DISTINCT parent_id
+  FROM seed
+  WHERE parent_id IS NOT NULL
 ),
 centroid AS (
-  SELECT avg(embedding) AS v
+  SELECT avg(v_name) AS c_name, avg(v_desc) AS c_desc, avg(v_cat) AS c_cat
+  FROM seed
+),
+ref_price AS (
+  SELECT COALESCE(avg(price), 0) AS p0
   FROM seed
 ),
 sold AS (
@@ -236,23 +298,41 @@ sold AS (
 cand AS (
   SELECT
     p.product_id,
-    (p.embedding <=> (SELECT v FROM centroid)) AS dist,
-    COALESCE(sold.sold_count, 0) AS sold_count
+    (
+      $4 * (p.embedding_name <=> (SELECT c_name FROM centroid)) +
+      $5 * (p.embedding_desc <=> (SELECT c_desc FROM centroid)) +
+      $6 * (p.embedding_category <=> (SELECT c_cat FROM centroid))
+    ) AS dist,
+    COALESCE(sold.sold_count, 0) AS sold_count,
+    c.parent_id AS parent_id,
+    p.price,
+    (SELECT p0 FROM ref_price) AS p0
   FROM products p
   JOIN stores s ON s.store_id = p.store_id
   JOIN categories c ON c.category_id = p.category_id
   JOIN op ON TRUE
   LEFT JOIN sold ON sold.product_id = p.product_id
   WHERE p.is_active='YES' AND s.is_active='YES' AND c.is_active='YES'
-    AND p.embedding IS NOT NULL
+    AND p.embedding_name IS NOT NULL
+    AND p.embedding_desc IS NOT NULL
+    AND p.embedding_category IS NOT NULL
     AND p.product_id NOT IN (SELECT product_id FROM order_items WHERE order_id = $2)
     AND p.store_id <> op.store_id
 )
 SELECT product_id, dist
 FROM cand
-ORDER BY (dist + LEAST(0.08, ln(1 + sold_count) * 0.01)) ASC
+ORDER BY
+  (
+    dist
+    - CASE
+        WHEN cand.parent_id IS NOT NULL
+         AND cand.parent_id IN (SELECT parent_id FROM seed_parent)
+        THEN 0.06 ELSE 0
+      END
+    - LEAST(0.05, 0.05 / (1 + cand.sold_count))
+  ) ASC
 LIMIT $3;
-	`, userID, orderID, limit)
+	`, userID, orderID, limit, w.Name, w.Desc, w.Category)
 	if err != nil {
 		return 0, time.Time{}, nil, apperr.Wrap(apperr.Internal, err, "compute candidates failed")
 	}
@@ -515,19 +595,18 @@ func (r *repo) BuildHome(ctx context.Context, userID string, perSection int) (Ho
 // 		rank := len(out) + 1
 // 		sc := 1.0 - (float64(rank-1) / float64(limit))
 
-// 		out = append(out, Item{
-// 			Product: p,
-// 			Score:   &sc,
-// 			RankNo:  rank,
-// 			Reason:  ptrString("latest"),
-// 		})
-// 	}
-// 	if err := rows.Err(); err != nil {
-// 		return nil, apperr.Wrap(apperr.Internal, err, "search items rows failed")
-// 	}
-// 	return out, nil
-// }
-
+//			out = append(out, Item{
+//				Product: p,
+//				Score:   &sc,
+//				RankNo:  rank,
+//				Reason:  ptrString("latest"),
+//			})
+//		}
+//		if err := rows.Err(); err != nil {
+//			return nil, apperr.Wrap(apperr.Internal, err, "search items rows failed")
+//		}
+//		return out, nil
+//	}
 func (r *repo) listFromOrderHistory(ctx context.Context, userID string, limit int) ([]Item, error) {
 	limit = clampLimit(limit, 12, 30)
 
@@ -546,17 +625,34 @@ func (r *repo) listFromOrderHistory(ctx context.Context, userID string, limit in
 		return nil, apperr.Wrap(apperr.Internal, err, "get last completed order failed")
 	}
 
+	w := loadEmbWeights()
+
 	rows, err := r.db.Query(ctx, `
 WITH
 seed AS (
-  SELECT p.embedding
+  SELECT
+    p.embedding_name     AS v_name,
+    p.embedding_desc     AS v_desc,
+    p.embedding_category AS v_cat,
+    c.parent_id          AS parent_id
   FROM order_items oi
   JOIN products p ON p.product_id = oi.product_id
+  JOIN categories c ON c.category_id = p.category_id
   WHERE oi.order_id = $1
-    AND p.embedding IS NOT NULL
+    AND p.embedding_name IS NOT NULL
+    AND p.embedding_desc IS NOT NULL
+    AND p.embedding_category IS NOT NULL
+),
+seed_parent AS (
+  SELECT DISTINCT parent_id
+  FROM seed
+  WHERE parent_id IS NOT NULL
 ),
 centroid AS (
-  SELECT avg(embedding) AS v
+  SELECT
+    avg(v_name)  AS c_name,
+    avg(v_desc)  AS c_desc,
+    avg(v_cat)   AS c_cat
   FROM seed
 ),
 sold AS (
@@ -568,36 +664,52 @@ sold AS (
 cand AS (
   SELECT
     p.product_id,
-    (p.embedding <=> (SELECT v FROM centroid)) AS dist,
-    COALESCE(sold.sold_count, 0) AS sold_count
+    (
+      $3 * (p.embedding_name <=> (SELECT c_name FROM centroid)) +
+      $4 * (p.embedding_desc <=> (SELECT c_desc FROM centroid)) +
+      $5 * (p.embedding_category <=> (SELECT c_cat FROM centroid))
+    ) AS dist,
+    COALESCE(sold.sold_count, 0) AS sold_count,
+    c.parent_id AS parent_id
   FROM products p
   JOIN stores s ON s.store_id = p.store_id
   JOIN categories c ON c.category_id = p.category_id
   LEFT JOIN sold ON sold.product_id = p.product_id
   WHERE p.is_active='YES' AND s.is_active='YES' AND c.is_active='YES'
-    AND p.embedding IS NOT NULL
+    AND p.embedding_name IS NOT NULL
+    AND p.embedding_desc IS NOT NULL
+    AND p.embedding_category IS NOT NULL
     AND p.product_id NOT IN (SELECT product_id FROM order_items WHERE order_id = $1)
 )
 SELECT
-	cand.dist,
-	p.product_id,
-	p.name,
-	p.product_desc,
-	p.price,
-	p.image_url,
-	p.is_active,
-	p.store_id,
-	s.store_name,
-	p.category_id,
-	c.name AS category_name,
-	COALESCE(cand.sold_count, 0) AS sold_count
+  cand.dist,
+  p.product_id,
+  p.name,
+  p.product_desc,
+  p.price,
+  p.image_url,
+  p.is_active,
+  p.store_id,
+  s.store_name,
+  p.category_id,
+  c.name AS category_name,
+  COALESCE(cand.sold_count, 0) AS sold_count
 FROM cand
 JOIN products p ON p.product_id = cand.product_id
 JOIN stores s ON s.store_id = p.store_id
 JOIN categories c ON c.category_id = p.category_id
-ORDER BY (cand.dist + LEAST(0.08, ln(1 + cand.sold_count) * 0.01)) ASC
+ORDER BY
+  (
+    cand.dist
+    - CASE
+        WHEN cand.parent_id IS NOT NULL
+         AND cand.parent_id IN (SELECT parent_id FROM seed_parent)
+        THEN 0.03 ELSE 0
+      END
+    - LEAST(0.05, 0.05 / (1 + cand.sold_count))
+  ) ASC
 LIMIT $2;
-	`, lastOrderID, limit)
+	`, lastOrderID, limit, w.Name, w.Desc, w.Category)
 	if err != nil {
 		return nil, apperr.Wrap(apperr.Internal, err, "list from order history failed")
 	}
@@ -626,6 +738,10 @@ LIMIT $2;
 	if err := rows.Err(); err != nil {
 		return nil, apperr.Wrap(apperr.Internal, err, "order history rows failed")
 	}
+
+	if len(out) == 0 {
+		return r.listLatestFallback(ctx, limit)
+	}
 	return out, nil
 }
 
@@ -646,74 +762,112 @@ func safeFloat(v float64) float64 {
 func (r *repo) listSeasonalVector(ctx context.Context, limit int, season string) ([]Item, error) {
 	limit = clampLimit(limit, 12, 30)
 
-	// season -> category names ที่คุณอยากถือว่า “เกี่ยวข้อง”
 	cats := seasonCategories(season)
 	if len(cats) == 0 {
-		// fallback: ถ้าไม่มี mapping ก็ใช้ล่าสุดแบบเดิม (หรือจะ return [] ก็ได้)
 		return r.listLatestFallback(ctx, limit)
 	}
 
-	// สร้าง IN ($2,$3,...) ให้ category names
-	args := []any{limit}
+	w := loadEmbWeights()
+
+	// args: limit + weights ก่อน เพื่อให้ placeholder น้ำหนัก fix ที่ $1..$4
+	args := []any{limit, w.Name, w.Desc, w.Category}
+
+	// สร้าง placeholders สำหรับ IN (...), เริ่มที่ $5 เป็นต้นไป
 	placeholders := make([]string, 0, len(cats))
-	for _, c := range cats {
-		args = append(args, c)
+	for _, cat := range cats {
+		args = append(args, cat)
 		placeholders = append(placeholders, "$"+strconv.Itoa(len(args)))
 	}
+	inList := strings.Join(placeholders, ",")
 
-	// seed = embedding ของสินค้าในหมวดที่เกี่ยวข้อง (ล่าสุด ๆ) -> centroid -> cand vector search
 	query := `
 WITH
 seed AS (
-	SELECT p.embedding
-	FROM products p
-	JOIN stores s ON s.store_id = p.store_id
-	JOIN categories c ON c.category_id = p.category_id
-	WHERE p.is_active='YES' AND s.is_active='YES' AND c.is_active='YES'
-	  AND p.embedding IS NOT NULL
-	  AND c.name IN (` + strings.Join(placeholders, ",") + `)
-	ORDER BY p.created_at DESC, p.product_id DESC
-	LIMIT 40
+  SELECT
+    p.embedding_name     AS v_name,
+    p.embedding_desc     AS v_desc,
+    p.embedding_category AS v_cat,
+    c.parent_id          AS parent_id
+  FROM products p
+  JOIN stores s ON s.store_id = p.store_id
+  JOIN categories c ON c.category_id = p.category_id
+  WHERE p.is_active='YES' AND s.is_active='YES' AND c.is_active='YES'
+    AND p.embedding_name IS NOT NULL
+    AND p.embedding_desc IS NOT NULL
+    AND p.embedding_category IS NOT NULL
+    AND c.name IN (` + inList + `)
+  ORDER BY p.created_at DESC, p.product_id DESC
+  LIMIT 40
+),
+seed_parent AS (
+  SELECT DISTINCT parent_id
+  FROM seed
+  WHERE parent_id IS NOT NULL
 ),
 centroid AS (
-	SELECT avg(embedding) AS v FROM seed
+  SELECT
+    avg(v_name)  AS c_name,
+    avg(v_desc)  AS c_desc,
+    avg(v_cat)   AS c_cat
+  FROM seed
 ),
 sold AS (
-	SELECT oi.product_id, SUM(oi.quantity)::bigint AS sold_count
-	FROM order_items oi
-	JOIN orders o ON o.order_id = oi.order_id AND o.status = 'Completed'
-	GROUP BY oi.product_id
+  SELECT oi.product_id, SUM(oi.quantity)::bigint AS sold_count
+  FROM order_items oi
+  JOIN orders o ON o.order_id = oi.order_id AND o.status = 'Completed'
+  GROUP BY oi.product_id
 ),
 cand AS (
-	SELECT
-		p.product_id,
-		(p.embedding <=> (SELECT v FROM centroid)) AS dist,
-		COALESCE(sold.sold_count, 0) AS sold_count
-	FROM products p
-	JOIN stores s ON s.store_id = p.store_id
-	JOIN categories c ON c.category_id = p.category_id
-	LEFT JOIN sold ON sold.product_id = p.product_id
-	WHERE p.is_active='YES' AND s.is_active='YES' AND c.is_active='YES'
-	  AND p.embedding IS NOT NULL
+  SELECT
+    p.product_id,
+    (
+      $2 * (p.embedding_name <=> (SELECT c_name FROM centroid)) +
+      $3 * (p.embedding_desc <=> (SELECT c_desc FROM centroid)) +
+      $4 * (p.embedding_category <=> (SELECT c_cat FROM centroid))
+    ) AS dist,
+    COALESCE(sold.sold_count, 0) AS sold_count,
+    c.parent_id AS parent_id
+  FROM products p
+  JOIN stores s ON s.store_id = p.store_id
+  JOIN categories c ON c.category_id = p.category_id
+  LEFT JOIN sold ON sold.product_id = p.product_id
+  WHERE p.is_active='YES' AND s.is_active='YES' AND c.is_active='YES'
+    AND p.embedding_name IS NOT NULL
+    AND p.embedding_desc IS NOT NULL
+    AND p.embedding_category IS NOT NULL
+
+    -- กันกรณี seed ว่าง -> centroid เป็น NULL แล้ว <=> จะพัง
+    AND (SELECT c_name FROM centroid) IS NOT NULL
+    AND (SELECT c_desc FROM centroid) IS NOT NULL
+    AND (SELECT c_cat  FROM centroid) IS NOT NULL
 )
 SELECT
-	cand.dist,
-	p.product_id,
-	p.name,
-	p.product_desc,
-	p.price,
-	p.image_url,
-	p.is_active,
-	p.store_id,
-	s.store_name,
-	p.category_id,
-	c.name AS category_name,
-	COALESCE(cand.sold_count, 0) AS sold_count
+  cand.dist,
+  p.product_id,
+  p.name,
+  p.product_desc,
+  p.price,
+  p.image_url,
+  p.is_active,
+  p.store_id,
+  s.store_name,
+  p.category_id,
+  c.name AS category_name,
+  COALESCE(cand.sold_count, 0) AS sold_count
 FROM cand
 JOIN products p ON p.product_id = cand.product_id
 JOIN stores s ON s.store_id = p.store_id
 JOIN categories c ON c.category_id = p.category_id
-ORDER BY (cand.dist + LEAST(0.08, ln(1 + cand.sold_count) * 0.01)) ASC
+ORDER BY
+  (
+    cand.dist
+    - CASE
+        WHEN cand.parent_id IS NOT NULL
+         AND cand.parent_id IN (SELECT parent_id FROM seed_parent)
+        THEN 0.03 ELSE 0
+      END
+    - LEAST(0.05, 0.05 / (1 + cand.sold_count))
+  ) ASC
 LIMIT $1;
 `
 
@@ -725,6 +879,7 @@ LIMIT $1;
 
 	out := make([]Item, 0, limit)
 	rs := "seasonal_vector"
+
 	for rows.Next() {
 		var dist float64
 		var p ProductDetail
@@ -745,6 +900,10 @@ LIMIT $1;
 	}
 	if err := rows.Err(); err != nil {
 		return nil, apperr.Wrap(apperr.Internal, err, "seasonal (vector) rows failed")
+	}
+
+	if len(out) == 0 {
+		return r.listLatestFallback(ctx, limit)
 	}
 	return out, nil
 }
@@ -802,7 +961,7 @@ JOIN stores s ON s.store_id = p.store_id
 JOIN categories c ON c.category_id = p.category_id
 LEFT JOIN sold ON sold.product_id = p.product_id
 WHERE p.is_active='YES' AND s.is_active='YES' AND c.is_active='YES'
-ORDER BY p.created_at DESC, p.product_id ASC
+ORDER BY p.created_at DESC, p.product_id DESC
 LIMIT $1;
 `, limit)
 	if err != nil {
@@ -865,13 +1024,18 @@ func (r *repo) listFromSearchHistoryVector(ctx context.Context, userID string, l
 		terms = terms[:4]
 	}
 
-	// เอา terms ไปหา seed products แบบ keyword (เพื่อดึง embedding มาทำ centroid)
-	args := []any{limit}
+	w := loadEmbWeights()
+
+	// args: limit + weights ก่อน (เพื่อให้ placeholder น้ำหนัก fix)
+	args := []any{limit, w.Name, w.Desc, w.Category}
+
 	where := []string{
 		"p.is_active='YES'",
 		"s.is_active='YES'",
 		"c.is_active='YES'",
-		"p.embedding IS NOT NULL",
+		"p.embedding_name IS NOT NULL",
+		"p.embedding_desc IS NOT NULL",
+		"p.embedding_category IS NOT NULL",
 	}
 
 	for _, t := range terms {
@@ -889,53 +1053,82 @@ func (r *repo) listFromSearchHistoryVector(ctx context.Context, userID string, l
 	query := `
 WITH
 seed AS (
-	SELECT p.embedding
-	FROM products p
-	JOIN stores s ON s.store_id = p.store_id
-	JOIN categories c ON c.category_id = p.category_id
-	WHERE ` + strings.Join(where, " AND ") + `
-	ORDER BY p.created_at DESC, p.product_id DESC
-	LIMIT 40
+  SELECT
+    p.embedding_name     AS v_name,
+    p.embedding_desc     AS v_desc,
+    p.embedding_category AS v_cat,
+    c.parent_id          AS parent_id
+  FROM products p
+  JOIN stores s ON s.store_id = p.store_id
+  JOIN categories c ON c.category_id = p.category_id
+  WHERE /* your dynamic where (strings.Join(where," AND ")) */
+  ORDER BY p.created_at DESC, p.product_id DESC
+  LIMIT 40
+),
+seed_parent AS (
+  SELECT DISTINCT parent_id
+  FROM seed
+  WHERE parent_id IS NOT NULL
 ),
 centroid AS (
-	SELECT avg(embedding) AS v FROM seed
+  SELECT
+    avg(v_name)  AS c_name,
+    avg(v_desc)  AS c_desc,
+    avg(v_cat)   AS c_cat
+  FROM seed
 ),
 sold AS (
-	SELECT oi.product_id, SUM(oi.quantity)::bigint AS sold_count
-	FROM order_items oi
-	JOIN orders o ON o.order_id = oi.order_id AND o.status = 'Completed'
-	GROUP BY oi.product_id
+  SELECT oi.product_id, SUM(oi.quantity)::bigint AS sold_count
+  FROM order_items oi
+  JOIN orders o ON o.order_id = oi.order_id AND o.status = 'Completed'
+  GROUP BY oi.product_id
 ),
 cand AS (
-	SELECT
-		p.product_id,
-		(p.embedding <=> (SELECT v FROM centroid)) AS dist,
-		COALESCE(sold.sold_count, 0) AS sold_count
-	FROM products p
-	JOIN stores s ON s.store_id = p.store_id
-	JOIN categories c ON c.category_id = p.category_id
-	LEFT JOIN sold ON sold.product_id = p.product_id
-	WHERE p.is_active='YES' AND s.is_active='YES' AND c.is_active='YES'
-	  AND p.embedding IS NOT NULL
+  SELECT
+    p.product_id,
+    (
+      $2 * (p.embedding_name <=> (SELECT c_name FROM centroid)) +
+      $3 * (p.embedding_desc <=> (SELECT c_desc FROM centroid)) +
+      $4 * (p.embedding_category <=> (SELECT c_cat FROM centroid))
+    ) AS dist,
+    COALESCE(sold.sold_count, 0) AS sold_count,
+    c.parent_id AS parent_id
+  FROM products p
+  JOIN stores s ON s.store_id = p.store_id
+  JOIN categories c ON c.category_id = p.category_id
+  LEFT JOIN sold ON sold.product_id = p.product_id
+  WHERE p.is_active='YES' AND s.is_active='YES' AND c.is_active='YES'
+    AND p.embedding_name IS NOT NULL
+    AND p.embedding_desc IS NOT NULL
+    AND p.embedding_category IS NOT NULL
 )
 SELECT
-	cand.dist,
-	p.product_id,
-	p.name,
-	p.product_desc,
-	p.price,
-	p.image_url,
-	p.is_active,
-	p.store_id,
-	s.store_name,
-	p.category_id,
-	c.name AS category_name,
-	COALESCE(cand.sold_count, 0) AS sold_count
+  cand.dist,
+  p.product_id,
+  p.name,
+  p.product_desc,
+  p.price,
+  p.image_url,
+  p.is_active,
+  p.store_id,
+  s.store_name,
+  p.category_id,
+  c.name AS category_name,
+  COALESCE(cand.sold_count, 0) AS sold_count
 FROM cand
 JOIN products p ON p.product_id = cand.product_id
 JOIN stores s ON s.store_id = p.store_id
 JOIN categories c ON c.category_id = p.category_id
-ORDER BY (cand.dist + LEAST(0.08, ln(1 + cand.sold_count) * 0.01)) ASC
+ORDER BY
+  (
+    cand.dist
+    - CASE
+        WHEN cand.parent_id IS NOT NULL
+         AND cand.parent_id IN (SELECT parent_id FROM seed_parent)
+        THEN 0.03 ELSE 0
+      END
+    - LEAST(0.05, 0.05 / (1 + cand.sold_count))
+  ) ASC
 LIMIT $1;
 `
 
@@ -958,19 +1151,12 @@ LIMIT $1;
 			return nil, apperr.Wrap(apperr.Internal, err, "scan search history (vector) failed")
 		}
 		sc := scoreFromDist(dist)
-		out = append(out, Item{
-			Product: p,
-			Score:   &sc,
-			RankNo:  len(out) + 1,
-			Reason:  &rs,
-		})
+		out = append(out, Item{Product: p, Score: &sc, RankNo: len(out) + 1, Reason: &rs})
 	}
 	if err := rows.Err(); err != nil {
 		return nil, apperr.Wrap(apperr.Internal, err, "search history (vector) rows failed")
 	}
 
-	// ถ้า seed หาไม่ได้ centroid จะ null แล้ว query จะพัง/ได้ผลแปลก
-	// ถ้าอยากกันชัวร์: ถ้า out ว่าง -> fallback latest
 	if len(out) == 0 {
 		return r.listLatestFallback(ctx, limit)
 	}

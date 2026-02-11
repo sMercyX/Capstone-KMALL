@@ -106,10 +106,10 @@ DROP INDEX IF EXISTS idx_rec_items_event_rank;
 CREATE INDEX IF NOT EXISTS idx_rec_items_event_rank
   ON recommendation_event_items(event_id, rank_no);
 
-DROP INDEX IF EXISTS idx_products_embedding_cosine;
-CREATE INDEX idx_products_embedding_cosine
-  ON products USING ivfflat (embedding vector_cosine_ops)
-  WITH (lists = 100);
+-- DROP INDEX IF EXISTS idx_products_embedding_cosine;
+-- CREATE INDEX idx_products_embedding_cosine
+--   ON products USING ivfflat (embedding vector_cosine_ops)
+--   WITH (lists = 100);
 
 DROP INDEX IF EXISTS idx_order_status_history_order_time;
 CREATE INDEX IF NOT EXISTS idx_order_status_history_order_time
@@ -254,13 +254,13 @@ DROP INDEX IF EXISTS idx_order_chat_attachments_message_id;
 CREATE INDEX IF NOT EXISTS idx_order_chat_attachments_message_id
   ON order_chat_attachments (message_id);
 
-DROP INDEX IF EXISTS idx_products_embedding_hnsw;
-CREATE INDEX IF NOT EXISTS idx_products_embedding_hnsw
-ON products USING hnsw (embedding vector_cosine_ops);
+-- DROP INDEX IF EXISTS idx_products_embedding_hnsw;
+-- CREATE INDEX IF NOT EXISTS idx_products_embedding_hnsw
+-- ON products USING hnsw (embedding vector_cosine_ops);
 
-DROP INDEX IF EXISTS idx_products_embedding_ivfflat;
-CREATE INDEX IF NOT EXISTS idx_products_embedding_ivfflat
-ON products USING ivfflat (embedding vector_cosine_ops) WITH (lists = 100);
+-- DROP INDEX IF EXISTS idx_products_embedding_ivfflat;
+-- CREATE INDEX IF NOT EXISTS idx_products_embedding_ivfflat
+-- ON products USING ivfflat (embedding vector_cosine_ops) WITH (lists = 100);
 
 ANALYZE products;
 
@@ -275,7 +275,3 @@ ON products USING hnsw (embedding_desc vector_cosine_ops);
 DROP INDEX IF EXISTS idx_products_emb_cat_hnsw;
 CREATE INDEX IF NOT EXISTS idx_products_emb_cat_hnsw
 ON products USING hnsw (embedding_category vector_cosine_ops);
-
-DROP INDEX IF EXISTS idx_products_emb_price_hnsw;
-CREATE INDEX IF NOT EXISTS idx_products_emb_price_hnsw
-ON products USING hnsw (embedding_price vector_cosine_ops);

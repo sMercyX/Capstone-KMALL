@@ -50,12 +50,11 @@ type CreateParams struct {
 	IsActive    string
 	StoreID     int
 	CategoryID  int
-	Embedding   []float64
+	// Embedding   []float64
 
 	EmbName     []float64
 	EmbDesc     []float64
 	EmbCategory []float64
-	EmbPrice    []float64
 }
 
 type UpdateParams struct {
@@ -65,12 +64,11 @@ type UpdateParams struct {
 	ImageURL    *string
 	IsActive    *string
 	CategoryID  *int
-	Embedding   *[]float64
+	// Embedding   *[]float64
 
 	EmbName     *[]float64
 	EmbDesc     *[]float64
 	EmbCategory *[]float64
-	EmbPrice    *[]float64
 }
 
 type SuggestSplitResult struct {
@@ -144,10 +142,6 @@ func (r *repo) Create(ctx context.Context, in CreateParams) (Product, error) {
 	if err != nil {
 		return Product{}, apperr.Wrap(apperr.Internal, err, "format embedding_category failed")
 	}
-	embPrice, err := toVecArg(in.EmbPrice)
-	if err != nil {
-		return Product{}, apperr.Wrap(apperr.Internal, err, "format embedding_price failed")
-	}
 
 	// ----- INSERT -----
 	var p Product
@@ -155,15 +149,14 @@ func (r *repo) Create(ctx context.Context, in CreateParams) (Product, error) {
 		INSERT INTO products (
 			name, product_desc, price, image_url,
 			is_active, store_id, category_id,
-			embedding_name, embedding_desc, embedding_category, embedding_price
+			embedding_name, embedding_desc, embedding_category
 		)
 		VALUES (
 			$1, $2, $3, $4,
 			$5, $6, $7,
 			COALESCE($8::vector, NULL),
 			COALESCE($9::vector, NULL),
-			COALESCE($10::vector, NULL),
-			COALESCE($11::vector, NULL)
+			COALESCE($10::vector, NULL)
 		)
 		RETURNING
 			product_id, name, product_desc, price, image_url,
@@ -171,7 +164,7 @@ func (r *repo) Create(ctx context.Context, in CreateParams) (Product, error) {
 	`,
 		in.Name, in.Description, in.Price, in.ImageURL,
 		in.IsActive, in.StoreID, in.CategoryID,
-		embName, embDesc, embCat, embPrice,
+		embName, embDesc, embCat,
 	).Scan(
 		&p.ID, &p.Name, &p.Description, &p.Price, &p.ImageURL,
 		&p.CreatedAt, &p.UpdatedAt, &p.IsActive, &p.StoreID, &p.CategoryID,
@@ -288,7 +281,6 @@ func (r *repo) Update(ctx context.Context, id int64, in UpdateParams) (Product, 
 	var embNameArg any = nil
 	var embDescArg any = nil
 	var embCatArg any = nil
-	var embPriceArg any = nil
 
 	if in.EmbName != nil {
 		v, err := toVecArg(*in.EmbName)
@@ -311,13 +303,6 @@ func (r *repo) Update(ctx context.Context, id int64, in UpdateParams) (Product, 
 		}
 		embCatArg = v
 	}
-	if in.EmbPrice != nil {
-		v, err := toVecArg(*in.EmbPrice)
-		if err != nil {
-			return Product{}, apperr.Wrap(apperr.Internal, err, "format embedding_price failed")
-		}
-		embPriceArg = v
-	}
 
 	// ----- UPDATE -----
 	var p Product
@@ -333,7 +318,6 @@ func (r *repo) Update(ctx context.Context, id int64, in UpdateParams) (Product, 
 		    embedding_name     = COALESCE($8::vector,  embedding_name),
 		    embedding_desc     = COALESCE($9::vector,  embedding_desc),
 		    embedding_category = COALESCE($10::vector, embedding_category),
-		    embedding_price    = COALESCE($11::vector, embedding_price),
 
 		    updated_at = NOW()
 		WHERE product_id = $1
@@ -348,7 +332,7 @@ func (r *repo) Update(ctx context.Context, id int64, in UpdateParams) (Product, 
 		in.ImageURL,
 		in.IsActive,
 		in.CategoryID,
-		embNameArg, embDescArg, embCatArg, embPriceArg,
+		embNameArg, embDescArg, embCatArg,
 	).Scan(
 		&p.ID, &p.Name, &p.Description, &p.Price, &p.ImageURL,
 		&p.CreatedAt, &p.UpdatedAt, &p.IsActive, &p.StoreID, &p.CategoryID,

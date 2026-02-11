@@ -22,5 +22,4 @@ type Product struct {
 	EmbeddingName     []float64 `db:"embedding_name" json:"-"`
 	EmbeddingDesc     []float64 `db:"embedding_desc" json:"-"`
 	EmbeddingCategory []float64 `db:"embedding_category" json:"-"`
-	EmbeddingPrice    []float64 `db:"embedding_price" json:"-"`
 }

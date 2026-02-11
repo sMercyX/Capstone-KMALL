@@ -11,10 +11,6 @@ import requests
 import psycopg2
 from psycopg2.extras import RealDictCursor
 
-import time
-import json
-import requests
-
 # =============================
 # Config
 # =============================
@@ -130,17 +126,22 @@ def vec_to_pgvector_literal(vec: list) -> str:
     return "[" + ",".join(f"{float(x):.8f}" for x in vec) + "]"
 
 
-def build_embed_text(name: str, desc: str, price: float, category: str) -> str:
+def build_embed_text(name: str, desc: str, category: str) -> str:
     return (
         f"Name: {name}\n"
         f"Description: {desc}\n"
-        f"Price: {price:.2f}\n"
         f"Category: {category}"
     ).strip()
 
 def apply_weight(vec: list, w: float) -> list:
     w = float(w)
     return [float(x) * w for x in vec]
+
+def normalize_weights(w_name: float, w_desc: float, w_cat: float) -> Tuple[float,float,float]:
+    s = float(w_name) + float(w_desc) + float(w_cat)
+    if s <= 0:
+        return 1.0, 0.0, 0.0
+    return w_name/s, w_desc/s, w_cat/s
 
 # =============================
 # Data templates
@@ -266,7 +267,6 @@ class Args:
     w_name: float
     w_desc: float
     w_category: float
-    w_price: float
 
 def parse_args() -> Args:
     ap = argparse.ArgumentParser(description="KMALL mock data generator (users/stores/products + optional embeddings)")
@@ -283,7 +283,6 @@ def parse_args() -> Args:
     ap.add_argument("--w-name", type=float, default=1.0)
     ap.add_argument("--w-desc", type=float, default=1.0)
     ap.add_argument("--w-category", type=float, default=1.0)
-    ap.add_argument("--w-price", type=float, default=1.0)
 
     ns = ap.parse_args()
     return Args(
@@ -299,7 +298,6 @@ def parse_args() -> Args:
         w_name=ns.w_name,
         w_desc=ns.w_desc,
         w_category=ns.w_category,
-        w_price=ns.w_price,
     )
 
 # =============================
@@ -592,18 +590,17 @@ def gen_desc_by_kind(kind: str) -> str:
         return f"{pick(ADJ)} apparel, made from {m}, {bit}."
     return f"{pick(ADJ)} handmade item, made from {m}, {bit}."
 
-def update_split_embeddings(cur, product_id: int, emb_name: str, emb_desc: str, emb_cat: str, emb_price: str):
+def update_split_embeddings(cur, product_id: int, emb_name: str, emb_desc: str, emb_cat: str):
     cur.execute(
         """
         UPDATE products
         SET
           embedding_name=%s::vector,
           embedding_desc=%s::vector,
-          embedding_category=%s::vector,
-          embedding_price=%s::vector
+          embedding_category=%s::vector
         WHERE product_id=%s;
         """,
-        (emb_name, emb_desc, emb_cat, emb_price, product_id),
+        (emb_name, emb_desc, emb_cat, product_id),
     )
 
 # =============================
@@ -715,8 +712,8 @@ def main():
                         price,
                         img_url,
                     )
-                    
-                    add_product_images(cur, pid, sub_slug)  
+
+                    add_product_images(cur, pid, sub_slug)
 
                     add_attr_value(cur, pid, key_material, pick(MATERIALS))
                     add_attr_value(cur, pid, key_color, pick(COLORS))
@@ -724,66 +721,59 @@ def main():
                         add_attr_value(cur, pid, key_size, pick(SIZES))
 
                     created_products.append((pid, pname))
-                    
 
                 conn.commit()
                 print(f"[OK] products for store_id={st['store_id']} count={n}")
 
-            if args.with_embeddings and created_products:
-                updated = 0
-                failed = 0
+        # ===== embeddings phase (อยู่นอก loop สร้างสินค้า) =====
+        if args.with_embeddings and created_products:
+            wn, wd, wc = normalize_weights(args.w_name, args.w_desc, args.w_category)
 
-                for i in range(0, len(created_products), args.batch_size):
-                    batch = created_products[i:i + args.batch_size]
-                    with conn.cursor() as cur2:
-                        for (pid, pname) in batch:
-                            try:
-                                cur2.execute("""
-                                    SELECT COALESCE(p.product_desc,''), p.price, c.name
-                                    FROM products p
-                                    JOIN categories c ON c.category_id = p.category_id
-                                    WHERE p.product_id=%s;
-                                """, (pid,))
-                                row = cur2.fetchone()
-                                pdesc = row[0] if row else ""
-                                price = float(row[1]) if row and row[1] is not None else 0.0
-                                cname = row[2] if row and row[2] else ""
+            updated = 0
+            failed = 0
 
-                                name_text = f"Name: {pname}".strip()
-                                desc_text = f"Description: {pdesc}".strip()
-                                cat_text  = f"Category: {cname}".strip()
-                                price_text = f"Price: {price:.2f} THB".strip()
+            for i in range(0, len(created_products), args.batch_size):
+                batch = created_products[i:i + args.batch_size]
+                with conn.cursor() as cur2:
+                    for (pid, pname) in batch:
+                        try:
+                            cur2.execute("""
+                                SELECT COALESCE(p.product_desc,''), p.price, c.name
+                                FROM products p
+                                JOIN categories c ON c.category_id = p.category_id
+                                WHERE p.product_id=%s;
+                            """, (pid,))
+                            row = cur2.fetchone()
+                            pdesc = row[0] if row else ""
+                            cname = row[2] if row and row[2] else ""
 
-                                v_name = embed_text(name_text)
-                                v_desc = embed_text(desc_text)
-                                v_cat  = embed_text(cat_text)
-                                v_price = embed_text(price_text)
+                            name_text = f"Name: {pname}".strip()
+                            desc_text = f"Description: {pdesc}".strip()
+                            cat_text  = f"Category: {cname}".strip()
 
-                                v_name  = apply_weight(v_name, args.w_name)
-                                v_desc  = apply_weight(v_desc, args.w_desc)
-                                v_cat   = apply_weight(v_cat, args.w_category)
-                                v_price = apply_weight(v_price, args.w_price)
+                            v_name = apply_weight(embed_text(name_text), wn)
+                            v_desc = apply_weight(embed_text(desc_text), wd)
+                            v_cat  = apply_weight(embed_text(cat_text), wc)
 
-                                lit_name  = vec_to_pgvector_literal(v_name)
-                                lit_desc  = vec_to_pgvector_literal(v_desc)
-                                lit_cat   = vec_to_pgvector_literal(v_cat)
-                                lit_price = vec_to_pgvector_literal(v_price)
+                            lit_name = vec_to_pgvector_literal(v_name)
+                            lit_desc = vec_to_pgvector_literal(v_desc)
+                            lit_cat  = vec_to_pgvector_literal(v_cat)
 
-                                update_split_embeddings(cur2, pid, lit_name, lit_desc, lit_cat, lit_price)
-                                updated += 1
-                            except Exception as e:
-                                failed += 1
-                                print(f"[WARN] embedding failed product_id={pid}: {e}")
+                            update_split_embeddings(cur2, pid, lit_name, lit_desc, lit_cat)
+                            updated += 1
+                        except Exception as e:
+                            failed += 1
+                            print(f"[WARN] embedding failed product_id={pid}: {e}")
 
-                        conn.commit()
+                    conn.commit()
 
-                    print(f"[EMB] batch {i//args.batch_size+1}: updated={updated} failed={failed}")
-                    if args.sleep_sec > 0:
-                        time.sleep(args.sleep_sec)
+                print(f"[EMB] batch {i//args.batch_size+1}: updated={updated} failed={failed}")
+                if args.sleep_sec > 0:
+                    time.sleep(args.sleep_sec)
 
-                print(f"[DONE] embeddings updated={updated} failed={failed}")
+            print(f"[DONE] embeddings updated={updated} failed={failed}")
 
-            print("[ALL DONE] mock data generated successfully.")
+        print("[ALL DONE] mock data generated successfully.")
 
     except Exception:
         conn.rollback()

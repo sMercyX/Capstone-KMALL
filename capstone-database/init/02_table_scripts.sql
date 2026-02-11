@@ -92,13 +92,13 @@ CREATE TABLE IF NOT EXISTS products (
   search_tsv tsvector,
 
   -- Semantic Search (legacy / overall)
-  embedding vector(768) NULL,
+  -- embedding vector(768) NULL,
 
   -- Semantic Search (split fields for weighted scoring)
   embedding_name     vector(768) NULL,
   embedding_desc     vector(768) NULL,
   embedding_category vector(768) NULL,
-  embedding_price    vector(768) NULL,
+  -- embedding_price    vector(768) NULL,
 
   created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
