@@ -35,6 +35,7 @@ type Repo interface {
 
 	GetPublic(ctx context.Context, id int64) (Product, error)
 	SuggestSplit(ctx context.Context, userID string, q string, limit int) (SuggestSplitResult, error)
+	GetCategoryName(ctx context.Context, categoryID int) (string, error)
 }
 
 type repo struct{ db *pgxpool.Pool }
@@ -825,4 +826,26 @@ func (r *repo) SuggestSplit(ctx context.Context, userID string, q string, limit 
 	}
 
 	return out, nil
+}
+
+func (r *repo) GetCategoryName(ctx context.Context, categoryID int) (string, error) {
+	if categoryID <= 0 {
+		return "", apperr.New(apperr.BadRequest, "invalid category_id")
+	}
+
+	var name string
+	err := r.db.QueryRow(ctx, `
+    SELECT name
+    FROM categories
+    WHERE category_id = $1 AND is_active = 'YES';
+  `, categoryID).Scan(&name)
+
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return "", apperr.New(apperr.BadRequest, "category not found or inactive")
+		}
+		return "", apperr.Wrap(apperr.Internal, err, "get category name failed")
+	}
+
+	return name, nil
 }

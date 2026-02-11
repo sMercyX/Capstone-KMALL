@@ -2,6 +2,7 @@ package product
 
 import (
 	"context"
+	"fmt"
 	"math"
 	"net/url"
 	"strings"
@@ -199,16 +200,18 @@ func normalizeFulfillment(s string) string {
 	}
 }
 
-func buildEmbeddingText(name string, desc *string) string {
-	name = strings.TrimSpace(name)
+func buildEmbeddingText(name string, desc *string, price float64, categoryName string) string {
 	d := ""
 	if desc != nil {
 		d = strings.TrimSpace(*desc)
 	}
-	if d == "" {
-		return name
-	}
-	return name + "\n" + d
+	return fmt.Sprintf(
+		"Name: %s\nCategory: %s\nDescription: %s\nPrice: %.2f THB",
+		strings.TrimSpace(name),
+		strings.TrimSpace(categoryName),
+		d,
+		price,
+	)
 }
 
 func (s *service) Create(ctx context.Context, in CreateInput) (Product, error) {
@@ -216,20 +219,20 @@ func (s *service) Create(ctx context.Context, in CreateInput) (Product, error) {
 		return Product{}, err
 	}
 
-	// ===== optional embedding =====
 	var vec []float64 = nil
 	if s.emb != nil {
-		text := buildEmbeddingText(in.Name, in.Description)
+		catName, err := s.repo.GetCategoryName(ctx, in.CategoryID)
+		if err != nil {
+			return Product{}, err
+		}
+
+		text := buildEmbeddingText(in.Name, in.Description, in.Price, catName)
 		v, err := s.emb.Embed(ctx, text)
 		if err != nil {
 			return Product{}, apperr.Wrap(apperr.Internal, err, "embed product failed")
 		}
-		// ปล่อยให้ v เป็น nil/len>0 ตามที่ client คืนมา
-		// (ถ้า client คืน empty slice แปลว่าแปลกแล้ว แต่เราจะไม่บังคับ)
 		if len(v) > 0 {
 			vec = v
-		} else {
-			vec = nil
 		}
 	}
 
@@ -291,9 +294,19 @@ func (s *service) Update(ctx context.Context, id int64, in UpdateInput) (Product
 		newName = strings.TrimSpace(*in.Name)
 	}
 
-	var newDesc *string = old.Description
+	newDesc := old.Description
 	if in.Description != nil {
 		newDesc = in.Description
+	}
+
+	newPrice := old.Price
+	if in.Price != nil {
+		newPrice = *in.Price
+	}
+
+	newCatID := old.CategoryID
+	if in.CategoryID != nil {
+		newCatID = *in.CategoryID
 	}
 
 	needEmbed := false
@@ -313,21 +326,28 @@ func (s *service) Update(ctx context.Context, id int64, in UpdateInput) (Product
 		}
 	}
 
+	if in.Price != nil && old.Price != *in.Price {
+		needEmbed = true
+	}
+
 	if in.CategoryID != nil && *in.CategoryID != old.CategoryID {
 		needEmbed = true
 	}
 
 	var vecPtr *[]float64 = nil
 	if needEmbed && s.emb != nil {
-		text := buildEmbeddingText(newName, newDesc)
+		catName, err := s.repo.GetCategoryName(ctx, newCatID)
+		if err != nil {
+			return Product{}, err
+		}
+
+		text := buildEmbeddingText(newName, newDesc, newPrice, catName)
 		v, err := s.emb.Embed(ctx, text)
 		if err != nil {
 			return Product{}, apperr.Wrap(apperr.Internal, err, "embed product failed")
 		}
 		if len(v) > 0 {
 			vecPtr = &v
-		} else {
-			vecPtr = nil
 		}
 	}
 
