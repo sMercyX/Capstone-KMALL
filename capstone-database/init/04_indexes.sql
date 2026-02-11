@@ -263,3 +263,19 @@ CREATE INDEX IF NOT EXISTS idx_products_embedding_ivfflat
 ON products USING ivfflat (embedding vector_cosine_ops) WITH (lists = 100);
 
 ANALYZE products;
+
+DROP INDEX IF EXISTS idx_products_emb_name_hnsw;
+CREATE INDEX IF NOT EXISTS idx_products_emb_name_hnsw
+ON products USING hnsw (embedding_name vector_cosine_ops);
+
+DROP INDEX IF EXISTS idx_products_emb_desc_hnsw;
+CREATE INDEX IF NOT EXISTS idx_products_emb_desc_hnsw
+ON products USING hnsw (embedding_desc vector_cosine_ops);
+
+DROP INDEX IF EXISTS idx_products_emb_cat_hnsw;
+CREATE INDEX IF NOT EXISTS idx_products_emb_cat_hnsw
+ON products USING hnsw (embedding_category vector_cosine_ops);
+
+DROP INDEX IF EXISTS idx_products_emb_price_hnsw;
+CREATE INDEX IF NOT EXISTS idx_products_emb_price_hnsw
+ON products USING hnsw (embedding_price vector_cosine_ops);

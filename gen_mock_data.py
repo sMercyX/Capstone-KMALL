@@ -138,6 +138,9 @@ def build_embed_text(name: str, desc: str, price: float, category: str) -> str:
         f"Category: {category}"
     ).strip()
 
+def apply_weight(vec: list, w: float) -> list:
+    w = float(w)
+    return [float(x) * w for x in vec]
 
 # =============================
 # Data templates
@@ -260,6 +263,10 @@ class Args:
     sleep_sec: float
     seed: Optional[int]
 
+    w_name: float
+    w_desc: float
+    w_category: float
+    w_price: float
 
 def parse_args() -> Args:
     ap = argparse.ArgumentParser(description="KMALL mock data generator (users/stores/products + optional embeddings)")
@@ -272,6 +279,12 @@ def parse_args() -> Args:
     ap.add_argument("--batch-size", type=int, default=50)
     ap.add_argument("--sleep-sec", type=float, default=0.0)
     ap.add_argument("--seed", type=int, default=None)
+
+    ap.add_argument("--w-name", type=float, default=1.0)
+    ap.add_argument("--w-desc", type=float, default=1.0)
+    ap.add_argument("--w-category", type=float, default=1.0)
+    ap.add_argument("--w-price", type=float, default=1.0)
+
     ns = ap.parse_args()
     return Args(
         sellers=ns.sellers,
@@ -283,8 +296,11 @@ def parse_args() -> Args:
         batch_size=ns.batch_size,
         sleep_sec=ns.sleep_sec,
         seed=ns.seed,
+        w_name=ns.w_name,
+        w_desc=ns.w_desc,
+        w_category=ns.w_category,
+        w_price=ns.w_price,
     )
-
 
 # =============================
 # DB functions
@@ -576,7 +592,19 @@ def gen_desc_by_kind(kind: str) -> str:
         return f"{pick(ADJ)} apparel, made from {m}, {bit}."
     return f"{pick(ADJ)} handmade item, made from {m}, {bit}."
 
-
+def update_split_embeddings(cur, product_id: int, emb_name: str, emb_desc: str, emb_cat: str, emb_price: str):
+    cur.execute(
+        """
+        UPDATE products
+        SET
+          embedding_name=%s::vector,
+          embedding_desc=%s::vector,
+          embedding_category=%s::vector,
+          embedding_price=%s::vector
+        WHERE product_id=%s;
+        """,
+        (emb_name, emb_desc, emb_cat, emb_price, product_id),
+    )
 
 # =============================
 # Main
@@ -721,11 +749,27 @@ def main():
                                 price = float(row[1]) if row and row[1] is not None else 0.0
                                 cname = row[2] if row and row[2] else ""
 
-                                text = build_embed_text(pname, pdesc, price, cname)
+                                name_text = f"Name: {pname}".strip()
+                                desc_text = f"Description: {pdesc}".strip()
+                                cat_text  = f"Category: {cname}".strip()
+                                price_text = f"Price: {price:.2f} THB".strip()
 
-                                vec = embed_text(text)
-                                vec_lit = vec_to_pgvector_literal(vec)
-                                update_embedding(cur2, pid, vec_lit)
+                                v_name = embed_text(name_text)
+                                v_desc = embed_text(desc_text)
+                                v_cat  = embed_text(cat_text)
+                                v_price = embed_text(price_text)
+
+                                v_name  = apply_weight(v_name, args.w_name)
+                                v_desc  = apply_weight(v_desc, args.w_desc)
+                                v_cat   = apply_weight(v_cat, args.w_category)
+                                v_price = apply_weight(v_price, args.w_price)
+
+                                lit_name  = vec_to_pgvector_literal(v_name)
+                                lit_desc  = vec_to_pgvector_literal(v_desc)
+                                lit_cat   = vec_to_pgvector_literal(v_cat)
+                                lit_price = vec_to_pgvector_literal(v_price)
+
+                                update_split_embeddings(cur2, pid, lit_name, lit_desc, lit_cat, lit_price)
                                 updated += 1
                             except Exception as e:
                                 failed += 1

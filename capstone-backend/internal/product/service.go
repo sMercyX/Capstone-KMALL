@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"math"
 	"net/url"
+	"os"
+	"strconv"
 	"strings"
 
 	apperr "github.com/Perpasit/Capstone-KMALL/internal/apperr"
@@ -56,10 +58,22 @@ type Service interface {
 type service struct {
 	repo Repo
 	emb  embedding.Client
+	w    EmbWeights
+}
+
+type EmbWeights struct {
+	Name     float64
+	Desc     float64
+	Category float64
+	Price    float64
 }
 
 func NewService(r Repo, emb embedding.Client) Service {
-	return &service{repo: r, emb: emb}
+	return &service{
+		repo: r,
+		emb:  emb,
+		w:    loadEmbWeights(),
+	}
 }
 
 // ===== Helpers =====
@@ -212,6 +226,38 @@ func buildEmbeddingText(name string, desc *string, price float64, categoryName s
 		d,
 		price,
 	)
+}
+
+func readFloatEnv(key string, def float64) float64 {
+	v := strings.TrimSpace(os.Getenv(key))
+	if v == "" {
+		return def
+	}
+	f, err := strconv.ParseFloat(v, 64)
+	if err != nil || math.IsNaN(f) || math.IsInf(f, 0) || f < 0 {
+		return def
+	}
+	return f
+}
+
+func loadEmbWeights() EmbWeights {
+	w := EmbWeights{
+		Name:     readFloatEnv("REC_W_NAME", 0.45),
+		Desc:     readFloatEnv("REC_W_DESC", 0.35),
+		Category: readFloatEnv("REC_W_CATEGORY", 0.15),
+		Price:    readFloatEnv("REC_W_PRICE", 0.05),
+	}
+
+	// normalize ให้รวม = 1 (กันพลาด)
+	sum := w.Name + w.Desc + w.Category + w.Price
+	if sum <= 0 {
+		return EmbWeights{Name: 1, Desc: 0, Category: 0, Price: 0}
+	}
+	w.Name /= sum
+	w.Desc /= sum
+	w.Category /= sum
+	w.Price /= sum
+	return w
 }
 
 func (s *service) Create(ctx context.Context, in CreateInput) (Product, error) {
