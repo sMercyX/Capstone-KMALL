@@ -31,12 +31,19 @@ def embed_text(text: str) -> list[float]:
 
 
 def build_embed_text(row: dict) -> str:
-    # รวมข้อความให้ embedding มีบริบท (แนะนำ)
-    name = row["name"] or ""
+    name = row.get("name") or ""
     desc = row.get("product_desc") or ""
-    store = row.get("store_name") or ""
+    price = row.get("price")
     cat = row.get("category_name") or ""
-    return f"Product: {name}\nDescription: {desc}\nStore: {store}\nCategory: {cat}".strip()
+
+    price_str = f"{float(price):.2f}" if price is not None else "0.00"
+
+    return (
+        f"Name: {name}\n"
+        f"Description: {desc}\n"
+        f"Price: {price_str}\n"
+        f"Category: {cat}"
+    ).strip()
 
 
 def main():
@@ -59,10 +66,9 @@ def main():
                 p.product_id,
                 p.name,
                 p.product_desc,
-                s.store_name,
+                p.price,
                 c.name AS category_name
             FROM products p
-            JOIN stores s ON s.store_id = p.store_id
             JOIN categories c ON c.category_id = p.category_id
             WHERE p.embedding IS NULL
             ORDER BY p.product_id ASC;

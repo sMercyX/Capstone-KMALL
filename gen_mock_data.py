@@ -130,11 +130,11 @@ def vec_to_pgvector_literal(vec: list) -> str:
     return "[" + ",".join(f"{float(x):.8f}" for x in vec) + "]"
 
 
-def build_embed_text(name: str, desc: str, store: str, category: str) -> str:
+def build_embed_text(name: str, desc: str, price: float, category: str) -> str:
     return (
-        f"Product: {name}\n"
+        f"Name: {name}\n"
         f"Description: {desc}\n"
-        f"Store: {store}\n"
+        f"Price: {price:.2f}\n"
         f"Category: {category}"
     ).strip()
 
@@ -401,20 +401,21 @@ def list_subcategories(cur) -> List[dict]:
     return cur.fetchall()
 
 
-def create_or_update_product(cur, store_id: int, category_id: int, name: str, desc: str, price: float) -> int:
+def create_or_update_product(cur, store_id: int, category_id: int, name: str, desc: str, price: float, image_url: str) -> int:
     cur.execute(
         """
         INSERT INTO products (name, product_desc, price, image_url, is_active, store_id, category_id)
-        VALUES (%s,%s,%s,NULL,'YES',%s,%s)
+        VALUES (%s,%s,%s,%s,'YES',%s,%s)
         ON CONFLICT (name) DO UPDATE
           SET product_desc = EXCLUDED.product_desc,
               price = EXCLUDED.price,
+              image_url = EXCLUDED.image_url,
               is_active = 'YES',
               store_id = EXCLUDED.store_id,
               category_id = EXCLUDED.category_id
         RETURNING product_id;
         """,
-        (name, desc, price, store_id, category_id),
+        (name, desc, price, image_url, store_id, category_id),
     )
     row = cur.fetchone()
     pid = fetch_scalar(row, "product_id")
@@ -422,25 +423,22 @@ def create_or_update_product(cur, store_id: int, category_id: int, name: str, de
         raise RuntimeError("create_or_update_product: product_id is NULL")
     return int(pid)
 
+def mock_product_image_path(sub_slug: str) -> str:
+    sub_slug = (sub_slug or "unknown").strip().lower()
+    return f"/uploads/products/mockup/{sub_slug}/img-1.jpg"
 
-def add_product_images(cur, product_id: int, n: int):
-    n = max(1, min(n, 5))
-    for i in range(1, n + 1):
-        cur.execute(
-            """
-            INSERT INTO product_images (product_id, image_url, sort_order, is_primary)
-            VALUES (%s, %s, %s, %s)
-            ON CONFLICT (product_id, sort_order) DO UPDATE
-              SET image_url = EXCLUDED.image_url,
-                  is_primary = EXCLUDED.is_primary;
-            """,
-            (
-                product_id,
-                f"/uploads/products/{product_id}/img-{i}.jpg",
-                i,
-                True if i == 1 else False,
-            ),
-        )
+def add_product_images(cur, product_id: int, sub_slug: str):
+    path = mock_product_image_path(sub_slug)
+    cur.execute(
+        """
+        INSERT INTO product_images (product_id, image_url, sort_order, is_primary)
+        VALUES (%s, %s, 1, TRUE)
+        ON CONFLICT (product_id, sort_order) DO UPDATE
+          SET image_url = EXCLUDED.image_url,
+              is_primary = TRUE;
+        """,
+        (product_id, path),
+    )
 
 
 def ensure_attr_key(cur, key_name: str) -> int:
@@ -578,6 +576,8 @@ def gen_desc_by_kind(kind: str) -> str:
         return f"{pick(ADJ)} apparel, made from {m}, {bit}."
     return f"{pick(ADJ)} handmade item, made from {m}, {bit}."
 
+
+
 # =============================
 # Main
 # =============================
@@ -592,7 +592,7 @@ def main():
     conn = psycopg2.connect(DATABASE_URL)
     conn.autocommit = False
 
-    created_products: List[Tuple[int, str, str, str]] = []
+    created_products: List[Tuple[int, str]] = []
 
     try:
         with conn.cursor(cursor_factory=RealDictCursor) as cur:
@@ -676,6 +676,8 @@ def main():
                     pdesc = gen_desc_by_kind(profile["desc_kind"])
                     price = gen_price(domain)
 
+                    img_url = mock_product_image_path(sub_slug)
+
                     pid = create_or_update_product(
                         cur,
                         st["store_id"],
@@ -683,16 +685,18 @@ def main():
                         pname,
                         pdesc,
                         price,
+                        img_url,
                     )
-
-                    add_product_images(cur, pid, args.images_per_product)
+                    
+                    add_product_images(cur, pid, sub_slug)  
 
                     add_attr_value(cur, pid, key_material, pick(MATERIALS))
                     add_attr_value(cur, pid, key_color, pick(COLORS))
                     if domain == "clothing":
                         add_attr_value(cur, pid, key_size, pick(SIZES))
 
-                    created_products.append((pid, pname, st["store_name"], cat["name"]))
+                    created_products.append((pid, pname))
+                    
 
                 conn.commit()
                 print(f"[OK] products for store_id={st['store_id']} count={n}")
@@ -704,13 +708,21 @@ def main():
                 for i in range(0, len(created_products), args.batch_size):
                     batch = created_products[i:i + args.batch_size]
                     with conn.cursor() as cur2:
-                        for (pid, pname, sname, cname) in batch:
+                        for (pid, pname) in batch:
                             try:
-                                cur2.execute("SELECT product_desc FROM products WHERE product_id=%s;", (pid,))
+                                cur2.execute("""
+                                    SELECT COALESCE(p.product_desc,''), p.price, c.name
+                                    FROM products p
+                                    JOIN categories c ON c.category_id = p.category_id
+                                    WHERE p.product_id=%s;
+                                """, (pid,))
                                 row = cur2.fetchone()
-                                pdesc = row[0] if row and row[0] else ""
+                                pdesc = row[0] if row else ""
+                                price = float(row[1]) if row and row[1] is not None else 0.0
+                                cname = row[2] if row and row[2] else ""
 
-                                text = build_embed_text(pname, pdesc, sname, cname)
+                                text = build_embed_text(pname, pdesc, price, cname)
+
                                 vec = embed_text(text)
                                 vec_lit = vec_to_pgvector_literal(vec)
                                 update_embedding(cur2, pid, vec_lit)
