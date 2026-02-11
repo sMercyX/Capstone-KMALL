@@ -1,11 +1,12 @@
 import React, { useState, useRef, useEffect, useCallback } from "react"
 import { useParams, useLocation, useNavigate } from "react-router-dom"
-import { Send, Plus, MessageCircle, User, ChevronLeft } from "lucide-react"
+import { Send, Plus, MessageCircle, User, ChevronLeft, Check, CheckCheck } from "lucide-react"
 import { useChatApi, type MessageWithAttachments, type ChatThread } from "../../api/chatApi"
 import { useUserStore } from "../../stores/userStore"
 import { handleApiError } from "../../utils/handleApiError"
 import { resolveImageUrl } from "../../utils/resolve"
 import { useChatWebSocket, type ChatMessagePayload } from "../../hooks/useChatWebSocket"
+import { toast } from "react-toastify"
 
 // Types for UI messages
 type DisplayMessage = {
@@ -13,7 +14,8 @@ type DisplayMessage = {
   text: string
   sender: "user" | "seller"
   timestamp: string
-  isRead?: boolean
+  isRead: boolean
+  isLastRead: boolean
   attachments?: {
     file_url: string
     file_name: string
@@ -44,7 +46,11 @@ export default function ChatPage() {
   const hasFetched = useRef(false)
 
   // Transform API messages to display format
-  const transformMessages = (apiMessages: MessageWithAttachments[], myUserId: string): DisplayMessage[] => {
+  const transformMessages = (
+    apiMessages: MessageWithAttachments[], 
+    myUserId: string,
+    otherLastReadId: number = 0
+  ): DisplayMessage[] => {
     // Sort messages by created_at ascending (oldest first)
     const sortedMessages = [...apiMessages].sort((a, b) => 
       new Date(a.message.created_at).getTime() - new Date(b.message.created_at).getTime()
@@ -57,6 +63,11 @@ export default function ChatPage() {
       // Check if this message was sent by me
       const isMyMessage = msg.sender_id === myUserId
       
+      // Check read status
+      const isRead = msg.message_id <= otherLastReadId
+      // Check if this is explicitly the last read message
+      const isLastRead = msg.message_id === otherLastReadId
+      
       return {
         id: msg.message_id.toString(),
         text: msg.message_text,
@@ -66,6 +77,8 @@ export default function ChatPage() {
           minute: "2-digit",
           hour12: false,
         }),
+        isRead,
+        isLastRead,
         attachments: item.attachments?.map(att => ({
           file_url: att.file_url,
           file_name: att.file_name,
@@ -73,6 +86,22 @@ export default function ChatPage() {
         })),
       }
     })
+  }
+
+  // Mark all unread messages as read
+  const markThreadAsRead = async (threadId: number, messages: MessageWithAttachments[], myUserId: string) => {
+    // Find last message sent by OTHER person
+    const otherMessages = messages.filter(m => m.message.sender_id !== myUserId)
+    if (otherMessages.length === 0) return
+
+    // Find the message with the highest ID (latest message)
+    const lastMsgId = Math.max(...otherMessages.map(m => m.message.message_id))
+    
+    try {
+      await useChatApi().markAsRead(threadId, lastMsgId)
+    } catch (e) {
+      console.error("Failed to mark as read:", e)
+    }
   }
 
   // Load thread and messages on mount
@@ -89,16 +118,46 @@ export default function ChatPage() {
         // Open or get existing thread
         const threadRes = await openThread(parseInt(orderId))
         const threadData = threadRes.data.thread
+        
+        // Access control: check if user is on correct path
+        // - /store/orders/:id/chat → only seller can access
+        // - /orders/:id/chat → only buyer can access
+        const isSellerInThread = threadData.seller_id === userId
+        const isBuyerInThread = threadData.buyer_id === userId
+        
+        if (isSeller && !isSellerInThread) {
+          toast.error("คุณไม่มีสิทธิ์เข้าถึงแชทนี้ (เฉพาะผู้ขาย)")
+          navigate("/dashboard")
+          return
+        }
+        if (!isSeller && !isBuyerInThread) {
+          toast.error("คุณไม่มีสิทธิ์เข้าถึงแชทนี้ (เฉพาะผู้ซื้อ)")
+          navigate("/dashboard")
+          return
+        }
+        
         setThread(threadData)
         
         // Fetch messages
         const messagesRes = await getMessages(threadData.thread_id)
         
+        // Find last read message ID for the OTHER person
+        // The API returns read_state.other.last_read_message_id
+        // NOTE: The API structure provided in request shows:
+        // read_state: { me: { ... }, other: { ... } }
+        // We need to use read_state.other.last_read_message_id
+        const readState = messagesRes.data.read_state
+        const otherLastReadId = readState?.other?.last_read_message_id || 0
+        
         const displayMessages = transformMessages(
           messagesRes.data.messages || [],
-          userId
+          userId,
+          otherLastReadId
         )
         setMessages(displayMessages)
+        
+        // Mark as read immediately when loading
+        markThreadAsRead(threadData.thread_id, messagesRes.data.messages || [], userId)
       } catch (e) {
         handleApiError(e)
       } finally {
@@ -107,7 +166,7 @@ export default function ChatPage() {
     }
     
     loadChatData()
-  }, [orderId, userId])
+  }, [orderId, userId, isSeller, navigate])
 
   // Handler for new messages from WebSocket
   const handleNewMessage = useCallback((data: ChatMessagePayload['data']) => {
@@ -124,6 +183,8 @@ export default function ChatPage() {
         minute: "2-digit",
         hour12: false,
       }),
+      isRead: false, 
+      isLastRead: false,
       attachments: data.attachments?.map(att => ({
         file_url: att.file_url,
         file_name: att.file_name || "",
@@ -138,10 +199,45 @@ export default function ChatPage() {
       }
       return [...prev, newDisplayMessage]
     })
+    
+    // If not my message, mark as read immediately
+    if (!isMyMessage && thread) {
+      // Create a minimal MessageWithAttachments object to pass to markThreadAsRead
+      const msgObj: MessageWithAttachments = {
+        message: msg as any, // minimal cast
+        attachments: []
+      }
+      markThreadAsRead(thread.thread_id, [msgObj], userId)
+    }
+  }, [userId, thread])
+
+  // Handler for read status updates
+  const handleReadUpdate = useCallback((data: any) => {
+    // Only care if the update is from the OTHER user
+    if (data.user_id === userId) return
+
+    const lastReadId = data.last_read_message_id
+
+    setMessages(prev => prev.map(msg => {
+      const msgId = parseInt(msg.id)
+      const isRead = msgId <= lastReadId
+      const isLastRead = msgId === lastReadId
+      
+      // Optimization: only return new object if something changed
+      if (msg.isRead === isRead && msg.isLastRead === isLastRead) {
+        return msg
+      }
+      
+      return {
+        ...msg,
+        isRead,
+        isLastRead
+      }
+    }))
   }, [userId])
 
   // WebSocket for real-time updates
-  useChatWebSocket(thread?.thread_id, handleNewMessage)
+  useChatWebSocket(thread?.thread_id, handleNewMessage, handleReadUpdate)
 
   // Auto-scroll to bottom (within container only)
   const scrollToBottom = () => {
@@ -284,13 +380,23 @@ export default function ChatPage() {
                         )}
                         
                         <div 
-                          className={`flex items-center gap-1 text-xs px-2 ${
+                          className={`flex items-center gap-1 text-[10px] px-1 mt-0.5 ${
                             msg.sender === "user" ? "text-gray-400 justify-end" : "text-gray-400 justify-start"
                           }`}
                         >
                           <span>{msg.timestamp}</span>
-                          {msg.sender === "user" && msg.isRead && (
-                            <span className="text-[#4CAF50]">✓✓</span>
+                          {msg.sender === "user" && (
+                            // Logic: 
+                            // - If isLastRead -> Double Tick (Green)
+                            // - If !isRead -> Single Tick (Gray)
+                            // - If isRead but !isLastRead -> No Tick (Hidden)
+                            msg.isLastRead ? (
+                              <CheckCheck className="h-3 w-3 text-green-500" />
+                            ) : msg.isRead ? (
+                               null 
+                            ) : (
+                              <Check className="h-3 w-3 text-gray-400" />
+                            )
                           )}
                         </div>
                       </div>

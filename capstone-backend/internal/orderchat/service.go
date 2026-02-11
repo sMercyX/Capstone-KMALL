@@ -447,6 +447,16 @@ func (s *service) MarkRead(ctx context.Context, in MarkReadServiceInput) (ReadSt
 	if err != nil {
 		return ReadState{}, err
 	}
+
+	// Broadcast read update
+	if s.hub != nil {
+		roomID := "chat_" + strconv.FormatInt(in.ThreadID, 10)
+		s.hub.BroadcastToRoom(roomID, map[string]interface{}{
+			"type": "READ_UPDATE",
+			"data": rs,
+		})
+	}
+
 	return rs, nil
 }
 

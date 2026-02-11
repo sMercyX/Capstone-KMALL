@@ -16,6 +16,7 @@ export interface Product {
   store_id: number
   store_name: string
   category_id: number
+  sold_count?: number
 }
 export interface AddProductRequest {
   name: string

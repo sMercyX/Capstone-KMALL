@@ -26,12 +26,18 @@ export default function SearchBar() {
 
   // Sync query from URL parameter
   useEffect(() => {
+    // If not on search page, clear query
+    if (location.pathname !== '/search') {
+      setQuery("")
+      return
+    }
+
     const params = new URLSearchParams(location.search)
     const q = params.get("q")
     if (q) {
       setQuery(q)
     }
-  }, [location.search])
+  }, [location.pathname, location.search])
 
   // Fetch search history from API
   const fetchSearchHistory = async () => {
@@ -168,6 +174,7 @@ export default function SearchBar() {
           onFocus={handleFocus}
           onKeyDown={handleKeyDown}
           placeholder="Search for products and stores..."
+
           className="w-full rounded-full border border-gray-300 pl-4 pr-12 py-2 
                      focus:outline-none focus:ring-2 focus:ring-orange-400 focus:border-orange-400
                      transition-all duration-200 bg-white text-gray-700 placeholder-gray-400"
