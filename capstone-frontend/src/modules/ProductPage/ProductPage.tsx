@@ -313,6 +313,9 @@ export default function ProductPage() {
             <h1 className="text-2xl md:text-3xl font-bold leading-tight">
               {product.name}
             </h1>
+            <div className="flex items-center gap-3 text-gray-700">
+              <span className="text-md font-semibold text-orange-500">{product.category_name}</span>
+            </div>
 {/* 
             <div className="flex items-center gap-3 text-gray-700">
               <RatingStarsFixed />
