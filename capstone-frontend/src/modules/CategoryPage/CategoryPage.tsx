@@ -155,6 +155,14 @@ export default function CategoryPage() {
     setSelectedMinPrice(min)
     setSelectedMaxPrice(max)
     setPageIndex(1)
+    setSort("latest")
+  }
+
+  // Handle category change from FilterSidebar
+  const handleCategoryChange = (ids: number[]) => {
+    setFilter(ids)
+    setPageIndex(1)
+    setSort("latest")
   }
 
   const safeTotal = typeof total === "number" ? total : 0
@@ -173,7 +181,7 @@ export default function CategoryPage() {
                 <FilterSidebar 
                     filterOptions={filterOptions}
                     selectedCategories={filter}
-                    onChangeCategory={setFilter}
+                    onChangeCategory={handleCategoryChange}
                     priceMin={apiMinPrice}
                     priceMax={apiMaxPrice}
                     onChangePriceRange={handlePriceRangeChange}
