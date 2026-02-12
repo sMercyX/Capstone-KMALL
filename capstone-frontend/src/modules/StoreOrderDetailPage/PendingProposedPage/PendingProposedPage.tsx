@@ -58,7 +58,7 @@ export default function PendingProposedPage({
       <div className="mb-6">
         {/* Header with user */}
         <div className="flex justify-between items-center mb-6">
-          <h3 className="text-xl font-bold">Select meeting location and date/time</h3>
+          <h3 className="text-xl font-bold">Meeting location and date/time</h3>
         </div>
 
         {/* Row 1: Zone + DateTime */}
