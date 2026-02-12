@@ -35,6 +35,7 @@ type Repo interface {
 
 	GetPublic(ctx context.Context, id int64) (Product, error)
 	SuggestSplit(ctx context.Context, userID string, q string, limit int) (SuggestSplitResult, error)
+	GetCategoryName(ctx context.Context, categoryID int) (string, error)
 }
 
 type repo struct{ db *pgxpool.Pool }
@@ -49,7 +50,11 @@ type CreateParams struct {
 	IsActive    string
 	StoreID     int
 	CategoryID  int
-	Embedding   []float64
+	// Embedding   []float64
+
+	EmbName     []float64
+	EmbDesc     []float64
+	EmbCategory []float64
 }
 
 type UpdateParams struct {
@@ -59,12 +64,31 @@ type UpdateParams struct {
 	ImageURL    *string
 	IsActive    *string
 	CategoryID  *int
-	Embedding   *[]float64
+	// Embedding   *[]float64
+
+	EmbName     *[]float64
+	EmbDesc     *[]float64
+	EmbCategory *[]float64
 }
 
 type SuggestSplitResult struct {
 	History []string `json:"history"`
 	Suggest []string `json:"suggest"`
+}
+
+func toVecArg(v []float64) (any, error) {
+	if len(v) == 0 {
+		return nil, nil
+	}
+
+	vl, err := vectorLiteral(v)
+	if err != nil {
+		return nil, err
+	}
+	if strings.TrimSpace(vl) == "" {
+		return nil, nil
+	}
+	return vl, nil
 }
 
 func vectorLiteral(v []float64) (string, error) {
@@ -101,35 +125,38 @@ func (r *repo) Create(ctx context.Context, in CreateParams) (Product, error) {
 	`, in.Name).Scan(&exists); err != nil {
 		return Product{}, apperr.Wrap(apperr.Internal, err, "check product name failed")
 	}
-
 	if exists {
 		return Product{}, apperr.New(apperr.BadRequest, "product name already exists")
 	}
 
-	// ===== embedding (optional) =====
-	var vec any = nil
-	if in.Embedding != nil {
-		vl, err := vectorLiteral(in.Embedding)
-		if err != nil {
-			return Product{}, apperr.Wrap(apperr.Internal, err, "format embedding failed")
-		}
-		if strings.TrimSpace(vl) != "" {
-			vec = vl // string => $8::vector
-		}
+	// ===== embeddings (optional) =====
+	embName, err := toVecArg(in.EmbName)
+	if err != nil {
+		return Product{}, apperr.Wrap(apperr.Internal, err, "format embedding_name failed")
+	}
+	embDesc, err := toVecArg(in.EmbDesc)
+	if err != nil {
+		return Product{}, apperr.Wrap(apperr.Internal, err, "format embedding_desc failed")
+	}
+	embCat, err := toVecArg(in.EmbCategory)
+	if err != nil {
+		return Product{}, apperr.Wrap(apperr.Internal, err, "format embedding_category failed")
 	}
 
 	// ----- INSERT -----
 	var p Product
-	err := r.db.QueryRow(ctx, `
+	err = r.db.QueryRow(ctx, `
 		INSERT INTO products (
 			name, product_desc, price, image_url,
 			is_active, store_id, category_id,
-			embedding
+			embedding_name, embedding_desc, embedding_category
 		)
 		VALUES (
 			$1, $2, $3, $4,
 			$5, $6, $7,
-			COALESCE($8::vector, NULL)
+			COALESCE($8::vector, NULL),
+			COALESCE($9::vector, NULL),
+			COALESCE($10::vector, NULL)
 		)
 		RETURNING
 			product_id, name, product_desc, price, image_url,
@@ -137,7 +164,7 @@ func (r *repo) Create(ctx context.Context, in CreateParams) (Product, error) {
 	`,
 		in.Name, in.Description, in.Price, in.ImageURL,
 		in.IsActive, in.StoreID, in.CategoryID,
-		vec,
+		embName, embDesc, embCat,
 	).Scan(
 		&p.ID, &p.Name, &p.Description, &p.Price, &p.ImageURL,
 		&p.CreatedAt, &p.UpdatedAt, &p.IsActive, &p.StoreID, &p.CategoryID,
@@ -244,28 +271,37 @@ func (r *repo) Update(ctx context.Context, id int64, in UpdateParams) (Product, 
 		`, *in.Name, id).Scan(&exists); err != nil {
 			return Product{}, apperr.Wrap(apperr.Internal, err, "check product name failed")
 		}
-
 		if exists {
 			return Product{}, apperr.New(apperr.BadRequest, "product name already exists")
 		}
 	}
 
-	// ===== embedding (optional) =====
-	// vecArg:
-	// - nil => COALESCE($8::vector, embedding) => keep old
-	// - string => set new
-	var vecArg any = nil
-	if in.Embedding != nil {
-		vl, err := vectorLiteral(*in.Embedding)
+	// ===== embeddings (optional) =====
+	// nil => COALESCE($X::vector, old) keeps old
+	var embNameArg any = nil
+	var embDescArg any = nil
+	var embCatArg any = nil
+
+	if in.EmbName != nil {
+		v, err := toVecArg(*in.EmbName)
 		if err != nil {
-			return Product{}, apperr.Wrap(apperr.Internal, err, "format embedding failed")
+			return Product{}, apperr.Wrap(apperr.Internal, err, "format embedding_name failed")
 		}
-		if strings.TrimSpace(vl) != "" {
-			vecArg = vl
-		} else {
-			// ถ้าส่งมาว่างจริง ๆ จะไม่ set (ถือว่า ignore)
-			vecArg = nil
+		embNameArg = v
+	}
+	if in.EmbDesc != nil {
+		v, err := toVecArg(*in.EmbDesc)
+		if err != nil {
+			return Product{}, apperr.Wrap(apperr.Internal, err, "format embedding_desc failed")
 		}
+		embDescArg = v
+	}
+	if in.EmbCategory != nil {
+		v, err := toVecArg(*in.EmbCategory)
+		if err != nil {
+			return Product{}, apperr.Wrap(apperr.Internal, err, "format embedding_category failed")
+		}
+		embCatArg = v
 	}
 
 	// ----- UPDATE -----
@@ -278,7 +314,11 @@ func (r *repo) Update(ctx context.Context, id int64, in UpdateParams) (Product, 
 		    image_url = COALESCE($5, image_url),
 		    is_active = COALESCE($6, is_active),
 		    category_id = COALESCE($7, category_id),
-		    embedding = COALESCE($8::vector, embedding),
+
+		    embedding_name     = COALESCE($8::vector,  embedding_name),
+		    embedding_desc     = COALESCE($9::vector,  embedding_desc),
+		    embedding_category = COALESCE($10::vector, embedding_category),
+
 		    updated_at = NOW()
 		WHERE product_id = $1
 		RETURNING
@@ -292,7 +332,7 @@ func (r *repo) Update(ctx context.Context, id int64, in UpdateParams) (Product, 
 		in.ImageURL,
 		in.IsActive,
 		in.CategoryID,
-		vecArg,
+		embNameArg, embDescArg, embCatArg,
 	).Scan(
 		&p.ID, &p.Name, &p.Description, &p.Price, &p.ImageURL,
 		&p.CreatedAt, &p.UpdatedAt, &p.IsActive, &p.StoreID, &p.CategoryID,
@@ -825,4 +865,26 @@ func (r *repo) SuggestSplit(ctx context.Context, userID string, q string, limit 
 	}
 
 	return out, nil
+}
+
+func (r *repo) GetCategoryName(ctx context.Context, categoryID int) (string, error) {
+	if categoryID <= 0 {
+		return "", apperr.New(apperr.BadRequest, "invalid category_id")
+	}
+
+	var name string
+	err := r.db.QueryRow(ctx, `
+    SELECT name
+    FROM categories
+    WHERE category_id = $1 AND is_active = 'YES';
+  `, categoryID).Scan(&name)
+
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return "", apperr.New(apperr.BadRequest, "category not found or inactive")
+		}
+		return "", apperr.Wrap(apperr.Internal, err, "get category name failed")
+	}
+
+	return name, nil
 }

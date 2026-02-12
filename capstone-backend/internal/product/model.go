@@ -18,4 +18,8 @@ type Product struct {
 	StoreName    string    `db:"store_name" json:"store_name"`
 	CategoryName string    `db:"category_name" json:"category_name"`
 	SoldCount    int64     `db:"sold_count"  json:"sold_count"`
+
+	EmbeddingName     []float64 `db:"embedding_name" json:"-"`
+	EmbeddingDesc     []float64 `db:"embedding_desc" json:"-"`
+	EmbeddingCategory []float64 `db:"embedding_category" json:"-"`
 }

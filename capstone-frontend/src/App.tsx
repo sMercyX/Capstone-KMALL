@@ -14,8 +14,6 @@ export default function App() {
       <AuthProvider>
         <ThemeProvider>
           <AppRoutes />
-          {/* Dev Mode Switcher - แสดงเฉพาะ dev environment */}
-          {/* {import.meta.env.DEV && <DevModeSwitcher />} */}
           <DevModeSwitcher />
           <ToastContainer
             position="top-right"

@@ -2,8 +2,11 @@ package product
 
 import (
 	"context"
+	"fmt"
 	"math"
 	"net/url"
+	"os"
+	"strconv"
 	"strings"
 
 	apperr "github.com/Perpasit/Capstone-KMALL/internal/apperr"
@@ -55,10 +58,22 @@ type Service interface {
 type service struct {
 	repo Repo
 	emb  embedding.Client
+	w    EmbWeights
+}
+
+type EmbWeights struct {
+	Name     float64
+	Desc     float64
+	Category float64
+	Price    float64
 }
 
 func NewService(r Repo, emb embedding.Client) Service {
-	return &service{repo: r, emb: emb}
+	return &service{
+		repo: r,
+		emb:  emb,
+		w:    loadEmbWeights(),
+	}
 }
 
 // ===== Helpers =====
@@ -199,16 +214,48 @@ func normalizeFulfillment(s string) string {
 	}
 }
 
-func buildEmbeddingText(name string, desc *string) string {
-	name = strings.TrimSpace(name)
+func readFloatEnv(key string, def float64) float64 {
+	v := strings.TrimSpace(os.Getenv(key))
+	if v == "" {
+		return def
+	}
+	f, err := strconv.ParseFloat(v, 64)
+	if err != nil || math.IsNaN(f) || math.IsInf(f, 0) || f < 0 {
+		return def
+	}
+	return f
+}
+
+func loadEmbWeights() EmbWeights {
+	w := EmbWeights{
+		Name:     readFloatEnv("REC_W_NAME", 0.45),
+		Desc:     readFloatEnv("REC_W_DESC", 0.35),
+		Category: readFloatEnv("REC_W_CATEGORY", 0.15),
+	}
+
+	// normalize ให้รวม = 1 (กันพลาด)
+	sum := w.Name + w.Desc + w.Category
+	if sum <= 0 {
+		return EmbWeights{Name: 1, Desc: 0, Category: 0}
+	}
+	w.Name /= sum
+	w.Desc /= sum
+	w.Category /= sum
+	return w
+}
+
+func buildNameText(name string) string {
+	return fmt.Sprintf("Name: %s", strings.TrimSpace(name))
+}
+func buildDescText(desc *string) string {
 	d := ""
 	if desc != nil {
 		d = strings.TrimSpace(*desc)
 	}
-	if d == "" {
-		return name
-	}
-	return name + "\n" + d
+	return fmt.Sprintf("Description: %s", d)
+}
+func buildCategoryText(categoryName string) string {
+	return fmt.Sprintf("Category: %s", strings.TrimSpace(categoryName))
 }
 
 func (s *service) Create(ctx context.Context, in CreateInput) (Product, error) {
@@ -216,21 +263,32 @@ func (s *service) Create(ctx context.Context, in CreateInput) (Product, error) {
 		return Product{}, err
 	}
 
-	// ===== optional embedding =====
-	var vec []float64 = nil
+	var vName, vDesc, vCat []float64
+
 	if s.emb != nil {
-		text := buildEmbeddingText(in.Name, in.Description)
-		v, err := s.emb.Embed(ctx, text)
+		catName, err := s.repo.GetCategoryName(ctx, in.CategoryID)
 		if err != nil {
-			return Product{}, apperr.Wrap(apperr.Internal, err, "embed product failed")
+			return Product{}, err
 		}
-		// ปล่อยให้ v เป็น nil/len>0 ตามที่ client คืนมา
-		// (ถ้า client คืน empty slice แปลว่าแปลกแล้ว แต่เราจะไม่บังคับ)
-		if len(v) > 0 {
-			vec = v
-		} else {
-			vec = nil
+
+		// embed แยก field
+		rawName, err := s.emb.Embed(ctx, buildNameText(in.Name))
+		if err != nil {
+			return Product{}, apperr.Wrap(apperr.Internal, err, "embed name failed")
 		}
+		rawDesc, err := s.emb.Embed(ctx, buildDescText(in.Description))
+		if err != nil {
+			return Product{}, apperr.Wrap(apperr.Internal, err, "embed desc failed")
+		}
+		rawCat, err := s.emb.Embed(ctx, buildCategoryText(catName))
+		if err != nil {
+			return Product{}, apperr.Wrap(apperr.Internal, err, "embed category failed")
+		}
+
+		// apply weight (จาก env ที่คุณโหลดไว้ใน s.w)
+		vName = rawName
+		vDesc = rawDesc
+		vCat = rawCat
 	}
 
 	params := CreateParams{
@@ -241,7 +299,10 @@ func (s *service) Create(ctx context.Context, in CreateInput) (Product, error) {
 		IsActive:    in.IsActive,
 		StoreID:     in.StoreID,
 		CategoryID:  in.CategoryID,
-		Embedding:   vec,
+
+		EmbName:     vName,
+		EmbDesc:     vDesc,
+		EmbCategory: vCat,
 	}
 
 	return s.repo.Create(ctx, params)
@@ -291,9 +352,14 @@ func (s *service) Update(ctx context.Context, id int64, in UpdateInput) (Product
 		newName = strings.TrimSpace(*in.Name)
 	}
 
-	var newDesc *string = old.Description
+	newDesc := old.Description
 	if in.Description != nil {
 		newDesc = in.Description
+	}
+
+	newCatID := old.CategoryID
+	if in.CategoryID != nil {
+		newCatID = *in.CategoryID
 	}
 
 	needEmbed := false
@@ -317,18 +383,34 @@ func (s *service) Update(ctx context.Context, id int64, in UpdateInput) (Product
 		needEmbed = true
 	}
 
-	var vecPtr *[]float64 = nil
+	var embNamePtr, embDescPtr, embCatPtr *[]float64 = nil, nil, nil
+
 	if needEmbed && s.emb != nil {
-		text := buildEmbeddingText(newName, newDesc)
-		v, err := s.emb.Embed(ctx, text)
+		catName, err := s.repo.GetCategoryName(ctx, newCatID)
 		if err != nil {
-			return Product{}, apperr.Wrap(apperr.Internal, err, "embed product failed")
+			return Product{}, err
 		}
-		if len(v) > 0 {
-			vecPtr = &v
-		} else {
-			vecPtr = nil
+
+		rawName, err := s.emb.Embed(ctx, buildNameText(newName))
+		if err != nil {
+			return Product{}, apperr.Wrap(apperr.Internal, err, "embed name failed")
 		}
+		rawDesc, err := s.emb.Embed(ctx, buildDescText(newDesc))
+		if err != nil {
+			return Product{}, apperr.Wrap(apperr.Internal, err, "embed desc failed")
+		}
+		rawCat, err := s.emb.Embed(ctx, buildCategoryText(catName))
+		if err != nil {
+			return Product{}, apperr.Wrap(apperr.Internal, err, "embed category failed")
+		}
+
+		vName := rawName
+		vDesc := rawDesc
+		vCat := rawCat
+
+		embNamePtr = &vName
+		embDescPtr = &vDesc
+		embCatPtr = &vCat
 	}
 
 	params := UpdateParams{
@@ -338,7 +420,10 @@ func (s *service) Update(ctx context.Context, id int64, in UpdateInput) (Product
 		ImageURL:    in.ImageURL,
 		IsActive:    in.IsActive,
 		CategoryID:  in.CategoryID,
-		Embedding:   vecPtr,
+
+		EmbName:     embNamePtr,
+		EmbDesc:     embDescPtr,
+		EmbCategory: embCatPtr,
 	}
 
 	return s.repo.Update(ctx, id, params)
@@ -371,13 +456,12 @@ func (s *service) ListPublic(
 	}
 
 	q = strings.TrimSpace(q)
+	rawSort := strings.TrimSpace(sortBy)
 	sortBy = normalizeSortBy(sortBy)
-	fulfillment = normalizeFulfillment(fulfillment)
-
-	// ถ้าส่ง sort_by แปลก ๆ มา
-	if sortBy == "" && strings.TrimSpace(strings.ToLower(sortBy)) != "" {
+	if sortBy == "" && rawSort != "" {
 		return nil, 0, 0, apperr.New(apperr.BadRequest, "invalid sort_by (use latest, sold, price_asc, price_desc)")
 	}
+	fulfillment = normalizeFulfillment(fulfillment)
 
 	// ===== normalize price range =====
 	// goal: UI slider length should start at 0 always
@@ -402,10 +486,12 @@ func (s *service) ListPublic(
 
 	// if both provided and min > max -> swap (friendly)
 	if minPrice != nil && maxPrice != nil && *minPrice > *maxPrice {
-		*minPrice, *maxPrice = *maxPrice, *minPrice
-		if *minPrice < 0 {
-			*minPrice = 0
+		a, b := *maxPrice, *minPrice
+		if a < 0 {
+			a = 0
 		}
+		minPrice = &a
+		maxPrice = &b
 	}
 
 	return s.repo.ListPublic(
