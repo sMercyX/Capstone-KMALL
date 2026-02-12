@@ -45,6 +45,7 @@ export default function ChatPage() {
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const messagesContainerRef = useRef<HTMLDivElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const textInputRef = useRef<HTMLInputElement>(null)
   const hasFetched = useRef(false)
 
   // Transform API messages to display format
@@ -256,6 +257,7 @@ export default function ChatPage() {
     e?.preventDefault()
     if (!inputText.trim() && !selectedImage) return
     if (!thread) return
+    if (sending) return
 
     setSending(true)
     try {
@@ -271,6 +273,10 @@ export default function ChatPage() {
       handleApiError(e)
     } finally {
       setSending(false)
+      // Focus back to input after sending
+      setTimeout(() => {
+        textInputRef.current?.focus()
+      }, 0)
     }
   }
 
@@ -466,11 +472,12 @@ export default function ChatPage() {
 
               <form onSubmit={handleSend} className="flex flex-1 items-center gap-3 relative">
                 <input
+                  ref={textInputRef}
                   type="text"
                   value={inputText}
                   onChange={(e) => setInputText(e.target.value)}
                   placeholder="Type a message..."
-                  disabled={sending || loading}
+                  disabled={loading}
                   className="flex-1 rounded-full border border-gray-200 bg-white px-5 py-3 text-sm outline-none focus:border-gray-300 focus:ring-0 transition-all placeholder:text-gray-300 shadow-inner disabled:bg-gray-50"
                 />
                  <button
