@@ -7,6 +7,7 @@ import { handleApiError } from "../../utils/handleApiError"
 import { resolveImageUrl } from "../../utils/resolve"
 import { useChatWebSocket, type ChatMessagePayload } from "../../hooks/useChatWebSocket"
 import { toast } from "react-toastify"
+import { processImageFile, SUPPORTED_IMAGE_TYPES } from "../../utils/imageProcessing"
 
 // Types for UI messages
 type DisplayMessage = {
@@ -359,10 +360,6 @@ export default function ChatPage() {
                                 src={resolveImageUrl(att.file_url)}
                                 alt={att.file_name}
                                 className="block max-w-[200px] max-h-[200px] w-auto h-auto rounded-lg object-cover border border-gray-200 bg-gray-50"
-                                onError={(e) => {
-                                  e.currentTarget.src = "https://via.placeholder.com/200x200?text=File"
-                                  e.currentTarget.onerror = null // prevent loop
-                                }}
                               />
                             ))}
                           </div>
@@ -415,45 +412,21 @@ export default function ChatPage() {
           {/* Input Area */}
           <div className="bg-white p-4 border-t border-gray-200">
             <div className="flex items-center gap-3">
+
               <input
                 type="file"
                 ref={fileInputRef}
-                accept="image/png, image/jpeg, image/jpg, image/webp, image/heic, image/heif, .heic, .heif"
+                accept={SUPPORTED_IMAGE_TYPES}
                 className="hidden"
                 onChange={async (e) => {
                   const file = e.target.files?.[0]
                   if (file) {
-                    // Check for HEIC
-                    if (
-                      file.type === "image/heic" || 
-                      file.type === "image/heif" || 
-                      file.name.toLowerCase().endsWith(".heic") ||
-                      file.name.toLowerCase().endsWith(".heif")
-                    ) {
-                      try {
-                        const heic2any = (await import("heic2any")).default
-                        const convertedBlob = await heic2any({
-                          blob: file,
-                          toType: "image/jpeg",
-                          quality: 0.8
-                        })
-                        
-                        // normalize: convertedBlob can be Blob or Blob[]
-                        const blob = Array.isArray(convertedBlob) ? convertedBlob[0] : convertedBlob
-                        
-                        const newFile = new File([blob], file.name.replace(/\.(heic|heif)$/i, ".jpg"), {
-                          type: "image/jpeg"
-                        })
-                        
-                        setSelectedImage(newFile)
-                        setImagePreview(URL.createObjectURL(newFile))
-                      } catch (err) {
-                        console.error("HEIC conversion failed:", err)
-                        toast.error("Failed to process HEIC image")
-                      }
-                    } else {
-                      setSelectedImage(file)
-                      setImagePreview(URL.createObjectURL(file))
+                    try {
+                        const processedFile = await processImageFile(file)
+                        setSelectedImage(processedFile)
+                        setImagePreview(URL.createObjectURL(processedFile))
+                    } catch (error) {
+                        // Error is already handled/logged in processImageFile
                     }
                   }
                 }}
