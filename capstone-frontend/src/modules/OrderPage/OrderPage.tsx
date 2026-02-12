@@ -1,6 +1,7 @@
 // src/pages/orders/OrderPage.tsx
-import { useEffect } from "react"
-import { useLocation } from "react-router-dom"
+import { useEffect, useState } from "react"
+import { useLocation, useNavigate } from "react-router-dom"
+import { Loader2 } from "lucide-react"
 import SwitchTabs, {
   type SwitchTabItem,
 } from "../../components/SwitchTabs/SwitchTabs"
@@ -11,8 +12,8 @@ import {
   useOrderApi,
   type OrderStatusGroup,
 } from "../../api/orderApi"
-import type { OrderStatusContext } from "./OrderListItem"
-import OrderListItem from "./OrderListItem"
+import OrderListItem, { type OrderStatusContext } from "../../components/Order/OrderListItem"
+import { getAllLocations, type CampusLocation } from "../../api/campusLocationApi"
 
 const ORDER_TABS: SwitchTabItem[] = [
   { key: "ongoing", label: "ON GOING", href: "/orders/ongoing" },
@@ -20,11 +21,7 @@ const ORDER_TABS: SwitchTabItem[] = [
   { key: "canceled", label: "CANCELED/FAILED", href: "/orders/canceled" },
 ]
 
-const titleMap: Record<OrderTabKey, string> = {
-  ongoing: "MY ORDER ON GOING",
-  completed: "MY ORDER COMPLETED",
-  canceled: "MY ORDER CANCELED / FAILED",
-}
+
 
 const statusGroupMap: Record<OrderTabKey, OrderStatusGroup> = {
   ongoing: "active",
@@ -40,20 +37,21 @@ const contextMap: Record<OrderTabKey, OrderStatusContext> = {
 
 function OrderListHeader() {
   return (
-    <div className="flex items-center gap-6 px-6 pb-3 text-center text-xs md:text-sm font-medium text-gray-500">
-      <div className="w-14 flex-shrink-0"></div>
-      <div className="flex-1 grid grid-cols-4">
-        <span>Order ID</span>
-        <span>Order Date</span>
-        <span>Total</span>
-        <span>Status</span>
-      </div>
+    <div className="flex items-center justify-between px-6 pb-2 text-xs text-gray-400 font-light">
+      <div className="w-[10%] min-w-[60px]">ลำดับ</div>
+      <div className="w-[20%]">ชื่อร้าน</div>
+      <div className="w-[20%]">วัน/เวลาที่สั่งซื้อ</div>
+      <div className="w-[15%]">สถานที่นัดรับสินค้า</div>
+      <div className="w-[15%]">ยอดรวมทั้งหมด</div>
+      <div className="w-[10%] text-center">สถานะคำสั่งซื้อ</div>
+      <div className="w-[10%]"></div>
     </div>
   )
 }
 
 export default function OrderPage() {
   const location = useLocation()
+  const navigate = useNavigate()
   const pathname = location.pathname
   const name = useUserStore((s) => s.name) || "NITCHAN"
 
@@ -69,6 +67,12 @@ export default function OrderPage() {
   } = useOrderStore()
 
   const { getOrdersByStatus } = useOrderApi()
+  const [locations, setLocations] = useState<CampusLocation[]>([])
+
+  // Load locations once
+  useEffect(() => {
+    getAllLocations().then(setLocations).catch(console.error)
+  }, [])
 
   // sync URL -> activeKey
   useEffect(() => {
@@ -114,7 +118,7 @@ export default function OrderPage() {
   }, [activeKey]) // เฉพาะ activeKey เพื่อป้องกัน fetch ซ้ำ
 
   return (
-    <div className="max-w-5xl mx-auto py-10">
+    <div className="max-w-6xl mx-auto py-10 px-4">
       {/* banner */}
       <div className="mb-8">
         <div className="h-32 md:h-40 rounded-3xl bg-gradient-to-r from-orange-400 via-orange-500 to-pink-500 flex items-center justify-center">
@@ -130,42 +134,49 @@ export default function OrderPage() {
         className="mb-6"
       />
 
-      <div className="text-center mb-6">
-        <h2 className="text-xl md:text-2xl font-extrabold tracking-[0.3em]">
-          {titleMap[activeKey]}
+      <div className="text-left mb-6">
+        <h2 className="text-xl md:text-2xl font-bold text-gray-800">
+           คลิกเพื่อดูรายละเอียดออเดอร์
         </h2>
-        <p className="mt-2 text-xs text-gray-500">
-          Click an order to view details.
-        </p>
       </div>
 
-      <div className="border-b border-gray-200 mb-6"></div>
-
-      <div className="space-y-3">
+      <div className="bg-white rounded-3xl p-6 shadow-sm border border-gray-100 min-h-[500px]">
         <OrderListHeader />
 
-        {isLoading && (
-          <p className="text-center text-sm text-gray-500 mt-6">Loading...</p>
-        )}
+        <div className="space-y-1 mt-2">
+          {isLoading && (
+            <p className="text-center text-sm text-gray-500 mt-6"><Loader2 className="animate-spin inline mr-2"/>Loading...</p>
+          )}
 
-        {error && <p className="text-center text-sm text-red-500 mt-6">{error}</p>}
+          {error && <p className="text-center text-sm text-red-500 mt-6">{error}</p>}
 
-        {!isLoading && !error && orders.length === 0 && (
-          <p className="text-center text-sm text-gray-500 mt-6">
-            No orders in this category.
-          </p>
-        )}
+          {!isLoading && !error && orders.length === 0 && (
+            <p className="text-center text-sm text-gray-500 mt-6">
+              No orders found.
+            </p>
+          )}
 
-        {!isLoading &&
-          !error &&
-          orders.map((item) => (
-            <OrderListItem
-              key={item.order.id}
-              data={item}
-              context={contextMap[activeKey]}
-            />
-          ))}
+          {!isLoading &&
+            !error &&
+            orders.map((item, idx) => (
+              <OrderListItem
+                key={item.order.id}
+                orderId={item.order.id}
+                index={idx}
+                date={item.order.order_date}
+                totalPrice={item.order.total_price}
+                status={item.order.status}
+                title={item.store_name}
+                locationId={item.order.campus_location_id}
+                locations={locations}
+                context={contextMap[activeKey]}
+                isSeller={false}
+                onClick={() => navigate(`/orders/${item.order.id}`)}
+              />
+            ))}
+        </div>
       </div>
     </div>
   )
 }
+
