@@ -1,8 +1,6 @@
 // src/modules/StoreOrderDetailPage/PendingProposedPage/PendingProposedPage.tsx
-import { useState } from "react"
 import type { OrderItemDetail, orderSellerData } from "../../../api/orderSellerApi"
 import type { CampusLocation } from "../../../api/campusLocationApi"
-import SwitchTabs from "../../../components/SwitchTabs/SwitchTabs"
 import { ZoneDropdown, BuildingDropdown, DateTimePicker } from "../../../components/Dropdown"
 import ProductList from "../components/ProductList"
 
@@ -51,41 +49,12 @@ export default function PendingProposedPage({
   onMeetingNoteChange,
   onProposeOrder,
 }: PendingProposedPageProps) {
-  const [activeTab, setActiveTab] = useState<"products" | "delivery">("products")
+  // No tabs needed anymore
+  // const [activeTab, setActiveTab] = useState<"products" | "delivery">("products")
 
   return (
     <>
-      {/* Tabs */}
-      <div className="mb-6">
-        <SwitchTabs
-          useNavLink={false}
-          activeKey={activeTab}
-          onChange={(key) => setActiveTab(key as "products" | "delivery")}
-          tabs={[
-            { key: "products", label: "Product details" },
-            { key: "delivery", label: "Delivery details" },
-          ]}
-        />
-      </div>
-
-      {/* Tab Content: Product Details */}
-      {activeTab === "products" && (
-        <div className="mb-6">
-          <ProductList
-            items={items}
-            total={total}
-            notes={order.notes}
-            subtotal={subtotal}
-            deliveryFee={deliveryFee}
-            showHeader={false}
-            showNotes={true}
-            showBreakdown={true}
-          />
-        </div>
-      )}
-
-    {/* Tab Content: Delivery Details */}
-    {activeTab === "delivery" && (
+      {/* Delivery Details Section (Moved to top) */}
       <div className="mb-6">
         {/* Header with user */}
         <div className="flex justify-between items-center mb-6">
@@ -182,7 +151,7 @@ export default function PendingProposedPage({
         )}
 
         {/* Display existing notes (read-only) */}
-        {(order.campus_detail_note || order.meeting_note || order.notes) && (
+        {/* {(order.campus_detail_note || order.meeting_note || order.notes) && (
           <div className="mt-6 p-4 bg-gray-50 rounded-xl">
             <h4 className="text-sm font-semibold text-gray-700 mb-2">Saved notes:</h4>
             <div className="space-y-1 text-sm text-gray-600">
@@ -191,9 +160,23 @@ export default function PendingProposedPage({
               {order.notes && <p>• General: {order.notes}</p>}
             </div>
           </div>
-        )}
+        )} */}
       </div>
-    )}
+
+      {/* Product Details Section (Moved below Delivery) */}
+      <div className="mb-6">
+        <h3 className="text-xl font-bold mb-4">Product details</h3>
+        <ProductList
+          items={items}
+          total={total}
+          notes={order.notes}
+          subtotal={subtotal}
+          deliveryFee={deliveryFee}
+          showHeader={false}
+          showNotes={true}
+          showBreakdown={true}
+        />
+      </div>
     </>
   )
 }
