@@ -418,13 +418,43 @@ export default function ChatPage() {
               <input
                 type="file"
                 ref={fileInputRef}
-                accept="image/png, image/jpeg, image/jpg, image/webp"
+                accept="image/png, image/jpeg, image/jpg, image/webp, image/heic, image/heif, .heic, .heif"
                 className="hidden"
-                onChange={(e) => {
+                onChange={async (e) => {
                   const file = e.target.files?.[0]
                   if (file) {
-                    setSelectedImage(file)
-                    setImagePreview(URL.createObjectURL(file))
+                    // Check for HEIC
+                    if (
+                      file.type === "image/heic" || 
+                      file.type === "image/heif" || 
+                      file.name.toLowerCase().endsWith(".heic") ||
+                      file.name.toLowerCase().endsWith(".heif")
+                    ) {
+                      try {
+                        const heic2any = (await import("heic2any")).default
+                        const convertedBlob = await heic2any({
+                          blob: file,
+                          toType: "image/jpeg",
+                          quality: 0.8
+                        })
+                        
+                        // normalize: convertedBlob can be Blob or Blob[]
+                        const blob = Array.isArray(convertedBlob) ? convertedBlob[0] : convertedBlob
+                        
+                        const newFile = new File([blob], file.name.replace(/\.(heic|heif)$/i, ".jpg"), {
+                          type: "image/jpeg"
+                        })
+                        
+                        setSelectedImage(newFile)
+                        setImagePreview(URL.createObjectURL(newFile))
+                      } catch (err) {
+                        console.error("HEIC conversion failed:", err)
+                        toast.error("Failed to process HEIC image")
+                      }
+                    } else {
+                      setSelectedImage(file)
+                      setImagePreview(URL.createObjectURL(file))
+                    }
                   }
                 }}
               />
