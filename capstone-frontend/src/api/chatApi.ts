@@ -113,9 +113,12 @@ export function useChatApi() {
     const formData = new FormData()
     formData.append("message_text", messageText)
 
+    const messageType = (attachments && attachments.length > 0) ? "IMAGE" : "TEXT"
+    formData.append("message_type", messageType)
+
     if (attachments && attachments.length > 0) {
       attachments.forEach((file) => {
-        formData.append("attachments", file)
+        formData.append("files", file)
       })
     }
 

@@ -358,7 +358,11 @@ export default function ChatPage() {
                                 key={idx}
                                 src={resolveImageUrl(att.file_url)}
                                 alt={att.file_name}
-                                className="max-w-[200px] max-h-[200px] rounded-lg object-cover border border-gray-200"
+                                className="block max-w-[200px] max-h-[200px] w-auto h-auto rounded-lg object-cover border border-gray-200 bg-gray-50"
+                                onError={(e) => {
+                                  e.currentTarget.src = "https://via.placeholder.com/200x200?text=File"
+                                  e.currentTarget.onerror = null // prevent loop
+                                }}
                               />
                             ))}
                           </div>
@@ -414,7 +418,7 @@ export default function ChatPage() {
               <input
                 type="file"
                 ref={fileInputRef}
-                accept="image/*"
+                accept="image/png, image/jpeg, image/jpg, image/webp"
                 className="hidden"
                 onChange={(e) => {
                   const file = e.target.files?.[0]
