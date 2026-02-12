@@ -13,7 +13,7 @@ import { Input } from "../../../components/Input/Input"
 import { Textarea } from "../../../components/Input/Textarea"
 import { handleApiError } from "../../../utils/handleApiError"
 import { resolveImageUrl } from "../../../utils/resolve"
-
+import { processImageFile, SUPPORTED_IMAGE_TYPES } from "../../../utils/imageProcessing"
 import {
   useProductApi,
   type productPictureResponse,
@@ -166,18 +166,26 @@ export default function StoreEditProductModal({
     fileInputRef.current?.click()
   }
 
-  const handleFilesChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFilesChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFiles = e.target.files
     if (!selectedFiles || selectedFiles.length === 0) return
 
     const validFiles: File[] = []
-    Array.from(selectedFiles).forEach((file) => {
-      if (file.size > 2 * 1024 * 1024) {
-        toast.error(`File ${file.name} exceeds 2MB.`)
-        return
-      }
-      validFiles.push(file)
-    })
+    
+    // Convert to array and process each
+    for (const file of Array.from(selectedFiles)) {
+       try {
+           const processedFile = await processImageFile(file)
+           if (processedFile.size > 2 * 1024 * 1024) {
+               toast.error(`File ${file.name} exceeds 2MB after processing.`)
+               continue
+           }
+           validFiles.push(processedFile)
+       } catch (err) {
+           console.error("File processing failed:", err)
+           // toast handled in utility
+       }
+    }
 
     if (validFiles.length === 0) {
       e.target.value = ""
@@ -186,7 +194,7 @@ export default function StoreEditProductModal({
 
     const newItems: ImageItem[] = validFiles.map((file) => ({
       type: "NEW",
-      url: URL.createObjectURL(file),
+      url: URL.createObjectURL(file), // Note: Need to revoke these later if component unmounts? (Not handled in existing code, but standard practice)
       file,
     }))
 
@@ -482,7 +490,7 @@ export default function StoreEditProductModal({
               <input
                 ref={fileInputRef}
                 type="file"
-                accept="image/*"
+                    accept={SUPPORTED_IMAGE_TYPES}
                 multiple
                 className="hidden"
                 onChange={handleFilesChange}
