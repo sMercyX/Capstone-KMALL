@@ -16,6 +16,7 @@ import { Textarea } from "../../../components/Input/Textarea"
 import { useProductApi, type AddProductRequest, type productPictureResponse } from "../../../api/productApi"
 import { useStoreStore } from "../../../stores/storeStore"
 import { useCatagoriesApi, type CatagoriesResponse } from "../../../api/catagoriesApi"
+import { processImageFile, SUPPORTED_IMAGE_TYPES } from "../../../utils/imageProcessing"
 
 
 type ImageSlot = string
@@ -94,21 +95,36 @@ export function StoreAddTab() {
     fileInputRef.current?.click()
   }
 
-  const handleFilesChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  async function handleFilesChange(e: React.ChangeEvent<HTMLInputElement>) {
     const selectedFiles = e.target.files
     if (!selectedFiles || selectedFiles.length === 0) return
 
     const newFiles: File[] = []
     const newUrls: string[] = []
 
-    Array.from(selectedFiles).forEach((file) => {
-      if (file.size > 2 * 1024 * 1024) {
-        toast.error(`File ${file.name} exceeds 2MB.`)
-        return
-      }
-      newFiles.push(file)
-      newUrls.push(URL.createObjectURL(file))
-    })
+    // Use for...of loop to handle async await in order
+    for (const file of Array.from(selectedFiles)) {
+       // Check original size roughly (optional, but good for performance check before conversion attempts on huge files)
+       if (file.size > 10 * 1024 * 1024) {
+          // Allow larger for HEIC or just skip?
+          // If strict 2MB limit:
+          // toast.error(`File ${file.name} exceeds limit.`)
+          // continue
+       }
+
+       try {
+          const processedFile = await processImageFile(file)
+           if (processedFile.size > 2 * 1024 * 1024) {
+             toast.error(`File ${file.name} exceeds 2MB after processing.`)
+             continue
+           }
+           newFiles.push(processedFile)
+           newUrls.push(URL.createObjectURL(processedFile))
+       } catch (err) {
+           console.error("File processing failed:", err)
+           // toast handled in utility
+       }
+    }
 
     if (newFiles.length === 0) {
       e.target.value = ""
@@ -360,7 +376,7 @@ export function StoreAddTab() {
         <input
           ref={fileInputRef}
           type="file"
-          accept="image/*"
+          accept={SUPPORTED_IMAGE_TYPES}
           multiple
           className="hidden"
           onChange={handleFilesChange}
