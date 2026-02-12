@@ -134,6 +134,13 @@ export default function SearchPage() {
     setSelectedMinPrice(min)
     setSelectedMaxPrice(max)
     setPageIndex(1)
+    handleSortChange("latest")
+  }
+
+  const handleCategoryChange = (ids: number[]) => {
+    setFilter(ids)
+    setPageIndex(1)
+    handleSortChange("latest")
   }
 
   const safeTotal = typeof total === "number" ? total : 0
@@ -152,7 +159,7 @@ export default function SearchPage() {
                 <FilterSidebar 
                     filterOptions={filterOptions}
                     selectedCategories={filter}
-                    onChangeCategory={setFilter}
+                    onChangeCategory={handleCategoryChange}
                     priceMin={apiMinPrice}
                     priceMax={apiMaxPrice}
                     onChangePriceRange={handlePriceRangeChange}
