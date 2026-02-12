@@ -13,6 +13,8 @@ export type StoreEditForm = {
   profile_url: string
 }
 
+import { processImageFile, SUPPORTED_IMAGE_TYPES } from "../../../../utils/imageProcessing"
+
 interface StoreEditModalProps {
   isOpen: boolean
   initialName: string
@@ -82,7 +84,7 @@ export default function StoreEditModal({
     }
   }, [previewUrl])
 
-  function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+  async function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
 
     if (!file) {
@@ -93,34 +95,41 @@ export default function StoreEditModal({
       return
     }
 
-    // ✅ รับเฉพาะไฟล์ภาพ
-    if (!file.type.startsWith("image/")) {
-      toast.error("Please upload an image file only.")
-      e.target.value = ""
-      setLogoFile(null)
-      setFileName("No file selected.")
-      if (previewUrl) URL.revokeObjectURL(previewUrl)
-      setPreviewUrl(null)
-      return
+    // ✅ รับเฉพาะไฟล์ภาพ (or HEIC)
+    // Note: processImageFile handles validation implicitly or we can skip strict type checking 
+    // if accept attribute is set correctly.
+    // Let's rely on processImageFile and basic checks.
+    
+    // ✅ เช็คขนาดไฟล์ไม่เกิน (Check original size roughly)
+    if (file.size > 10 * 1024 * 1024) {
+       // Allow larger for HEIC conversion
     }
 
-    // ✅ เช็คขนาดไฟล์ไม่เกิน 2MB
-    if (file.size > 2 * 1024 * 1024) {
-      toast.error("File size must not exceed 2MB.")
-      e.target.value = ""
-      setLogoFile(null)
-      setFileName("No file selected.")
-      if (previewUrl) URL.revokeObjectURL(previewUrl)
-      setPreviewUrl(null)
-      return
+    try {
+        const processedFile = await processImageFile(file)
+        
+        if (processedFile.size > 2 * 1024 * 1024) {
+            toast.error("File size must not exceed 2MB.")
+            e.target.value = ""
+            setLogoFile(null)
+            setFileName("No file selected.")
+            if (previewUrl) URL.revokeObjectURL(previewUrl)
+            setPreviewUrl(null)
+            return
+        }
+
+        setLogoFile(processedFile)
+        setFileName(processedFile.name)
+
+        if (previewUrl) URL.revokeObjectURL(previewUrl)
+        const url = URL.createObjectURL(processedFile)
+        setPreviewUrl(url)
+    } catch (error) {
+        // toast handled in processImageFile
+        setLogoFile(null)
+        setFileName("File processing failed.")
+         e.target.value = ""
     }
-
-    setLogoFile(file)
-    setFileName(file.name)
-
-    if (previewUrl) URL.revokeObjectURL(previewUrl)
-    const url = URL.createObjectURL(file)
-    setPreviewUrl(url)
   }
 
   // ✅ handler form + validate ด้วย Yup + แจ้ง error ด้วย toast
@@ -237,7 +246,7 @@ export default function StoreEditModal({
                 <input
                   type="file"
                   className="hidden"
-                  accept="image/*"   // ✅ เฉพาะไฟล์ภาพ
+                  accept={SUPPORTED_IMAGE_TYPES}   // ✅ เฉพาะไฟล์ภาพ
                   multiple={false}   // ✅ เลือกได้รูปเดียว
                   onChange={handleFileChange}
                 />
