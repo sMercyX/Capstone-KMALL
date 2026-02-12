@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect, useCallback } from "react"
 import { useParams, useLocation, useNavigate } from "react-router-dom"
-import { Send, Plus, MessageCircle, User, ChevronLeft, Check, CheckCheck } from "lucide-react"
+import { Send, Plus, MessageCircle, User, ChevronLeft, Check, CheckCheck, X } from "lucide-react"
 import { useChatApi, type MessageWithAttachments, type ChatThread } from "../../api/chatApi"
 import { useUserStore } from "../../stores/userStore"
 import { handleApiError } from "../../utils/handleApiError"
@@ -39,6 +39,7 @@ export default function ChatPage() {
   const [inputText, setInputText] = useState("")
   const [selectedImage, setSelectedImage] = useState<File | null>(null)
   const [imagePreview, setImagePreview] = useState<string | null>(null)
+  const [previewImage, setPreviewImage] = useState<string | null>(null) // For lightbox
   const [sending, setSending] = useState(false)
   
   const messagesEndRef = useRef<HTMLDivElement>(null)
@@ -359,7 +360,8 @@ export default function ChatPage() {
                                 key={idx}
                                 src={resolveImageUrl(att.file_url)}
                                 alt={att.file_name}
-                                className="block max-w-[200px] max-h-[200px] w-auto h-auto rounded-lg object-cover border border-gray-200 bg-gray-50"
+                                className="block max-w-[200px] max-h-[200px] w-auto h-auto rounded-lg object-cover border border-gray-200 bg-gray-50 cursor-pointer hover:opacity-90 transition-opacity"
+                                onClick={() => setPreviewImage(resolveImageUrl(att.file_url))}
                               />
                             ))}
                           </div>
@@ -445,7 +447,8 @@ export default function ChatPage() {
                   <img 
                     src={imagePreview} 
                     alt="Preview" 
-                    className="h-10 w-10 rounded-lg object-cover border border-gray-200"
+                    className="h-10 w-10 rounded-lg object-cover border border-gray-200 cursor-pointer hover:opacity-90 transition-opacity"
+                    onClick={() => setPreviewImage(imagePreview)}
                   />
                   <button
                     type="button"
@@ -481,6 +484,27 @@ export default function ChatPage() {
             </div>
           </div>
         </div>
+
+        {/* Lightbox Overlay */}
+        {previewImage && (
+          <div 
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-sm p-4 animate-in fade-in duration-200"
+            onClick={() => setPreviewImage(null)}
+          >
+            <button
+              onClick={() => setPreviewImage(null)}
+              className="absolute top-4 right-4 p-2 rounded-full bg-white/10 text-white hover:bg-white/20 transition-colors"
+            >
+              <X className="w-6 h-6" />
+            </button>
+            <img
+              src={previewImage}
+              alt="Full size"
+              className="max-w-full max-h-full object-contain rounded-lg shadow-xl"
+              onClick={(e) => e.stopPropagation()} // Prevent closing when clicking the image itself
+            />
+          </div>
+        )}
 
       </div>
     </div>
