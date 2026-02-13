@@ -93,7 +93,7 @@ export default function OrderListItem({
 
   // Find location name
   const location = locations.find((l) => l.id === locationId)
-  const locationName = location ? `${location.zone} ${location.name}` : "-"
+  const locationName = location ? `${location.name}` : "-"
 
   const handleChatClick = (e: React.MouseEvent) => {
     e.stopPropagation()
