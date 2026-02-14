@@ -103,6 +103,7 @@ export default function SearchBar() {
     setQuery(term)
     navigate(`/search?q=${encodeURIComponent(term.trim())}`)
     setIsOpen(false)
+    inputRef.current?.blur()
   }
 
   const handleHistoryClick = (term: string) => {
