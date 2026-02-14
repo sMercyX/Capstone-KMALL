@@ -126,7 +126,7 @@ export default function CompletedCanceledPage({ order, items, total }: Completed
                     {/* View Product Button */}
                     <Link
                       to={`/product/${rec.product.id}`}
-                      className="block w-full text-center bg-orange-500 hover:bg-orange-600 text-white text-sm font-semibold py-2 rounded-lg transition-colors"
+                      className="block w-full text-center bg-orange-500 hover:bg-orange-600 text-white! text-sm font-semibold py-2 rounded-lg transition-colors"
                     >
                       ดูสินค้า
                     </Link>
