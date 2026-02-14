@@ -273,24 +273,25 @@ WHERE order_id = $1;
 
 func (r *repo) ListItemsByOrderID(ctx context.Context, orderID int64) ([]OrderItemWithProduct, error) {
 	rows, err := r.db.Query(ctx, `
-		SELECT 
-  oi.order_item_id,
-  oi.quantity,
-  oi.unit_price,
-  oi.fulfillment_type,
-  oi.subtotal,
-  oi.deposit_amount,
-  oi.promised_ship_date,
-  oi.order_id,
-  oi.product_id,
-  p.name AS product_name,
-  p.image_url AS product_image_url
-FROM order_items oi
-JOIN products p ON p.product_id = oi.product_id
-WHERE oi.order_id = $1
-ORDER BY oi.order_item_id ASC;
-
-	`, orderID)
+	SELECT 
+		oi.order_item_id,
+		oi.quantity,
+		oi.unit_price,
+		oi.fulfillment_type,
+		oi.subtotal,
+		oi.deposit_amount,
+		oi.promised_ship_date,
+		oi.order_id,
+		oi.product_id,
+		p.name AS product_name,
+		p.image_url AS product_image_url,
+		s.profile_url AS store_profile_url  -- Add this line to get the store profile_url
+	FROM order_items oi
+	JOIN products p ON p.product_id = oi.product_id
+	JOIN stores s ON s.store_id = oi.store_id  -- Join the stores table to get store information
+	WHERE oi.order_id = $1
+	ORDER BY oi.order_item_id ASC;
+`, orderID)
 	if err != nil {
 		return nil, apperr.Wrap(apperr.Internal, err, "list order_items failed")
 	}

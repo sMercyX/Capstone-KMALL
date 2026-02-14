@@ -45,8 +45,9 @@ type OrderItemWithProduct struct {
 }
 
 type OrderWithItems struct {
-	Order Order                  `json:"order"`
-	Items []OrderItemWithProduct `json:"items"`
+	Order           Order                  `json:"order"`
+	Items           []OrderItemWithProduct `json:"items"`
+	StoreProfileURL *string                `json:"store_profile_url,omitempty"`
 }
 
 type CreateOrderItemInput struct {
