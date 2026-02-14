@@ -15,6 +15,7 @@ type DisplayMessage = {
   text: string
   sender: "user" | "seller"
   timestamp: string
+  dateStr: string
   isRead: boolean
   isLastRead: boolean
   attachments?: {
@@ -22,6 +23,19 @@ type DisplayMessage = {
     file_name: string
     mime_type: string
   }[]
+}
+
+function getDateLabel(dateStr: string): string {
+  const today = new Date()
+  const yesterday = new Date(today)
+  yesterday.setDate(yesterday.getDate() - 1)
+
+  const todayStr = today.toLocaleDateString("th-TH")
+  const yesterdayStr = yesterday.toLocaleDateString("th-TH")
+
+  if (dateStr === todayStr) return "วันนี้"
+  if (dateStr === yesterdayStr) return "เมื่อวาน"
+  return dateStr
 }
 
 export default function ChatPage() {
@@ -80,6 +94,7 @@ export default function ChatPage() {
           minute: "2-digit",
           hour12: false,
         }),
+        dateStr: createdAt.toLocaleDateString("th-TH"),
         isRead,
         isLastRead,
         attachments: item.attachments?.map(att => ({
@@ -188,6 +203,7 @@ export default function ChatPage() {
       }),
       isRead: false, 
       isLastRead: false,
+      dateStr: createdAt.toLocaleDateString("th-TH"),
       attachments: data.attachments?.map(att => ({
         file_url: att.file_url,
         file_name: att.file_name || "",
@@ -317,13 +333,7 @@ export default function ChatPage() {
               </div>
             ) : (
               <div className="space-y-6">
-                {/* Date Divider */}
-                <div className="relative flex justify-center">
-                  <span className="rounded-[4px] bg-white px-3 py-1 text-xs text-gray-400 shadow-sm border border-gray-100">
-                    Today
-                  </span>
-                </div>
-
+              {/* Messages with Date Dividers */}
                 {messages.length === 0 && (
                   <div className="flex items-center justify-center py-8">
                     <p className="text-gray-400">No messages yet</p>
@@ -331,87 +341,95 @@ export default function ChatPage() {
                 )}
 
                 {/* Messages */}
-                {messages.map((msg) => (
-                  <div
-                    key={msg.id}
-                    className={`flex w-full ${
-                      msg.sender === "user" ? "justify-end" : "justify-start"
-                    }`}
-                  >
-                    <div
-                      className={`flex items-start gap-3 ${
-                        msg.sender === "user" ? "flex-row-reverse" : "flex-row"
-                      }`}
-                    >
-                      {/* Avatar */}
-                      <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-full bg-gray-200 overflow-hidden">
-                        {msg.sender === "seller" ? (
-                          <img 
-                            src="https://via.placeholder.com/48" 
-                            alt="Seller" 
-                            className="h-full w-full object-cover"
-                          />
-                        ) : (
-                          <User className="h-7 w-7 text-gray-400" strokeWidth={1.5} />
-                        )}
-                      </div>
-
-                      {/* Message Bubble */}
-                      <div className="flex flex-col gap-1">
-                        {/* Attachments */}
-                        {msg.attachments && msg.attachments.length > 0 && (
-                          <div className="flex flex-wrap gap-2">
-                            {msg.attachments.map((att, idx) => (
-                              <img
-                                key={idx}
-                                src={resolveImageUrl(att.file_url)}
-                                alt={att.file_name}
-                                className="block max-w-[200px] max-h-[200px] w-auto h-auto rounded-lg object-cover border border-gray-200 bg-gray-50 cursor-pointer hover:opacity-90 transition-opacity"
-                                onClick={() => setPreviewImage(resolveImageUrl(att.file_url))}
-                              />
-                            ))}
-                          </div>
-                        )}
-                        
-                        {/* Text */}
-                        {msg.text && (
-                          <div
-                            className={`px-4 py-2.5 ${
-                              msg.sender === "user"
-                                ? "bg-[#4CAF50] text-white rounded-[18px]"
-                                : "bg-white text-gray-700 rounded-[18px] border border-gray-100"
-                            }`}
-                          >
-                            <span className="text-base leading-relaxed">
-                              {msg.text}
-                            </span>
-                          </div>
-                        )}
-                        
-                        <div 
-                          className={`flex items-center gap-1 text-[10px] px-1 mt-0.5 ${
-                            msg.sender === "user" ? "text-gray-400 justify-end" : "text-gray-400 justify-start"
+                {messages.map((msg, index) => {
+                  const prevMsg = index > 0 ? messages[index - 1] : null
+                  const showDateDivider = !prevMsg || prevMsg.dateStr !== msg.dateStr
+                  return (
+                    <React.Fragment key={msg.id}>
+                      {showDateDivider && (
+                        <div className="relative flex justify-center">
+                          <span className="rounded-[4px] bg-white px-3 py-1 text-xs text-gray-400 shadow-sm border border-gray-100">
+                            {getDateLabel(msg.dateStr)}
+                          </span>
+                        </div>
+                      )}
+                      <div
+                        className={`flex w-full ${
+                          msg.sender === "user" ? "justify-end" : "justify-start"
+                        }`}
+                      >
+                        <div
+                          className={`flex items-start gap-3 ${
+                            msg.sender === "user" ? "flex-row-reverse" : "flex-row"
                           }`}
                         >
-                          <span>{msg.timestamp}</span>
-                          {msg.sender === "user" && (
-                            // Logic: 
-                            // - If isLastRead -> Double Tick (Green)
-                            // - If !isRead -> Single Tick (Gray)
-                            // - If isRead but !isLastRead -> No Tick (Hidden)
-                            msg.isLastRead ? (
-                              <CheckCheck className="h-3 w-3 text-green-500" />
-                            ) : msg.isRead ? (
-                               null 
+                          {/* Avatar */}
+                          <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-full bg-gray-200 overflow-hidden">
+                            {msg.sender === "seller" ? (
+                              <img 
+                                src="https://via.placeholder.com/48" 
+                                alt="Seller" 
+                                className="h-full w-full object-cover"
+                              />
                             ) : (
-                              <Check className="h-3 w-3 text-gray-400" />
-                            )
-                          )}
+                              <User className="h-7 w-7 text-gray-400" strokeWidth={1.5} />
+                            )}
+                          </div>
+
+                          {/* Message Bubble */}
+                          <div className="flex flex-col gap-1">
+                            {/* Attachments */}
+                            {msg.attachments && msg.attachments.length > 0 && (
+                              <div className="flex flex-wrap gap-2">
+                                {msg.attachments.map((att, idx) => (
+                                  <img
+                                    key={idx}
+                                    src={resolveImageUrl(att.file_url)}
+                                    alt={att.file_name}
+                                    className="block max-w-[200px] max-h-[200px] w-auto h-auto rounded-lg object-cover border border-gray-200 bg-gray-50 cursor-pointer hover:opacity-90 transition-opacity"
+                                    onClick={() => setPreviewImage(resolveImageUrl(att.file_url))}
+                                  />
+                                ))}
+                              </div>
+                            )}
+                            
+                            {/* Text */}
+                            {msg.text && (
+                              <div
+                                className={`px-4 py-2.5 ${
+                                  msg.sender === "user"
+                                    ? "bg-[#4CAF50] text-white rounded-[18px]"
+                                    : "bg-white text-gray-700 rounded-[18px] border border-gray-100"
+                                }`}
+                              >
+                                <span className="text-base leading-relaxed">
+                                  {msg.text}
+                                </span>
+                              </div>
+                            )}
+                            
+                            <div 
+                              className={`flex items-center gap-1 text-[10px] px-1 mt-0.5 ${
+                                msg.sender === "user" ? "text-gray-400 justify-end" : "text-gray-400 justify-start"
+                              }`}
+                            >
+                              <span>{msg.timestamp}</span>
+                              {msg.sender === "user" && (
+                                msg.isLastRead ? (
+                                  <CheckCheck className="h-3 w-3 text-green-500" />
+                                ) : msg.isRead ? (
+                                   null 
+                                ) : (
+                                  <Check className="h-3 w-3 text-gray-400" />
+                                )
+                              )}
+                            </div>
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  </div>
-                ))}
+                    </React.Fragment>
+                  )
+                })}
                 <div ref={messagesEndRef} />
               </div>
             )}
