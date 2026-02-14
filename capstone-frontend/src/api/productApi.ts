@@ -56,6 +56,39 @@ export interface EditProductRequest {
   category_id: number
 }
 
+// Recommendation API types
+export interface RecommendationProduct {
+  product: {
+    id: number
+    name: string
+    description: string
+    price: number
+    image_url: string
+    is_active: string
+    store_id: number
+    store_name: string
+    category_id: number
+    category_name: string
+    sold_count: number
+  }
+  score?: number
+  rank_no?: number
+  reason?: string
+  quantity?: number
+  unit_price?: number
+  subtotal?: number
+}
+
+export interface CancellationRecommendationResponse {
+  order_id: number
+  context: string
+  cancelled_items: RecommendationProduct[]
+  items: RecommendationProduct[]
+  source: string
+  event_id: number
+  created_at: string
+  generated_at: string
+}
 
 export function useProductApi() {
   const http = useCrudApi()
@@ -205,14 +238,20 @@ export function useProductApi() {
   ): Promise<ApiResponse<any>> {
     return http.deleteItem(`/product-images/${imageId}`)
   }
-  
+
+  async function getCancellationRecommendations(
+    orderId: number,
+    limit: number = 12
+  ): Promise<ApiResponse<CancellationRecommendationResponse>> {
+    return http.getItems(`/recommendation/orders/${orderId}?context=cancellation&limit=${limit}`)
+  }
 
   return {
     getProductsByCategory,
     getProductBySlug,
     getProductsByStore,
     getProductsByParentId,
-    searchProducts, // Add searchProducts here
+    searchProducts,
     getProductsStoreByStoreId,
     addProduct,
     getProduct,
@@ -222,5 +261,6 @@ export function useProductApi() {
     editImageProduct,
     getProductImage,
     deleteProductImage,
+    getCancellationRecommendations,
   }
 }
