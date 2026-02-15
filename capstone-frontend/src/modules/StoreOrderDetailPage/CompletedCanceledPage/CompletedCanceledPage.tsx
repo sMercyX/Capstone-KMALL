@@ -119,7 +119,7 @@ export default function CompletedCanceledPage({ order, items, total }: Completed
                         {rec.product.price.toLocaleString()} บาท
                       </p>
                       <p className="text-xs text-gray-400">
-                        ขายได้ {rec.product.sold_count ?? 0} ชิ้น
+                        Sold {rec.product.sold_count ?? 0} pieces
                       </p>
                     </div>
 

@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect, useCallback } from "react"
 import { useParams, useLocation, useNavigate } from "react-router-dom"
-import { Send, Plus, MessageCircle, User, ChevronLeft, Check, CheckCheck, X } from "lucide-react"
+import { Send, Plus, MessageCircle, User, ChevronLeft, Check, CheckCheck, X, MapPin } from "lucide-react"
 import { useChatApi, type MessageWithAttachments, type ChatThread } from "../../api/chatApi"
 import { useUserStore } from "../../stores/userStore"
 import { handleApiError } from "../../utils/handleApiError"
@@ -8,6 +8,10 @@ import { resolveImageUrl } from "../../utils/resolve"
 import { useChatWebSocket, type ChatMessagePayload } from "../../hooks/useChatWebSocket"
 import { toast } from "react-toastify"
 import { processImageFile, SUPPORTED_IMAGE_TYPES } from "../../utils/imageProcessing"
+import { useOrderSellerApi, type OrderDetailResponse } from "../../api/orderSellerApi"
+import { getAllLocations, type CampusLocation } from "../../api/campusLocationApi"
+import ProductList from "../StoreOrderDetailPage/components/ProductList"
+import MapKmuttButton from "../../components/MapKmuttButton/MapKmuttButton"
 
 // Types for UI messages
 type DisplayMessage = {
@@ -38,6 +42,21 @@ function getDateLabel(dateStr: string): string {
   return dateStr
 }
 
+function mapStatusLabel(status: string): { label: string; color: string } {
+  const map: Record<string, { label: string; color: string }> = {
+    "Pending Seller Confirmation": { label: "Pending", color: "bg-yellow-400 text-white" },
+    "Awaiting Buyer Confirmation": { label: "Awaiting Confirmation", color: "bg-orange-400 text-white" },
+    "Ready for Pickup": { label: "Ready for Pickup", color: "bg-blue-500 text-white" },
+    "Ready for Delivery": { label: "Ready for Delivery", color: "bg-blue-500 text-white" },
+    "Out for Delivery": { label: "Out for Delivery", color: "bg-indigo-500 text-white" },
+    COMPLETED: { label: "Completed", color: "bg-green-500 text-white" },
+    Completed: { label: "Completed", color: "bg-green-500 text-white" },
+    CANCELLED: { label: "Cancelled", color: "bg-red-500 text-white" },
+    Cancelled: { label: "Cancelled", color: "bg-red-500 text-white" },
+  }
+  return map[status] || { label: status, color: "bg-gray-400 text-white" }
+}
+
 export default function ChatPage() {
   const { orderId } = useParams()
   const location = useLocation()
@@ -45,6 +64,7 @@ export default function ChatPage() {
   const isSeller = location.pathname.includes("/store/")
   
   const { openThread, getMessages, sendMessage } = useChatApi()
+  const { getOrderDetail } = useOrderSellerApi()
   const { id: userId } = useUserStore()
   
   const [thread, setThread] = useState<ChatThread | null>(null)
@@ -55,12 +75,35 @@ export default function ChatPage() {
   const [imagePreview, setImagePreview] = useState<string | null>(null)
   const [previewImage, setPreviewImage] = useState<string | null>(null) // For lightbox
   const [sending, setSending] = useState(false)
+
+  // Order detail state
+  const [orderDetail, setOrderDetail] = useState<OrderDetailResponse | null>(null)
+  const [locations, setLocations] = useState<CampusLocation[]>([])
   
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const messagesContainerRef = useRef<HTMLDivElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const textInputRef = useRef<HTMLInputElement>(null)
   const hasFetched = useRef(false)
+
+  // Fetch order detail and locations
+  useEffect(() => {
+    if (!orderId) return
+    
+    const loadOrderData = async () => {
+      try {
+        const [orderRes, locs] = await Promise.all([
+          getOrderDetail(parseInt(orderId)),
+          getAllLocations(),
+        ])
+        setOrderDetail(orderRes.data)
+        setLocations(locs)
+      } catch (e) {
+        console.error("Failed to load order detail:", e)
+      }
+    }
+    loadOrderData()
+  }, [orderId])
 
   // Transform API messages to display format
   const transformMessages = (
@@ -138,8 +181,6 @@ export default function ChatPage() {
         const threadData = threadRes.data.thread
         
         // Access control: check if user is on correct path
-        // - /store/orders/:id/chat → only seller can access
-        // - /orders/:id/chat → only buyer can access
         const isSellerInThread = threadData.seller_id === userId
         const isBuyerInThread = threadData.buyer_id === userId
         
@@ -159,11 +200,6 @@ export default function ChatPage() {
         // Fetch messages
         const messagesRes = await getMessages(threadData.thread_id)
         
-        // Find last read message ID for the OTHER person
-        // The API returns read_state.other.last_read_message_id
-        // NOTE: The API structure provided in request shows:
-        // read_state: { me: { ... }, other: { ... } }
-        // We need to use read_state.other.last_read_message_id
         const readState = messagesRes.data.read_state
         const otherLastReadId = readState?.other?.last_read_message_id || 0
         
@@ -221,9 +257,8 @@ export default function ChatPage() {
     
     // If not my message, mark as read immediately
     if (!isMyMessage && thread) {
-      // Create a minimal MessageWithAttachments object to pass to markThreadAsRead
       const msgObj: MessageWithAttachments = {
-        message: msg as any, // minimal cast
+        message: msg as any,
         attachments: []
       }
       markThreadAsRead(thread.thread_id, [msgObj], userId)
@@ -232,7 +267,6 @@ export default function ChatPage() {
 
   // Handler for read status updates
   const handleReadUpdate = useCallback((data: any) => {
-    // Only care if the update is from the OTHER user
     if (data.user_id === userId) return
 
     const lastReadId = data.last_read_message_id
@@ -242,7 +276,6 @@ export default function ChatPage() {
       const isRead = msgId <= lastReadId
       const isLastRead = msgId === lastReadId
       
-      // Optimization: only return new object if something changed
       if (msg.isRead === isRead && msg.isLastRead === isLastRead) {
         return msg
       }
@@ -280,7 +313,6 @@ export default function ChatPage() {
       const attachments = selectedImage ? [selectedImage] : undefined
       await sendMessage(thread.thread_id, inputText, attachments)
       
-      // Message will be added via WebSocket broadcast
       setInputText("")
       setSelectedImage(null)
       setImagePreview(null)
@@ -289,12 +321,23 @@ export default function ChatPage() {
       handleApiError(e)
     } finally {
       setSending(false)
-      // Focus back to input after sending
       setTimeout(() => {
         textInputRef.current?.focus()
       }, 0)
     }
   }
+
+  // Resolve meeting location (fallback to campus_location_id)
+  const locationId = orderDetail?.order.meeting_location_id || orderDetail?.order.campus_location_id
+  const meetingLocation = locationId
+    ? locations.find(l => l.id === locationId)
+    : null
+
+  const proposedDate = orderDetail?.order.proposed_at
+    ? new Date(orderDetail.order.proposed_at)
+    : null
+
+  const statusInfo = orderDetail ? mapStatusLabel(orderDetail.order.status) : null
 
   return (
     <div className="min-h-screen bg-white">
@@ -315,17 +358,97 @@ export default function ChatPage() {
               <MessageCircle className="h-7 w-7" />
               <span>{isSeller ? "Chat with Customer" : "Chat with Seller"}</span>
             </div>
-            <p className="text-base font-bold text-gray-800">Order: #{orderId || "1111"}</p>
+            <p className="text-base font-bold text-gray-800">Order : #{orderId}</p>
           </div>
         </div>
 
         {/* Chat Box Container */}
-        <div className="mx-auto max-w-[800px] h-[750px] flex flex-col rounded-[16px] border border-gray-200 bg-[#f9fafb] shadow-[0_2px_12px_rgba(0,0,0,0.04)] overflow-hidden">
+        <div className="mx-auto max-w-[800px] flex flex-col rounded-[16px] border border-gray-200 bg-[#f9fafb] shadow-[0_2px_12px_rgba(0,0,0,0.04)] overflow-hidden">
           
+          {/* ===== Order Info Header ===== */}
+          {orderDetail && (
+            <div className="border-b border-gray-200 bg-white p-5">
+              {/* Store Header */}
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-4">
+                  {/* Avatar */}
+                  <div className="flex h-14 w-14 flex-shrink-0 items-center justify-center rounded-full bg-gray-200 overflow-hidden">
+                    <User className="h-8 w-8 text-gray-400" strokeWidth={1.5} />
+                  </div>
+                  <div className="flex flex-col">
+                    <p className="text-lg font-bold text-gray-900">
+                      {isSeller ? orderDetail.buyer_name : orderDetail.store_name}
+                    </p>
+                    {statusInfo && (
+                      <span className={`mt-1 inline-block w-fit px-3 py-0.5 rounded-full text-xs font-semibold ${statusInfo.color}`}>
+                        {statusInfo.label}
+                      </span>
+                    )}
+                  </div>
+                </div>
+                {!isSeller && (
+                  <button
+                    onClick={() => navigate(`/store/${orderDetail.order.store_id}`)}
+                    className="px-5 py-2 rounded-lg text-sm font-semibold bg-orange-500 text-white hover:bg-orange-600 transition-colors shadow-sm"
+                  >
+                    View Store
+                  </button>
+                )}
+              </div>
+
+              {/* Product List */}
+              {orderDetail.items && orderDetail.items.length > 0 && (
+                <div className="mb-4">
+                  <ProductList
+                    items={orderDetail.items}
+                    total={orderDetail.order.total_price}
+                    showHeader={false}
+                  />
+                </div>
+              )}
+
+              {/* Pickup Location */}
+              {meetingLocation && (
+                <div className="rounded-xl border border-gray-200 bg-gray-50 p-4">
+                  <div className="flex items-start gap-2">
+                    <MapPin className="h-5 w-5 text-orange-500 flex-shrink-0 mt-0.5" />
+                    <div className="flex-1">
+                      <p className="font-semibold text-gray-900">
+                        Pickup Location : {meetingLocation.name}
+                      </p>
+                      <p className="text-sm text-gray-600">
+                        {meetingLocation.zone}
+                      </p>
+                      {proposedDate && (
+                        <p className="text-sm text-gray-600 mt-1">
+                          {proposedDate.toLocaleDateString("en-US", {
+                            weekday: "short",
+                            day: "numeric",
+                            month: "long",
+                          })}{" "}
+                          at{" "}
+                          {proposedDate.toLocaleTimeString("en-US", {
+                            hour: "2-digit",
+                            minute: "2-digit",
+                            hour12: false,
+                          })}
+                        </p>
+                      )}
+                    </div>
+                    <div className="flex-shrink-0 self-end">
+                      <MapKmuttButton />
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
           {/* Chat Messages Area */}
           <div 
             ref={messagesContainerRef}
             className="flex-1 overflow-y-auto px-6 py-6 scrollbar-thin scrollbar-thumb-gray-200 scrollbar-track-transparent"
+            style={{ minHeight: "400px", maxHeight: "500px" }}
           >
             {loading ? (
               <div className="flex items-center justify-center h-full">
@@ -365,12 +488,15 @@ export default function ChatPage() {
                         >
                           {/* Avatar */}
                           <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-full bg-gray-200 overflow-hidden">
-                            {msg.sender === "seller" ? (
-                              <img 
-                                src="https://via.placeholder.com/48" 
-                                alt="Seller" 
-                                className="h-full w-full object-cover"
-                              />
+                            {/* Buyer = person icon, Seller = store icon */}
+                            {(msg.sender === "user" ? isSeller : !isSeller) ? (
+                              // <img 
+                              //   src={resolveImageUrl(orderDetail?.buyer_profile_url!)}
+                              //   alt="Seller" 
+                              //   className="h-full w-full object-cover"
+                              // />
+                              <User className="h-7 w-7 text-gray-400" strokeWidth={1.5} />
+
                             ) : (
                               <User className="h-7 w-7 text-gray-400" strokeWidth={1.5} />
                             )}
@@ -526,7 +652,7 @@ export default function ChatPage() {
               src={previewImage}
               alt="Full size"
               className="max-w-full max-h-full object-contain rounded-lg shadow-xl"
-              onClick={(e) => e.stopPropagation()} // Prevent closing when clicking the image itself
+              onClick={(e) => e.stopPropagation()}
             />
           </div>
         )}

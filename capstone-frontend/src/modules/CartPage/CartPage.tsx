@@ -35,35 +35,23 @@ type CartStore = {
 const formatPrice = (value: number) =>
   value.toLocaleString("th-TH", { minimumFractionDigits: 0 })
 
-function ToggleIcon({ checked }: { checked: boolean }) {
-  return (
-    <span
-      className={`flex h-4 w-4 items-center justify-center rounded-[3px] border ${
-        checked
-          ? "border-[#f15a24] bg-[#f15a24] text-white"
-          : "border-gray-300 bg-white"
-      }`}
-    >
-      {checked && (
-        <span className="h-[8px] w-[8px] rounded-[2px] bg-white/90" />
-      )}
-    </span>
-  )
-}
+
+
 
 function CartItemRow({
   item,
+  index,
   onDelete,
   onUpdateQuantity,
 }: {
   item: CartItem
+  index: number
   onDelete: (id: number) => void
   onUpdateQuantity: (id: number, newQty: number) => void
 }) {
   return (
-    <div className="flex items-center justify-between gap-4 py-4">
+    <div className={`flex items-center justify-between gap-4 py-4 px-4 rounded-xl ${index % 2 === 0 ? 'bg-orange-50' : 'bg-white'}`}>
       <div className="flex flex-1 items-center gap-4">
-        <ToggleIcon checked />
 
         <div className="h-20 w-20 overflow-hidden rounded-xl border border-gray-200 bg-white">
           <img
@@ -135,7 +123,6 @@ function CartStoreBlock({
   return (
     <div className="space-y-4">
       <div className="flex items-center gap-3 pb-2">
-        <ToggleIcon checked />
         <div className="flex items-center gap-2 text-lg font-semibold text-gray-900">
           <StoreIcon className="h-5 w-5 text-gray-700" />
           <span>{store.name}</span>
@@ -146,10 +133,11 @@ function CartStoreBlock({
       </div>
 
       <div className="space-y-2">
-        {store.items.map((item) => (
+        {store.items.map((item, index) => (
           <CartItemRow 
             key={item.id} 
-            item={item} 
+            item={item}
+            index={index}
             onDelete={onDeleteItem} 
             onUpdateQuantity={onUpdateQuantity}
           />

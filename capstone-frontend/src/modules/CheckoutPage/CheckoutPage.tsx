@@ -85,7 +85,7 @@ export default function CheckoutPage() {
   let stores: CheckoutStore[] = []
   let totalItems = 0
   let merchandiseTotal = 0
-  const shippingFee = 10
+
 
   if (cart) {
     const storeMap = new Map<number, CheckoutStore>()
@@ -130,7 +130,7 @@ export default function CheckoutPage() {
     merchandiseTotal = stores.reduce((sum, s) => sum + s.subtotal, 0)
   }
 
-  const grandTotal = merchandiseTotal + shippingFee
+  const grandTotal = merchandiseTotal
 
   async function handleSubmit() {
     if (!cart) return
@@ -364,17 +364,8 @@ export default function CheckoutPage() {
 
                 <div className="my-8 h-px w-full bg-gray-200" />
 
-                <div className="space-y-2 text-sm">
-                  <div className="flex justify-between">
-                    <span>Order subtotal</span>
-                    <span>฿{formatPrice(merchandiseTotal)}</span>
-                  </div>
 
-                  <div className="flex justify-between">
-                    <span>Shipping fee</span>
-                    <span>฿{formatPrice(shippingFee)}</span>
-                  </div>
-                </div>
+
 
                 <div className="mt-5 flex justify-between text-base font-semibold">
                   <span>Total</span>

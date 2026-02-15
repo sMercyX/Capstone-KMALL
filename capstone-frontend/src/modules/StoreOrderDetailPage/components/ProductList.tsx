@@ -44,7 +44,7 @@ export default function ProductList({
         {items.map((item, index) => (
           <div
             key={item.order_item_id}
-            className="grid grid-cols-12 gap-2 md:gap-4 items-center bg-orange-50 rounded-lg p-3"
+            className={`grid grid-cols-12 gap-2 md:gap-4 items-center rounded-lg p-3 ${index % 2 === 0 ? 'bg-orange-50' : 'bg-white'}`}
           >
             <div className="col-span-1 text-center text-sm font-medium">
               {index + 1}.

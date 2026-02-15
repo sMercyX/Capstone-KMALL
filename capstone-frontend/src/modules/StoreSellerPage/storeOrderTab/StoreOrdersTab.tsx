@@ -1,11 +1,12 @@
 // src/modules/StoreSellerPage/storeOrderTab/StoreOrdersTab.tsx
 import { useEffect, useState } from "react"
-import { useLocation, useNavigate, useParams } from "react-router-dom"
+import { useLocation, useNavigate } from "react-router-dom"
 import SwitchTabs, { type SwitchTabItem } from "../../../components/SwitchTabs/SwitchTabs"
 import { useOrderSellerApi, type OrderStatusGroup, type orderSellerResponse } from "../../../api/orderSellerApi"
 import { Loader2 } from "lucide-react"
 import OrderListItem, { type OrderStatusContext } from "../../../components/Order/OrderListItem"
 import { getAllLocations, type CampusLocation } from "../../../api/campusLocationApi"
+import { useStoreStore } from "../../../stores/storeStore"
 
 const TABS: SwitchTabItem[] = [
   { key: "active", label: "ACTIVE ORDERS" },
@@ -16,20 +17,20 @@ const TABS: SwitchTabItem[] = [
 function OrderListHeader() {
   return (
     <div className="flex items-center justify-between px-6 pb-2 text-xs text-gray-400 font-light">
-      <div className="w-[10%] min-w-[60px]">ลำดับ</div>
-      <div className="w-[20%]">ผู้ซื้อ</div>
-      <div className="w-[20%]">วัน/เวลาที่สั่งซื้อ</div>
-      <div className="w-[15%]">สถานที่นัดรับสินค้า</div>
-      <div className="w-[15%]">ยอดรวมทั้งหมด</div>
-      <div className="w-[10%] text-center">สถานะคำสั่งซื้อ</div>
+      <div className="w-[10%] min-w-[60px]">No.</div>
+      <div className="w-[20%]">Buyer</div>
+      <div className="w-[20%]">Order Date</div>
+      <div className="w-[15%]">Pickup Location</div>
+      <div className="w-[15%]">Total</div>
+      <div className="w-[10%] text-center">Status</div>
       <div className="w-[10%]"></div>
     </div>
   )
 }
 
 export default function StoreOrdersTab() {
-  const { id } = useParams()
-  const storeId = Number(id)
+  const store = useStoreStore((s) => s.store)
+  const storeId = store?.id
   const location = useLocation()
   const navigate = useNavigate()
   
@@ -77,7 +78,8 @@ export default function StoreOrdersTab() {
       })
 
     return () => { isMounted = false }
-  }, [storeId, activeTab, getOrdersSellerByStatus])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [storeId, activeTab])
 
   const getContext = (): OrderStatusContext => {
     if (activeTab === "completed") return "completed"

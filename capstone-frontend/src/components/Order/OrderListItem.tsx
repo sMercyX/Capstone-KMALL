@@ -1,7 +1,7 @@
 import React from "react"
 import { Check, FileText, Loader2, X } from "lucide-react"
 import { useNavigate } from "react-router-dom"
-import { formatThaiDate } from "../../utils/dateFormatter"
+import { format, parseISO } from "date-fns"
 import type { CampusLocation } from "../../api/campusLocationApi"
 
 export type OrderStatusContext = "ongoing" | "completed" | "canceled"
@@ -59,8 +59,8 @@ function mapStatusLabel(status: string): React.ReactNode {
     "Ready for Pickup": { label: "Accepted", color: "bg-green-500 text-white" },
     "Ready for Delivery": { label: "Accepted", color: "bg-green-500 text-white" },
 
-    COMPLETED: { label: "Completed", color: "bg-gray-500 text-white" },
-    Completed: { label: "Completed", color: "bg-gray-500 text-white" },
+    COMPLETED: { label: "Completed", color: "bg-green-500 text-white" },
+    Completed: { label: "Completed", color: "bg-green-500 text-white" },
 
     CANCELLED: { label: "Cancelled", color: "bg-red-500 text-white" },
     Cancelled: { label: "Cancelled", color: "bg-red-500 text-white" },
@@ -89,7 +89,7 @@ export default function OrderListItem({
   onClick,
 }: OrderListItemProps) {
   const navigate = useNavigate()
-  const orderDate = formatThaiDate(date)
+  const orderDate = date ? format(parseISO(date), 'd MMM yyyy') : ''
 
   // Find location name
   const location = locations.find((l) => l.id === locationId)
@@ -137,7 +137,7 @@ export default function OrderListItem({
 
       {/* 5. Total */}
       <div className="w-[15%] text-sm font-medium text-gray-800">
-        {totalPrice.toLocaleString()} บาท
+        {totalPrice.toLocaleString()} THB
       </div>
 
       {/* 6. Status Badge */}

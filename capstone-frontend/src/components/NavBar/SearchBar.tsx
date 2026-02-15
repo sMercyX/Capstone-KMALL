@@ -172,6 +172,7 @@ export default function SearchBar() {
           type="text"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
+          maxLength={128}
           onFocus={handleFocus}
           onKeyDown={handleKeyDown}
           placeholder="Search for products and stores..."

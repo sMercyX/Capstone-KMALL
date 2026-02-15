@@ -38,12 +38,12 @@ const contextMap: Record<OrderTabKey, OrderStatusContext> = {
 function OrderListHeader() {
   return (
     <div className="flex items-center justify-between px-6 pb-2 text-xs text-gray-400 font-light">
-      <div className="w-[10%] min-w-[60px]">ลำดับ</div>
-      <div className="w-[20%]">ชื่อร้าน</div>
-      <div className="w-[20%]">วัน/เวลาที่สั่งซื้อ</div>
-      <div className="w-[15%]">สถานที่นัดรับสินค้า</div>
-      <div className="w-[15%]">ยอดรวมทั้งหมด</div>
-      <div className="w-[10%] text-center">สถานะคำสั่งซื้อ</div>
+      <div className="w-[10%] min-w-[60px]">No.</div>
+      <div className="w-[20%]">Store</div>
+      <div className="w-[20%]">Order Date</div>
+      <div className="w-[15%]">Pickup Location</div>
+      <div className="w-[15%]">Total</div>
+      <div className="w-[10%] text-center">Status</div>
       <div className="w-[10%]"></div>
     </div>
   )
@@ -136,7 +136,7 @@ export default function OrderPage() {
 
       <div className="text-left mb-6">
         <h2 className="text-xl md:text-2xl font-bold text-gray-800">
-           คลิกเพื่อดูรายละเอียดออเดอร์
+          Click to view order details
         </h2>
       </div>
 

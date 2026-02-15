@@ -44,7 +44,7 @@ export default function ProductCard({ product }: ProductCardProps) {
             ฿{product.price ? product.price.toLocaleString() : "—"}
           </p>
           <p className="text-sm text-gray-500">
-            ขายได้ {product.sold_count || 0} ชิ้น
+            Sold {product.sold_count || 0} pieces
           </p>
         </div>
       </div>

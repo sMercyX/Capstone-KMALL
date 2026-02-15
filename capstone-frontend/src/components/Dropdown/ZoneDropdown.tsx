@@ -9,6 +9,7 @@ interface ZoneDropdownProps {
   disabled?: boolean
   placeholder?: string
   label?: string
+  error?: boolean
 }
 
 export default function ZoneDropdown({
@@ -17,7 +18,8 @@ export default function ZoneDropdown({
   zones,
   disabled = false,
   placeholder = "Select a zone",
-  label = "Zone"
+  label = "Zone",
+  error = false
 }: ZoneDropdownProps) {
   const [isOpen, setIsOpen] = useState(false)
   const [tempValue, setTempValue] = useState<string | null>(value)
@@ -54,8 +56,8 @@ export default function ZoneDropdown({
           type="button"
           onClick={() => !disabled && setIsOpen(!isOpen)}
           disabled={disabled}
-          className={`w-full bg-white border-2 border-gray-200 rounded-xl p-4 flex items-center justify-between text-left
-            ${isOpen ? 'border-orange-500' : ''}
+          className={`w-full bg-white border-2 rounded-xl p-4 flex items-center justify-between text-left
+            ${isOpen ? 'border-orange-500' : error ? 'border-red-500' : 'border-gray-200'}
             ${disabled ? 'cursor-not-allowed opacity-70' : 'hover:border-gray-300 cursor-pointer'}`}
         >
           <span className="text-base text-gray-700">{displayText}</span>

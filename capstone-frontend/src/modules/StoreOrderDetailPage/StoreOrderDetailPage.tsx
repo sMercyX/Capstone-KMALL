@@ -1,5 +1,5 @@
 // src/pages/store/StoreOrderDetailPage.tsx
-import { useEffect, useState, useCallback } from "react"
+import { useEffect, useState, useCallback, useRef } from "react"
 import { Link, useNavigate, useParams } from "react-router-dom"
 import { Store } from "lucide-react"
 import { IoChevronBack } from "react-icons/io5"
@@ -82,10 +82,12 @@ function formatThaiDateTime(date: Date | string | null | undefined): string {
   const thaiYear = d.getFullYear() + 543
   const day = d.getDate()
   const month = d.getMonth() + 1
-  const hours = d.getHours().toString().padStart(2, "0")
+  const rawHours = d.getHours()
+  const ampm = rawHours >= 12 ? 'PM' : 'AM'
+  const displayHours = rawHours % 12 || 12
   const minutes = d.getMinutes().toString().padStart(2, "0")
   
-  return `${day}/${month}/${thaiYear} ${hours}:${minutes} น.`
+  return `${day}/${month}/${thaiYear} ${displayHours}:${minutes} ${ampm}`
 }
 
 export default function StoreOrderDetailPage() {
@@ -148,6 +150,8 @@ export default function StoreOrderDetailPage() {
   const [selectedTime, setSelectedTime] = useState<string>("10:00 AM")
   const [meetingNoteInput, setMeetingNoteInput] = useState("")
   const [proposeLoading, setProposeLoading] = useState(false)
+  const [validationErrors, setValidationErrors] = useState<{ zone?: boolean; building?: boolean; dateTime?: boolean }>({})
+  const meetingSectionRef = useRef<HTMLDivElement>(null)
   
   // Display states
   const [meetingLocationName, setMeetingLocationName] = useState("")
@@ -266,14 +270,39 @@ export default function StoreOrderDetailPage() {
     if (zoneId !== selectedZone) {
        setSelectedBuilding(null)
        // Clear buildings so useEffect refetches for new zone
-       setBuildings([]) 
+       setBuildings([])
     }
     setSelectedZone(zoneId)
+    if (zoneId) setValidationErrors(prev => ({ ...prev, zone: false }))
+  }
+
+  const handleBuildingChange = (buildingId: number | null) => {
+    setSelectedBuilding(buildingId)
+    if (buildingId) setValidationErrors(prev => ({ ...prev, building: false }))
+  }
+
+  const handleDateTimeChange = (date: Date | null, time: string) => {
+    setSelectedDateTime(date)
+    setSelectedTime(time)
+    if (date) setValidationErrors(prev => ({ ...prev, dateTime: false }))
   }
 
   // Handle propose order
   async function handleProposeOrder() {
-    if (!orderId || !selectedDateTime) return
+    if (!orderId) return
+
+    // Validate required fields
+    const errors: { zone?: boolean; building?: boolean; dateTime?: boolean } = {}
+    if (!selectedZone) errors.zone = true
+    if (!selectedBuilding) errors.building = true
+    if (!selectedDateTime) errors.dateTime = true
+
+    if (Object.keys(errors).length > 0) {
+      setValidationErrors(errors)
+      toast.error("Please select a zone, building, and meeting time.")
+      meetingSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+      return
+    }
     
     try {
       setProposeLoading(true)
@@ -288,12 +317,12 @@ export default function StoreOrderDetailPage() {
         if (isPM && hours !== 12) hours += 12
         if (!isPM && hours === 12) hours = 0
         
-        selectedDateTime.setHours(hours, minutes, 0, 0)
+        selectedDateTime!.setHours(hours, minutes, 0, 0)
       }
       
       await proposeOrder(
         parseInt(orderId),
-        selectedDateTime.toISOString(),
+        selectedDateTime!.toISOString(),
         selectedBuilding || undefined,
         meetingNoteInput || undefined
       )
@@ -411,6 +440,21 @@ export default function StoreOrderDetailPage() {
 
   const handleAcceptClick = () => {
     if (!order || !orderId || !canAccept) return
+    // If status is PENDING, validate fields first before showing modal
+    if (order.status === "Pending") {
+      const errors: { zone?: boolean; building?: boolean; dateTime?: boolean } = {}
+      if (!selectedZone) errors.zone = true
+      if (!selectedBuilding) errors.building = true
+      if (!selectedDateTime) errors.dateTime = true
+      
+      if (Object.keys(errors).length > 0) {
+        setValidationErrors(errors)
+        toast.error("Please select a zone, building, and meeting time.")
+        // Scroll to the meeting section
+        meetingSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+        return
+      }
+    }
     setIsAcceptModalOpen(true)
   }
 
@@ -420,18 +464,13 @@ export default function StoreOrderDetailPage() {
     
     // If status is PENDING, call proposeOrder to move to PROPOSED
     if (order.status === "Pending") {
-      // Validate required fields
-      if (!selectedZone || !selectedBuilding || !selectedDateTime) {
-        toast.error("Please select a zone, building, and meeting time.")
-        return
-      }
-      
+      // Fields already validated in handleAcceptClick
       setActionLoading("accept")
       setError(null)
       
       try {
         // Parse time and combine with date
-        const dateTime = new Date(selectedDateTime)
+        const dateTime = new Date(selectedDateTime!)
         const timeParts = selectedTime.match(/(\d+):(\d+)\s*(AM|PM)/i)
         if (timeParts) {
           let hours = parseInt(timeParts[1])
@@ -447,7 +486,7 @@ export default function StoreOrderDetailPage() {
         await proposeOrder(
           parseInt(orderId),
           dateTime.toISOString(),
-          selectedBuilding,
+          selectedBuilding ?? undefined,
           meetingNoteInput || undefined
         )
         
@@ -637,6 +676,7 @@ export default function StoreOrderDetailPage() {
           <>
             {/* PendingProposedPage - Only for Pending/Proposed status */}
             {(order.status === "Pending" || order.status === "Proposed") && (
+              <div ref={meetingSectionRef}>
               <PendingProposedPage
                 items={items}
                 order={order}
@@ -653,32 +693,30 @@ export default function StoreOrderDetailPage() {
                 meetingNoteInput={meetingNoteInput}
                 isBuyer={isBuyer}
                 proposeLoading={proposeLoading}
+                validationErrors={validationErrors}
                 onZoneChange={handleZoneChange}
-                onBuildingChange={setSelectedBuilding}
-                onDateTimeChange={(date, time) => {
-                  setSelectedDateTime(date)
-                  setSelectedTime(time)
-                }}
+                onBuildingChange={handleBuildingChange}
+                onDateTimeChange={handleDateTimeChange}
                 onMeetingNoteChange={setMeetingNoteInput}
                 onProposeOrder={handleProposeOrder}
               />
+              </div>
             )}
 
             {/* Accepted Status Page */}
             {order.status === "Accepted" && (
-              <AcceptedPage order={order} locationName={meetingLocationName} viewMode={isBuyer ? "buyer" : "seller"} />
+              <AcceptedPage order={order} items={items} subtotal={subtotal} deliveryFee={deliveryFee} total={total} locationName={meetingLocationName} viewMode={isBuyer ? "buyer" : "seller"} />
             )}
             
 
             {/* Out for Delivery Page */}
             {order.status === "Out For Delivery" && (
-              <OutOfDeliveryPage order={order} locationName={meetingLocationName} viewMode={isBuyer ? "buyer" : "seller"} />
+              <OutOfDeliveryPage order={order} items={items} subtotal={subtotal} deliveryFee={deliveryFee} total={total} locationName={meetingLocationName} viewMode={isBuyer ? "buyer" : "seller"} />
             )}
 
             {/* Arrived Page */}
             {order.status === "Arrived" && (
-              <ArrivedPage order={order} locationName={meetingLocationName} viewMode={isBuyer ? "buyer" : "seller"}
-  />
+              <ArrivedPage order={order} items={items} subtotal={subtotal} deliveryFee={deliveryFee} total={total} locationName={meetingLocationName} viewMode={isBuyer ? "buyer" : "seller"} />
             )}
 
             {/* Completed/Cancelled Page */}

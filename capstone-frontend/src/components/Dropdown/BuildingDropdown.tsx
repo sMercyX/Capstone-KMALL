@@ -14,6 +14,7 @@ interface BuildingDropdownProps {
   disabled?: boolean
   placeholder?: string
   label?: string
+  error?: boolean
 }
 
 export default function BuildingDropdown({
@@ -22,7 +23,8 @@ export default function BuildingDropdown({
   buildings,
   disabled = false,
   placeholder = "เลือกอาคาร",
-  label = "หมายเลขอาคาร และชื่ออาคาร"
+  label = "หมายเลขอาคาร และชื่ออาคาร",
+  error = false
 }: BuildingDropdownProps) {
   const [isOpen, setIsOpen] = useState(false)
   const [tempValue, setTempValue] = useState<number | null>(value)
@@ -60,8 +62,8 @@ export default function BuildingDropdown({
           type="button"
           onClick={() => !disabled && setIsOpen(!isOpen)}
           disabled={disabled}
-          className={`w-full bg-white border-2 border-gray-200 rounded-xl p-4 flex items-center justify-between text-left
-            ${isOpen ? 'border-orange-500' : ''}
+          className={`w-full bg-white border-2 rounded-xl p-4 flex items-center justify-between text-left
+            ${isOpen ? 'border-orange-500' : error ? 'border-red-500' : 'border-gray-200'}
             ${disabled ? 'cursor-not-allowed opacity-70' : 'hover:border-gray-300 cursor-pointer'}`}
         >
           <span className="text-base text-gray-700">{displayText}</span>

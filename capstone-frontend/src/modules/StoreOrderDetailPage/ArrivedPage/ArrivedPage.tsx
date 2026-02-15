@@ -1,13 +1,18 @@
 // src/modules/StoreOrderDetailPage/ArrivedPage/ArrivedPage.tsx
-import type { orderSellerData } from "../../../api/orderSellerApi"
+import type { OrderItemDetail, orderSellerData } from "../../../api/orderSellerApi"
+import ProductList from "../components/ProductList"
 
 interface ArrivedPageProps {
   order: orderSellerData
+  items: OrderItemDetail[]
+  subtotal: number
+  deliveryFee: number
+  total: number
   locationName?: string
   viewMode: "buyer" | "seller"
 }
 
-export default function ArrivedPage({ order, locationName, viewMode }: ArrivedPageProps) {
+export default function ArrivedPage({ order, items, subtotal, deliveryFee, total, locationName, viewMode }: ArrivedPageProps) {
   // Parse proposed_at to get date and time
   const proposedDate = order.proposed_at
     ? new Date(order.proposed_at)
@@ -54,7 +59,22 @@ export default function ArrivedPage({ order, locationName, viewMode }: ArrivedPa
       </div>
 
       {/* Status Message */}
-           <p className="text-xl font-semibold text-orange-500">{statusText}</p>
+      <p className="text-xl font-semibold text-orange-500 mb-8">{statusText}</p>
+
+      {/* Product Details Section */}
+      <div className="w-full mb-6">
+        <h3 className="text-xl font-bold mb-4">Product details</h3>
+        <ProductList
+          items={items}
+          total={total}
+          notes={order.notes}
+          subtotal={subtotal}
+          deliveryFee={deliveryFee}
+          showHeader={false}
+          showNotes={true}
+          showBreakdown={true}
+        />
+      </div>
     </div>
   )
 }

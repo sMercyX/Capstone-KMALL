@@ -3,6 +3,7 @@ import type { OrderItemDetail, orderSellerData } from "../../../api/orderSellerA
 import type { CampusLocation } from "../../../api/campusLocationApi"
 import { ZoneDropdown, BuildingDropdown, DateTimePicker } from "../../../components/Dropdown"
 import ProductList from "../components/ProductList"
+import MapKmuttButton from "../../../components/MapKmuttButton/MapKmuttButton"
 
 interface PendingProposedPageProps {
   items: OrderItemDetail[]
@@ -21,6 +22,7 @@ interface PendingProposedPageProps {
   meetingNoteInput: string
   isBuyer: boolean
   proposeLoading: boolean
+  validationErrors?: { zone?: boolean; building?: boolean; dateTime?: boolean }
   onZoneChange: (zone: string | null) => void
   onBuildingChange: (building: number | null) => void
   onDateTimeChange: (date: Date | null, time: string) => void
@@ -43,6 +45,7 @@ export default function PendingProposedPage({
   meetingNoteInput,
   isBuyer,
   proposeLoading,
+  validationErrors = {},
   onZoneChange,
   onBuildingChange,
   onDateTimeChange,
@@ -70,6 +73,7 @@ export default function PendingProposedPage({
               onChange={onZoneChange}
               zones={zones}
               disabled={isBuyer}
+              error={validationErrors.zone}
             />
           </div>
 
@@ -82,6 +86,7 @@ export default function PendingProposedPage({
               time={selectedTime}
               minDate={new Date()}
               maxDate={new Date(new Date().setDate(new Date().getDate() + 14))}
+              error={validationErrors.dateTime}
             />
           </div>
         </div>
@@ -97,26 +102,14 @@ export default function PendingProposedPage({
               disabled={isBuyer || !selectedZone}
               placeholder={!selectedZone ? "Select a zone first" : "Select a building"}
               label="Building number and name"
+              error={validationErrors.building}
             />
           </div>
 
           {/* MAP KMUTT Button */}
           <div>
             <label className="block text-base font-semibold mb-3 invisible">-</label>
-            <a
-              href="https://maps.kmutt.ac.th/"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-2 px-6 py-4 bg-orange-500 rounded-xl hover:bg-orange-600 transition-colors font-semibold"
-            >
-              <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-              </svg>
-              <span className="text-white">
-                MAP KMUTT
-              </span>
-            </a>
+            <MapKmuttButton />
           </div>
         </div>
 
@@ -134,21 +127,37 @@ export default function PendingProposedPage({
         </div>
 
         {/* Save Button - only show for seller in Proposed status */}
-        {!isBuyer && order.status === "Proposed" && (
+        {!isBuyer && order.status === "Proposed" && (() => {
+          // Check if any field has changed from the original order
+          const originalBuildingId = order.meeting_location_id || order.campus_location_id
+          const originalProposedAt = order.proposed_at ? new Date(order.proposed_at) : null
+          const originalNote = order.meeting_note || ""
+
+          const hasZoneOrBuildingChanged = selectedBuilding !== originalBuildingId
+          const hasDateTimeChanged = selectedDateTime && originalProposedAt
+            ? selectedDateTime.getTime() !== originalProposedAt.getTime()
+            : selectedDateTime !== originalProposedAt
+          const hasNoteChanged = meetingNoteInput !== originalNote
+
+          const hasChanges = hasZoneOrBuildingChanged || hasDateTimeChanged || hasNoteChanged
+          const isDisabled = proposeLoading || !selectedDateTime || !hasChanges
+
+          return (
           <div className="mt-6 flex justify-end gap-3">
             <button
               type="button"
               onClick={onProposeOrder}
-              disabled={proposeLoading || !selectedDateTime}
+              disabled={isDisabled}
               className={`px-8 py-3 rounded-xl text-base font-semibold text-white transition-colors
-                ${proposeLoading || !selectedDateTime
-                  ? 'bg-orange-300 cursor-not-allowed'
+                ${isDisabled
+                  ? 'bg-gray-300 cursor-not-allowed'
                   : 'bg-orange-500 hover:bg-orange-600'}`}
             >
-              {proposeLoading ? '"Saving...' : 'Save and propose time'}
+              {proposeLoading ? 'Saving...' : 'Save and propose time'}
             </button>
           </div>
-        )}
+          )
+        })()}
 
         {/* Display existing notes (read-only) */}
         {/* {(order.campus_detail_note || order.meeting_note || order.notes) && (

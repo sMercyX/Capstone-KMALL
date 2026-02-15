@@ -13,6 +13,7 @@ interface DateTimePickerProps {
   time?: string
   minDate?: Date
   maxDate?: Date
+  error?: boolean
 }
 
 const DEFAULT_TIME_SLOTS = [
@@ -31,7 +32,8 @@ export default function DateTimePicker({
   defaultTime = "10:00 AM",
   time,
   minDate,
-  maxDate
+  maxDate,
+  error = false
 }: DateTimePickerProps) {
   const [isOpen, setIsOpen] = useState(false)
   const [calendarMonth, setCalendarMonth] = useState(value || new Date())
@@ -47,6 +49,14 @@ export default function DateTimePicker({
       setSelectedTime(time)
     }
   }, [time])
+
+  // Sync internal state when value prop changes (e.g. after BE data loads)
+  useEffect(() => {
+    setTempDate(value)
+    if (value) {
+      setCalendarMonth(value)
+    }
+  }, [value])
 
   // Format display text
   const formatDisplayText = () => {
@@ -157,10 +167,19 @@ export default function DateTimePicker({
       <div className="relative" ref={containerRef}>
         <button
           type="button"
-          onClick={() => !disabled && setIsOpen(!isOpen)}
+          onClick={() => {
+            if (disabled) return
+            if (!isOpen) {
+              // Reset temp state from current value when opening
+              setTempDate(value)
+              if (value) setCalendarMonth(value)
+              if (time) setSelectedTime(time)
+            }
+            setIsOpen(!isOpen)
+          }}
           disabled={disabled}
-          className={`w-full bg-white border-2 border-gray-200 rounded-xl p-4 flex items-center justify-between text-left
-            ${isOpen ? 'border-orange-500' : ''}
+          className={`w-full bg-white border-2 rounded-xl p-4 flex items-center justify-between text-left
+            ${isOpen ? 'border-orange-500' : error ? 'border-red-500' : 'border-gray-200'}
             ${disabled ? 'cursor-not-allowed opacity-70' : 'hover:border-gray-300 cursor-pointer'}`}
         >
           <span className="text-base font-medium text-gray-700">
@@ -232,7 +251,11 @@ export default function DateTimePicker({
                                 ? 'text-gray-300 cursor-not-allowed' 
                                 : 'hover:bg-gray-100'
                             }
-                            ${tempDate && day.date.toDateString() === tempDate.toDateString() && !isDisabled
+                            ${tempDate 
+                              && day.date.getFullYear() === tempDate.getFullYear()
+                              && day.date.getMonth() === tempDate.getMonth()
+                              && day.date.getDate() === tempDate.getDate()
+                              && !isDisabled
                             ? 'bg-orange-500 text-white hover:bg-orange-600' 
                             : ''}`}
                         >
