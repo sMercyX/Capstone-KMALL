@@ -34,15 +34,15 @@ export default function OutOfDeliveryPage({ order, locationName, viewMode  }: Ou
 
   const statusText =
     viewMode === "buyer"
-      ? "ผู้ขายกำลังนำสินค้าไปส่ง / เดินทางไปจุดนัดรับ"
-      : "ถึงจุดนัดรับสินค้าแล้วหรือไม่"
+      ? "The seller is on the way to the meeting point."
+      : "Have you arrived at the meeting point?"
 
   return (
     <div className="flex flex-col items-center">
       {/* Delivery Info Header */}
       <div className="w-full bg-gray-100 rounded-xl p-4 mb-8 text-center">
         <p className="text-xl font-semibold text-gray-800">
-          {formattedDate} เวลา {formattedTime} บริเวณ ตึก {displayLocation}
+          {formattedDate} at {formattedTime} · Building {displayLocation}
         </p>
       </div>
 

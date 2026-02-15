@@ -18,6 +18,7 @@ export interface orderData {
   cancelled_at: string
   user_id: string
   store_id: number
+  campus_location_id?: number
 }
 export interface orderResponse {
   order: orderData

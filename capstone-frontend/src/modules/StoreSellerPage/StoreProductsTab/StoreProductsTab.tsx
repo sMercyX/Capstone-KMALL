@@ -59,7 +59,7 @@ export default function StoreProductsTab() {
       } catch (err) {
         console.error("load store products failed:", err)
         if (!cancelled) {
-          setError("โหลดสินค้าล้มเหลว")
+          setError("Failed to load products.")
         }
       }
     }
@@ -146,7 +146,7 @@ export default function StoreProductsTab() {
       await deleteProduct(deleteId)
       setRefreshKey((prev) => prev + 1)
       setDeleteId(null)
-      toast.success("ลบสินค้าเรียบร้อยแล้ว")
+      toast.success("Product deleted successfully.")
     } catch (err) {
       handleApiError(err)
     }
@@ -155,10 +155,10 @@ export default function StoreProductsTab() {
   return (
     <>
       <div className="border border-[#e0e0e0] rounded-2xl p-6 bg-white">
-        <h2 className="font-semibold text-lg mb-4">สินค้าทั้งหมด</h2>
+        <h2 className="font-semibold text-lg mb-4">All Products</h2>
 
         {isLoading && !items.length && (
-          <p className="text-center text-gray-500 py-4">กำลังโหลดสินค้า...</p>
+          <p className="text-center text-gray-500 py-4">Loading products...</p>
         )}
 
         {error && (
@@ -167,7 +167,7 @@ export default function StoreProductsTab() {
 
         {!isLoading && !error && !items.length && (
           <p className="text-center text-gray-500 py-4">
-            ยังไม่มีสินค้าในร้านของคุณ
+             You don't have any products yet.
           </p>
         )}
 
@@ -208,7 +208,7 @@ export default function StoreProductsTab() {
                       {product.description}
                     </p>
                     <p className="text-sm md:text-base mt-1">
-                      {product.price} บาท
+                      ฿{product.price}
                     </p>
                   </div>
                 </div>
@@ -236,7 +236,7 @@ export default function StoreProductsTab() {
                         isActive ? "text-sky-600" : "text-red-500"
                       }`}
                     >
-                      {isActive ? "แสดงสินค้า" : "ซ่อนสินค้า"}
+                      {isActive ? "Visible" : "Hidden"}
                     </span>
 
                     <button
@@ -282,9 +282,9 @@ export default function StoreProductsTab() {
         isOpen={!!deleteId}
         onClose={() => setDeleteId(null)}
         onConfirm={handleConfirmDelete}
-        title="ยืนยันการลบสินค้า"
-        message="คุณต้องการลบสินค้านี้ใช่หรือไม่? การกระทำนี้ไม่สามารถเรียกคืนได้"
-        confirmText="ลบสินค้า"
+        title="Confirm Product Deletion"
+        message="Are you sure you want to delete this product? This action cannot be undone."
+        confirmText="Delete Product"
         variant="danger"
       />
     </>

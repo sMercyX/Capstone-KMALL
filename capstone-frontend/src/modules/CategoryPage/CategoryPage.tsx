@@ -130,7 +130,7 @@ export default function CategoryPage() {
         setError(null)
       } catch (err) {
         if (ignore) return
-        setError("โหลดสินค้าล้มเหลว")
+        setError("Unable to load products.")
       }
     }
 
@@ -155,6 +155,14 @@ export default function CategoryPage() {
     setSelectedMinPrice(min)
     setSelectedMaxPrice(max)
     setPageIndex(1)
+    setSort("latest")
+  }
+
+  // Handle category change from FilterSidebar
+  const handleCategoryChange = (ids: number[]) => {
+    setFilter(ids)
+    setPageIndex(1)
+    setSort("latest")
   }
 
   const safeTotal = typeof total === "number" ? total : 0
@@ -173,7 +181,7 @@ export default function CategoryPage() {
                 <FilterSidebar 
                     filterOptions={filterOptions}
                     selectedCategories={filter}
-                    onChangeCategory={setFilter}
+                    onChangeCategory={handleCategoryChange}
                     priceMin={apiMinPrice}
                     priceMax={apiMaxPrice}
                     onChangePriceRange={handlePriceRangeChange}
@@ -200,7 +208,7 @@ export default function CategoryPage() {
                  <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-current border-r-transparent align-[-0.125em] motion-reduce:animate-[spin_1.5s_linear_infinite]" role="status">
                     <span className="!absolute !-m-px !h-px !w-px !overflow-hidden !whitespace-nowrap !border-0 !p-0 ![clip:rect(0,0,0,0)]">Loading...</span>
                  </div>
-                 <p className="mt-2 text-gray-500">กำลังโหลดสินค้า...</p>
+                 <p className="mt-2 text-gray-500">Loading products...</p>
               </div>
             ) : error ? (
               <div className="py-20 text-center text-red-500 bg-red-50 rounded-xl border border-red-100">
@@ -208,7 +216,7 @@ export default function CategoryPage() {
               </div>
             ) : items.length === 0 ? (
                 <div className="py-20 text-center text-gray-500 bg-gray-50 rounded-xl border border-dashed border-gray-200">
-                    ไม่พบสินค้าในหมวดหมู่นี้
+                    No products found in this category.
                 </div>
             ) : (
               <ProductGrid items={items} />

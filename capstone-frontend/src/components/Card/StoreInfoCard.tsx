@@ -40,7 +40,7 @@ export default function StoreInfoCard({
   if (isLoading) {
     return (
       <Card className="mt-8 flex items-center justify-center p-6 rounded-3xl">
-        <p className="text-gray-500 text-sm">กำลังโหลดข้อมูลร้านค้า...</p>
+        <p className="text-gray-500 text-sm">Loading store information...</p>
       </Card>
     )
   }
@@ -74,7 +74,7 @@ export default function StoreInfoCard({
       {!disableViewButton && (
         <Link to={`/store/${storeId}`} className="flex gap-3">
           <button className="rounded-full bg-orange-500 px-5 py-2 text-sm font-semibold text-white hover:bg-orange-600 transition">
-            ดูร้านค้า
+            View Store
           </button>
         </Link>
       )}

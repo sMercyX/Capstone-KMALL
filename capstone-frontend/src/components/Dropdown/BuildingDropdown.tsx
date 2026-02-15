@@ -96,14 +96,14 @@ export default function BuildingDropdown({
                 onClick={handleCancel}
                 className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg"
               >
-                ยกเลิก
+                Cancel
               </button>
               <button
                 type="button"
                 onClick={handleConfirm}
                 className="px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600"
               >
-                ตกลง
+                Confirm
               </button>
             </div>
           </div>

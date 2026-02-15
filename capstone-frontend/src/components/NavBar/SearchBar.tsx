@@ -103,6 +103,7 @@ export default function SearchBar() {
     setQuery(term)
     navigate(`/search?q=${encodeURIComponent(term.trim())}`)
     setIsOpen(false)
+    inputRef.current?.blur()
   }
 
   const handleHistoryClick = (term: string) => {
@@ -173,7 +174,8 @@ export default function SearchBar() {
           onChange={(e) => setQuery(e.target.value)}
           onFocus={handleFocus}
           onKeyDown={handleKeyDown}
-          placeholder="ค้นหาสินค้าและะร้านค้า..."
+          placeholder="Search for products and stores..."
+
           className="w-full rounded-full border border-gray-300 pl-4 pr-12 py-2 
                      focus:outline-none focus:ring-2 focus:ring-orange-400 focus:border-orange-400
                      transition-all duration-200 bg-white text-gray-700 placeholder-gray-400"
@@ -210,7 +212,7 @@ export default function SearchBar() {
           {(isLoading || isHistoryLoading) && (
             <div className="px-4 py-3 text-gray-500 text-sm flex items-center gap-2">
               <div className="animate-spin rounded-full h-4 w-4 border-2 border-orange-500 border-t-transparent"></div>
-              กำลังโหลด...
+              Loading...
             </div>
           )}
 
@@ -219,13 +221,13 @@ export default function SearchBar() {
             <div>
               {/* Header */}
               <div className="px-4 py-3 flex items-center justify-between border-b border-gray-100">
-                <span className="text-sm text-gray-500">ประวัติการค้นหาของคุณ</span>
+                <span className="text-sm text-gray-500">Your search history</span>
                 {searchHistory.length > 0 && (
                   <button
                     onClick={handleClearAllHistory}
                     className="text-sm text-orange-500 hover:text-orange-600 transition-colors"
                   >
-                    ล้างประวัติการค้นหา
+                    Clear search history
                   </button>
                 )}
               </div>
@@ -278,7 +280,7 @@ export default function SearchBar() {
                     <button
                       onClick={(e) => handleDeleteHistoryItem(item.id, e)}
                       className="hidden group-hover:block p-1 hover:bg-gray-200 rounded-full text-gray-400 hover:text-red-500 transition-colors"
-                      title="ลบรายการนี้"
+                      title="Remove this item"
                     >
                       <svg 
                         xmlns="http://www.w3.org/2000/svg" 
@@ -313,7 +315,7 @@ export default function SearchBar() {
                       d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" 
                     />
                   </svg>
-                  <p>ยังไม่มีประวัติการค้นหา</p>
+                  <p>No search history yet.</p>
                 </div>
               )}
             </div>
@@ -417,9 +419,9 @@ export default function SearchBar() {
               {/* No results */}
               {matchingHistory.length === 0 && suggestions.length === 0 && (
                 <div className="px-4 py-20 text-left">
-                  <p className="text-gray-700 mb-2">ไม่พบสิ่งที่ค้นหา โปรดลองใช้ทิปส์การค้นหานี้:</p>
+                  <p className="text-gray-700 mb-2">We couldn’t find any matches. Try these tips:</p>
                   <ul className="list-disc list-inside text-gray-500 text-sm ml-2">
-                    <li>ตรวจสอบตัวสะกด</li>
+                    <li>Check your spelling</li>
                   </ul>
                 </div>
               )}

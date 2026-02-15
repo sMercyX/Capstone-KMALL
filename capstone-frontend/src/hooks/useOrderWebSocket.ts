@@ -28,6 +28,12 @@ type OrderUpdatePayload = {
 
 export function useOrderWebSocket(orderId: string | undefined, onUpdate: (data: any) => void) {
   const ws = useRef<WebSocket | null>(null)
+  const onUpdateRef = useRef(onUpdate)
+
+  // Keep ref in sync with latest callback
+  useEffect(() => {
+    onUpdateRef.current = onUpdate
+  }, [onUpdate])
 
   useEffect(() => {
     if (!orderId) return
@@ -47,7 +53,9 @@ export function useOrderWebSocket(orderId: string | undefined, onUpdate: (data: 
         const payload: OrderUpdatePayload = JSON.parse(event.data)
         if (payload.type === 'ORDER_UPDATE') {
           console.log('[WebSocket] Order Update Received:', payload.data)
-          onUpdate(payload.data)
+          if (onUpdateRef.current) {
+            onUpdateRef.current(payload.data)
+          }
         }
       } catch (e) {
         console.error('[WebSocket] Failed to parse message:', e)
@@ -67,5 +75,5 @@ export function useOrderWebSocket(orderId: string | undefined, onUpdate: (data: 
         socket.close()
       }
     }
-  }, [orderId, onUpdate])
+  }, [orderId]) // Dependency is ONLY orderId now, not onUpdate
 }

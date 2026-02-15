@@ -42,14 +42,14 @@ export const useStoreStore = create<StoreState>((set) => ({
       set({
         store: data ?? null,
         loading: false,
-        error: data ? null : "ไม่พบข้อมูลร้าน",
+        error: data ? null : "Store information not found.",
       })
     } catch (err) {
       console.error("fetch store failed:", err)
       set({
         store: null,
         loading: false,
-        error: "ไม่สามารถโหลดข้อมูลร้านได้",
+        error: "Unable to load store information.",
       })
     }
   },

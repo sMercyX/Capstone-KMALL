@@ -28,15 +28,15 @@ export default function ProductList({
     <div className="bg-white rounded-2xl border border-gray-200 p-4 md:p-6">
       {/* Header */}
       {showHeader && (
-        <h3 className="text-lg font-bold mb-4">รายละเอียดสินค้า</h3>
+        <h3 className="text-lg font-bold mb-4">Product details</h3>
       )}
 
       {/* Table Header */}
       <div className="grid grid-cols-12 gap-2 md:gap-4 mb-4 text-xs md:text-sm text-gray-500">
-        <div className="col-span-1 text-center">ลำดับ</div>
-        <div className="col-span-6 md:col-span-7">ชื่อสินค้า</div>
-        <div className="col-span-2 text-center">จำนวน</div>
-        <div className="col-span-3 md:col-span-2 text-right">ราคา</div>
+        <div className="col-span-1 text-center">No.</div>
+        <div className="col-span-6 md:col-span-7">Product</div>
+        <div className="col-span-2 text-center">Qty</div>
+        <div className="col-span-3 md:col-span-2 text-right">Price</div>
       </div>
 
       {/* Table Body */}
@@ -74,14 +74,14 @@ export default function ProductList({
             </div>
             <div className="col-span-3 md:col-span-2 text-right">
               <p className="text-sm font-medium text-gray-900">
-                {item.subtotal.toLocaleString()} บาท
+                ฿ {item.subtotal.toLocaleString()}
               </p>
             </div>
           </div>
         ))}
         {items.length === 0 && (
           <p className="text-center text-sm text-gray-400 py-4">
-            ยังไม่มีข้อมูลสินค้า
+            No items found.
           </p>
         )}
       </div>
@@ -89,10 +89,10 @@ export default function ProductList({
       {/* Notes Section */}
       {showNotes && (
         <div className="mt-6">
-          <p className="text-sm font-semibold mb-2">หมายเหตุ</p>
+          <p className="text-sm font-semibold mb-2">Notes</p>
           <div className="bg-gray-50 rounded-lg border border-gray-200 p-3 min-h-[60px]">
             <p className="text-sm text-gray-600">
-              {notes || "ไม่มีหมายเหตุ"}
+              {notes || "No notes."}
             </p>
           </div>
         </div>
@@ -102,16 +102,16 @@ export default function ProductList({
       {showBreakdown && subtotal !== undefined && deliveryFee !== undefined && (
         <div className="mt-6 space-y-2">
           <div className="flex justify-between text-sm">
-            <span className="text-gray-600">รวมการสั่งซื้อ</span>
-            <span className="font-medium">{subtotal.toLocaleString()} บาท</span>
+            <span className="text-gray-600">Subtotal</span>
+            <span className="font-medium">฿ {subtotal.toLocaleString()}</span>
           </div>
           <div className="flex justify-between text-sm">
-            <span className="text-gray-600">ค่าจัดส่งเพิ่มเติม</span>
-            <span className="font-medium">{deliveryFee.toLocaleString()} บาท</span>
+            <span className="text-gray-600">Delivery fee</span>
+            <span className="font-medium">฿ {deliveryFee.toLocaleString()}</span>
           </div>
           <div className="flex justify-between text-base md:text-lg font-bold pt-3 border-t border-gray-300">
-            <span>ยอดชำระทั้งหมด</span>
-            <span className="text-orange-500">{total.toLocaleString()} บาท</span>
+            <span>Grand total</span>
+            <span className="text-orange-500">฿ {total.toLocaleString()}</span>
           </div>
         </div>
       )}
@@ -119,8 +119,8 @@ export default function ProductList({
       {/* Simple Total (when no breakdown) */}
       {!showBreakdown && (
         <div className="flex justify-between items-center mt-6 pt-4 border-t border-gray-200">
-          <span className="text-lg font-bold">ยอดชำระทั้งหมด</span>
-          <span className="text-xl font-bold text-orange-500">{total.toLocaleString()} บาท</span>
+          <span className="text-lg font-bold">Grand total</span>
+          <span className="text-xl font-bold text-orange-500">฿ {total.toLocaleString()}</span>
         </div>
       )}
     </div>

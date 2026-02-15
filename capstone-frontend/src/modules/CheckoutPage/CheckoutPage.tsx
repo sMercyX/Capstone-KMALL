@@ -10,9 +10,9 @@ import { resolveImageUrl } from "../../utils/resolve"
 import ConfirmationModal from "../../components/Modal/ConfirmationModal"
 
 const MOCK_ADDRESSES = [
-  { id: 1, detail: "ที่อยู่ 1 - บ้านเลขที่ 123 ถนนสุขุมวิท" },
-  { id: 2, detail: "ที่อยู่ 2 - บ้านเลขที่ 456 ถนนพระราม 2" },
-  { id: 3, detail: "ที่อยู่ 3 - หอพักมหาวิทยาลัย" },
+  { id: 1, detail: "Address 1 - 123 Sukhumvit Rd." },
+  { id: 2, detail: "Address 2 - 456 Rama II Rd." },
+  { id: 3, detail: "Address 3 - University dormitory" },
 ]
 
 
@@ -77,7 +77,7 @@ export default function CheckoutPage() {
         setCart(res.data)
       } catch (err) {
         console.error(err)
-        setError("ไม่สามารถโหลดตะกร้าได้")
+        setError("Unable to load cart.")
       }
     })()
   }, [cart, isLoading, getCart, setCart, setError, startLoading])
@@ -163,7 +163,7 @@ export default function CheckoutPage() {
       navigate(`/orders/${res.data.order.id}`)
     } catch (err) {
       console.error(err)
-      alert("ยืนยันออเดอร์ไม่สำเร็จ")
+      alert("Unable to place order.")
     } finally {
       setSubmitting(false)
     }
@@ -172,7 +172,7 @@ export default function CheckoutPage() {
   if (isLoading && !cart) {
     return (
       <div className="min-h-screen bg-white flex items-center justify-center text-sm text-gray-500">
-        กำลังโหลดตะกร้า...
+        Loading cart...
       </div>
     )
   }
@@ -190,7 +190,7 @@ export default function CheckoutPage() {
       <div className="mx-auto w-full max-w-[calc(100%-110px)] pt-16 pb-24">
         <div className="mb-10 flex items-center gap-3 text-gray-900">
           <ShoppingCart className="h-7 w-7" />
-          <h1 className="text-2xl font-semibold">ทำการสั่งซื้อ</h1>
+          <h1 className="text-2xl font-semibold">Checkout</h1>
         </div>
 
         <div className="grid items-start gap-16 lg:grid-cols-[0.6fr_0.4fr]">
@@ -198,7 +198,7 @@ export default function CheckoutPage() {
           <section className="space-y-10">
             {/* Delivery Method Selection */}
             <div>
-              <h2 className="text-2xl font-bold mb-6">วิธีการจัดส่ง</h2>
+              <h2 className="text-2xl font-bold mb-6">Delivery method</h2>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {/* Card 1: Campus Pickup */}
                 <div 
@@ -215,8 +215,8 @@ export default function CheckoutPage() {
                     <Truck className="h-8 w-8" strokeWidth={1.5} />
                   </div>
                   <div>
-                    <h3 className="font-semibold text-base mb-1">นัดรับ</h3>
-                    <p className="text-sm text-gray-500">รอวันและเวลาที่ชัดเจนจากผู้ขาย</p>
+                    <h3 className="font-semibold text-base mb-1">Campus pickup</h3>
+                    <p className="text-sm text-gray-500">Wait for the seller to confirm the date and time.</p>
                   </div>
                 </div>
 
@@ -235,8 +235,8 @@ export default function CheckoutPage() {
                     <Package className="h-8 w-8" strokeWidth={1.5} />
                   </div>
                   <div>
-                    <h3 className="font-semibold text-base mb-1">ส่งรอบมหาวิทยาลัย</h3>
-                    <p className="text-sm text-gray-500">เลือกที่จัดส่งที่ตนเองบันทึกไว้</p>
+                    <h3 className="font-semibold text-base mb-1">Round University Delivery</h3>
+                    <p className="text-sm text-gray-500">Choose a saved delivery address.</p>
                   </div>
                 </div>
 
@@ -275,7 +275,7 @@ export default function CheckoutPage() {
                 />
                 <input
                   type="text"
-                  placeholder="ข้อมูลเพิ่มเติมสำหรับการจัดส่ง"
+                  placeholder="Additional delivery details"
                   value={addressExtra}
                   onChange={(e) => setAddressExtra(e.target.value)}
                   className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm shadow-sm focus:border-orange-400 focus:ring-2 focus:ring-orange-100 outline-none transition-all placeholder:text-gray-400"
@@ -284,10 +284,10 @@ export default function CheckoutPage() {
             )}
 
             <div>
-              <h2 className="text-2xl font-bold mb-4">หมายเหตุ</h2>
+              <h2 className="text-2xl font-bold mb-4">Note</h2>
               <input
                 type="text"
-                placeholder="ระบุหมายเหตุเพิ่มเติม"
+                placeholder="Add a note (optional)"
                 value={note}
                 onChange={(e) => setNote(e.target.value)}
                 className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm shadow-sm focus:border-orange-400 focus:ring-2 focus:ring-orange-100 outline-none transition-all placeholder:text-gray-400"
@@ -301,7 +301,7 @@ export default function CheckoutPage() {
           <section className="rounded-[28px] border border-gray-200 bg-[#f7f7f7] px-10 py-10 shadow-[0_18px_40px_rgba(0,0,0,0.06)]">
             {stores.length === 0 ? (
               <p className="text-center text-sm text-gray-400">
-                ยังไม่มีสินค้าในตะกร้า
+                No items in your cart.
               </p>
             ) : (
               <>
@@ -315,7 +315,7 @@ export default function CheckoutPage() {
                           (s, i) => s + i.quantity,
                           0,
                         )}{" "}
-                        รายการ)
+                        items)
                       </span>
                     </div>
 
@@ -350,7 +350,7 @@ export default function CheckoutPage() {
                           </div>
 
                           <p className="text-sm font-semibold">
-                            {formatPrice(item.price)} บาท
+                          ฿{formatPrice(item.price)}
                           </p>
                         </div>
                       ))}
@@ -366,20 +366,20 @@ export default function CheckoutPage() {
 
                 <div className="space-y-2 text-sm">
                   <div className="flex justify-between">
-                    <span>รวมการสั่งซื้อ</span>
-                    <span>{formatPrice(merchandiseTotal)} บาท</span>
+                    <span>Order subtotal</span>
+                    <span>฿{formatPrice(merchandiseTotal)}</span>
                   </div>
 
                   <div className="flex justify-between">
-                    <span>ค่าจัดส่ง</span>
-                    <span>{formatPrice(shippingFee)} บาท</span>
+                    <span>Shipping fee</span>
+                    <span>฿{formatPrice(shippingFee)}</span>
                   </div>
                 </div>
 
                 <div className="mt-5 flex justify-between text-base font-semibold">
-                  <span>ยอดชำระทั้งหมด</span>
+                  <span>Total</span>
                   <span className="text-xl font-bold text-[#d73c30]">
-                    {formatPrice(grandTotal)} บาท
+                    ฿{formatPrice(grandTotal)}
                   </span>
                 </div>
               </>
@@ -395,7 +395,7 @@ export default function CheckoutPage() {
           disabled={submitting || !cart || totalItems === 0}
           className="rounded-xl bg-[#f0532c] px-20 py-4 text-base font-semibold text-white shadow-lg hover:bg-[#e24420] disabled:opacity-60 disabled:cursor-not-allowed transition-all transform hover:scale-105"
         >
-          ยืนยันออเดอร์
+          Confirm Order
         </button>
       </div>
 
@@ -403,10 +403,10 @@ export default function CheckoutPage() {
         isOpen={isConfirmModalOpen}
         onClose={() => setIsConfirmModalOpen(false)}
         onConfirm={handleSubmit}
-        title="ยืนยันการสั่งซื้อ"
-        message="คุณต้องการยืนยันการสั่งซื้อสินค้าใช่หรือไม่?"
-        confirmText="ยืนยัน"
-        cancelText="ยกเลิก"
+        title="Confirm your order"
+        message="Do you want to place this order?"
+        confirmText="Confirm"
+        cancelText="Cancel"
         variant="info"
       />
     </div>

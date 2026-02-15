@@ -6,15 +6,15 @@ const resources = {
   en: {
     common: {
       title: "KMALL – KMUTT Marketplace",
-      buyNow: "Buy now",
+      buyNow: "Buy Now",
       welcome: "Welcome, {{name}}",
       darkMode: "Dark mode",
       language: "Language",
     },
     login: {
-      login: "Login",
-      logout: "Logout",
-      loginMicrosoft: "Login With KMUTT Email"
+      login: "Sign In",
+      logout: "Sign Out",
+      loginMicrosoft: "Sign in with your KMUTT email"
     },
   },
   th: {

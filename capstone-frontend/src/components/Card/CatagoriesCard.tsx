@@ -14,9 +14,9 @@ const CATEGORY_ICON_MAP: Record<string, React.ElementType> = {
 
 // map name อังกฤษ -> ไทย (จะใช้/ไม่ใช้ก็ได้)
 const CATEGORY_NAME_MAP: Record<string, string> = {
-  Food: "อาหาร",
-  Clothing: "เสื้อผ้า",
-  "Handmade Products": "สินค้าทำมือ",
+  Food: "Food",
+  Clothing: "Clothing",
+  "Handmade Products": "Handmade Products",
 }
 
 function SingleCategoryCard({ item }: { item: CatagoriesResponse }) {
@@ -57,7 +57,7 @@ export default function CategoriesCard() {
         setItems(res.data ?? [])
       } catch {
         if (!isMounted) return
-        setError("ไม่สามารถโหลดหมวดหมู่ได้")
+        setError("Unable to load categories.")
       } finally {
         if (isMounted) {
           setLoading(false)
@@ -98,7 +98,7 @@ export default function CategoriesCard() {
   if (!items.length) {
     return (
       <div className="mt-5 text-center text-sm text-gray-500">
-        ไม่มีหมวดหมู่ที่เปิดใช้งาน
+        No categories are currently available.
       </div>
     )
   }

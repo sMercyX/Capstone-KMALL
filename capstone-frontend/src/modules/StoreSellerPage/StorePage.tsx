@@ -20,11 +20,11 @@ export default function StorePage() {
   const pathname = location.pathname
 
   const tabs: SwitchTabItem[] = [
-    { key: "store", label: "ร้านค้าของฉัน", href: "/store/me" },
-    { key: "products", label: "สินค้า", href: "/store/products" },
-    { key: "add", label: "เพิ่มสินค้าใหม่", href: "/store/add" },
-    { key: "orders", label: "คำสั่งซื้อ", href: "/store/orders" },
-    { key: "settings", label: "การตั้งค่าร้านค้า", href: "/store/settings" },
+    { key: "store", label: "My Store", href: "/store/me" },
+    { key: "products", label: "Products", href: "/store/products" },
+    { key: "add", label: "Add New Product", href: "/store/add" },
+    { key: "orders", label: "Orders", href: "/store/orders" },
+    { key: "settings", label: "Store Settings", href: "/store/settings" },
   ]
 
   // ✅ ตรงนี้คือจุดสำคัญ — ดูจาก URL แล้วแมปเป็น key
@@ -37,7 +37,7 @@ export default function StorePage() {
   // ถ้าไม่ตรงอะไรเลย (เช่น /store) ก็เป็น "store"
 
   const activeLabel =
-    tabs.find((t) => t.key === activeKey)?.label || "ร้านค้าของฉัน"
+    tabs.find((t) => t.key === activeKey)?.label || "My Store"
 
   const roles = useUserStore((s) => s.roles)
   // 🔒 ถ้ามี role seller อยู่แล้ว ห้ามเข้าหน้านี้ → เด้งไป /store/me

@@ -1,102 +1,135 @@
-// src/pages/store/StoreOrdersTab.tsx
-import { useEffect, useState } from "react";
-import type { SwitchTabItem } from "../../../components/SwitchTabs/SwitchTabs";
-import type { OrderStatusGroup } from "../../../api/orderApi";
-import { useStoreOrderStore } from "../../../stores/storeOrderStore";
-import type { StoreOrderTabKey } from "../../../stores/storeOrderStore";
-import type { StoreOrderStatusContext } from "./StoreOrderListItem";
-import { useOrderSellerApi } from "../../../api/orderSellerApi";
-import StoreOrderListItem from "./StoreOrderListItem";
-import SwitchTabs from "../../../components/SwitchTabs/SwitchTabs";
-import { useStoreStore } from "../../../stores/storeStore";
+// src/modules/StoreSellerPage/storeOrderTab/StoreOrdersTab.tsx
+import { useEffect, useState } from "react"
+import { useLocation, useNavigate, useParams } from "react-router-dom"
+import SwitchTabs, { type SwitchTabItem } from "../../../components/SwitchTabs/SwitchTabs"
+import { useOrderSellerApi, type OrderStatusGroup, type orderSellerResponse } from "../../../api/orderSellerApi"
+import { Loader2 } from "lucide-react"
+import OrderListItem, { type OrderStatusContext } from "../../../components/Order/OrderListItem"
+import { getAllLocations, type CampusLocation } from "../../../api/campusLocationApi"
 
-const ORDER_TABS: SwitchTabItem[] = [
-  { key: "ongoing", label: "ON GOING" },
+const TABS: SwitchTabItem[] = [
+  { key: "active", label: "ACTIVE ORDERS" },
   { key: "completed", label: "COMPLETED" },
-  { key: "canceled", label: "CANCELED/FAILED" },
-];
+  { key: "cancelled", label: "CANCELLED" },
+]
 
-const statusGroupMap: Record<StoreOrderTabKey, OrderStatusGroup> = {
-  ongoing: "active",
-  completed: "completed",
-  canceled: "cancelled",
-};
-
-const contextMap: Record<StoreOrderTabKey, StoreOrderStatusContext> = {
-  ongoing: "ongoing",
-  completed: "completed",
-  canceled: "canceled",
-};
+function OrderListHeader() {
+  return (
+    <div className="flex items-center justify-between px-6 pb-2 text-xs text-gray-400 font-light">
+      <div className="w-[10%] min-w-[60px]">ลำดับ</div>
+      <div className="w-[20%]">ผู้ซื้อ</div>
+      <div className="w-[20%]">วัน/เวลาที่สั่งซื้อ</div>
+      <div className="w-[15%]">สถานที่นัดรับสินค้า</div>
+      <div className="w-[15%]">ยอดรวมทั้งหมด</div>
+      <div className="w-[10%] text-center">สถานะคำสั่งซื้อ</div>
+      <div className="w-[10%]"></div>
+    </div>
+  )
+}
 
 export default function StoreOrdersTab() {
-  const {
-    orders,
-    isLoading,
-    error,
-    startLoading,
-    setOrders,
-    setError,
-  } = useStoreOrderStore();
-
-  const { getOrdersSellerByStatus } = useOrderSellerApi();
-  const { store } = useStoreStore();
+  const { id } = useParams()
+  const storeId = Number(id)
+  const location = useLocation()
+  const navigate = useNavigate()
   
-  // ใช้ internal state แทน URL routing
-  const [activeKey, setActiveKey] = useState<StoreOrderTabKey>("ongoing");
+  const { getOrdersSellerByStatus } = useOrderSellerApi()
+  
+  const [activeTab, setActiveTab] = useState<string>("active")
+  const [orders, setOrders] = useState<orderSellerResponse[]>([])
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [locations, setLocations] = useState<CampusLocation[]>([])
 
+  // Load locations
   useEffect(() => {
-    if (!store?.id) return;
+    getAllLocations().then(setLocations).catch(console.error)
+  }, [])
 
-    const status = statusGroupMap[activeKey];
+  // Sync tab with URL
+  useEffect(() => {
+    const path = location.pathname
+    if (path.endsWith("/completed")) setActiveTab("completed")
+    else if (path.endsWith("/cancelled")) setActiveTab("cancelled")
+    else setActiveTab("active")
+  }, [location.pathname])
 
-    startLoading();
-    setError(null);
+  // Fetch orders
+  useEffect(() => {
+    if (!storeId) return
+    
+    let isMounted = true
+    setLoading(true)
+    setError(null)
 
-    (async () => {
-      try {
-        const res = await getOrdersSellerByStatus(store.id, status);
-        setOrders(res.data ?? []);
-      } catch (e) {
-        setError("ไม่สามารถโหลดคำสั่งซื้อของร้านค้าได้");
-      }
-    })();
-  }, [activeKey, store?.id]);
+    getOrdersSellerByStatus(storeId, activeTab as OrderStatusGroup)
+      .then(res => {
+        if (isMounted) setOrders(res.data || [])
+      })
+      .catch(err => {
+        if (isMounted) {
+          console.error(err)
+          setError("Failed to load orders")
+        }
+      })
+      .finally(() => {
+        if (isMounted) setLoading(false)
+      })
+
+    return () => { isMounted = false }
+  }, [storeId, activeTab, getOrdersSellerByStatus])
+
+  const getContext = (): OrderStatusContext => {
+    if (activeTab === "completed") return "completed"
+    if (activeTab === "cancelled") return "canceled"
+    return "ongoing"
+  }
 
   return (
-    <div className="pb-6">
-      {/* เส้นคั่น + tabs */}
-      <div className="mb-4 border-gray-300 pt-3">
-        <SwitchTabs
-          tabs={ORDER_TABS} 
+    <div>
+      <div className="mb-6">
+        <SwitchTabs 
+          tabs={TABS} 
           useNavLink={false}
-          activeKey={activeKey}
-          onChange={(key) => setActiveKey(key as StoreOrderTabKey)}
+          activeKey={activeTab}
+          onChange={(key) => setActiveTab(key)}
         />
       </div>
 
-      {/* list */}
-      <div className="mt-4 space-y-3">
-        {isLoading && (
-          <p className="text-center text-sm text-gray-500">กำลังโหลด...</p>
-        )}
-        {error && (
-          <p className="text-center text-sm text-red-500">{error}</p>
-        )}
-        {!isLoading && !error && orders.length === 0 && (
-          <p className="text-center text-sm text-gray-500">
-            ยังไม่มีคำสั่งซื้อในหมวดนี้
-          </p>
-        )}
-        {!isLoading &&
-          !error &&
-          orders.map((o) => (
-            <StoreOrderListItem
-              key={o.order.id}
-              data={o}
-              context={contextMap[activeKey]}
+      <div className="bg-white rounded-3xl p-6 shadow-sm border border-gray-100 min-h-[500px]">
+        <OrderListHeader />
+
+        <div className="space-y-1 mt-2">
+          {loading && (
+            <div className="flex justify-center py-10">
+              <Loader2 className="w-8 h-8 animate-spin text-orange-500" />
+            </div>
+          )}
+
+          {error && <div className="text-center text-red-500 py-10">{error}</div>}
+
+          {!loading && !error && orders.length === 0 && (
+             <div className="text-center text-gray-500 py-10">No orders found</div>
+          )}
+
+          {!loading && !error && orders.map((item, idx) => (
+            <OrderListItem
+              key={item.order.id}
+              orderId={item.order.id}
+              index={idx}
+              date={item.order.order_date}
+              totalPrice={item.order.total_price}
+              status={item.order.status}
+              title={item.buyer_display_name}
+              locationId={item.order.campus_location_id}
+              locations={locations}
+              context={getContext()}
+              isSeller={true}
+              onClick={() => navigate(`/store/orders/${item.order.id}`)}
             />
           ))}
+        </div>
       </div>
     </div>
-  );
+  )
 }

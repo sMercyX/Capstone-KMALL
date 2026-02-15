@@ -25,8 +25,8 @@ export default function DateTimePicker({
   value,
   onChange,
   disabled = false,
-  placeholder = "เลือกวันและเวลา",
-  label = "วันและเวลา",
+  placeholder = "Select a date and time",
+  label = "Date and Time",
   timeSlots = DEFAULT_TIME_SLOTS,
   defaultTime = "10:00 AM",
   time,
@@ -272,14 +272,14 @@ export default function DateTimePicker({
                 onClick={handleCancel}
                 className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg"
               >
-                ยกเลิก
+                Cancel
               </button>
               <button
                 type="button"
                 onClick={handleConfirm}
                 className="px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600"
               >
-                ตกลง
+                Confirm
               </button>
             </div>
           </div>

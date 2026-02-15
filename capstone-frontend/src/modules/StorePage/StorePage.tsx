@@ -36,7 +36,7 @@ import { useProductApi, type Product } from "../../api/productApi"
 
 function StoreProductGrid({ products }: { products: Product[] }) {
   if (!products.length) {
-    return <div className="mt-10 text-center text-gray-500">ยังไม่มีสินค้าในร้านนี้</div>
+    return <div className="mt-10 text-center text-gray-500">No products in this store yet.</div>
   }
 
   return (
@@ -78,7 +78,7 @@ export default function StorePage() {
   }, [storeId])
 
   if (!storeId) {
-    return <div className="text-center py-10">ไม่พบร้านค้า</div>
+    return <div className="text-center py-10">Store not found.</div>
   }
 
   return (
@@ -88,7 +88,7 @@ export default function StorePage() {
       <div className="px-6">
         
         {isLoading ? (
-           <div className="mt-10 text-center text-gray-500">กำลังโหลดสินค้า...</div>
+           <div className="mt-10 text-center text-gray-500">Loading products...</div>
         ) : (
            <StoreProductGrid products={products} />
         )}

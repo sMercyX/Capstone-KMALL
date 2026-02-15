@@ -76,7 +76,7 @@ function CartItemRow({
         <div className="flex flex-col">
           <p className="text-base font-semibold text-gray-900">{item.name}</p>
           <p className="text-sm text-gray-500">
-            {item.price > 0 ? `${formatPrice(item.price)} บาท` : "—"}
+          {item.price > 0 ? `฿ ${formatPrice(item.price)}` : "—"}
           </p>
         </div>
       </div>
@@ -103,7 +103,7 @@ function CartItemRow({
 
       <div className="flex items-center gap-4">
         <p className="w-24 text-right text-lg font-semibold text-gray-900">
-          {item.subtotal > 0 ? `${formatPrice(item.subtotal)} บาท` : "—"}
+          {item.subtotal > 0 ? `฿ ${formatPrice(item.subtotal)}` : "—"}
         </p>
         <div className="flex items-center gap-2">
           {/* <button className="flex h-10 w-10 items-center justify-center rounded-full border border-gray-200 bg-white text-gray-600 shadow-sm hover:border-orange-300 hover:text-[#f15a24]">
@@ -140,7 +140,7 @@ function CartStoreBlock({
           <StoreIcon className="h-5 w-5 text-gray-700" />
           <span>{store.name}</span>
           <span className="text-sm font-normal text-gray-500">
-            ({totalItems} รายการ)
+            ({totalItems} items)
           </span>
         </div>
       </div>
@@ -186,7 +186,7 @@ export default function CartPage() {
         }
       } catch (err) {
         console.error(err)
-        if (!cancelled) setError("ไม่สามารถโหลดตะกร้าได้")
+        if (!cancelled) setError("Unable to load your cart.")
       }
     }
 
@@ -213,7 +213,7 @@ export default function CartPage() {
       setCart(res.data)
       setIsDeleteModalOpen(false)
       setDeleteId(null)
-      toast.success("ลบสินค้าออกจากตะกร้าเรียบร้อยแล้ว")
+      toast.success("Item removed from your cart.")
     } catch (err) {
       handleApiError(err)
     }
@@ -227,7 +227,7 @@ export default function CartPage() {
     if (newQty < 0) return
 
     if (newQty > 99) {
-      toast.warn("ซื้อได้แค่ 99 ชิ้นต่อ 1 สินค้า")
+      toast.warn("You can purchase up to 99 units per item.")
       return
     }
 
@@ -237,7 +237,7 @@ export default function CartPage() {
       setCart(res.data)
     } catch (err) {
       console.error(err)
-      setError("อัปเดตจำนวนไม่สำเร็จ")
+      setError("Unable to update quantity.")
     }
   }
 
@@ -295,7 +295,7 @@ export default function CartPage() {
   if (isLoading && !cart) {
     return (
       <div className="pt-10 pb-24">
-        <p className="text-center text-sm text-gray-500">กำลังโหลดตะกร้า...</p>
+        <p className="text-center text-sm text-gray-500">Loading your cart...</p>
       </div>
     )
   }
@@ -312,13 +312,13 @@ export default function CartPage() {
     <div className="pt-10 pb-24">
       <div className="flex items-center gap-3 text-gray-900">
         <ShoppingCart className="h-7 w-7 text-black" />
-        <h1 className="text-2xl font-semibold">ตะกร้าทั้งหมด ({totalItems})</h1>
+        <h1 className="text-2xl font-semibold">Your Cart ({totalItems})</h1>
       </div>
 
       <section className="mt-8 w-full rounded-[28px] border border-gray-200 bg-[#f7f7f7] px-10 py-10 shadow-[0_18px_40px_rgba(0,0,0,0.06)]">
         {!cart || uiStores.length === 0 ? (
           <p className="text-center text-sm text-gray-500">
-            ยังไม่มีสินค้าในตะกร้า
+            Your cart is empty.
           </p>
         ) : (
           <>
@@ -341,9 +341,9 @@ export default function CartPage() {
       {cart && uiStores.length > 0 && (
         <div className="mt-8 flex items-center justify-end gap-6">
           <div className="flex items-baseline gap-2">
-            <span className="text-sm text-gray-600">รวม ({totalItems} รายการ):</span>
+            <span className="text-sm text-gray-600">Total ({totalItems} items):</span>
             <span className="text-2xl font-bold text-orange-600">
-              {formatPrice(totalPrice)} บาท
+              ฿ {formatPrice(totalPrice)}
             </span>
           </div>
           
@@ -351,7 +351,7 @@ export default function CartPage() {
             onClick={() => setIsCheckoutModalOpen(true)}
             className="rounded-full bg-orange-500 px-8 py-3 text-base font-semibold text-white shadow-lg shadow-orange-200 transition-all hover:bg-orange-600 hover:scale-105 active:scale-95"
           >
-            ถัดไป
+            Proceed to Checkout
           </button>
         </div>
       )}
@@ -360,10 +360,10 @@ export default function CartPage() {
         isOpen={isDeleteModalOpen}
         onClose={() => setIsDeleteModalOpen(false)}
         onConfirm={confirmDelete}
-        title="ยืนยันการลบสินค้า"
-        message="คุณต้องการลบสินค้านี้ออกจากตะกร้าใช่หรือไม่?"
-        confirmText="ลบสินค้า"
-        cancelText="ยกเลิก"
+        title="Remove item?"
+        message="Are you sure you want to remove this item from your cart?"
+        confirmText="Remove"
+        cancelText="Cancel"
         variant="danger"
       />
 
@@ -371,10 +371,10 @@ export default function CartPage() {
         isOpen={isCheckoutModalOpen}
         onClose={() => setIsCheckoutModalOpen(false)}
         onConfirm={handleConfirmCheckout}
-        title="ยืนยันการสั่งซื้อ"
-        message="คุณต้องการดำเนินการต่อเพื่อทำการสั่งซื้อสินค้าใช่หรือไม่?"
-        confirmText="ยืนยัน"
-        cancelText="ยกเลิก"
+        title="Proceed to checkout?"
+        message="Do you want to continue to checkout?"
+        confirmText="Confirm"
+        cancelText="Cancel"
         variant="info"
       />
     </div>

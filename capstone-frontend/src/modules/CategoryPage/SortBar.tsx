@@ -23,10 +23,10 @@ function SortDropdown({
   const ref = useRef<HTMLDivElement>(null)
 
   const options: { label: string; value: SortKey }[] = [
-    { label: "ล่าสุด", value: "latest" },
-    { label: "ขายดี", value: "sold" },
-    { label: "ราคาต่ำ-สูง", value: "price_asc" },
-    { label: "ราคาสูง-ต่ำ", value: "price_desc" },
+    { label: "Latest", value: "latest" },
+    { label: "Best Selling", value: "sold" },
+    { label: "Price: Low to High", value: "price_asc" },
+    { label: "Price: High to Low", value: "price_desc" },
   ]
 
   const currentLabel = options.find((o) => o.value === value)?.label
@@ -47,7 +47,7 @@ function SortDropdown({
         onClick={() => setIsOpen(!isOpen)}
         className="inline-flex items-center gap-2 rounded-lg border bg-white px-3 py-2 text-sm text-gray-700 hover:bg-gray-50"
       >
-        <span className="text-gray-500">เรียงโดย:</span>
+        <span className="text-gray-500">Sort by:</span>
         <span className="font-medium text-orange-600">{currentLabel}</span>
         <ArrowUpDown className="h-3 w-3 text-gray-400" />
       </button>

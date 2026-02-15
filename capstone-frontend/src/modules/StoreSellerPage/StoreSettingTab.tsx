@@ -17,9 +17,9 @@ export default function StoreSettingsTab() {
   const [saving, setSaving] = useState(false)
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false)
 
-  if (loading) return <div className="text-gray-500">กำลังโหลดข้อมูลร้าน…</div>
+  if (loading) return <div className="text-gray-500">Loading store information...</div>
   if (error || !store) {
-    return <div className="text-red-500">ไม่พบข้อมูลร้าน หรือโหลดไม่สำเร็จ</div>
+    return <div className="text-red-500">Store information not found or failed to load.</div>
   }
 
   const isOpen = store.is_active === "YES"
@@ -49,7 +49,7 @@ export default function StoreSettingsTab() {
     try {
       await deleteStore(store.id)
       await fetchUser()
-      toast.success("ลบร้านค้าเรียบร้อยแล้ว")
+      toast.success("Store deleted successfully.")
       navigate("/dashboard")
     } catch (e) {
       handleApiError(e)
@@ -59,7 +59,7 @@ export default function StoreSettingsTab() {
   return (
     <div className="space-y-6">
       <div className="bg-white border rounded-2xl px-6 py-4 flex items-center justify-between">
-        <div className="text-[16px] font-medium text-black">เปิด / ปิดร้าน</div>
+        <div className="text-[16px] font-medium text-black">Open / Close Store</div>
 
         <button
           type="button"
@@ -81,13 +81,13 @@ export default function StoreSettingsTab() {
       <div className="bg-white border border-red-200 rounded-2xl px-6 py-4">
         <h3 className="text-lg font-medium text-red-600 mb-2">Danger Zone</h3>
         <p className="text-sm text-gray-500 mb-4">
-          การลบร้านค้าจะไม่สามารถกู้คืนได้ โปรดตรวจสอบให้แน่ใจก่อนดำเนินการ
+          Deleting your store cannot be undone. Please confirm before proceeding.
         </p>
         <button
           onClick={() => setIsDeleteModalOpen(true)}
           className="px-4 py-2 bg-red-600 text-white text-sm font-medium rounded-lg hover:bg-red-700 transition"
         >
-          ลบร้านค้า
+          Delete Store
         </button>
       </div>
 
@@ -95,10 +95,10 @@ export default function StoreSettingsTab() {
         isOpen={isDeleteModalOpen}
         onClose={() => setIsDeleteModalOpen(false)}
         onConfirm={handleDeleteStore}
-        title="ยืนยันการลบร้านค้า"
-        message="คุณต้องการลบร้านค้านี้ใช่หรือไม่? การกระทำนี้ไม่สามารถย้อนกลับได้"
-        confirmText="ลบร้านค้า"
-        cancelText="ยกเลิก"
+        title="Confirm Store Deletion"
+        message="Are you sure you want to delete this store? This action cannot be undone."
+        confirmText="Delete Store"
+        cancelText="Cancel"
         variant="danger"
       />
     </div>

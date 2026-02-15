@@ -19,8 +19,8 @@ export default function ConfirmationModal({
   onConfirm,
   title,
   message,
-  confirmText = "ยืนยัน",
-  cancelText = "ยกเลิก",
+  confirmText = "Confirm",
+  cancelText = "Cancel",
   variant = "danger",
   children,
 }: ConfirmationModalProps) {

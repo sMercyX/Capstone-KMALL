@@ -9,7 +9,7 @@ interface BackendError {
 }
 
 export const handleApiError = (error: unknown) => {
-  let message = "เกิดข้อผิดพลาดที่ไม่ทราบสาเหตุ กรุณาลองใหม่อีกครั้ง"
+  let message = "An unexpected error occurred. Please try again."
 
   const err = error as any
   const data = err?.response?.data as BackendError | string | undefined

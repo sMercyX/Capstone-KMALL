@@ -108,7 +108,7 @@ export default function Dashboard() {
       {/* Greeting + Categories */}
      <div className="flex flex-col items-center justify-center text-center min-h-[70vh]">
         <div className="text-1xl text-orange-500">
-          สวัสดี {name} ! ยินดีต้อนรับสู่
+           Hi {name}! Welcome to
         </div>
         <h2 className="mt-1 text-2xl font-extrabold">
           KMALL - <span className="text-orange-600">KMUTT Marketplace</span>

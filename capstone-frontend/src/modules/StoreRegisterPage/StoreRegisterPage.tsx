@@ -11,25 +11,26 @@ import { useStoreApi } from "../../api/storeApi"
 import { useUserStore } from "../../stores/userStore"
 import StoreAgreementModal from "../../components/Policies/StoreAgreementModal"
 import { handleApiError } from "../../utils/handleApiError"
+import { processImageFile, SUPPORTED_IMAGE_TYPES } from "../../utils/imageProcessing"
 
 // ✅ Yup schema: ชื่อร้านไม่เกิน 20 ตัวอักษร, คำอธิบายไม่เกิน 200 ตัวอักษร
 const storeRegisterSchema = yup.object({
   name: yup
     .string()
     .trim()
-    .required("กรุณากรอกชื่อร้าน")
-    .max(100, "ชื่อร้านต้องไม่เกิน 100 ตัวอักษร"),
+    .required("Please enter a store name.")
+    .max(100, "Store name must be at most 100 characters."),
   description: yup
     .string()
     .trim()
-    .required("กรุณากรอกคำอธิบายร้าน")
-    .max(255, "คำอธิบายร้านต้องไม่เกิน 255 ตัวอักษร"),
+    .required("Please enter a store description.")
+    .max(255, "Store description must be at most 255 characters."),
   agreeTerms: yup
     .boolean()
-    .oneOf([true], "กรุณายอมรับ KMALL terms & policies"),
+    .oneOf([true], "Please accept KMALL terms & policies."),
   agreeRules: yup
     .boolean()
-    .oneOf([true], "กรุณายอมรับเงื่อนไขสินค้าตาม KMUTT rules"),
+    .oneOf([true], "Please accept KMUTT product rules."),
 })
 
 export default function StoreRegisterPage() {
@@ -71,7 +72,7 @@ export default function StoreRegisterPage() {
     }
   }, [previewUrl])
 
-  function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+  async function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
 
     if (!file) {
@@ -83,33 +84,45 @@ export default function StoreRegisterPage() {
     }
 
     // ✅ รับเฉพาะรูป
-    if (!file.type.startsWith("image/")) {
-      toast.error("กรุณาอัปโหลดเฉพาะไฟล์รูปภาพ")
-      setFileName("Nothing selected.")
-      setLogoFile(null)
-      if (previewUrl) URL.revokeObjectURL(previewUrl)
-      setPreviewUrl(null)
-      e.target.value = ""
-      return
-    }
-
-    // ✅ เช็คขนาดไฟล์ไม่เกิน 2MB
-    if (file.size > 2 * 1024 * 1024) {
-      toast.error("ขนาดไฟล์ต้องไม่เกิน 2MB")
-      setFileName("Nothing selected.")
-      setLogoFile(null)
-      if (previewUrl) URL.revokeObjectURL(previewUrl)
-      setPreviewUrl(null)
-      e.target.value = ""
-      return
-    }
-
-    setFileName(file.name)
-    setLogoFile(file)
+    // Note: HEIC might have unique types, but processImageFile handles it.
+    // We can skip strict type checking here or rely on processImageFile's result, 
+    // but let's allow it to proceed if it looks like an image or has heic extension.
     
-    if (previewUrl) URL.revokeObjectURL(previewUrl)
-    const url = URL.createObjectURL(file)
-    setPreviewUrl(url)
+    // ✅ เช็คขนาดไฟล์ไม่เกิน 2MB (Check mostly on original or processed? 
+    // Usually check original first to fail fast, but HEIC might get bigger/smaller after conversion. 
+    // Let's check original first for sanity, then processed later if needed. 
+    // For now, simple check.)
+    if (file.size > 10 * 1024 * 1024) { // Increase limit slightly to allow high-res HEIC before conversion if needed, or keep 2MB. 
+      // User originally had 2MB. HEIC can be small but convert to big JPG. 
+      // Let's allow conversion first.
+    }
+    
+    try {
+      const processedFile = await processImageFile(file)
+      
+      // ✅ เช็คขนาดไฟล์หลังแปลง (Jpeg) ไม่เกิน 2MB (หรือตาม requirement เดิม)
+      if (processedFile.size > 2 * 1024 * 1024) {
+          toast.error("File size must not exceed 2MB.")
+          setFileName("Nothing selected.")
+          setLogoFile(null)
+          if (previewUrl) URL.revokeObjectURL(previewUrl)
+          setPreviewUrl(null)
+          e.target.value = ""
+          return
+      }
+
+      setFileName(processedFile.name)
+      setLogoFile(processedFile)
+      
+      if (previewUrl) URL.revokeObjectURL(previewUrl)
+      const url = URL.createObjectURL(processedFile)
+      setPreviewUrl(url)
+    } catch (error) {
+       // toast handled in processImageFile
+       setFileName("File processing failed.")
+       setLogoFile(null)
+       e.target.value = ""
+    }
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -142,7 +155,7 @@ export default function StoreRegisterPage() {
         toast.error(firstMsg)
         return
       }
-      const msg = "ข้อมูลไม่ถูกต้อง กรุณาลองใหม่"
+      const msg = "Invalid input. Please try again."
       toast.error(msg)
       return
     }
@@ -161,7 +174,7 @@ export default function StoreRegisterPage() {
       console.log("STORE CREATED:", res)
 
       if (!(res.code === 201 && (res as any).created === true)) {
-        const msg = "เกิดข้อผิดพลาด ไม่สามารถสร้างร้านได้"
+        const msg = "Something went wrong. Unable to create store."
         toast.error(msg)
         setIsSubmitting(false)
         return
@@ -178,13 +191,13 @@ export default function StoreRegisterPage() {
         } catch (uploadErr) {
           console.error("upload logo failed:", uploadErr)
           // ร้านสร้างสำเร็จ แต่โลโก้ fail → แจ้งเตือนแยก
-          toast.error("สร้างร้านสำเร็จ แต่การอัปโหลดโลโก้ล้มเหลว")
+          toast.error("Store created, but logo upload failed.")
         }
       }
 
       // 3) ✅ เพิ่ม role + success + redirect
       addRole("seller")
-      toast.success("เปิดร้านค้าสำเร็จแล้ว!")
+      toast.success("Store created successfully!")
       navigate("/store/me")
     } catch (err) {
       handleApiError(err)
@@ -213,13 +226,13 @@ export default function StoreRegisterPage() {
         <Card className="space-y-8 p-8">
           <form onSubmit={handleSubmit} className="space-y-8">
             <h1 className="text-center text-2xl font-bold">
-              ข้อมูลร้านที่จะเปิด
+              Store Information
             </h1>
 
             {/* ชื่อร้าน */}
             <div className="space-y-1">
               <Input
-                label="ชื่อร้าน"
+                label="Store Name"
                 placeholder="Store Name"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
@@ -227,14 +240,14 @@ export default function StoreRegisterPage() {
                 error={errors.name}
               />
               <p className="text-xs text-gray-500 text-right">
-                {name.length} / 100 ตัวอักษร
+                {name.length} / 100 characters
               </p>
             </div>
 
             {/* คำอธิบายร้าน */}
             <div className="space-y-1">
               <Textarea
-                label="คำอธิบายร้าน"
+                label="Store Description"
                 placeholder="Store Description"
                 rows={3}
                 value={description}
@@ -244,14 +257,14 @@ export default function StoreRegisterPage() {
                 className="resize-none"
               />
               <p className="text-xs text-gray-500 text-right">
-                {description.length} / 255 ตัวอักษร
+                {description.length} / 255 characters
               </p>
             </div>
 
             {/* โลโก้ร้าน */}
             <div className="space-y-1">
               <label className="font-medium flex items-center gap-1">
-                โลโก้ร้าน
+                Store Logo
                 {/* <Info className="h-4 w-4 text-gray-400" /> */}
               </label>
 
@@ -271,7 +284,7 @@ export default function StoreRegisterPage() {
                 <input
                   type="file"
                   className="hidden"
-                  accept="image/*"
+                  accept={SUPPORTED_IMAGE_TYPES}
                   multiple={false}
                   onChange={handleFileChange}
                 />
@@ -323,7 +336,7 @@ export default function StoreRegisterPage() {
                 disabled={isSubmitting}
                 className="w-full rounded-full bg-gray-900 text-white py-2.5 text-sm font-medium hover:bg-gray-800 disabled:opacity-60 cursor-pointer"
               >
-                {isSubmitting ? "กำลังสร้างร้าน..." : "เปิดร้านค้า"}
+                {isSubmitting ? "Creating store..." : "Create Store"}
               </button>
             </div>
           </form>

@@ -1,8 +1,6 @@
 // src/modules/StoreOrderDetailPage/PendingProposedPage/PendingProposedPage.tsx
-import { useState } from "react"
 import type { OrderItemDetail, orderSellerData } from "../../../api/orderSellerApi"
 import type { CampusLocation } from "../../../api/campusLocationApi"
-import SwitchTabs from "../../../components/SwitchTabs/SwitchTabs"
 import { ZoneDropdown, BuildingDropdown, DateTimePicker } from "../../../components/Dropdown"
 import ProductList from "../components/ProductList"
 
@@ -51,45 +49,16 @@ export default function PendingProposedPage({
   onMeetingNoteChange,
   onProposeOrder,
 }: PendingProposedPageProps) {
-  const [activeTab, setActiveTab] = useState<"products" | "delivery">("products")
+  // No tabs needed anymore
+  // const [activeTab, setActiveTab] = useState<"products" | "delivery">("products")
 
   return (
     <>
-      {/* Tabs */}
-      <div className="mb-6">
-        <SwitchTabs
-          useNavLink={false}
-          activeKey={activeTab}
-          onChange={(key) => setActiveTab(key as "products" | "delivery")}
-          tabs={[
-            { key: "products", label: "รายละเอียดสินค้า" },
-            { key: "delivery", label: "รายละเอียดการจัดส่ง" },
-          ]}
-        />
-      </div>
-
-      {/* Tab Content: Product Details */}
-      {activeTab === "products" && (
-        <div className="mb-6">
-          <ProductList
-            items={items}
-            total={total}
-            notes={order.notes}
-            subtotal={subtotal}
-            deliveryFee={deliveryFee}
-            showHeader={false}
-            showNotes={true}
-            showBreakdown={true}
-          />
-        </div>
-      )}
-
-    {/* Tab Content: Delivery Details */}
-    {activeTab === "delivery" && (
+      {/* Delivery Details Section (Moved to top) */}
       <div className="mb-6">
         {/* Header with user */}
         <div className="flex justify-between items-center mb-6">
-          <h3 className="text-xl font-bold">เลือกสถานที่ วัน/เวลานัดรับสินค้า</h3>
+          <h3 className="text-xl font-bold">Meeting location and date/time</h3>
         </div>
 
         {/* Row 1: Zone + DateTime */}
@@ -126,8 +95,8 @@ export default function PendingProposedPage({
               onChange={onBuildingChange}
               buildings={buildings}
               disabled={isBuyer || !selectedZone}
-              placeholder={!selectedZone ? "เลือก Zone ก่อน" : "เลือกอาคาร"}
-              label="หมายเลขตึก และชื่อตึก"
+              placeholder={!selectedZone ? "Select a zone first" : "Select a building"}
+              label="Building number and name"
             />
           </div>
 
@@ -153,12 +122,12 @@ export default function PendingProposedPage({
 
         {/* Meeting Note Input */}
         <div className="mt-6">
-          <label className="block text-base font-semibold mb-3">หมายเหตุเพิ่มเติม</label>
+          <label className="block text-base font-semibold mb-3">Additional notes</label>
           <textarea
             value={meetingNoteInput}
             onChange={(e) => onMeetingNoteChange(e.target.value)}
             disabled={isBuyer}
-            placeholder="ระบุหมายเหตุเพิ่มเติมสำหรับการนัดหมาย..."
+            placeholder="Add any extra details for the meeting..."
             className={`w-full bg-white border-2 border-gray-200 rounded-xl p-4 text-base min-h-[100px] resize-none
               ${isBuyer ? 'cursor-not-allowed opacity-70' : 'focus:border-orange-500 focus:ring-2 focus:ring-orange-100'}`}
           />
@@ -176,24 +145,38 @@ export default function PendingProposedPage({
                   ? 'bg-orange-300 cursor-not-allowed'
                   : 'bg-orange-500 hover:bg-orange-600'}`}
             >
-              {proposeLoading ? 'กำลังบันทึก...' : 'บันทึกและเสนอวันเวลา'}
+              {proposeLoading ? '"Saving...' : 'Save and propose time'}
             </button>
           </div>
         )}
 
         {/* Display existing notes (read-only) */}
-        {(order.campus_detail_note || order.meeting_note || order.notes) && (
+        {/* {(order.campus_detail_note || order.meeting_note || order.notes) && (
           <div className="mt-6 p-4 bg-gray-50 rounded-xl">
-            <h4 className="text-sm font-semibold text-gray-700 mb-2">หมายเหตุที่บันทึกไว้:</h4>
+            <h4 className="text-sm font-semibold text-gray-700 mb-2">Saved notes:</h4>
             <div className="space-y-1 text-sm text-gray-600">
-              {order.campus_detail_note && <p>• จุดรับ: {order.campus_detail_note}</p>}
-              {order.meeting_note && <p>• นัดหมาย: {order.meeting_note}</p>}
-              {order.notes && <p>• หมายเหตุทั่วไป: {order.notes}</p>}
+              {order.campus_detail_note && <p>• Pickup point: {order.campus_detail_note}</p>}
+              {order.meeting_note && <p>• Meeting: {order.meeting_note}</p>}
+              {order.notes && <p>• General: {order.notes}</p>}
             </div>
           </div>
-        )}
+        )} */}
       </div>
-    )}
+
+      {/* Product Details Section (Moved below Delivery) */}
+      <div className="mb-6">
+        <h3 className="text-xl font-bold mb-4">Product details</h3>
+        <ProductList
+          items={items}
+          total={total}
+          notes={order.notes}
+          subtotal={subtotal}
+          deliveryFee={deliveryFee}
+          showHeader={false}
+          showNotes={true}
+          showBreakdown={true}
+        />
+      </div>
     </>
   )
 }

@@ -16,6 +16,7 @@ import { Textarea } from "../../../components/Input/Textarea"
 import { useProductApi, type AddProductRequest, type productPictureResponse } from "../../../api/productApi"
 import { useStoreStore } from "../../../stores/storeStore"
 import { useCatagoriesApi, type CatagoriesResponse } from "../../../api/catagoriesApi"
+import { processImageFile, SUPPORTED_IMAGE_TYPES } from "../../../utils/imageProcessing"
 
 
 type ImageSlot = string
@@ -68,12 +69,12 @@ export function StoreAddTab() {
         }
 
         if (list.length === 0) {
-          setCategoryError("ไม่มีหมวดหมู่สินค้า กรุณาติดต่อผู้ดูแลระบบ")
+          setCategoryError("No product categories found. Please contact the administrator.")
         }
       } catch (err) {
         console.error(err)
         if (!cancelled) {
-          setCategoryError("โหลดหมวดหมู่ไม่สำเร็จ กรุณารีเฟรชหน้า")
+          setCategoryError("Failed to load categories. Please refresh the page.")
         }
       } finally {
         if (!cancelled) {
@@ -94,21 +95,36 @@ export function StoreAddTab() {
     fileInputRef.current?.click()
   }
 
-  const handleFilesChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  async function handleFilesChange(e: React.ChangeEvent<HTMLInputElement>) {
     const selectedFiles = e.target.files
     if (!selectedFiles || selectedFiles.length === 0) return
 
     const newFiles: File[] = []
     const newUrls: string[] = []
 
-    Array.from(selectedFiles).forEach((file) => {
-      if (file.size > 2 * 1024 * 1024) {
-        toast.error(`ไฟล์ ${file.name} มีขนาดเกิน 2MB`)
-        return
-      }
-      newFiles.push(file)
-      newUrls.push(URL.createObjectURL(file))
-    })
+    // Use for...of loop to handle async await in order
+    for (const file of Array.from(selectedFiles)) {
+       // Check original size roughly (optional, but good for performance check before conversion attempts on huge files)
+       if (file.size > 10 * 1024 * 1024) {
+          // Allow larger for HEIC or just skip?
+          // If strict 2MB limit:
+          // toast.error(`File ${file.name} exceeds limit.`)
+          // continue
+       }
+
+       try {
+          const processedFile = await processImageFile(file)
+           if (processedFile.size > 2 * 1024 * 1024) {
+             toast.error(`File ${file.name} exceeds 2MB after processing.`)
+             continue
+           }
+           newFiles.push(processedFile)
+           newUrls.push(URL.createObjectURL(processedFile))
+       } catch (err) {
+           console.error("File processing failed:", err)
+           // toast handled in utility
+       }
+    }
 
     if (newFiles.length === 0) {
       e.target.value = ""
@@ -129,13 +145,13 @@ export function StoreAddTab() {
 
   const handleSelectMain = (index: number) => {
     if (index === mainIndex) return
-    const ok = window.confirm("คุณต้องการนำภาพนี้เป็นรูปใหญ่ใช่หรือไม่?")
+    const ok = window.confirm("Set this image as the main image?")
     if (!ok) return
     setMainIndex(index)
   }
 
   const handleDeleteImage = (index: number) => {
-    const ok = window.confirm("คุณต้องการลบรูปภาพนี้ใช่หรือไม่?")
+    const ok = window.confirm("Delete this image?")
     if (!ok) return
 
     setFiles((prev) => prev.filter((_, i) => i !== index))
@@ -173,7 +189,7 @@ export function StoreAddTab() {
     setErrors({}) // Reset errors
 
     if (!store?.id) {
-      setError("ไม่พบร้านของคุณ กรุณารีเฟรชหน้า")
+      setError("Store not found. Please refresh the page.")
       return
     }
 
@@ -183,32 +199,32 @@ export function StoreAddTab() {
     if (!name.trim()) {
       newErrors.name = true
       hasError = true
-      toast.error("กรุณากรอกชื่อสินค้า")
+      toast.error("Please enter a product name.")
     }
 
     if (!description.trim()) {
       newErrors.description = true
       hasError = true
-      toast.error("กรุณากรอกคำอธิบายสินค้า")
+      toast.error("Please enter a product description.")
     }
 
     const priceNumber = Number(price)
     if (Number.isNaN(priceNumber) || priceNumber <= 0) {
       newErrors.price = true
       hasError = true
-      toast.error("กรุณากรอกราคาให้ถูกต้อง")
+      toast.error("Please enter a valid price.")
     }
 
     if (!categoryId) {
       newErrors.category = true
       hasError = true
-      toast.error("กรุณาเลือกหมวดหมู่สินค้า")
+      toast.error("Please select a category.")
     }
 
     if (images.length === 0) {
       newErrors.images = true
       hasError = true
-      toast.error("กรุณาเพิ่มรูปภาพสินค้าอย่างน้อย 1 รูป")
+      toast.error("Please add at least 1 product image.")
     }
 
     if (hasError) {
@@ -259,7 +275,7 @@ export function StoreAddTab() {
       setImages([])
       setFiles([])
       setMainIndex(0)
-      toast.success("เพิ่มสินค้าเรียบร้อยแล้ว")
+      toast.success("Product added successfully.")
     } catch (err) {
       handleApiError(err)
     } finally {
@@ -282,7 +298,7 @@ export function StoreAddTab() {
             />
           ) : (
             <span className="text-gray-400 text-sm">
-              ภาพหลักของสินค้า
+              Main product image
             </span>
           )}
         </div>
@@ -306,7 +322,7 @@ export function StoreAddTab() {
                   key={i}
                   className="w-20 h-20 md:w-24 md:h-24 rounded-xl bg-[#f8f8f8] border border-gray-200 flex items-center justify-center text-[11px] text-gray-300 flex-shrink-0"
                 >
-                  รูป {i + 1}
+                  Image {i + 1}
                 </div>
               ))}
 
@@ -354,13 +370,13 @@ export function StoreAddTab() {
           className="mt-6 inline-flex items-center gap-2 px-5 py-2.5 rounded-xl border border-orange-500 text-orange-500 text-sm font-medium bg-white shadow-sm hover:bg-orange-50"
         >
           <ImagePlus className="w-4 h-4" />
-          <span>เพิ่มรูปภาพ</span>
+          <span>Add Images</span>
         </button>
 
         <input
           ref={fileInputRef}
           type="file"
-          accept="image/*"
+          accept={SUPPORTED_IMAGE_TYPES}
           multiple
           className="hidden"
           onChange={handleFilesChange}
@@ -371,7 +387,7 @@ export function StoreAddTab() {
       <div className="flex flex-col justify-between">
         <div className="space-y-5">
           <Input
-            label="ชื่อสินค้า"
+            label="Product Name"
             placeholder="Product Name"
             value={name}
             onChange={(e) => setName(e.target.value)}
@@ -379,7 +395,7 @@ export function StoreAddTab() {
           />
 
           <Textarea
-            label="คำอธิบายสินค้า"
+            label="Product Description"
             placeholder="Product Description"
             value={description}
             onChange={(e) => setDescription(e.target.value)}
@@ -388,7 +404,7 @@ export function StoreAddTab() {
           />
 
           <Input
-            label="ราคา"
+            label="Price"
             type="number"
             placeholder="Price"
             value={price}
@@ -399,7 +415,7 @@ export function StoreAddTab() {
           {/* ===== หมวดหมู่ จาก API ===== */}
           <div>
             <label className="block mb-1 text-sm font-semibold text-gray-800">
-              หมวดหมู่
+              Category
             </label>
             <select
               value={categoryId || ""}
@@ -412,11 +428,11 @@ export function StoreAddTab() {
               }`}
             >
               {loadingCategories && (
-                <option value="">กำลังโหลดหมวดหมู่...</option>
+                <option value="">Loading categories...</option>
               )}
 
               {!loadingCategories && categories.length === 0 && (
-                <option value="">ไม่มีหมวดหมู่</option>
+                <option value="">No categories</option>
               )}
 
               {!loadingCategories &&
@@ -443,7 +459,7 @@ export function StoreAddTab() {
             disabled={isSubmitting}
             className="px-8 py-3 rounded-xl bg-orange-500 text-white text-sm font-semibold shadow-md hover:bg-orange-600 disabled:opacity-60"
           >
-            {isSubmitting ? "กำลังบันทึก..." : "บันทึก"}
+            {isSubmitting ? "Saving..." : "Save"}
           </button>
         </div>
       </div>

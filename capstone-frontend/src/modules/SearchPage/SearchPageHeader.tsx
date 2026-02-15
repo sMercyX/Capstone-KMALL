@@ -21,7 +21,7 @@ export default function SearchPageHeader({ query }: SearchPageHeaderProps) {
         />
       </svg>
       <h1 className="text-2xl md:text-3xl font-bold tracking-tight">
-        <span className="text-gray-600">ค้นหา</span>
+        <span className="text-gray-600">Search results for </span>
         <span className="text-orange-500">'{query}'</span>
       </h1>
     </header>

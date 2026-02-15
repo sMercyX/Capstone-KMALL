@@ -37,6 +37,7 @@ export default function ProductCard({ product }: ProductCardProps) {
           {product.store_name || "ไม่มีชื่อร้าน"}
         </p>
 
+
         {/* Price & Sold Count */}
         <div className="flex items-end justify-between">
           <p className="text-xl font-bold text-orange-500">

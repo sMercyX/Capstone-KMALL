@@ -16,7 +16,7 @@ export default function ZoneDropdown({
   onChange,
   zones,
   disabled = false,
-  placeholder = "เลือก Zone",
+  placeholder = "Select a zone",
   label = "Zone"
 }: ZoneDropdownProps) {
   const [isOpen, setIsOpen] = useState(false)
@@ -90,14 +90,14 @@ export default function ZoneDropdown({
                 onClick={handleCancel}
                 className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg"
               >
-                ยกเลิก
+                Cancel
               </button>
               <button
                 type="button"
                 onClick={handleConfirm}
                 className="px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600"
               >
-                ตกลง
+                Confirm
               </button>
             </div>
           </div>
