@@ -120,6 +120,7 @@ func scanOrderItemWithProduct(row pgx.Row, it *OrderItemWithProduct) error {
 		&it.ProductID,
 		&it.ProductName,
 		&it.ProductImageURL,
+		&it.StoreProfileURL,
 	)
 }
 
@@ -274,21 +275,21 @@ WHERE order_id = $1;
 func (r *repo) ListItemsByOrderID(ctx context.Context, orderID int64) ([]OrderItemWithProduct, error) {
 	rows, err := r.db.Query(ctx, `
 	SELECT 
-		oi.order_item_id,
-		oi.quantity,
-		oi.unit_price,
-		oi.fulfillment_type,
-		oi.subtotal,
-		oi.deposit_amount,
-		oi.promised_ship_date,
-		oi.order_id,
-		oi.product_id,
-		p.name AS product_name,
-		p.image_url AS product_image_url,
-		s.profile_url AS store_profile_url  -- Add this line to get the store profile_url
+    	oi.order_item_id,
+    	oi.quantity,
+    	oi.unit_price,
+    	oi.fulfillment_type,
+    	oi.subtotal,
+    	oi.deposit_amount,
+    	oi.promised_ship_date,
+    	oi.order_id,
+    	oi.product_id,
+    	p.name AS product_name,
+    	p.image_url AS product_image_url,
+    	s.profile_url AS store_profile_url  -- เพิ่ม store_profile_url ของร้านค้า
 	FROM order_items oi
-	JOIN products p ON p.product_id = oi.product_id
-	JOIN stores s ON s.store_id = oi.store_id  -- Join the stores table to get store information
+	JOIN products p ON p.product_id = oi.product_id  -- ใช้ JOIN กับ products
+	JOIN stores s ON s.store_id = p.store_id  -- เข้าร่วมกับ stores ผ่าน product.store_id
 	WHERE oi.order_id = $1
 	ORDER BY oi.order_item_id ASC;
 `, orderID)
