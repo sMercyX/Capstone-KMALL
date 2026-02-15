@@ -1,7 +1,7 @@
 // src/pages/store/StoreOrderDetailPage.tsx
 import { useEffect, useState, useCallback, useRef } from "react"
 import { Link, useNavigate, useParams } from "react-router-dom"
-import { Store } from "lucide-react"
+import { Store, User } from "lucide-react"
 import { IoChevronBack } from "react-icons/io5"
 
 import {
@@ -13,6 +13,7 @@ import { useUserStore } from "../../stores/userStore"
 import ConfirmationModal from "../../components/Modal/ConfirmationModal"
 import { toast } from "react-toastify"
 import { handleApiError } from "../../utils/handleApiError"
+import { resolveImageUrl } from "../../utils/resolve"
 import { getZones, getLocationsByZone, getAllLocations, type CampusLocation } from "../../api/campusLocationApi"
 import PendingProposedPage from "./PendingProposedPage/PendingProposedPage"
 import AcceptedPage from "./AcceptedPage/AcceptedPage"
@@ -348,7 +349,12 @@ export default function StoreOrderDetailPage() {
       try {
         const res = await getOrderDetail(Number(orderId))
         setData(res.data ?? null)
-      } catch {
+      } catch (e: any) {
+        if (e?.response?.status === 403 || e?.response?.status === 404) {
+          toast.error(e?.response?.data?.message || "Order not found or access denied.", { toastId: "order-error" })
+          navigate("/")
+          return
+        }
         setError("Unable to load order details.")
       } finally {
         setLoading(false)
@@ -382,6 +388,7 @@ export default function StoreOrderDetailPage() {
   const order = data?.order
   const items = data?.items ?? []
   const store_name = data?.store_name
+  const store_profile_url = data?.store_profile_url
 
   const currentStep = order ? getStepIndex(order.status) : 0
   const isSellerPath = typeof window !== 'undefined' && window.location.pathname.includes('/store/orders/')
@@ -639,14 +646,30 @@ export default function StoreOrderDetailPage() {
         {/* Header */}
         <div className="flex items-center justify-between mb-2">
           <div className="flex items-center gap-2">
-            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-gray-100">
-              <Store className="h-5 w-5 text-gray-700" />
+            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-gray-100 overflow-hidden">
+              {isSellerPath ? (
+                <User className="h-5 w-5 text-gray-400" />
+              ) : store_profile_url ? (
+                <img
+                  src={resolveImageUrl(store_profile_url)}
+                  alt={store_name || "Store"}
+                  className="h-full w-full object-cover"
+                />
+              ) : (
+                <Store className="h-5 w-5 text-gray-700" />
+              )}
             </div>
-            <Link to={`/store/${order?.store_id}`}>
-              <span className="font-semibold text-gray-900 hover:text-gray-700">
-                {store_name}
+            {isSellerPath ? (
+              <span className="font-semibold text-gray-900">
+                {data?.buyer_name}
               </span>
-            </Link>
+            ) : (
+              <Link to={`/store/${order?.store_id}`}>
+                <span className="font-semibold text-gray-900 hover:text-gray-700">
+                  {store_name}
+                </span>
+              </Link>
+            )}
           </div>
           <button 
             onClick={handleChatClick}

@@ -80,6 +80,7 @@ export interface OrderDetailResponse {
   buyer_name:string
   seller_name:string
   store_name:string
+  store_profile_url:string
 }
 export interface OrderStatusResquest {
   status: OrderStatus

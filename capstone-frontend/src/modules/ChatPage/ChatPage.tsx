@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect, useCallback } from "react"
 import { useParams, useLocation, useNavigate } from "react-router-dom"
-import { Send, Plus, MessageCircle, User, ChevronLeft, Check, CheckCheck, X, MapPin } from "lucide-react"
+import { Send, Plus, MessageCircle, User, Check, CheckCheck, X, MapPin } from "lucide-react"
+import { IoChevronBack } from "react-icons/io5"
 import { useChatApi, type MessageWithAttachments, type ChatThread } from "../../api/chatApi"
 import { useUserStore } from "../../stores/userStore"
 import { handleApiError } from "../../utils/handleApiError"
@@ -44,13 +45,24 @@ function getDateLabel(dateStr: string): string {
 
 function mapStatusLabel(status: string): { label: string; color: string } {
   const map: Record<string, { label: string; color: string }> = {
+    PENDING: { label: "Pending", color: "bg-yellow-400 text-white" },
+    Pending: { label: "Pending", color: "bg-yellow-400 text-white" },
     "Pending Seller Confirmation": { label: "Pending", color: "bg-yellow-400 text-white" },
-    "Awaiting Buyer Confirmation": { label: "Awaiting Confirmation", color: "bg-orange-400 text-white" },
-    "Ready for Pickup": { label: "Ready for Pickup", color: "bg-blue-500 text-white" },
-    "Ready for Delivery": { label: "Ready for Delivery", color: "bg-blue-500 text-white" },
-    "Out for Delivery": { label: "Out for Delivery", color: "bg-indigo-500 text-white" },
+
+    PROPOSED: { label: "Proposed", color: "bg-blue-400 text-white" },
+    Proposed: { label: "Proposed", color: "bg-blue-400 text-white" },
+    "Awaiting Buyer Confirmation": { label: "Proposed", color: "bg-blue-400 text-white" },
+
+    ACCEPTED: { label: "Accepted", color: "bg-green-500 text-white" },
+    Accepted: { label: "Accepted", color: "bg-green-500 text-white" },
+    "Ready for Pickup": { label: "Accepted", color: "bg-green-500 text-white" },
+    "Ready for Delivery": { label: "Accepted", color: "bg-green-500 text-white" },
+
+    "Out For Delivery": { label: "Out For Delivery", color: "bg-indigo-500 text-white" },
+
     COMPLETED: { label: "Completed", color: "bg-green-500 text-white" },
     Completed: { label: "Completed", color: "bg-green-500 text-white" },
+
     CANCELLED: { label: "Cancelled", color: "bg-red-500 text-white" },
     Cancelled: { label: "Cancelled", color: "bg-red-500 text-white" },
   }
@@ -98,7 +110,12 @@ export default function ChatPage() {
         ])
         setOrderDetail(orderRes.data)
         setLocations(locs)
-      } catch (e) {
+      } catch (e: any) {
+        if (e?.response?.status === 403 || e?.response?.status === 404) {
+          toast.error(e?.response?.data?.message || "Order not found or access denied.", { toastId: "order-error" })
+          navigate("/")
+          return
+        }
         console.error("Failed to load order detail:", e)
       }
     }
@@ -341,18 +358,20 @@ export default function ChatPage() {
 
   return (
     <div className="min-h-screen bg-white">
-      <div className="mx-auto max-w-[calc(100%-110px)] py-8">
+      <div className="mx-auto max-w-5xl py-8">
+      {/* <div className="mx-auto max-w-[calc(100%-110px)] py-8"> */}
         
+        {/* Back Button */}
+        <button
+          onClick={() => navigate(-1)}
+          className="flex items-center gap-2 text-gray-600 hover:text-gray-900 mb-4 transition-colors"
+        >
+          <IoChevronBack className="w-6 h-6" />
+          <span className="text-base font-medium">Back</span>
+        </button>
+
         {/* Top Header Section (Outside Box) */}
-        <div className="relative mb-6 text-center">
-          <button 
-            type="button" 
-            onClick={() => navigate(-1)}
-            className="absolute left-0 top-1 rounded-full p-2 text-gray-800 hover:bg-gray-100 transition-colors"
-          >
-            <ChevronLeft className="h-6 w-6" />
-          </button>
-          
+        <div className="mb-6 text-center">
           <div className="flex flex-col items-center justify-center gap-1">
             <div className="flex items-center gap-2 text-2xl font-semibold text-gray-800">
               <MessageCircle className="h-7 w-7" />
@@ -363,7 +382,7 @@ export default function ChatPage() {
         </div>
 
         {/* Chat Box Container */}
-        <div className="mx-auto max-w-[800px] flex flex-col rounded-[16px] border border-gray-200 bg-[#f9fafb] shadow-[0_2px_12px_rgba(0,0,0,0.04)] overflow-hidden">
+        <div className="mx-auto max-w-5xl flex flex-col rounded-[16px] border border-gray-200 bg-[#f9fafb] shadow-[0_2px_12px_rgba(0,0,0,0.04)] overflow-hidden">
           
           {/* ===== Order Info Header ===== */}
           {orderDetail && (
@@ -373,7 +392,12 @@ export default function ChatPage() {
                 <div className="flex items-center gap-4">
                   {/* Avatar */}
                   <div className="flex h-14 w-14 flex-shrink-0 items-center justify-center rounded-full bg-gray-200 overflow-hidden">
-                    <User className="h-8 w-8 text-gray-400" strokeWidth={1.5} />
+                    {/* <User className="h-8 w-8 text-gray-400" strokeWidth={1.5} /> */}
+                     <img 
+                        src={resolveImageUrl(orderDetail?.store_profile_url!)}
+                        alt="Seller" 
+                        className="h-full w-full object-cover"
+                      />
                   </div>
                   <div className="flex flex-col">
                     <p className="text-lg font-bold text-gray-900">
@@ -490,12 +514,12 @@ export default function ChatPage() {
                           <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-full bg-gray-200 overflow-hidden">
                             {/* Buyer = person icon, Seller = store icon */}
                             {(msg.sender === "user" ? isSeller : !isSeller) ? (
-                              // <img 
-                              //   src={resolveImageUrl(orderDetail?.buyer_profile_url!)}
-                              //   alt="Seller" 
-                              //   className="h-full w-full object-cover"
-                              // />
-                              <User className="h-7 w-7 text-gray-400" strokeWidth={1.5} />
+                              <img 
+                                src={resolveImageUrl(orderDetail?.store_profile_url!)}
+                                alt="Seller" 
+                                className="h-full w-full object-cover"
+                              />
+                              // <User className="h-7 w-7 text-gray-400" strokeWidth={1.5} />
 
                             ) : (
                               <User className="h-7 w-7 text-gray-400" strokeWidth={1.5} />
@@ -503,7 +527,7 @@ export default function ChatPage() {
                           </div>
 
                           {/* Message Bubble */}
-                          <div className="flex flex-col gap-1">
+                          <div className="flex flex-col gap-1 max-w-[350px]">
                             {/* Attachments */}
                             {msg.attachments && msg.attachments.length > 0 && (
                               <div className="flex flex-wrap gap-2">
@@ -528,7 +552,7 @@ export default function ChatPage() {
                                     : "bg-white text-gray-700 rounded-[18px] border border-gray-100"
                                 }`}
                               >
-                                <span className="text-base leading-relaxed">
+                              <span className="text-base leading-relaxed break-words whitespace-pre-wrap">
                                   {msg.text}
                                 </span>
                               </div>
@@ -620,6 +644,7 @@ export default function ChatPage() {
                   type="text"
                   value={inputText}
                   onChange={(e) => setInputText(e.target.value)}
+                  maxLength={180}
                   placeholder="Type a message..."
                   disabled={loading}
                   className="flex-1 rounded-full border border-gray-200 bg-white px-5 py-3 text-sm outline-none focus:border-gray-300 focus:ring-0 transition-all placeholder:text-gray-300 shadow-inner disabled:bg-gray-50"

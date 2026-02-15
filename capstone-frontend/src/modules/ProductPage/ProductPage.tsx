@@ -7,6 +7,7 @@ import {
   ShoppingCart,
 } from "lucide-react"
 import { toast } from "react-toastify"
+import { IoChevronBack } from "react-icons/io5"
 import { useProductApi, type productPictureResponse, type Product } from "../../api/productApi"
 import { useProductStore } from "../../stores/productStore"
 import { useCartStore } from "../../stores/cartStore"
@@ -244,8 +245,14 @@ export default function ProductPage() {
 
   return (
     <main className="max-w-6xl mx-auto px-4 py-8 md:py-10 space-y-6">
-      {/* ... (back button) */}
-      
+      {/* Back Button */}
+      <button
+        onClick={handleBack}
+        className="flex items-center gap-2 text-gray-600 hover:text-gray-900 mb-4 transition-colors"
+      >
+        <IoChevronBack className="w-6 h-6" />
+        <span className="text-base font-medium">Back</span>
+      </button>
       <Card className="rounded-3xl px-6 py-6 md:px-10 md:py-8">
         <div className="grid gap-10 md:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)] items-start">
           {/* LEFT: IMAGE + THUMB */}

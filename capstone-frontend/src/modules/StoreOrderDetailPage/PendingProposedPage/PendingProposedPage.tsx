@@ -64,10 +64,10 @@ export default function PendingProposedPage({
           <h3 className="text-xl font-bold">Meeting location and date/time</h3>
         </div>
 
-        {/* Row 1: Zone + DateTime */}
+        {/* Grid: Desktop = Zone+DateTime / Building+MAP, Mobile = Zone → Building → DateTime → MAP */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {/* Zone Dropdown */}
-          <div>
+          {/* Zone Dropdown - order 1 on all */}
+          <div className="order-1">
             <ZoneDropdown
               value={selectedZone}
               onChange={onZoneChange}
@@ -77,8 +77,8 @@ export default function PendingProposedPage({
             />
           </div>
 
-          {/* DateTime Picker */}
-          <div>
+          {/* DateTime Picker - order 2 on desktop, order 3 on mobile */}
+          <div className="order-3 md:order-2">
             <DateTimePicker
               value={selectedDateTime}
               onChange={onDateTimeChange}
@@ -89,12 +89,9 @@ export default function PendingProposedPage({
               error={validationErrors.dateTime}
             />
           </div>
-        </div>
 
-        {/* Row 2: Building + MAP Button */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
-          {/* Building Dropdown */}
-          <div>
+          {/* Building Dropdown - order 3 on desktop, order 2 on mobile */}
+          <div className="order-2 md:order-3 mt-0 md:mt-0">
             <BuildingDropdown
               value={selectedBuilding}
               onChange={onBuildingChange}
@@ -106,8 +103,8 @@ export default function PendingProposedPage({
             />
           </div>
 
-          {/* MAP KMUTT Button */}
-          <div>
+          {/* MAP KMUTT Button - order 4 on all */}
+          <div className="order-4">
             <label className="block text-base font-semibold mb-3 invisible">-</label>
             <MapKmuttButton />
           </div>
