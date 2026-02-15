@@ -102,12 +102,13 @@ type orderBuyerDTO struct {
 }
 
 type orderDetailResp struct {
-	Order      Order                  `json:"order"`
-	Items      []OrderItemWithProduct `json:"items"`
-	StoreName  string                 `json:"store_name"`
-	SellerName string                 `json:"seller_name"`
-	BuyerName  string                 `json:"buyer_name"`
-	Buyer      *orderBuyerDTO         `json:"buyer,omitempty"`
+	Order           Order                  `json:"order"`
+	Items           []OrderItemWithProduct `json:"items"`
+	StoreName       string                 `json:"store_name"`
+	StoreProfileURL *string                `json:"store_profile_url,omitempty"`
+	SellerName      string                 `json:"seller_name"`
+	BuyerName       string                 `json:"buyer_name"`
+	Buyer           *orderBuyerDTO         `json:"buyer,omitempty"`
 }
 
 type buyerOrderDTO struct {
@@ -283,12 +284,13 @@ func (h *Handler) getOrder(c *gin.Context) {
 	}
 
 	resp := orderDetailResp{
-		Order:      result.Order,
-		Items:      result.Items,
-		StoreName:  st.Name,
-		SellerName: sellerUser.DisplayName,
-		BuyerName:  buyerUser.DisplayName,
-		Buyer:      buyerDTO,
+		Order:           result.Order,
+		Items:           result.Items,
+		StoreName:       st.Name,
+		StoreProfileURL: st.ProfileURL,
+		SellerName:      sellerUser.DisplayName,
+		BuyerName:       buyerUser.DisplayName,
+		Buyer:           buyerDTO,
 	}
 
 	respond.OK(c, apperr.OK, resp)
