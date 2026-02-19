@@ -275,3 +275,11 @@ ON products USING hnsw (embedding_desc vector_cosine_ops);
 DROP INDEX IF EXISTS idx_products_emb_cat_hnsw;
 CREATE INDEX IF NOT EXISTS idx_products_emb_cat_hnsw
 ON products USING hnsw (embedding_category vector_cosine_ops);
+
+DROP INDEX IF EXISTS idx_notifications_user_created;
+CREATE INDEX IF NOT EXISTS idx_notifications_user_created
+  ON notifications (user_id, created_at DESC);
+
+DROP INDEX IF EXISTS idx_notifications_user_created;
+CREATE INDEX IF NOT EXISTS idx_notifications_user_unread
+  ON notifications (user_id, is_read);

@@ -1,0 +1,242 @@
+package notification
+
+import (
+	"context"
+	"strings"
+
+	apperr "github.com/Perpasit/Capstone-KMALL/internal/apperr"
+)
+
+// ============================================================================
+// Helpers
+// ============================================================================
+
+func strPtr(s string) *string {
+	v := strings.TrimSpace(s)
+	if v == "" {
+		return nil
+	}
+	return &v
+}
+
+// ============================================================================
+// Inputs (Service)
+// ============================================================================
+
+type CreateChatNotificationInput struct {
+	RecipientUserID string
+	ActorUserID     string
+
+	OrderID   int64
+	ThreadID  int64
+	MessageID int64
+
+	MessageType    string
+	MessagePreview *string // optional
+}
+
+type CreateOrderStatusNotificationInput struct {
+	RecipientUserID string
+	ActorUserID     string
+
+	OrderID   int64
+	StoreID   int64
+	OldStatus string
+	NewStatus string
+}
+
+type ListInput struct {
+	UserID string
+
+	BeforeID   *int64
+	Limit      int
+	OnlyUnread bool
+}
+
+// type MarkReadInput struct {
+// 	UserID         string
+// 	NotificationID int64
+// }
+
+// ============================================================================
+// Service Interface
+// ============================================================================
+
+type Service interface {
+	// domain-specific create
+	Create(ctx context.Context, in CreateNotificationInput) (Notification, error)
+	CreateChat(ctx context.Context, in CreateChatNotificationInput) (Notification, error)
+	CreateOrderStatus(ctx context.Context, in CreateOrderStatusNotificationInput) (Notification, error)
+
+	// generic operations (API)
+	List(ctx context.Context, in ListInput) ([]Notification, error)
+	MarkRead(ctx context.Context, in MarkReadInput) (Notification, error)
+	Delete(ctx context.Context, userID string, notificationID int64) error
+	DeleteAll(ctx context.Context, userID string) (int64, error)
+	CountUnread(ctx context.Context, userID string) (int64, error)
+}
+
+type service struct {
+	repo Repo
+}
+
+func NewService(r Repo) Service {
+	return &service{repo: r}
+}
+
+func (s *service) Create(ctx context.Context, in CreateNotificationInput) (Notification, error) {
+	return s.repo.Create(ctx, in)
+}
+
+// ============================================================================
+// Create (Chat)
+// ============================================================================
+
+func (s *service) CreateChat(ctx context.Context, in CreateChatNotificationInput) (Notification, error) {
+	in.RecipientUserID = strings.TrimSpace(in.RecipientUserID)
+	in.ActorUserID = strings.TrimSpace(in.ActorUserID)
+
+	if in.RecipientUserID == "" {
+		return Notification{}, apperr.New(apperr.BadRequest, "invalid recipient_user_id")
+	}
+	if in.ActorUserID == "" {
+		return Notification{}, apperr.New(apperr.BadRequest, "invalid actor_user_id")
+	}
+	if in.OrderID <= 0 || in.ThreadID <= 0 || in.MessageID <= 0 {
+		return Notification{}, apperr.New(apperr.BadRequest, "invalid order_id/thread_id/message_id")
+	}
+
+	oid := in.OrderID
+	tid := in.ThreadID
+	mid := in.MessageID
+	actor := in.ActorUserID
+
+	title := strPtr("New message")
+	body := strPtr("You have a new message.")
+
+	data := map[string]any{
+		"message_type": in.MessageType,
+	}
+	if in.MessagePreview != nil && strings.TrimSpace(*in.MessagePreview) != "" {
+		data["message_preview"] = strings.TrimSpace(*in.MessagePreview)
+	}
+
+	return s.repo.Create(ctx, CreateNotificationInput{
+		UserID:      in.RecipientUserID,
+		Type:        "CHAT_NEW_MESSAGE",
+		OrderID:     &oid,
+		ThreadID:    &tid,
+		MessageID:   &mid,
+		ActorUserID: &actor,
+		Title:       title,
+		Body:        body,
+		Data:        data,
+	})
+}
+
+// ============================================================================
+// Create (Order Status)
+// ============================================================================
+
+func (s *service) CreateOrderStatus(ctx context.Context, in CreateOrderStatusNotificationInput) (Notification, error) {
+	in.RecipientUserID = strings.TrimSpace(in.RecipientUserID)
+	in.ActorUserID = strings.TrimSpace(in.ActorUserID)
+	in.OldStatus = strings.TrimSpace(in.OldStatus)
+	in.NewStatus = strings.TrimSpace(in.NewStatus)
+
+	if in.RecipientUserID == "" {
+		return Notification{}, apperr.New(apperr.BadRequest, "invalid recipient_user_id")
+	}
+	if in.ActorUserID == "" {
+		return Notification{}, apperr.New(apperr.BadRequest, "invalid actor_user_id")
+	}
+	if in.OrderID <= 0 {
+		return Notification{}, apperr.New(apperr.BadRequest, "invalid order_id")
+	}
+	if in.StoreID <= 0 {
+		return Notification{}, apperr.New(apperr.BadRequest, "invalid store_id")
+	}
+	if in.NewStatus == "" {
+		return Notification{}, apperr.New(apperr.BadRequest, "new_status is required")
+	}
+
+	oid := in.OrderID
+	sid := in.StoreID
+	actor := in.ActorUserID
+
+	title := strPtr("Order status updated")
+	body := strPtr("Your order status has changed.")
+
+	data := map[string]any{
+		"old_status": in.OldStatus,
+		"new_status": in.NewStatus,
+	}
+
+	return s.repo.Create(ctx, CreateNotificationInput{
+		UserID:      in.RecipientUserID,
+		Type:        "ORDER_STATUS_CHANGED",
+		OrderID:     &oid,
+		StoreID:     &sid,
+		ActorUserID: &actor,
+		Title:       title,
+		Body:        body,
+		Data:        data,
+	})
+}
+
+// ============================================================================
+// Generic operations
+// ============================================================================
+
+func (s *service) List(ctx context.Context, in ListInput) ([]Notification, error) {
+	in.UserID = strings.TrimSpace(in.UserID)
+	if in.UserID == "" {
+		return nil, apperr.New(apperr.BadRequest, "invalid user_id")
+	}
+
+	return s.repo.List(ctx, ListNotificationsParams{
+		UserID:     in.UserID,
+		BeforeID:   in.BeforeID,
+		Limit:      in.Limit,
+		OnlyUnread: in.OnlyUnread,
+	})
+}
+
+func (s *service) MarkRead(ctx context.Context, in MarkReadInput) (Notification, error) {
+	in.UserID = strings.TrimSpace(in.UserID)
+	if in.UserID == "" {
+		return Notification{}, apperr.New(apperr.BadRequest, "invalid user_id")
+	}
+	if in.NotificationID <= 0 {
+		return Notification{}, apperr.New(apperr.BadRequest, "invalid notification_id")
+	}
+
+	return s.repo.MarkRead(ctx, in)
+}
+
+func (s *service) Delete(ctx context.Context, userID string, notificationID int64) error {
+	userID = strings.TrimSpace(userID)
+	if userID == "" {
+		return apperr.New(apperr.BadRequest, "invalid user_id")
+	}
+	if notificationID <= 0 {
+		return apperr.New(apperr.BadRequest, "invalid notification_id")
+	}
+	return s.repo.Delete(ctx, userID, notificationID)
+}
+
+func (s *service) DeleteAll(ctx context.Context, userID string) (int64, error) {
+	userID = strings.TrimSpace(userID)
+	if userID == "" {
+		return 0, apperr.New(apperr.BadRequest, "invalid user_id")
+	}
+	return s.repo.DeleteAll(ctx, userID)
+}
+
+func (s *service) CountUnread(ctx context.Context, userID string) (int64, error) {
+	userID = strings.TrimSpace(userID)
+	if userID == "" {
+		return 0, apperr.New(apperr.BadRequest, "invalid user_id")
+	}
+	return s.repo.CountUnread(ctx, userID)
+}

@@ -10,6 +10,7 @@ import (
 
 	apperr "github.com/Perpasit/Capstone-KMALL/internal/apperr"
 	"github.com/Perpasit/Capstone-KMALL/internal/filestore"
+	notification "github.com/Perpasit/Capstone-KMALL/internal/notification"
 )
 
 // ============================================================================
@@ -111,10 +112,11 @@ type service struct {
 	repo Repo
 	fs   FileStore
 	hub  Notifier
+	noti notification.Service
 }
 
-func NewService(r Repo, fs FileStore, hub Notifier) Service {
-	return &service{repo: r, fs: fs, hub: hub}
+func NewService(r Repo, fs FileStore, hub Notifier, noti notification.Service) Service {
+	return &service{repo: r, fs: fs, hub: hub, noti: noti}
 }
 
 // ============================================================================
@@ -163,6 +165,38 @@ func (s *service) broadcastNewMessage(threadID int64, result CreateMessageResult
 	s.hub.BroadcastToRoom(roomID, map[string]interface{}{
 		"type": "NEW_MESSAGE",
 		"data": result,
+	})
+}
+
+func (s *service) createChatNotificationBestEffort(
+	ctx context.Context,
+	th Thread,
+	senderID string,
+	createdMsg Message,
+) {
+	if s.noti == nil {
+		return
+	}
+
+	recipientID := th.SellerID
+	if strings.EqualFold(senderID, th.SellerID) {
+		recipientID = th.BuyerID
+	}
+
+	var preview *string
+	if createdMsg.MessageText != nil && strings.TrimSpace(*createdMsg.MessageText) != "" {
+		p := strings.TrimSpace(*createdMsg.MessageText)
+		preview = &p
+	}
+
+	_, _ = s.noti.CreateChat(ctx, notification.CreateChatNotificationInput{
+		RecipientUserID: recipientID,
+		ActorUserID:     senderID,
+		OrderID:         th.OrderID,
+		ThreadID:        th.ID,
+		MessageID:       createdMsg.ID,
+		MessageType:     createdMsg.MessageType,
+		MessagePreview:  preview,
 	})
 }
 
@@ -262,12 +296,13 @@ func (s *service) CreateMessage(ctx context.Context, in CreateMessageServiceInpu
 		return CreateMessageResult{}, err
 	}
 
+	s.createChatNotificationBestEffort(ctx, th, in.SenderID, createdMsg)
+
 	if len(in.Files) == 0 {
 		result := CreateMessageResult{Message: createdMsg}
 		s.broadcastNewMessage(in.ThreadID, result)
 		return result, nil
 	}
-
 	if s.fs == nil {
 		return CreateMessageResult{}, apperr.New(apperr.Internal, "file store is not configured")
 	}

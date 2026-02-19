@@ -16,6 +16,7 @@ import (
 	"github.com/Perpasit/Capstone-KMALL/internal/config"
 	images "github.com/Perpasit/Capstone-KMALL/internal/image"
 	"github.com/Perpasit/Capstone-KMALL/internal/middleware"
+	"github.com/Perpasit/Capstone-KMALL/internal/notification"
 	"github.com/Perpasit/Capstone-KMALL/internal/order"
 	"github.com/Perpasit/Capstone-KMALL/internal/orderchat"
 	"github.com/Perpasit/Capstone-KMALL/internal/product"
@@ -107,13 +108,17 @@ func Attach(r *gin.Engine, db *pgxpool.Pool, cfg config.Config) {
 	cartRepo := cart.NewRepo(db)
 	cartSvc := cart.NewService(cartRepo)
 
+	notiRepo := notification.NewRepo(db)
+	notiSvc := notification.NewService(notiRepo)
+
 	oRepo := order.NewRepo(db)
 	oSvc := order.NewService(
 		oRepo,
 		cartSvc,
 		pSvc,
 		sSvc,
-		hub, // Pass socket hub as notifier
+		hub,
+		notiSvc,
 	)
 
 	shRepo := searchhistory.NewRepo(db)
@@ -127,7 +132,7 @@ func Attach(r *gin.Engine, db *pgxpool.Pool, cfg config.Config) {
 
 	ocRepo := orderchat.NewRepo(db)
 	fs := filestore.NewLocalStore("./uploads", "/uploads")
-	ocSvc := orderchat.NewService(ocRepo, fs, hub)
+	ocSvc := orderchat.NewService(ocRepo, fs, hub, notiSvc)
 
 	recRepo := recommendation.NewRepo(db)
 	recSvc := recommendation.NewService(recRepo)
@@ -255,6 +260,9 @@ func Attach(r *gin.Engine, db *pgxpool.Pool, cfg config.Config) {
 
 	recHdl := recommendation.NewHandler(recSvc, uSvc)
 	recHdl.Register(v1)
+
+	notiHdl := notification.NewHandler(notiSvc)
+	notiHdl.Register(v1)
 
 	// ---- debug local (ยิงตรง http://localhost:18080/debug/headers) ----
 	r.GET("/debug/headers", func(c *gin.Context) {
