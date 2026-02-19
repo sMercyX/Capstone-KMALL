@@ -309,6 +309,7 @@ func (s *service) CreateFromCart(ctx context.Context, userID string, in Checkout
 	if err != nil {
 		return OrderWithItems{}, err
 	}
+	s.createOrderStatusNotiBestEffort(ctx, ow.Order, userID, "", "Pending")
 
 	for _, ci := range cw.Items {
 		if err := s.cartSvc.DeleteItem(ctx, userID, int64(ci.ID)); err != nil {
@@ -492,7 +493,7 @@ func (s *service) Cancel(ctx context.Context, actorUserID string, id int64, reas
 		cancelledBy = "BUYER"
 	}
 
-	from := ord.Status // ✅ ใช้ ord เดิม ไม่ต้อง GetOrder ใหม่
+	from := ord.Status
 	ord, err = s.repo.CancelOrder(ctx, id, cancelledBy, reason)
 	if err == nil {
 		s.notifyUpdate(ctx, id)
@@ -538,14 +539,23 @@ func (s *service) Propose(ctx context.Context, actorUserID string, id int64, in 
 		return Order{}, apperr.New(apperr.BadRequest, "cannot propose in this status")
 	}
 
+	from := ord.Status
+
 	ord, err = s.repo.Propose(ctx, id, in.ProposedAt, in.MeetingLocationID, in.MeetingNote)
 	if err == nil {
 		s.notifyUpdate(ctx, id)
+		s.createOrderStatusNotiBestEffort(ctx, ord, actorUserID, from, "Proposed")
 	}
 	return ord, err
 }
 
-func (s *service) AcceptProposed(ctx context.Context, actorUserID string, id int64, in AcceptProposedInput) (Order, error) {
+func (s *service) AcceptProposed(
+	ctx context.Context,
+	actorUserID string,
+	id int64,
+	in AcceptProposedInput,
+) (Order, error) {
+
 	actorUserID = strings.TrimSpace(actorUserID)
 	if actorUserID == "" {
 		return Order{}, apperr.New(apperr.BadRequest, "invalid actor_user_id")
@@ -554,30 +564,48 @@ func (s *service) AcceptProposed(ctx context.Context, actorUserID string, id int
 		return Order{}, apperr.New(apperr.BadRequest, "invalid order_id")
 	}
 
+	// 1️⃣ โหลด order เดิม
 	ord, err := s.repo.GetOrder(ctx, id)
 	if err != nil {
 		return Order{}, err
 	}
 
-	// CAMPUS เท่านั้นที่ต้อง accept proposal
+	// 2️⃣ ต้องเป็น CAMPUS เท่านั้น
 	if strings.ToUpper(strings.TrimSpace(ord.DeliveryMethod)) != "CAMPUS" {
-		return Order{}, apperr.New(apperr.BadRequest, "accept proposal is only available for CAMPUS orders")
+		return Order{}, apperr.New(apperr.BadRequest,
+			"accept proposal is only available for CAMPUS orders")
 	}
 
 	isBuyer := s.isBuyer(ord, actorUserID)
 	if !isBuyer {
-		return Order{}, apperr.New(apperr.Forbidden, "only buyer can accept/reject proposal")
+		return Order{}, apperr.New(apperr.Forbidden,
+			"only buyer can accept/reject proposal")
 	}
 
 	if ord.Status != "Proposed" {
-		return Order{}, apperr.New(apperr.BadRequest, "can accept/reject only when status is Proposed")
+		return Order{}, apperr.New(apperr.BadRequest,
+			"can accept/reject only when status is Proposed")
 	}
 
+	from := ord.Status
+
 	ord, err = s.repo.RespondProposal(ctx, id, in.Accept)
-	if err == nil {
-		s.notifyUpdate(ctx, id)
+	if err != nil {
+		return Order{}, err
 	}
-	return ord, err
+
+	s.notifyUpdate(ctx, id)
+
+	newStatus := ord.Status
+	s.createOrderStatusNotiBestEffort(
+		ctx,
+		ord,
+		actorUserID,
+		from,
+		newStatus,
+	)
+
+	return ord, nil
 }
 
 func (s *service) createOrderStatusNotiBestEffort(

@@ -164,8 +164,7 @@ func (s *service) CreateOrderStatus(ctx context.Context, in CreateOrderStatusNot
 	sid := in.StoreID
 	actor := in.ActorUserID
 
-	title := strPtr("Order status updated")
-	body := strPtr("Your order status has changed.")
+	title, body := buildOrderStatusMessage(in.OldStatus, in.NewStatus)
 
 	data := map[string]any{
 		"old_status": in.OldStatus,
@@ -178,10 +177,35 @@ func (s *service) CreateOrderStatus(ctx context.Context, in CreateOrderStatusNot
 		OrderID:     &oid,
 		StoreID:     &sid,
 		ActorUserID: &actor,
-		Title:       title,
-		Body:        body,
+		Title:       strPtr(title),
+		Body:        strPtr(body),
 		Data:        data,
 	})
+}
+
+func buildOrderStatusMessage(oldStatus, newStatus string) (title, body string) {
+	switch newStatus {
+	case "Pending":
+		return "New order received", "You have a new order."
+	case "Proposed":
+		return "Seller sent a proposal", "The seller proposed a meeting time/location."
+	case "Accepted":
+		if oldStatus == "Proposed" {
+			return "Proposal accepted", "The buyer accepted the proposal."
+		}
+		return "Order accepted", "Your order has been accepted."
+	case "Out For Delivery":
+		return "Out for delivery", "Your order is on the way."
+	case "Arrived":
+		return "Order arrived", "Your order has arrived. Please confirm when received."
+	case "Completed":
+		return "Order completed", "This order has been completed."
+	case "Cancelled":
+		return "Order cancelled", "This order has been cancelled."
+	default:
+		// fallback
+		return "Order status updated", "Order status changed from " + oldStatus + " to " + newStatus + "."
+	}
 }
 
 // ============================================================================
