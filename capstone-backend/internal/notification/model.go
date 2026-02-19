@@ -53,12 +53,15 @@ type CreateNotificationInput struct {
 }
 
 type ListNotificationsParams struct {
-	UserID string
-
+	UserID   string
 	BeforeID *int64
 	Limit    int
 
-	OnlyUnread bool
+	OnlyRead *bool
+	Types    []string
+
+	OrderID *int64
+	StoreID *int64
 }
 
 type MarkReadInput struct {

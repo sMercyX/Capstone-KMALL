@@ -36,11 +36,10 @@ func (h *Handler) Register(rg *gin.RouterGroup) {
 // ============================================================================
 
 // GET /notifications?before_id=123&limit=30&unread=1
+// GET /notifications?before_id=123&limit=30&read=0&type=ORDER_STATUS_CHANGED
 func (h *Handler) list(c *gin.Context) {
 	userID := strings.TrimSpace(getActorUserID(c))
 	if userID == "" {
-		// ถ้าโปรเจกต์คุณใช้ middleware auth ที่ใส่ user id ไว้แล้ว
-		// ให้แก้ getActorUserID ด้านล่างให้ดึง key ที่ถูกต้อง
 		c.Error(apperr.New(apperr.Unauthorized, "missing user context"))
 		return
 	}
@@ -48,9 +47,13 @@ func (h *Handler) list(c *gin.Context) {
 	var (
 		beforeID *int64
 		limit    = 30
-		unread   = false
+		onlyRead *bool // nil = ไม่ filter
+		types    []string
+		orderID  *int64
+		storeID  *int64
 	)
 
+	// before_id
 	if v := strings.TrimSpace(c.Query("before_id")); v != "" {
 		id, err := parseInt64(v)
 		if err != nil || id <= 0 {
@@ -60,6 +63,7 @@ func (h *Handler) list(c *gin.Context) {
 		beforeID = &id
 	}
 
+	// limit
 	if v := strings.TrimSpace(c.Query("limit")); v != "" {
 		n, err := strconv.Atoi(v)
 		if err != nil || n <= 0 || n > 100 {
@@ -69,16 +73,60 @@ func (h *Handler) list(c *gin.Context) {
 		limit = n
 	}
 
-	if v := strings.TrimSpace(c.Query("unread")); v != "" {
-		// unread=1 / true / yes
-		unread = isTruthy(v)
+	// read / unread (แนะนำใช้ read เป็นหลัก)
+	// read=1/0/true/false
+	if v := strings.TrimSpace(c.Query("read")); v != "" {
+		b := isTruthy(v)
+		onlyRead = &b
+	} else if v := strings.TrimSpace(c.Query("unread")); v != "" {
+		// backward compatible: unread=1 => read=false
+		b := !isTruthy(v) // ถ้า unread=1 -> onlyRead=false
+		onlyRead = &b
+	}
+
+	// type (single)
+	if v := strings.TrimSpace(c.Query("type")); v != "" {
+		types = append(types, strings.TrimSpace(v))
+	}
+
+	// types (csv)
+	if v := strings.TrimSpace(c.Query("types")); v != "" {
+		for _, t := range strings.Split(v, ",") {
+			t = strings.TrimSpace(t)
+			if t != "" {
+				types = append(types, t)
+			}
+		}
+	}
+
+	// order_id
+	if v := strings.TrimSpace(c.Query("order_id")); v != "" {
+		id, err := parseInt64(v)
+		if err != nil || id <= 0 {
+			c.Error(apperr.New(apperr.BadRequest, "invalid order_id"))
+			return
+		}
+		orderID = &id
+	}
+
+	// store_id
+	if v := strings.TrimSpace(c.Query("store_id")); v != "" {
+		id, err := parseInt64(v)
+		if err != nil || id <= 0 {
+			c.Error(apperr.New(apperr.BadRequest, "invalid store_id"))
+			return
+		}
+		storeID = &id
 	}
 
 	items, err := h.svc.List(c.Request.Context(), ListInput{
-		UserID:     userID,
-		BeforeID:   beforeID,
-		Limit:      limit,
-		OnlyUnread: unread,
+		UserID:   userID,
+		BeforeID: beforeID,
+		Limit:    limit,
+		OnlyRead: onlyRead,
+		Types:    types,
+		OrderID:  orderID,
+		StoreID:  storeID,
 	})
 	if err != nil {
 		c.Error(err)

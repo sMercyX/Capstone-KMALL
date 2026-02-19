@@ -259,17 +259,43 @@ WHERE n.user_id = $1
 	args := []any{in.UserID}
 	argPos := 2
 
-	if in.OnlyUnread {
-		q += " AND is_read = FALSE "
+	// read/unread filter
+	if in.OnlyRead != nil {
+		q += " AND n.is_read = $" + itoa(argPos) + " "
+		args = append(args, *in.OnlyRead)
+		argPos++
 	}
 
+	// type(s) filter
+	if len(in.Types) > 0 {
+		// ใช้ = ANY($x) โดยส่งเป็น []string
+		q += " AND n.type = ANY($" + itoa(argPos) + ") "
+		args = append(args, in.Types)
+		argPos++
+	}
+
+	// order_id filter
+	if in.OrderID != nil && *in.OrderID > 0 {
+		q += " AND n.order_id = $" + itoa(argPos) + " "
+		args = append(args, *in.OrderID)
+		argPos++
+	}
+
+	// store_id filter
+	if in.StoreID != nil && *in.StoreID > 0 {
+		q += " AND n.store_id = $" + itoa(argPos) + " "
+		args = append(args, *in.StoreID)
+		argPos++
+	}
+
+	// pagination
 	if in.BeforeID != nil && *in.BeforeID > 0 {
 		q += " AND n.notification_id < $" + itoa(argPos) + " "
 		args = append(args, *in.BeforeID)
 		argPos++
 	}
 
-	q += " ORDER BY notification_id DESC LIMIT $" + itoa(argPos)
+	q += " ORDER BY n.notification_id DESC LIMIT $" + itoa(argPos)
 	args = append(args, in.Limit)
 
 	rows, err := r.db.Query(ctx, q, args...)

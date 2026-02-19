@@ -48,9 +48,14 @@ type CreateOrderStatusNotificationInput struct {
 type ListInput struct {
 	UserID string
 
-	BeforeID   *int64
-	Limit      int
-	OnlyUnread bool
+	BeforeID *int64
+	Limit    int
+
+	OnlyRead *bool    // nil=all, true=read, false=unread
+	Types    []string // optional filter by type(s)
+
+	OrderID *int64 // optional
+	StoreID *int64 // optional
 }
 
 // type MarkReadInput struct {
@@ -219,10 +224,15 @@ func (s *service) List(ctx context.Context, in ListInput) ([]Notification, error
 	}
 
 	return s.repo.List(ctx, ListNotificationsParams{
-		UserID:     in.UserID,
-		BeforeID:   in.BeforeID,
-		Limit:      in.Limit,
-		OnlyUnread: in.OnlyUnread,
+		UserID:   in.UserID,
+		BeforeID: in.BeforeID,
+		Limit:    in.Limit,
+
+		OnlyRead: in.OnlyRead,
+		Types:    in.Types,
+
+		OrderID: in.OrderID,
+		StoreID: in.StoreID,
 	})
 }
 
