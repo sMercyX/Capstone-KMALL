@@ -281,6 +281,15 @@ func (s *service) CreateFromCart(ctx context.Context, userID string, in Checkout
 
 		if i == 0 {
 			storeID = p.StoreID
+
+			st, err := s.storeSvc.Get(ctx, int64(storeID))
+			if err != nil {
+				return OrderWithItems{}, err
+			}
+			if st.IsActive != "YES" {
+				return OrderWithItems{}, apperr.New(apperr.BadRequest, "store is not active, cannot place order")
+			}
+
 		} else if p.StoreID != storeID {
 			return OrderWithItems{}, apperr.New(apperr.BadRequest, "cart contains items from multiple stores")
 		}
@@ -298,7 +307,6 @@ func (s *service) CreateFromCart(ctx context.Context, userID string, in Checkout
 			PromisedShipDate: time.Time{},
 			ProductID:        ci.ProductID,
 		})
-
 	}
 
 	params := OrderCreateParams{

@@ -26,9 +26,12 @@ type Repo interface {
 
 	ClearItemsByCartID(ctx context.Context, cartID int64) error
 	GetCartStoreID(ctx context.Context, cartID int64) (*int, error)
-	GetProductStoreID(ctx context.Context, productID int) (int, error)
+	// GetProductStoreID(ctx context.Context, productID int) (int, error)
 
 	GetProductOwnerID(ctx context.Context, productID int) (string, error)
+	GetStoreActiveStatusByProductID(ctx context.Context, productID int) (string, error)
+
+	GetStoreInfoByProductID(ctx context.Context, productID int) (storeID int, isActive string, err error)
 }
 
 type repo struct {
@@ -252,22 +255,22 @@ func (r *repo) GetCartStoreID(ctx context.Context, cartID int64) (*int, error) {
 	return &storeID, nil
 }
 
-func (r *repo) GetProductStoreID(ctx context.Context, productID int) (int, error) {
-	var storeID int
-	err := r.db.QueryRow(ctx, `
-        SELECT store_id
-        FROM products
-        WHERE product_id = $1;
-    `, productID).Scan(&storeID)
+// func (r *repo) GetProductStoreID(ctx context.Context, productID int) (int, error) {
+// 	var storeID int
+// 	err := r.db.QueryRow(ctx, `
+//         SELECT store_id
+//         FROM products
+//         WHERE product_id = $1;
+//     `, productID).Scan(&storeID)
 
-	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			return 0, apperr.New(apperr.NotFound, "product not found")
-		}
-		return 0, apperr.Wrap(apperr.Internal, err, "get product store_id failed")
-	}
-	return storeID, nil
-}
+// 	if err != nil {
+// 		if errors.Is(err, pgx.ErrNoRows) {
+// 			return 0, apperr.New(apperr.NotFound, "product not found")
+// 		}
+// 		return 0, apperr.Wrap(apperr.Internal, err, "get product store_id failed")
+// 	}
+// 	return storeID, nil
+// }
 
 func (r *repo) ClearItemsByCartID(ctx context.Context, cartID int64) error {
 	_, err := r.db.Exec(ctx, `
@@ -347,4 +350,21 @@ func (r *repo) ListItemViewsByCartID(ctx context.Context, cartID int64) ([]CartI
 	}
 
 	return out, nil
+}
+
+func (r *repo) GetStoreInfoByProductID(ctx context.Context, productID int) (storeID int, isActive string, err error) {
+	err = r.db.QueryRow(ctx, `
+        SELECT s.store_id, s.is_active
+        FROM products p
+        JOIN stores s ON s.store_id = p.store_id
+        WHERE p.product_id = $1
+    `, productID).Scan(&storeID, &isActive)
+
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return 0, "", apperr.New(apperr.NotFound, "product not found")
+		}
+		return 0, "", apperr.Wrap(apperr.Internal, err, "get store info failed")
+	}
+	return storeID, isActive, nil
 }
