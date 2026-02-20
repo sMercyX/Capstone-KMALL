@@ -109,7 +109,7 @@ func Attach(r *gin.Engine, db *pgxpool.Pool, cfg config.Config) {
 	cartSvc := cart.NewService(cartRepo)
 
 	notiRepo := notification.NewRepo(db)
-	notiSvc := notification.NewService(notiRepo)
+	notiSvc := notification.NewService(notiRepo, hub)
 
 	oRepo := order.NewRepo(db)
 	oSvc := order.NewService(
@@ -299,6 +299,16 @@ func Attach(r *gin.Engine, db *pgxpool.Pool, cfg config.Config) {
 		}
 		// roomID pattern: chat_{threadId}
 		roomID := "chat_" + threadId
+		websocket.ServeWs(hub, c, roomID)
+	})
+
+	// WebSocket Endpoint for Notifications
+	r.GET("/api/ws/notifications/:userID", func(c *gin.Context) {
+		userID := c.Param("userID")
+		if userID == "" {
+			return
+		}
+		roomID := "notification_" + userID
 		websocket.ServeWs(hub, c, roomID)
 	})
 }

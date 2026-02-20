@@ -57,6 +57,10 @@ type ListInput struct {
 	ThreadID *int64 // <-- add this line
 }
 
+type Notifier interface {
+	BroadcastToRoom(roomID string, message interface{})
+}
+
 // type MarkReadInput struct {
 // 	UserID         string
 // 	NotificationID int64
@@ -84,14 +88,31 @@ type Service interface {
 
 type service struct {
 	repo Repo
+	hub  Notifier
 }
 
-func NewService(r Repo) Service {
-	return &service{repo: r}
+func NewService(r Repo, hub Notifier) Service {
+	return &service{repo: r, hub: hub}
+}
+
+func (s *service) broadcastNotification(userID string, n Notification) {
+	if s.hub == nil {
+		return
+	}
+	roomID := "notification_" + userID
+	s.hub.BroadcastToRoom(roomID, map[string]interface{}{
+		"type": "NOTIFICATION",
+		"data": n,
+	})
 }
 
 func (s *service) Create(ctx context.Context, in CreateNotificationInput) (Notification, error) {
-	return s.repo.Create(ctx, in)
+	n, err := s.repo.Create(ctx, in)
+	if err != nil {
+		return Notification{}, err
+	}
+	s.broadcastNotification(n.UserID, n)
+	return n, nil
 }
 
 // ============================================================================
@@ -286,5 +307,11 @@ func (s *service) UpdateNotification(ctx context.Context, in UpdateNotificationI
 		return Notification{}, apperr.New(apperr.BadRequest, "nothing to update")
 	}
 
-	return s.repo.UpdateNotification(ctx, in)
+	n, err := s.repo.UpdateNotification(ctx, in)
+	if err != nil {
+		return Notification{}, err
+	}
+
+	s.broadcastNotification(n.UserID, n)
+	return n, nil
 }
