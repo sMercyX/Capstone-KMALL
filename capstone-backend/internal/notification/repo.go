@@ -29,6 +29,8 @@ type Repo interface {
 	DeleteAll(ctx context.Context, userID string) (int64, error)
 
 	CountUnread(ctx context.Context, userID string) (int64, error)
+
+	UpdateNotification(ctx context.Context, in UpdateNotificationInput) (Notification, error)
 }
 
 type repo struct {
@@ -295,6 +297,12 @@ WHERE n.user_id = $1
 		argPos++
 	}
 
+	if in.ThreadID != nil && *in.ThreadID > 0 {
+		q += " AND n.thread_id = $" + itoa(argPos) + " "
+		args = append(args, *in.ThreadID)
+		argPos++
+	}
+
 	q += " ORDER BY n.notification_id DESC LIMIT $" + itoa(argPos)
 	args = append(args, in.Limit)
 
@@ -341,17 +349,7 @@ WITH upd AS (
     is_read = TRUE,
     read_at = COALESCE(read_at, $3)
   WHERE notification_id = $1 AND user_id = $2
-  RETURNING
-    notification_id,
-    user_id,
-    type,
-    order_id, thread_id, message_id,
-    store_id,
-    actor_user_id,
-    title, body,
-    data,
-    is_read, read_at,
-    created_at
+  RETURNING *
 )
 SELECT
   upd.notification_id,
@@ -368,7 +366,7 @@ SELECT
   upd.created_at
 FROM upd
 LEFT JOIN stores s ON s.store_id = upd.store_id
-LEFT JOIN users  u ON u.user_id = upd.actor_user_id
+LEFT JOIN users  u ON u.user_id  = upd.actor_user_id
 `, in.NotificationID, in.UserID, now), &n)
 
 	if err != nil {
@@ -457,4 +455,66 @@ func itoa(n int) string {
 		n /= 10
 	}
 	return string(buf[i:])
+}
+
+func (r *repo) UpdateNotification(ctx context.Context, in UpdateNotificationInput) (Notification, error) {
+	if in.NotificationID <= 0 {
+		return Notification{}, apperr.New(apperr.BadRequest, "invalid notification_id")
+	}
+	if in.Title == nil && in.Body == nil && in.IsRead == nil && in.Data == nil {
+		return Notification{}, apperr.New(apperr.BadRequest, "nothing to update")
+	}
+
+	var dataJSON any
+	if in.Data != nil {
+		b, err := json.Marshal(in.Data)
+		if err != nil {
+			return Notification{}, apperr.Wrap(apperr.BadRequest, err, "invalid data payload")
+		}
+		dataJSON = b
+	}
+
+	var n Notification
+	err := scanNotification(r.db.QueryRow(ctx, `
+WITH upd AS (
+  UPDATE notifications
+  SET
+    title      = COALESCE($2, title),
+    body       = COALESCE($3, body),
+    is_read    = COALESCE($4, is_read),
+    read_at    = CASE
+                   WHEN $4 = FALSE THEN NULL
+                   WHEN $4 = TRUE  THEN COALESCE(read_at, NOW())
+                   ELSE read_at
+                 END,
+    data       = COALESCE($5::jsonb, data),
+    updated_at = NOW()
+  WHERE notification_id = $1
+  RETURNING *
+)
+SELECT
+  upd.notification_id, upd.user_id, upd.type,
+  upd.order_id, upd.thread_id, upd.message_id,
+  upd.store_id, s.store_name,
+  upd.actor_user_id, u.display_name,
+  upd.title, upd.body, upd.data,
+  upd.is_read, upd.read_at, upd.created_at
+FROM upd
+LEFT JOIN stores s ON s.store_id = upd.store_id
+LEFT JOIN users  u ON u.user_id  = upd.actor_user_id
+`,
+		in.NotificationID,
+		in.Title,
+		in.Body,
+		in.IsRead,
+		dataJSON,
+	), &n)
+
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return Notification{}, apperr.New(apperr.NotFound, "notification not found")
+		}
+		return Notification{}, apperr.Wrap(apperr.Internal, err, "update notification failed")
+	}
+	return n, nil
 }

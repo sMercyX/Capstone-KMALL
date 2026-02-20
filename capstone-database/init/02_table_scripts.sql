@@ -763,6 +763,7 @@ CREATE TABLE IF NOT EXISTS notifications (
   read_at TIMESTAMPTZ NULL,
 
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 
   CONSTRAINT chk_notification_reference CHECK (
     order_id IS NOT NULL

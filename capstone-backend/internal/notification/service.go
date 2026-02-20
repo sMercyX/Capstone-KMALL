@@ -46,16 +46,15 @@ type CreateOrderStatusNotificationInput struct {
 }
 
 type ListInput struct {
-	UserID string
-
+	UserID   string
 	BeforeID *int64
 	Limit    int
-
-	OnlyRead *bool    // nil=all, true=read, false=unread
+	OnlyRead *bool
 	Types    []string // optional filter by type(s)
 
-	OrderID *int64 // optional
-	StoreID *int64 // optional
+	OrderID  *int64 // optional
+	StoreID  *int64 // optional
+	ThreadID *int64 // <-- add this line
 }
 
 // type MarkReadInput struct {
@@ -79,6 +78,8 @@ type Service interface {
 	Delete(ctx context.Context, userID string, notificationID int64) error
 	DeleteAll(ctx context.Context, userID string) (int64, error)
 	CountUnread(ctx context.Context, userID string) (int64, error)
+
+	UpdateNotification(ctx context.Context, in UpdateNotificationInput) (Notification, error)
 }
 
 type service struct {
@@ -169,7 +170,7 @@ func (s *service) CreateOrderStatus(ctx context.Context, in CreateOrderStatusNot
 	sid := in.StoreID
 	actor := in.ActorUserID
 
-	title, body := buildOrderStatusMessage(in.OldStatus, in.NewStatus)
+	title, body := BuildOrderStatusMessage(in.OldStatus, in.NewStatus)
 
 	data := map[string]any{
 		"old_status": in.OldStatus,
@@ -188,7 +189,7 @@ func (s *service) CreateOrderStatus(ctx context.Context, in CreateOrderStatusNot
 	})
 }
 
-func buildOrderStatusMessage(oldStatus, newStatus string) (title, body string) {
+func BuildOrderStatusMessage(oldStatus, newStatus string) (title, body string) {
 	switch newStatus {
 	case "Pending":
 		return "New order received", "You have a new order."
@@ -231,8 +232,9 @@ func (s *service) List(ctx context.Context, in ListInput) ([]Notification, error
 		OnlyRead: in.OnlyRead,
 		Types:    in.Types,
 
-		OrderID: in.OrderID,
-		StoreID: in.StoreID,
+		OrderID:  in.OrderID,
+		StoreID:  in.StoreID,
+		ThreadID: in.ThreadID,
 	})
 }
 
@@ -273,4 +275,16 @@ func (s *service) CountUnread(ctx context.Context, userID string) (int64, error)
 		return 0, apperr.New(apperr.BadRequest, "invalid user_id")
 	}
 	return s.repo.CountUnread(ctx, userID)
+}
+
+func (s *service) UpdateNotification(ctx context.Context, in UpdateNotificationInput) (Notification, error) {
+	if in.NotificationID <= 0 {
+		return Notification{}, apperr.New(apperr.BadRequest, "invalid notification_id")
+	}
+
+	if in.Title == nil && in.Body == nil && in.IsRead == nil {
+		return Notification{}, apperr.New(apperr.BadRequest, "nothing to update")
+	}
+
+	return s.repo.UpdateNotification(ctx, in)
 }

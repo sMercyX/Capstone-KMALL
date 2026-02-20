@@ -200,6 +200,14 @@ func (s *service) isStoreOwner(ctx context.Context, ord Order, actorUserID strin
 	return strings.EqualFold(st.UserID.String(), actorUserID), nil
 }
 
+func strPtr(s string) *string {
+	v := strings.TrimSpace(s)
+	if v == "" {
+		return nil
+	}
+	return &v
+}
+
 // notifyUpdate broadcasts the latest order state to the room
 func (s *service) notifyUpdate(ctx context.Context, orderID int64) {
 	// Re-fetch the full order with items to send the latest state
@@ -387,7 +395,7 @@ func (s *service) UpdateStatus(ctx context.Context, actorUserID string, id int64
 			ord, err = s.repo.UpdateOrderStatus(ctx, id, to)
 			if err == nil {
 				s.notifyUpdate(ctx, id)
-				s.createOrderStatusNotiBestEffort(ctx, ord, actorUserID, from, to)
+				s.updateOrderStatusNotiBestEffort(ctx, ord, actorUserID, from, to)
 			}
 			return ord, err
 		}
@@ -405,7 +413,7 @@ func (s *service) UpdateStatus(ctx context.Context, actorUserID string, id int64
 	ord, err = s.repo.UpdateOrderStatus(ctx, id, to)
 	if err == nil {
 		s.notifyUpdate(ctx, id)
-		s.createOrderStatusNotiBestEffort(ctx, ord, actorUserID, from, to)
+		s.updateOrderStatusNotiBestEffort(ctx, ord, actorUserID, from, to)
 	}
 	return ord, err
 }
@@ -466,7 +474,6 @@ func (s *service) Cancel(ctx context.Context, actorUserID string, id int64, reas
 		return Order{}, apperr.New(apperr.Forbidden, "not allowed to cancel")
 	}
 
-	// rules by delivery method
 	switch ord.DeliveryMethod {
 	case "CAMPUS":
 		switch ord.Status {
@@ -480,7 +487,6 @@ func (s *service) Cancel(ctx context.Context, actorUserID string, id int64, reas
 		}
 
 	case "ROUND_UNIVERSITY":
-		// keep rule as-is for now
 
 	default:
 		return Order{}, apperr.New(apperr.BadRequest, "invalid delivery_method")
@@ -497,7 +503,7 @@ func (s *service) Cancel(ctx context.Context, actorUserID string, id int64, reas
 	ord, err = s.repo.CancelOrder(ctx, id, cancelledBy, reason)
 	if err == nil {
 		s.notifyUpdate(ctx, id)
-		s.createOrderStatusNotiBestEffort(ctx, ord, actorUserID, from, "Cancelled")
+		s.updateOrderStatusNotiBestEffort(ctx, ord, actorUserID, from, "Cancelled")
 	}
 	return ord, err
 }
@@ -564,13 +570,11 @@ func (s *service) AcceptProposed(
 		return Order{}, apperr.New(apperr.BadRequest, "invalid order_id")
 	}
 
-	// 1️⃣ โหลด order เดิม
 	ord, err := s.repo.GetOrder(ctx, id)
 	if err != nil {
 		return Order{}, err
 	}
 
-	// 2️⃣ ต้องเป็น CAMPUS เท่านั้น
 	if strings.ToUpper(strings.TrimSpace(ord.DeliveryMethod)) != "CAMPUS" {
 		return Order{}, apperr.New(apperr.BadRequest,
 			"accept proposal is only available for CAMPUS orders")
@@ -597,7 +601,7 @@ func (s *service) AcceptProposed(
 	s.notifyUpdate(ctx, id)
 
 	newStatus := ord.Status
-	s.createOrderStatusNotiBestEffort(
+	s.updateOrderStatusNotiBestEffort(
 		ctx,
 		ord,
 		actorUserID,
@@ -646,6 +650,60 @@ func (s *service) createOrderStatusNotiBestEffort(
 		OldStatus:       from,
 		NewStatus:       to,
 	})
+}
+
+func (s *service) updateOrderStatusNotiBestEffort(
+	ctx context.Context,
+	ord Order,
+	actorUserID, from, to string,
+) error {
+	if strings.TrimSpace(actorUserID) == "" {
+		return apperr.New(apperr.BadRequest, "invalid actor_user_id")
+	}
+	if s.noti == nil {
+		return apperr.New(apperr.Internal, "notification service not available")
+	}
+
+	actorUserID = strings.TrimSpace(actorUserID)
+	if actorUserID == "" {
+		return apperr.New(apperr.BadRequest, "invalid actor_user_id")
+	}
+
+	recipient := ord.UserID
+	if strings.EqualFold(actorUserID, ord.UserID) {
+		st, err := s.storeSvc.Get(ctx, int64(ord.StoreID))
+		if err != nil {
+			return apperr.Wrap(apperr.Internal, err, "failed to fetch store for notification")
+		}
+		recipient = st.UserID.String()
+	}
+
+	if strings.EqualFold(recipient, actorUserID) {
+		return nil
+	}
+	ordID := int64(ord.ID)
+	title, body := notification.BuildOrderStatusMessage(from, to)
+
+	newData := map[string]any{
+		"old_status": from,
+		"new_status": to,
+	}
+
+	existing, err := s.noti.List(ctx, notification.ListInput{
+		UserID:  recipient,
+		OrderID: &ordID,
+		Types:   []string{"ORDER_STATUS_CHANGED"},
+		Limit:   1,
+	})
+	if err == nil && len(existing) > 0 {
+		_, _ = s.noti.UpdateNotification(ctx, notification.UpdateNotificationInput{
+			NotificationID: existing[0].ID,
+			Title:          strPtr(title),
+			Body:           strPtr(body),
+			Data:           newData,
+		})
+	}
+	return nil
 }
 
 func (s *service) ListBuyerOrders(ctx context.Context, userID string, statusGroup string) ([]Order, error) {

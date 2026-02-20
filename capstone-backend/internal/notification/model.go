@@ -28,6 +28,7 @@ type Notification struct {
 	ReadAt *time.Time `json:"read_at,omitempty"`
 
 	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
 }
 
 // ============================================================================
@@ -60,11 +61,24 @@ type ListNotificationsParams struct {
 	OnlyRead *bool
 	Types    []string
 
-	OrderID *int64
-	StoreID *int64
+	OrderID  *int64
+	StoreID  *int64
+	ThreadID *int64
 }
 
 type MarkReadInput struct {
 	UserID         string
 	NotificationID int64
+}
+
+type UpdateNotificationInput struct {
+	NotificationID int64   `json:"notification_id"`
+	Title          *string `json:"title,omitempty"`
+	Body           *string `json:"body,omitempty"`
+	IsRead         *bool   `json:"is_read,omitempty"`
+	OrderID        *int64  `json:"order_id,omitempty"`
+	StoreID        *int64  `json:"store_id,omitempty"`
+	ActorUserID    *string `json:"actor_user_id,omitempty"`
+	Type           *string `json:"type,omitempty"`
+	Data           any     `json:"data,omitempty"`
 }
