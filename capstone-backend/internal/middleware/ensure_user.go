@@ -20,7 +20,13 @@ func EnsureUser(upsert UpsertFunc) gin.HandlerFunc {
 			c.Abort()
 			return
 		}
-		uu := up.(*UpstreamUser)
+
+		uu, ok := up.(*UpstreamUser)
+		if !ok || uu == nil {
+			respond.Error(c, http.StatusUnauthorized, "UNAUTHORIZED", "invalid upstream user", nil)
+			c.Abort()
+			return
+		}
 
 		uid, err := upsert(c.Request.Context(), uu.UID, uu.Email, uu.Name)
 		if err != nil {
@@ -28,7 +34,11 @@ func EnsureUser(upsert UpsertFunc) gin.HandlerFunc {
 			c.Abort()
 			return
 		}
+
 		c.Set(CtxUserID, uid)
+		c.Set("user_id", uid)
+		c.Set("actor_user_id", uid)
+
 		c.Next()
 	}
 }

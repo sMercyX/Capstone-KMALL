@@ -49,6 +49,20 @@ func NewService(r Repo) Service {
 	return &service{repo: r}
 }
 
+func (r *repo) GetStoreActiveStatusByProductID(ctx context.Context, productID int) (string, error) {
+	var isActive string
+	err := r.db.QueryRow(ctx, `
+        SELECT s.is_active
+        FROM products p
+        JOIN stores s ON s.store_id = p.store_id
+        WHERE p.product_id = $1
+    `, productID).Scan(&isActive)
+	if err != nil {
+		return "", apperr.Wrap(apperr.Internal, err, "failed to check store status")
+	}
+	return isActive, nil
+}
+
 // ============================================================================
 // Validators
 // ============================================================================
@@ -122,9 +136,12 @@ func (s *service) AddItem(ctx context.Context, userID string, in CartItemCreateI
 		return CartItem{}, err
 	}
 
-	newStoreID, err := s.repo.GetProductStoreID(ctx, in.ProductID)
+	newStoreID, isActive, err := s.repo.GetStoreInfoByProductID(ctx, in.ProductID)
 	if err != nil {
 		return CartItem{}, err
+	}
+	if isActive != "YES" {
+		return CartItem{}, apperr.New(apperr.BadRequest, "store is not active")
 	}
 
 	if existingStoreID != nil && *existingStoreID != newStoreID {

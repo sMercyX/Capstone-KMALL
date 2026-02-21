@@ -2,6 +2,7 @@ package orderchat
 
 import (
 	"context"
+	"errors"
 	"mime/multipart"
 	"strings"
 	"time"
@@ -10,7 +11,16 @@ import (
 
 	apperr "github.com/Perpasit/Capstone-KMALL/internal/apperr"
 	"github.com/Perpasit/Capstone-KMALL/internal/filestore"
+	notification "github.com/Perpasit/Capstone-KMALL/internal/notification"
 )
+
+func strPtr(s string) *string {
+	v := strings.TrimSpace(s)
+	if v == "" {
+		return nil
+	}
+	return &v
+}
 
 // ============================================================================
 // File Upload Abstraction
@@ -79,8 +89,8 @@ type DeleteMessageServiceInput struct {
 
 type ModerateMessageServiceInput struct {
 	MessageID        int64
-	ActorUserID      string // admin
-	ModerationStatus string // VISIBLE/HIDDEN/REMOVED
+	ActorUserID      string
+	ModerationStatus string
 	ModerationReason *string
 }
 
@@ -111,10 +121,11 @@ type service struct {
 	repo Repo
 	fs   FileStore
 	hub  Notifier
+	noti notification.Service
 }
 
-func NewService(r Repo, fs FileStore, hub Notifier) Service {
-	return &service{repo: r, fs: fs, hub: hub}
+func NewService(r Repo, fs FileStore, hub Notifier, noti notification.Service) Service {
+	return &service{repo: r, fs: fs, hub: hub, noti: noti}
 }
 
 // ============================================================================
@@ -166,6 +177,73 @@ func (s *service) broadcastNewMessage(threadID int64, result CreateMessageResult
 	})
 }
 
+func (s *service) upsertChatNotification(
+	ctx context.Context,
+	th Thread,
+	senderID string,
+	createdMsg Message,
+) {
+	if s.noti == nil {
+		return
+	}
+
+	// Determine recipient based on the sender's role
+	recipientID := th.SellerID
+	if strings.EqualFold(senderID, th.SellerID) {
+		recipientID = th.BuyerID
+	}
+
+	// Create a message preview if there's a valid message text
+	var preview *string
+	if createdMsg.MessageText != nil && strings.TrimSpace(*createdMsg.MessageText) != "" {
+		p := strings.TrimSpace(*createdMsg.MessageText)
+		preview = &p
+	}
+
+	// Check for an existing notification of the correct type
+	existingNotification, err := s.noti.List(ctx, notification.ListInput{
+		UserID:   recipientID,
+		OrderID:  &th.OrderID,
+		ThreadID: &th.ID,
+		Types:    []string{"CHAT_NEW_MESSAGE"}, // Check for a specific notification type
+		Limit:    1,                            // Limit to 1 notification
+	})
+	if err != nil && !errors.Is(err, apperr.New(apperr.NotFound, "")) {
+		// If an error other than "not found" occurs, return early
+		return
+	}
+
+	if len(existingNotification) > 0 {
+		isUnread := false
+		newData := map[string]any{
+			"message_type":    createdMsg.MessageType,
+			"message_preview": "", // default
+		}
+		if preview != nil {
+			newData["message_preview"] = *preview
+		}
+
+		_, _ = s.noti.UpdateNotification(ctx, notification.UpdateNotificationInput{
+			NotificationID: existingNotification[0].ID,
+			Title:          strPtr("New message"),
+			Body:           strPtr("You have a new message."),
+			IsRead:         &isUnread,
+			Data:           newData,
+		})
+	} else {
+		// If no existing notification is found, create a new one
+		_, _ = s.noti.CreateChat(ctx, notification.CreateChatNotificationInput{
+			RecipientUserID: recipientID,
+			ActorUserID:     senderID,
+			OrderID:         th.OrderID,
+			ThreadID:        th.ID,
+			MessageID:       createdMsg.ID,
+			MessageType:     createdMsg.MessageType,
+			MessagePreview:  preview,
+		})
+	}
+}
+
 // ============================================================================
 // Service Methods
 // ============================================================================
@@ -186,13 +264,11 @@ func (s *service) ListMessages(ctx context.Context, actorUserID string, in ListM
 		return ListMessagesResult{}, apperr.New(apperr.Forbidden, "not allowed")
 	}
 
-	// ---- NEW: figure out "other" user id ----
 	otherUserID := th.SellerID
 	if strings.EqualFold(actorUserID, th.SellerID) {
 		otherUserID = th.BuyerID
 	}
 
-	// ---- NEW: read_state (me + other) ----
 	meRS, err := s.repo.GetReadState(ctx, in.ThreadID, actorUserID)
 	if err != nil {
 		return ListMessagesResult{}, err
@@ -202,7 +278,6 @@ func (s *service) ListMessages(ctx context.Context, actorUserID string, in ListM
 		return ListMessagesResult{}, err
 	}
 
-	// list messages
 	msgs, err := s.repo.ListMessages(ctx, in)
 	if err != nil {
 		return ListMessagesResult{}, err
@@ -262,12 +337,13 @@ func (s *service) CreateMessage(ctx context.Context, in CreateMessageServiceInpu
 		return CreateMessageResult{}, err
 	}
 
+	s.upsertChatNotification(ctx, th, in.SenderID, createdMsg)
+
 	if len(in.Files) == 0 {
 		result := CreateMessageResult{Message: createdMsg}
 		s.broadcastNewMessage(in.ThreadID, result)
 		return result, nil
 	}
-
 	if s.fs == nil {
 		return CreateMessageResult{}, apperr.New(apperr.Internal, "file store is not configured")
 	}
@@ -309,7 +385,6 @@ func (s *service) CreateMessage(ctx context.Context, in CreateMessageServiceInpu
 		Attachments: atts,
 	}
 
-	// Broadcast to WebSocket clients
 	s.broadcastNewMessage(in.ThreadID, result)
 
 	return result, nil
@@ -373,7 +448,7 @@ func (s *service) SoftDeleteMessage(ctx context.Context, in DeleteMessageService
 		return Message{}, apperr.New(apperr.Forbidden, "only sender can delete message")
 	}
 	if msg.DeletedAt != nil {
-		return msg, nil // idempotent
+		return msg, nil
 	}
 
 	now := time.Now()
@@ -448,7 +523,6 @@ func (s *service) MarkRead(ctx context.Context, in MarkReadServiceInput) (ReadSt
 		return ReadState{}, err
 	}
 
-	// Broadcast read update
 	if s.hub != nil {
 		roomID := "chat_" + strconv.FormatInt(in.ThreadID, 10)
 		s.hub.BroadcastToRoom(roomID, map[string]interface{}{

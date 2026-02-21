@@ -726,3 +726,51 @@ CREATE TABLE IF NOT EXISTS search_history (
   CONSTRAINT uq_search_history_user_query UNIQUE (user_id, query_text)
 );
 
+-- ========= NOTIFICATION (Recent Search) =========
+CREATE TABLE IF NOT EXISTS notifications (
+  notification_id BIGSERIAL PRIMARY KEY,
+
+  user_id UUID NOT NULL
+    REFERENCES users(user_id) ON DELETE CASCADE,
+
+  type VARCHAR(30) NOT NULL
+    CHECK (type IN (
+      'ORDER_STATUS_CHANGED',
+      'CHAT_NEW_MESSAGE'
+    )),
+
+  order_id INT NULL
+    REFERENCES orders(order_id) ON DELETE CASCADE,
+
+  thread_id BIGINT NULL
+    REFERENCES order_chat_threads(thread_id) ON DELETE CASCADE,
+
+  message_id BIGINT NULL
+    REFERENCES order_chat_messages(message_id) ON DELETE CASCADE,
+
+  store_id INT NULL
+    REFERENCES stores(store_id) ON DELETE SET NULL,
+
+  actor_user_id UUID NULL
+    REFERENCES users(user_id) ON DELETE SET NULL,
+
+  title VARCHAR(120) NULL,
+  body  VARCHAR(255) NULL,
+
+  data JSONB NULL,
+
+  is_read BOOLEAN NOT NULL DEFAULT FALSE,
+  read_at TIMESTAMPTZ NULL,
+
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+
+  CONSTRAINT chk_notification_reference CHECK (
+    order_id IS NOT NULL
+    OR thread_id IS NOT NULL
+  ),
+
+  CONSTRAINT chk_notification_read_meta CHECK (
+    is_read = FALSE OR read_at IS NOT NULL
+  )
+);
