@@ -1,13 +1,9 @@
 // src/pages/product/ProductPage.tsx
 import { useEffect, useState, useRef } from "react"
-import { useNavigate, useParams } from "react-router-dom"
-import {
-  ChevronLeft,
-  ChevronRight,
-  ShoppingCart,
-} from "lucide-react"
+import { useParams } from "react-router-dom"
+import { ChevronLeft, ChevronRight, ShoppingCart } from "lucide-react"
 import { toast } from "react-toastify"
-import { IoChevronBack } from "react-icons/io5"
+import BackButton from "../../components/Buttons/BackButton"
 import { useProductApi, type productPictureResponse, type Product } from "../../api/productApi"
 import { useProductStore } from "../../stores/productStore"
 import { useCartStore } from "../../stores/cartStore"
@@ -40,7 +36,7 @@ import ConfirmationModal from "../../components/Modal/ConfirmationModal"
 
 export default function ProductPage() {
   const { id } = useParams<{ id: string }>()
-  const navigate = useNavigate()
+
 
   const { getProduct, getProductImage } = useProductApi()
   const {
@@ -105,7 +101,7 @@ export default function ProductPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id])
 
-  const handleBack = () => navigate(-1)
+
 
   // เพิ่มลงตะกร้า
   const handleAddToCart = async () => {
@@ -186,13 +182,7 @@ export default function ProductPage() {
   if (error || !product) {
     return (
       <main className="max-w-6xl mx-auto px-4 py-10">
-        <button
-          onClick={handleBack}
-          className="mb-4 inline-flex items-center gap-2 text-sm text-gray-600 hover:text-gray-900"
-        >
-          <ChevronLeft className="h-4 w-4" />
-          Back
-        </button>
+        <BackButton className="mb-4" />
 
         <div className="rounded-xl border bg-white p-8 text-center text-red-500">
           {error || "Product not found."}
@@ -246,13 +236,8 @@ export default function ProductPage() {
   return (
     <main className="max-w-6xl mx-auto px-4 py-8 md:py-10 space-y-6">
       {/* Back Button */}
-      <button
-        onClick={handleBack}
-        className="flex items-center gap-2 text-gray-600 hover:text-gray-900 mb-4 transition-colors"
-      >
-        <IoChevronBack className="w-6 h-6" />
-        <span className="text-base font-medium">Back</span>
-      </button>
+      {/* Back Button */}
+      <BackButton className="mb-4" />
       <Card className="rounded-3xl px-6 py-6 md:px-10 md:py-8">
         <div className="grid gap-10 md:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)] items-start">
           {/* LEFT: IMAGE + THUMB */}

@@ -9,9 +9,9 @@ import { getAllLocations, type CampusLocation } from "../../../api/campusLocatio
 import { useStoreStore } from "../../../stores/storeStore"
 
 const TABS: SwitchTabItem[] = [
-  { key: "active", label: "ACTIVE ORDERS" },
+  { key: "active", label: "ON GOING" },
   { key: "completed", label: "COMPLETED" },
-  { key: "cancelled", label: "CANCELLED" },
+  { key: "cancelled", label: "CANCELED/FAILED" },
 ]
 
 function OrderListHeader() {
@@ -89,6 +89,28 @@ export default function StoreOrdersTab() {
 
   return (
     <div>
+      {/* Title */}
+      <div className="text-center mb-6">
+        <h1 className="text-3xl md:text-4xl font-extrabold tracking-wide text-gray-800">
+          MY ORDER{" "}
+          <span
+            className={
+              activeTab === "active"
+                ? "text-orange-400"
+                : activeTab === "completed"
+                ? "text-green-500"
+                : "text-red-500"
+            }
+          >
+            {activeTab === "active"
+              ? "ON GOING"
+              : activeTab === "completed"
+              ? "COMPLETED"
+              : "CANCELED"}
+          </span>
+        </h1>
+      </div>
+
       <div className="mb-6">
         <SwitchTabs 
           tabs={TABS} 

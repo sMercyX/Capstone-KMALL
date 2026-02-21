@@ -60,6 +60,8 @@ function mapStatusLabel(status: string): React.ReactNode {
     "Ready for Delivery": { label: "Accepted", color: "bg-green-500 text-white" },
 
     "Out For Delivery": { label: "Out For Delivery", color: "bg-indigo-500 text-white" },
+    
+    "Arrived": { label: "Arrived", color: "bg-orange-500 text-white" },
 
     COMPLETED: { label: "Completed", color: "bg-green-500 text-white" },
     Completed: { label: "Completed", color: "bg-green-500 text-white" },

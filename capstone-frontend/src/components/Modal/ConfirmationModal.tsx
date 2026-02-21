@@ -9,6 +9,7 @@ interface ConfirmationModalProps {
   message?: string
   confirmText?: string
   cancelText?: string
+  confirmDisabled?: boolean
   variant?: "danger" | "warning" | "info"
   children?: React.ReactNode
 }
@@ -21,6 +22,7 @@ export default function ConfirmationModal({
   message,
   confirmText = "Confirm",
   cancelText = "Cancel",
+  confirmDisabled = false,
   variant = "danger",
   children,
 }: ConfirmationModalProps) {
@@ -34,6 +36,7 @@ export default function ConfirmationModal({
           iconColor: "text-red-600",
           buttonBg: "bg-red-600 hover:bg-red-700",
           buttonRing: "focus:ring-red-300",
+          disabledButtonBg: "bg-red-300 cursor-not-allowed",
         }
       case "warning":
         return {
@@ -41,6 +44,7 @@ export default function ConfirmationModal({
           iconColor: "text-orange-600",
           buttonBg: "bg-orange-600 hover:bg-orange-700",
           buttonRing: "focus:ring-orange-300",
+          disabledButtonBg: "bg-orange-300 cursor-not-allowed",
         }
       case "info":
       default:
@@ -49,6 +53,7 @@ export default function ConfirmationModal({
           iconColor: "text-blue-600",
           buttonBg: "bg-blue-600 hover:bg-blue-700",
           buttonRing: "focus:ring-blue-300",
+          disabledButtonBg: "bg-blue-300 cursor-not-allowed",
         }
     }
   }
@@ -95,14 +100,20 @@ export default function ConfirmationModal({
           </button>
           <button
             type="button"
-            className={`inline-flex justify-center rounded-xl border border-transparent px-4 py-2 text-sm font-semibold text-white shadow-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 ${styles.buttonBg} ${styles.buttonRing}`}
+            disabled={confirmDisabled}
+            className={`inline-flex justify-center rounded-xl border border-transparent px-4 py-2 text-sm font-semibold text-white shadow-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 
+              ${confirmDisabled ? styles.disabledButtonBg : styles.buttonBg} 
+              ${styles.buttonRing}`}
             onClick={() => {
-                onConfirm()
-                onClose()
+                if (!confirmDisabled) {
+                  onConfirm()
+                  onClose()
+                }
             }}
           >
             {confirmText}
           </button>
+
         </div>
       </div>
     </div>,

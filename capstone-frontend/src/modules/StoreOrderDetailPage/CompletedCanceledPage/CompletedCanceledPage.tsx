@@ -10,18 +10,19 @@ interface CompletedCanceledPageProps {
   order: orderSellerData
   items: OrderItemDetail[]
   total: number
+  isBuyer: boolean
 }
 
-export default function CompletedCanceledPage({ order, items, total }: CompletedCanceledPageProps) {
+export default function CompletedCanceledPage({ order, items, total, isBuyer }: CompletedCanceledPageProps) {
   const isCancelled = order.status === "Cancelled"
   const { getCancellationRecommendations } = useProductApi()
 
   const [recommendations, setRecommendations] = useState<RecommendationProduct[]>([])
   const [recsLoading, setRecsLoading] = useState(false)
 
-  // Fetch recommendations for cancelled orders
+  // Fetch recommendations for cancelled orders - only for buyer
   useEffect(() => {
-    if (!isCancelled) return
+    if (!isCancelled || !isBuyer) return
 
     const fetchRecs = async () => {
       setRecsLoading(true)
@@ -35,7 +36,7 @@ export default function CompletedCanceledPage({ order, items, total }: Completed
       }
     }
     fetchRecs()
-  }, [order.id, isCancelled])
+  }, [order.id, isCancelled, isBuyer])
 
   return (
     <div className="flex flex-col gap-6">
@@ -63,7 +64,7 @@ export default function CompletedCanceledPage({ order, items, total }: Completed
       {/* Cancellation Reason */}
       {isCancelled && order.cancelled_reason && (
         <div className="bg-red-50 border border-red-200 rounded-xl p-4">
-          <p className="text-sm font-semibold text-red-600 mb-1">เหตุผลที่ยกเลิก</p>
+          <p className="text-sm font-semibold text-red-600 mb-1">Cancellation reason</p>
           <p className="text-sm text-red-700">{order.cancelled_reason}</p>
         </div>
       )}
@@ -71,20 +72,20 @@ export default function CompletedCanceledPage({ order, items, total }: Completed
       {/* Product Details Table */}
       <ProductList items={items} total={total} />
 
-      {/* Recommendation Section — only for Cancelled orders */}
-      {isCancelled && (
+      {/* Recommendation Section — only for Cancelled orders AND Buyer */}
+      {isCancelled && isBuyer && (
         <div className="mt-4">
           {/* Section Header */}
           <h2 className="text-2xl font-bold text-gray-900 mb-1">
-            ตัวเลือกอื่นที่ใกล้เคียง
+            Cross-Store Product Recommendations
           </h2>
           <p className="text-sm text-gray-500 mb-6">
-            สินค้าเหล่านี้ใกล้เคียงกับสิ่งที่คุณกำลังมองหา และพร้อมขาย
+            These products are similar to what you are looking for and are available for sale.
           </p>
 
           {/* Loading */}
           {recsLoading && (
-            <p className="text-center text-sm text-gray-400 py-8">กำลังโหลดสินค้าแนะนำ...</p>
+            <p className="text-center text-sm text-gray-400 py-8">Loading...</p>
           )}
 
           {/* Recommendation Grid */}
@@ -116,7 +117,7 @@ export default function CompletedCanceledPage({ order, items, total }: Completed
                     {/* Price & Sold Count */}
                     <div className="flex items-end justify-between mb-3">
                       <p className="text-lg font-bold text-orange-500">
-                        {rec.product.price.toLocaleString()} บาท
+                        ฿ {rec.product.price.toLocaleString()}
                       </p>
                       <p className="text-xs text-gray-400">
                         Sold {rec.product.sold_count ?? 0} pieces
@@ -128,7 +129,7 @@ export default function CompletedCanceledPage({ order, items, total }: Completed
                       to={`/product/${rec.product.id}`}
                       className="block w-full text-center bg-orange-500 hover:bg-orange-600 text-white! text-sm font-semibold py-2 rounded-lg transition-colors"
                     >
-                      ดูสินค้า
+                      View Product
                     </Link>
                   </div>
                 </div>
@@ -139,7 +140,7 @@ export default function CompletedCanceledPage({ order, items, total }: Completed
           {/* No recommendations */}
           {!recsLoading && recommendations.length === 0 && (
             <p className="text-center text-sm text-gray-400 py-8">
-              ไม่พบสินค้าแนะนำในขณะนี้
+              No recommendations found at this time.
             </p>
           )}
         </div>

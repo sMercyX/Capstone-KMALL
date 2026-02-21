@@ -1,8 +1,8 @@
 // src/pages/store/StoreOrderDetailPage.tsx
 import { useEffect, useState, useCallback, useRef } from "react"
 import { Link, useNavigate, useParams } from "react-router-dom"
-import { Store, User } from "lucide-react"
-import { IoChevronBack } from "react-icons/io5"
+import { Store, User, Check } from "lucide-react"
+import BackButton from "../../components/Buttons/BackButton"
 
 import {
   useOrderSellerApi,
@@ -149,7 +149,6 @@ export default function StoreOrderDetailPage() {
   const [selectedBuilding, setSelectedBuilding] = useState<number | null>(null)
   const [selectedDateTime, setSelectedDateTime] = useState<Date | null>(null)
   const [selectedTime, setSelectedTime] = useState<string>("10:00 AM")
-  const [meetingNoteInput, setMeetingNoteInput] = useState("")
   const [proposeLoading, setProposeLoading] = useState(false)
   const [validationErrors, setValidationErrors] = useState<{ zone?: boolean; building?: boolean; dateTime?: boolean }>({})
   const meetingSectionRef = useRef<HTMLDivElement>(null)
@@ -225,11 +224,6 @@ export default function StoreOrderDetailPage() {
         const timeString = `${displayHours}:${displayMinutes} ${ampm}`
         
         setSelectedTime(timeString)
-      }
-      
-      // Populate meeting note
-      if (order.meeting_note) {
-        setMeetingNoteInput(order.meeting_note)
       }
     }
 
@@ -325,7 +319,6 @@ export default function StoreOrderDetailPage() {
         parseInt(orderId),
         selectedDateTime!.toISOString(),
         selectedBuilding || undefined,
-        meetingNoteInput || undefined
       )
       
       toast.success("Meeting time proposed successfully!")
@@ -493,8 +486,7 @@ export default function StoreOrderDetailPage() {
         await proposeOrder(
           parseInt(orderId),
           dateTime.toISOString(),
-          selectedBuilding ?? undefined,
-          meetingNoteInput || undefined
+          selectedBuilding ?? undefined
         )
         
         // Refresh data
@@ -580,13 +572,10 @@ export default function StoreOrderDetailPage() {
   return (
     <div className="max-w-5xl mx-auto py-10 px-4">
       {/* Back Button */}
-      <button
-        onClick={() => navigate(isSellerPath ? '/store/orders' : '/orders/ongoing')}
-        className="flex items-center gap-2 text-gray-600 hover:text-gray-900 mb-4 transition-colors"
-      >
-        <IoChevronBack className="w-6 h-6" />
-        <span className="text-base font-medium">Back</span>
-      </button>
+      <BackButton 
+        to={isSellerPath ? '/store/orders' : '/orders/ongoing'} 
+        className="mb-4"
+      />
 
       {/* Title */}
       <div className="text-center mb-8">
@@ -604,31 +593,44 @@ export default function StoreOrderDetailPage() {
       <div className="mb-8 flex justify-center">
         <div className="w-full max-w-4xl rounded-3xl bg-white border border-gray-200 px-6 md:px-8 py-6">
           <div className="relative">
-            <div className="absolute top-4 left-[8.33%] right-[8.33%] h-[2px] bg-gray-300" />
+            <div className="absolute top-4 left-[8.33%] right-[8.33%] h-[2px] bg-gray-300">
+              <div 
+                className="h-full bg-green-500 transition-all duration-500 ease-in-out"
+                style={{ width: `${Math.min((currentStep / (STEPS.length - 1)) * 100, 100)}%` }}
+              />
+            </div>
             <div className="relative flex justify-between">
               {STEPS.map((step, idx) => {
                 const isActive = idx === currentStep
                 const isPassed = idx < currentStep
+                // If order is completed/cancelled, treat the active step (last one) like a passed step
+                // (green bg, check icon)
+                const showAsCompleted = isPassed || (isActive && isFinished)
+                
                 return (
                   <div
                     key={step.key}
                     className="flex-1 flex flex-col items-center text-[10px] md:text-xs z-10"
                   >
                     <div
-                      className={`flex h-8 w-8 items-center justify-center rounded-full border-2 text-sm font-semibold
+                      className={`flex h-8 w-8 items-center justify-center rounded-full border-2 text-sm font-semibold transition-colors duration-300
             ${
-              isActive
-                ? "border-black bg-black text-white"
-                : isPassed
-                ? "border-gray-400 bg-gray-400 text-white"
+              showAsCompleted
+                ? "border-green-500 bg-green-500 text-white"
+                : isActive
+                ? "border-black bg-white text-black font-bold"
                 : "border-gray-300 bg-white text-gray-400"
             }`}
                     >
-                      {idx + 1}
+                      {showAsCompleted ? <Check className="w-5 h-5" /> : idx + 1}
                     </div>
                     <span
-                      className={`mt-2 uppercase text-[9px] md:text-[10px] tracking-tight whitespace-nowrap font-medium ${
-                        isActive ? "text-black font-bold" : "text-gray-400"
+                      className={`mt-2 uppercase text-[9px] md:text-[10px] tracking-tight whitespace-nowrap font-medium transition-colors duration-300 ${
+                         showAsCompleted 
+                            ? "text-green-600 font-bold" 
+                            : isActive 
+                            ? "text-black font-bold" 
+                            : "text-gray-400"
                       }`}
                     >
                       {getStepLabel(step.key, order?.status)}
@@ -713,14 +715,12 @@ export default function StoreOrderDetailPage() {
                 selectedBuilding={selectedBuilding}
                 selectedDateTime={selectedDateTime}
                 selectedTime={selectedTime}
-                meetingNoteInput={meetingNoteInput}
                 isBuyer={isBuyer}
                 proposeLoading={proposeLoading}
                 validationErrors={validationErrors}
                 onZoneChange={handleZoneChange}
                 onBuildingChange={handleBuildingChange}
                 onDateTimeChange={handleDateTimeChange}
-                onMeetingNoteChange={setMeetingNoteInput}
                 onProposeOrder={handleProposeOrder}
               />
               </div>
@@ -744,7 +744,7 @@ export default function StoreOrderDetailPage() {
 
             {/* Completed/Cancelled Page */}
             {(order.status === "Completed" || order.status === "Cancelled") && (
-              <CompletedCanceledPage order={order} items={items} total={total} />
+              <CompletedCanceledPage order={order} items={items} total={total} isBuyer={isBuyer} />
             )}
           </>
         )}
@@ -805,11 +805,12 @@ export default function StoreOrderDetailPage() {
         message="Are you sure you want to cancel this order?"
         confirmText="Confirm"
         cancelText="Close"
+        confirmDisabled={!cancelReason.trim()}
         variant="danger"
       >
         <div className="flex flex-col gap-2">
           <label className="text-sm font-medium text-gray-700">
-            Reason (optional)
+            Reason <span className="text-red-500">*</span>
           </label>
           <textarea
             className="w-full rounded-lg border border-gray-300 p-2 text-sm focus:border-red-500 focus:outline-none focus:ring-1 focus:ring-red-500"

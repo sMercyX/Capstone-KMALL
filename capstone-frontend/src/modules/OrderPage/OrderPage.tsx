@@ -2,10 +2,11 @@
 import { useEffect, useState } from "react"
 import { useLocation, useNavigate } from "react-router-dom"
 import { Loader2 } from "lucide-react"
+import BackButton from "../../components/Buttons/BackButton"
 import SwitchTabs, {
   type SwitchTabItem,
 } from "../../components/SwitchTabs/SwitchTabs"
-import { useUserStore } from "../../stores/userStore"
+
 
 import { useOrderStore, type OrderTabKey } from "../../stores/orderStore"
 import {
@@ -53,7 +54,7 @@ export default function OrderPage() {
   const location = useLocation()
   const navigate = useNavigate()
   const pathname = location.pathname
-  const name = useUserStore((s) => s.name) || "NITCHAN"
+
 
   const {
     activeKey,
@@ -118,14 +119,29 @@ export default function OrderPage() {
   }, [activeKey]) // เฉพาะ activeKey เพื่อป้องกัน fetch ซ้ำ
 
   return (
-    <div className="max-w-6xl mx-auto py-10 px-4">
-      {/* banner */}
-      <div className="mb-8">
-        <div className="h-32 md:h-40 rounded-3xl bg-gradient-to-r from-orange-400 via-orange-500 to-pink-500 flex items-center justify-center">
-          <p className="text-white font-extrabold tracking-[0.35em] text-lg md:text-2xl uppercase">
-            HEY, {name.toUpperCase()} !
-          </p>
-        </div>
+    <div className="max-w-6xl mx-auto py-10 px-4 relative">
+      <BackButton className="absolute left-4 top-10" />
+
+      {/* Title */}
+      <div className="text-center mb-6">
+        <h1 className="text-3xl md:text-4xl font-extrabold tracking-wide text-gray-800">
+          MY ORDER{" "}
+          <span
+            className={
+              activeKey === "ongoing"
+                ? "text-orange-400"
+                : activeKey === "completed"
+                ? "text-green-500"
+                : "text-red-500"
+            }
+          >
+            {activeKey === "ongoing"
+              ? "ON GOING"
+              : activeKey === "completed"
+              ? "COMPLETED"
+              : "CANCELED"}
+          </span>
+        </h1>
       </div>
 
       <SwitchTabs
@@ -135,7 +151,7 @@ export default function OrderPage() {
       />
 
       <div className="text-left mb-6">
-        <h2 className="text-xl md:text-2xl font-bold text-gray-800">
+        <h2 className="text-lg md:text-xl font-bold text-gray-800">
           Click to view order details
         </h2>
       </div>

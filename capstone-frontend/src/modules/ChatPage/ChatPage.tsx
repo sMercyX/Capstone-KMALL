@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect, useCallback } from "react"
 import { useParams, useLocation, useNavigate } from "react-router-dom"
+import BackButton from "../../components/Buttons/BackButton"
 import { Send, Plus, MessageCircle, User, Check, CheckCheck, X, MapPin } from "lucide-react"
-import { IoChevronBack } from "react-icons/io5"
 import { useChatApi, type MessageWithAttachments, type ChatThread } from "../../api/chatApi"
 import { useUserStore } from "../../stores/userStore"
 import { handleApiError } from "../../utils/handleApiError"
@@ -59,6 +59,8 @@ function mapStatusLabel(status: string): { label: string; color: string } {
     "Ready for Delivery": { label: "Accepted", color: "bg-green-500 text-white" },
 
     "Out For Delivery": { label: "Out For Delivery", color: "bg-indigo-500 text-white" },
+
+    "Arrived": { label: "Arrived", color: "bg-orange-500 text-white" },
 
     COMPLETED: { label: "Completed", color: "bg-green-500 text-white" },
     Completed: { label: "Completed", color: "bg-green-500 text-white" },
@@ -362,13 +364,8 @@ export default function ChatPage() {
       {/* <div className="mx-auto max-w-[calc(100%-110px)] py-8"> */}
         
         {/* Back Button */}
-        <button
-          onClick={() => navigate(-1)}
-          className="flex items-center gap-2 text-gray-600 hover:text-gray-900 mb-4 transition-colors"
-        >
-          <IoChevronBack className="w-6 h-6" />
-          <span className="text-base font-medium">Back</span>
-        </button>
+        {/* Back Button */}
+        <BackButton className="mb-4" />
 
         {/* Top Header Section (Outside Box) */}
         <div className="mb-6 text-center">
@@ -392,12 +389,15 @@ export default function ChatPage() {
                 <div className="flex items-center gap-4">
                   {/* Avatar */}
                   <div className="flex h-14 w-14 flex-shrink-0 items-center justify-center rounded-full bg-gray-200 overflow-hidden">
-                    {/* <User className="h-8 w-8 text-gray-400" strokeWidth={1.5} /> */}
-                     <img 
+                    {isSeller ? (
+                      <User className="h-8 w-8 text-gray-400" strokeWidth={1.5} />
+                    ) : (
+                      <img 
                         src={resolveImageUrl(orderDetail?.store_profile_url!)}
                         alt="Seller" 
                         className="h-full w-full object-cover"
                       />
+                    )}
                   </div>
                   <div className="flex flex-col">
                     <p className="text-lg font-bold text-gray-900">
@@ -527,10 +527,10 @@ export default function ChatPage() {
                           </div>
 
                           {/* Message Bubble */}
-                          <div className="flex flex-col gap-1 max-w-[350px]">
+                          <div className={`flex flex-col gap-1 max-w-[350px] ${msg.sender === "user" ? "items-end" : "items-start"}`}>
                             {/* Attachments */}
                             {msg.attachments && msg.attachments.length > 0 && (
-                              <div className="flex flex-wrap gap-2">
+                              <div className={`flex flex-wrap gap-2 ${msg.sender === "user" ? "justify-end" : "justify-start"}`}>
                                 {msg.attachments.map((att, idx) => (
                                   <img
                                     key={idx}
@@ -552,7 +552,7 @@ export default function ChatPage() {
                                     : "bg-white text-gray-700 rounded-[18px] border border-gray-100"
                                 }`}
                               >
-                              <span className="text-base leading-relaxed break-words whitespace-pre-wrap">
+                              <span className="text-base leading-relaxed break-all whitespace-pre-wrap">
                                   {msg.text}
                                 </span>
                               </div>
@@ -585,78 +585,89 @@ export default function ChatPage() {
             )}
           </div>
 
+
           {/* Input Area */}
           <div className="bg-white p-4 border-t border-gray-200">
             <div className="flex items-center gap-3">
+              {(() => {
+                const status = orderDetail?.order?.status || ""
+                const isOrderFinalized = ["Completed", "Cancelled"].includes(status)
 
-              <input
-                type="file"
-                ref={fileInputRef}
-                accept={SUPPORTED_IMAGE_TYPES}
-                className="hidden"
-                onChange={async (e) => {
-                  const file = e.target.files?.[0]
-                  if (file) {
-                    try {
-                        const processedFile = await processImageFile(file)
-                        setSelectedImage(processedFile)
-                        setImagePreview(URL.createObjectURL(processedFile))
-                    } catch (error) {
-                        // Error is already handled/logged in processImageFile
-                    }
-                  }
-                }}
-              />
-              <button
-                type="button"
-                onClick={() => fileInputRef.current?.click()}
-                className="flex h-10 w-10 items-center justify-center rounded-full border border-gray-300 text-gray-400 hover:bg-gray-50 hover:text-gray-600 transition-colors"
-              >
-                <Plus className="h-6 w-6" strokeWidth={1.5} />
-              </button>
-              
-              {/* Image Preview */}
-              {imagePreview && (
-                <div className="relative">
-                  <img 
-                    src={imagePreview} 
-                    alt="Preview" 
-                    className="h-10 w-10 rounded-lg object-cover border border-gray-200 cursor-pointer hover:opacity-90 transition-opacity"
-                    onClick={() => setPreviewImage(imagePreview)}
-                  />
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setSelectedImage(null)
-                      setImagePreview(null)
-                      if (fileInputRef.current) fileInputRef.current.value = ''
-                    }}
-                    className="absolute -top-1 -right-1 h-4 w-4 rounded-full bg-red-500 text-white flex items-center justify-center text-xs hover:bg-red-600"
-                  >
-                    ×
-                  </button>
-                </div>
-              )}
+                return (
+                  <>
+                    <input
+                      type="file"
+                      ref={fileInputRef}
+                      accept={SUPPORTED_IMAGE_TYPES}
+                      className="hidden"
+                      disabled={isOrderFinalized}
+                      onChange={async (e) => {
+                        const file = e.target.files?.[0]
+                        if (file) {
+                          try {
+                            const processedFile = await processImageFile(file)
+                            setSelectedImage(processedFile)
+                            setImagePreview(URL.createObjectURL(processedFile))
+                          } catch (error) {
+                            // Error is already handled/logged in processImageFile
+                          }
+                        }
+                      }}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => fileInputRef.current?.click()}
+                      disabled={isOrderFinalized}
+                      className="flex h-10 w-10 items-center justify-center rounded-full border border-gray-300 text-gray-400 hover:bg-gray-50 hover:text-gray-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      <Plus className="h-6 w-6" strokeWidth={1.5} />
+                    </button>
+                    
+                    {/* Image Preview */}
+                    {imagePreview && (
+                      <div className="relative">
+                        <img 
+                          src={imagePreview} 
+                          alt="Preview" 
+                          className="h-10 w-10 rounded-lg object-cover border border-gray-200 cursor-pointer hover:opacity-90 transition-opacity"
+                          onClick={() => setPreviewImage(imagePreview)}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setSelectedImage(null)
+                            setImagePreview(null)
+                            if (fileInputRef.current) fileInputRef.current.value = ''
+                          }}
+                          className="absolute -top-1 -right-1 h-4 w-4 rounded-full bg-red-500 text-white flex items-center justify-center text-xs hover:bg-red-600"
+                        >
+                          ×
+                        </button>
+                      </div>
+                    )}
 
-              <form onSubmit={handleSend} className="flex flex-1 items-center gap-3 relative">
-                <input
-                  ref={textInputRef}
-                  type="text"
-                  value={inputText}
-                  onChange={(e) => setInputText(e.target.value)}
-                  maxLength={180}
-                  placeholder="Type a message..."
-                  disabled={loading}
-                  className="flex-1 rounded-full border border-gray-200 bg-white px-5 py-3 text-sm outline-none focus:border-gray-300 focus:ring-0 transition-all placeholder:text-gray-300 shadow-inner disabled:bg-gray-50"
-                />
-                 <button
-                  type="submit"
-                  disabled={(!inputText.trim() && !selectedImage) || sending}
-                  className="absolute right-2 text-gray-400 hover:text-gray-600 disabled:opacity-50 transition-colors"
-                >
-                  <Send className="h-6 w-6 rotate-45" strokeWidth={1.5} />
-                </button>
-              </form>
+                    <form onSubmit={handleSend} className="flex flex-1 items-center gap-3 relative">
+                      <input
+                        ref={textInputRef}
+                        type="text"
+                        value={inputText}
+                        onChange={(e) => setInputText(e.target.value)}
+                        maxLength={180}
+                        placeholder={isOrderFinalized ? "Chat is closed for this order" : "Type a message..."}
+                        disabled={loading || isOrderFinalized}
+                        className="flex-1 rounded-full border border-gray-200 bg-white px-5 py-3 text-sm outline-none focus:border-gray-300 focus:ring-0 transition-all placeholder:text-gray-300 shadow-inner disabled:bg-gray-50 disabled:cursor-not-allowed"
+                      />
+                       <button
+                        type="submit"
+                        disabled={(!inputText.trim() && !selectedImage) || sending || isOrderFinalized}
+                        className="absolute right-2 text-gray-400 hover:text-gray-600 disabled:opacity-50 transition-colors disabled:cursor-not-allowed"
+                      >
+                        <Send className="h-6 w-6 rotate-45" strokeWidth={1.5} />
+                      </button>
+                    </form>
+                  </>
+                )
+              })()}
             </div>
           </div>
         </div>

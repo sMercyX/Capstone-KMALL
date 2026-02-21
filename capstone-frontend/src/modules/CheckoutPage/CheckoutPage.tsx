@@ -1,7 +1,8 @@
 // src/pages/cart/CheckoutPage.tsx
 import { useEffect, useState } from "react"
 import { useNavigate } from "react-router-dom"
-import { ShoppingCart, Store as StoreIcon, Truck, Package } from "lucide-react"
+import { AlertCircle, ShoppingCart, Store as StoreIcon, Truck, Package } from "lucide-react"
+import BackButton from "../../components/Buttons/BackButton"
 import { useCartApi } from "../../api/cartApi"
 import { useCartStore } from "../../stores/cartStore"
 import { useCheckkOutApi, type orderCreatedRequest } from "../../api/checkOutApi"
@@ -58,7 +59,7 @@ export default function CheckoutPage() {
   const [campusLocationId] = useState<number>(1) // Default campus location
   const [deliveryAddressId, setDeliveryAddressId] = useState<number>(1) // Default delivery address
   const [addressExtra, setAddressExtra] = useState("")
-  const [note, setNote] = useState("")
+
   const [submitting, setSubmitting] = useState(false)
   const [isConfirmModalOpen, setIsConfirmModalOpen] = useState(false)
 
@@ -189,6 +190,7 @@ export default function CheckoutPage() {
     <div className="min-h-screen bg-white">
       <div className="mx-auto w-full max-w-[calc(100%-110px)] pt-16 pb-24">
         <div className="mb-10 flex items-center gap-3 text-gray-900">
+          <BackButton className="mr-2" />
           <ShoppingCart className="h-7 w-7" />
           <h1 className="text-2xl font-semibold">Checkout</h1>
         </div>
@@ -240,6 +242,33 @@ export default function CheckoutPage() {
                   </div>
                 </div>
 
+                {/* Pickup Instructions Warning */}
+                {deliveryMethod === "CAMPUS" && (
+                  <div className="col-span-1 md:col-span-2 mt-4 rounded-xl border border-yellow-400 bg-yellow-50 p-6 relative">
+                    <div className="flex gap-3 mb-3">
+                      <AlertCircle className="h-6 w-6 text-yellow-700 shrink-0" />
+                      <h3 className="font-bold text-lg text-yellow-800">
+                        Please Note: Pickup Instructions
+                      </h3>
+                    </div>
+                    
+                    <ul className="space-y-2 text-yellow-900 ml-9 text-sm">
+                      <li className="list-disc">
+                        For pickup orders, the seller will specify the location, date, and time for pickup.
+                      </li>
+                      <li className="list-disc">
+                        The seller will provide these details in the 'Proposed' step.
+                      </li>
+                      <li className="list-disc">
+                        You can also discuss further via the order chat.
+                      </li>
+                      <li className="list-disc">
+                        The buyer must confirm the pickup details before proceeding to the next step.
+                      </li>
+                    </ul>
+                  </div>
+                )}
+
                 {/* Card 2: Round University */}
                 {/* <div 
                   onClick={() => setDeliveryMethod("ROUND_UNIVERSITY")}
@@ -283,16 +312,7 @@ export default function CheckoutPage() {
               </div>
             )}
 
-            <div>
-              <h2 className="text-2xl font-bold mb-4">Note</h2>
-              <input
-                type="text"
-                placeholder="Add a note (optional)"
-                value={note}
-                onChange={(e) => setNote(e.target.value)}
-                className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm shadow-sm focus:border-orange-400 focus:ring-2 focus:ring-orange-100 outline-none transition-all placeholder:text-gray-400"
-              />
-            </div>
+
 
 
           </section>

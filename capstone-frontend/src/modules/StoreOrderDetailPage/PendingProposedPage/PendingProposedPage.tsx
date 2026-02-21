@@ -19,14 +19,12 @@ interface PendingProposedPageProps {
   selectedBuilding: number | null
   selectedDateTime: Date | null
   selectedTime: string
-  meetingNoteInput: string
   isBuyer: boolean
   proposeLoading: boolean
   validationErrors?: { zone?: boolean; building?: boolean; dateTime?: boolean }
   onZoneChange: (zone: string | null) => void
   onBuildingChange: (building: number | null) => void
   onDateTimeChange: (date: Date | null, time: string) => void
-  onMeetingNoteChange: (note: string) => void
   onProposeOrder: () => void
 }
 
@@ -42,14 +40,12 @@ export default function PendingProposedPage({
   selectedBuilding,
   selectedDateTime,
   selectedTime,
-  meetingNoteInput,
   isBuyer,
   proposeLoading,
   validationErrors = {},
   onZoneChange,
   onBuildingChange,
   onDateTimeChange,
-  onMeetingNoteChange,
   onProposeOrder,
 }: PendingProposedPageProps) {
   // No tabs needed anymore
@@ -111,7 +107,7 @@ export default function PendingProposedPage({
         </div>
 
         {/* Meeting Note Input */}
-        <div className="mt-6">
+        {/* <div className="mt-6">
           <label className="block text-base font-semibold mb-3">Additional notes</label>
           <textarea
             value={meetingNoteInput}
@@ -121,22 +117,20 @@ export default function PendingProposedPage({
             className={`w-full bg-white border-2 border-gray-200 rounded-xl p-4 text-base min-h-[100px] resize-none
               ${isBuyer ? 'cursor-not-allowed opacity-70' : 'focus:border-orange-500 focus:ring-2 focus:ring-orange-100'}`}
           />
-        </div>
+        </div> */}
 
         {/* Save Button - only show for seller in Proposed status */}
         {!isBuyer && order.status === "Proposed" && (() => {
           // Check if any field has changed from the original order
           const originalBuildingId = order.meeting_location_id || order.campus_location_id
           const originalProposedAt = order.proposed_at ? new Date(order.proposed_at) : null
-          const originalNote = order.meeting_note || ""
 
           const hasZoneOrBuildingChanged = selectedBuilding !== originalBuildingId
           const hasDateTimeChanged = selectedDateTime && originalProposedAt
             ? selectedDateTime.getTime() !== originalProposedAt.getTime()
             : selectedDateTime !== originalProposedAt
-          const hasNoteChanged = meetingNoteInput !== originalNote
 
-          const hasChanges = hasZoneOrBuildingChanged || hasDateTimeChanged || hasNoteChanged
+          const hasChanges = hasZoneOrBuildingChanged || hasDateTimeChanged
           const isDisabled = proposeLoading || !selectedDateTime || !hasChanges
 
           return (
