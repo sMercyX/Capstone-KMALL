@@ -5,6 +5,7 @@ import { useUserStore } from "../../stores/userStore"
 import { useCartApi } from "../../api/cartApi"
 import { useCartStore } from "../../stores/cartStore"
 import CartDropdown from "./CartDropdown"
+import NotificationDropdown from "./NotificationDropdown"
 import UserDropdown from "./UserDropdown"
 import SearchBar from "./SearchBar"
 import kmallLogo from "../../assets/kmutt.svg"
@@ -13,6 +14,7 @@ import kmallText from "../../assets/kmutt-text.svg"
 export default function Navbar() {
   const [isUserOpen, setIsUserOpen] = useState(false)
   const [isCartOpen, setIsCartOpen] = useState(false)
+  const [isNotiOpen, setIsNotiOpen] = useState(false)
 
   const location = useLocation()
   const isStoreActive = location.pathname.startsWith("/store")
@@ -67,10 +69,21 @@ export default function Navbar() {
 
         {/* RIGHT: Cart + User */}
         <div className="flex items-center gap-4">
+          <NotificationDropdown
+            isOpen={isNotiOpen}
+            onToggle={() => {
+              setIsNotiOpen((prev) => !prev)
+              setIsCartOpen(false)
+              setIsUserOpen(false)
+            }}
+            onClose={() => setIsNotiOpen(false)}
+          />
+
           <CartDropdown
             isOpen={isCartOpen}
             onToggle={() => {
               setIsCartOpen((prev) => !prev)
+              setIsNotiOpen(false)
               setIsUserOpen(false)
             }}
             onClose={() => setIsCartOpen(false)}
@@ -80,6 +93,7 @@ export default function Navbar() {
             isOpen={isUserOpen}
             onToggle={() => {
               setIsUserOpen((prev) => !prev)
+              setIsNotiOpen(false)
               setIsCartOpen(false)
             }}
             onClose={() => setIsUserOpen(false)}
