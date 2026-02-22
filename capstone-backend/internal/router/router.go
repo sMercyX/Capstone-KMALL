@@ -3,6 +3,7 @@ package router
 import (
 	"context"
 	"log"
+	"net/http"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -291,35 +292,66 @@ func Attach(r *gin.Engine, db *pgxpool.Pool, cfg config.Config) {
 	})
 
 	// WebSocket Endpoint for Orders
-	r.GET("/api/ws/orders/:orderId", func(c *gin.Context) {
+	v1.GET("/ws/orders/:orderId", func(c *gin.Context) {
 		orderId := c.Param("orderId")
 		if orderId == "" {
 			return
 		}
-		// roomID pattern: order_{id}
+
+		up, ok := c.Get(middleware.CtxUpstreamUser)
+		if !ok || up == nil {
+			c.Status(http.StatusUnauthorized)
+			return
+		}
+		uu := up.(*middleware.UpstreamUser)
+		u, err := uSvc.FindByUpstreamID(c.Request.Context(), uu.UID)
+		if err != nil {
+			c.Status(http.StatusUnauthorized)
+			return
+		}
+
 		roomID := "order_" + orderId
-		websocket.ServeWs(hub, c, roomID)
+		websocket.ServeWs(hub, c, roomID, u.ID)
 	})
 
 	// WebSocket Endpoint for Chat
-	r.GET("/api/ws/chats/:threadId", func(c *gin.Context) {
+	v1.GET("/ws/chats/:threadId", func(c *gin.Context) {
 		threadId := c.Param("threadId")
 		if threadId == "" {
 			return
 		}
-		// roomID pattern: chat_{threadId}
-		roomID := "chat_" + threadId
-		websocket.ServeWs(hub, c, roomID)
-	})
 
-	// WebSocket Endpoint for Notifications
-	r.GET("/api/ws/notifications/:userID", func(c *gin.Context) {
-		userID := c.Param("userID")
-		if userID == "" {
+		up, ok := c.Get(middleware.CtxUpstreamUser)
+		if !ok || up == nil {
+			c.Status(http.StatusUnauthorized)
 			return
 		}
-		roomID := "notification_" + userID
-		websocket.ServeWs(hub, c, roomID)
+		uu := up.(*middleware.UpstreamUser)
+		u, err := uSvc.FindByUpstreamID(c.Request.Context(), uu.UID)
+		if err != nil {
+			c.Status(http.StatusUnauthorized)
+			return
+		}
+
+		roomID := "chat_" + threadId
+		websocket.ServeWs(hub, c, roomID, u.ID)
+	})
+
+	v1.GET("/ws/notifications", func(c *gin.Context) {
+		up, ok := c.Get(middleware.CtxUpstreamUser)
+		if !ok || up == nil {
+			c.Status(http.StatusUnauthorized)
+			return
+		}
+		uu := up.(*middleware.UpstreamUser)
+		u, err := uSvc.FindByUpstreamID(c.Request.Context(), uu.UID)
+		if err != nil {
+			c.Status(http.StatusUnauthorized)
+			return
+		}
+
+		roomID := "notification_" + u.ID
+		websocket.ServeWs(hub, c, roomID, u.ID)
 	})
 }
 

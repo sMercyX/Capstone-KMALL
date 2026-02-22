@@ -65,6 +65,7 @@ type Service interface {
 // Notifier is an interface for sending notifications
 type Notifier interface {
 	BroadcastToRoom(roomID string, message interface{})
+	IsUserInRoom(roomID string, userID string) bool
 }
 
 type service struct {
@@ -82,6 +83,14 @@ func NewService(r Repo, c cart.Service, p product.Service, st store.Service, n N
 		notifier: n,
 		noti:     noti,
 	}
+}
+
+func (s *service) shouldSkipNotiForOrderRoom(orderID int64, recipientUserID string) bool {
+	if s.notifier == nil {
+		return false
+	}
+	roomID := "order_" + strconv.FormatInt(orderID, 10)
+	return s.notifier.IsUserInRoom(roomID, recipientUserID)
 }
 
 // ============================================================================
@@ -634,9 +643,8 @@ func (s *service) createOrderStatusNotiBestEffort(
 		return
 	}
 
-	recipient := ord.UserID // default: notify buyer
+	recipient := ord.UserID
 
-	// ถ้า actor เป็น buyer → notify seller(owner)
 	if strings.EqualFold(actorUserID, ord.UserID) {
 		st, err := s.storeSvc.Get(ctx, int64(ord.StoreID))
 		if err != nil {
@@ -645,50 +653,14 @@ func (s *service) createOrderStatusNotiBestEffort(
 		recipient = st.UserID.String()
 	}
 
-	// กันแจ้งเตือนให้ตัวเอง
 	if strings.EqualFold(recipient, actorUserID) {
 		return
 	}
 
-	_, _ = s.noti.CreateOrderStatus(ctx, notification.CreateOrderStatusNotificationInput{
-		RecipientUserID: recipient,
-		ActorUserID:     actorUserID,
-		OrderID:         int64(ord.ID),
-		StoreID:         int64(ord.StoreID),
-		OldStatus:       from,
-		NewStatus:       to,
-	})
-}
-
-func (s *service) updateOrderStatusNotiBestEffort(
-	ctx context.Context,
-	ord Order,
-	actorUserID, from, to string,
-) error {
-	if strings.TrimSpace(actorUserID) == "" {
-		return apperr.New(apperr.BadRequest, "invalid actor_user_id")
-	}
-	if s.noti == nil {
-		return apperr.New(apperr.Internal, "notification service not available")
+	if s.shouldSkipNotiForOrderRoom(int64(ord.ID), recipient) {
+		return
 	}
 
-	actorUserID = strings.TrimSpace(actorUserID)
-	if actorUserID == "" {
-		return apperr.New(apperr.BadRequest, "invalid actor_user_id")
-	}
-
-	recipient := ord.UserID
-	if strings.EqualFold(actorUserID, ord.UserID) {
-		st, err := s.storeSvc.Get(ctx, int64(ord.StoreID))
-		if err != nil {
-			return apperr.Wrap(apperr.Internal, err, "failed to fetch store for notification")
-		}
-		recipient = st.UserID.String()
-	}
-
-	if strings.EqualFold(recipient, actorUserID) {
-		return nil
-	}
 	ordID := int64(ord.ID)
 	title, body := notification.BuildOrderStatusMessage(from, to)
 
@@ -703,14 +675,111 @@ func (s *service) updateOrderStatusNotiBestEffort(
 		Types:   []string{"ORDER_STATUS_CHANGED"},
 		Limit:   1,
 	})
-	if err == nil && len(existing) > 0 {
+	if err != nil {
+		if apperr.Is(err, apperr.NotFound) {
+			existing = nil
+		} else {
+			return
+		}
+	}
+
+	if len(existing) > 0 {
+		isUnread := false
 		_, _ = s.noti.UpdateNotification(ctx, notification.UpdateNotificationInput{
 			NotificationID: existing[0].ID,
 			Title:          strPtr(title),
 			Body:           strPtr(body),
+			IsRead:         &isUnread,
 			Data:           newData,
 		})
+		return
 	}
+
+	_, _ = s.noti.CreateOrderStatus(ctx, notification.CreateOrderStatusNotificationInput{
+		RecipientUserID: recipient,
+		ActorUserID:     actorUserID,
+		OrderID:         ordID,
+		StoreID:         int64(ord.StoreID),
+		OldStatus:       from,
+		NewStatus:       to,
+	})
+}
+
+func (s *service) updateOrderStatusNotiBestEffort(
+	ctx context.Context,
+	ord Order,
+	actorUserID, from, to string,
+) error {
+	if s.noti == nil {
+		return nil
+	}
+
+	actorUserID = strings.TrimSpace(actorUserID)
+	if actorUserID == "" {
+		return apperr.New(apperr.BadRequest, "invalid actor_user_id")
+	}
+
+	recipient := ord.UserID
+
+	if strings.EqualFold(actorUserID, ord.UserID) {
+		st, err := s.storeSvc.Get(ctx, int64(ord.StoreID))
+		if err != nil {
+			return apperr.Wrap(apperr.Internal, err, "failed to fetch store for notification")
+		}
+		recipient = st.UserID.String()
+	}
+
+	if strings.EqualFold(recipient, actorUserID) {
+		return nil
+	}
+
+	if s.shouldSkipNotiForOrderRoom(int64(ord.ID), recipient) {
+		return nil
+	}
+
+	ordID := int64(ord.ID)
+	title, body := notification.BuildOrderStatusMessage(from, to)
+
+	newData := map[string]any{
+		"old_status": from,
+		"new_status": to,
+	}
+
+	existing, err := s.noti.List(ctx, notification.ListInput{
+		UserID:  recipient,
+		OrderID: &ordID,
+		Types:   []string{"ORDER_STATUS_CHANGED"},
+		Limit:   1,
+	})
+	if err != nil {
+		if apperr.Is(err, apperr.NotFound) {
+			existing = nil
+		} else {
+			return nil
+		}
+	}
+
+	if len(existing) > 0 {
+		isUnread := false
+		_, _ = s.noti.UpdateNotification(ctx, notification.UpdateNotificationInput{
+			NotificationID: existing[0].ID,
+			Title:          strPtr(title),
+			Body:           strPtr(body),
+			IsRead:         &isUnread,
+			Data:           newData,
+		})
+		return nil
+	}
+
+	_, _ = s.noti.CreateOrderStatus(ctx, notification.CreateOrderStatusNotificationInput{
+		RecipientUserID: recipient,
+		ActorUserID:     actorUserID,
+		OrderID:         ordID,
+		StoreID:         int64(ord.StoreID),
+		OldStatus:       from,
+		NewStatus:       to,
+	})
+
 	return nil
 }
 
