@@ -132,10 +132,15 @@ func (h *Handler) list(c *gin.Context) {
 		c.Error(err)
 		return
 	}
+	unreadCount, err := h.svc.CountUnread(c.Request.Context(), userID)
+	if err != nil {
+		c.Error(err)
+		return
+	}
 
 	c.JSON(http.StatusOK, gin.H{
 		"notifications": items,
-		"count":         len(items),
+		"count":         unreadCount,
 		"before_id":     beforeID,
 	})
 }

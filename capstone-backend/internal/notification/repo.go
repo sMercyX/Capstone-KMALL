@@ -64,6 +64,7 @@ func scanNotification(row pgx.Row, n *Notification) error {
 		&n.IsRead,
 		&n.ReadAt,
 		&n.CreatedAt,
+		&n.UpdatedAt,
 	)
 	if err != nil {
 		return err
@@ -131,7 +132,8 @@ WITH ins AS (
     title, body,
     data,
     is_read, read_at,
-    created_at
+    created_at,
+	updated_at
 )
 SELECT
   ins.notification_id,
@@ -145,7 +147,8 @@ SELECT
   ins.title, ins.body,
   ins.data,
   ins.is_read, ins.read_at,
-  ins.created_at
+  ins.created_at,
+  ins.updated_at
 FROM ins
 LEFT JOIN stores s ON s.store_id = ins.store_id
 LEFT JOIN users  u ON u.user_id = ins.actor_user_id
@@ -214,7 +217,8 @@ SELECT
   n.title, n.body,
   n.data,
   n.is_read, n.read_at,
-  n.created_at
+  n.created_at,
+  n.updated_at
 FROM notifications n
 LEFT JOIN stores s ON s.store_id = n.store_id
 LEFT JOIN users  u ON u.user_id = n.actor_user_id
@@ -252,7 +256,8 @@ SELECT
   n.title, n.body,
   n.data,
   n.is_read, n.read_at,
-  n.created_at
+  n.created_at,
+  n.updated_at
 FROM notifications n
 LEFT JOIN stores s ON s.store_id = n.store_id
 LEFT JOIN users  u ON u.user_id = n.actor_user_id
@@ -363,7 +368,8 @@ SELECT
   upd.title, upd.body,
   upd.data,
   upd.is_read, upd.read_at,
-  upd.created_at
+  upd.created_at,
+  upd.updated_at
 FROM upd
 LEFT JOIN stores s ON s.store_id = upd.store_id
 LEFT JOIN users  u ON u.user_id  = upd.actor_user_id
@@ -498,7 +504,7 @@ SELECT
   upd.store_id, s.store_name,
   upd.actor_user_id, u.display_name,
   upd.title, upd.body, upd.data,
-  upd.is_read, upd.read_at, upd.created_at
+  upd.is_read, upd.read_at, upd.created_at, upd.updated_at
 FROM upd
 LEFT JOIN stores s ON s.store_id = upd.store_id
 LEFT JOIN users  u ON u.user_id  = upd.actor_user_id
