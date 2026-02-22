@@ -25,6 +25,9 @@ type Repo interface {
 
 	MarkRead(ctx context.Context, in MarkReadInput) (Notification, error)
 
+	MarkReadByThread(ctx context.Context, userID string, threadID int64, types []string) (int64, error)
+	MarkReadByOrder(ctx context.Context, userID string, orderID int64, types []string) (int64, error)
+
 	Delete(ctx context.Context, userID string, notificationID int64) error
 	DeleteAll(ctx context.Context, userID string) (int64, error)
 
@@ -523,4 +526,84 @@ LEFT JOIN users  u ON u.user_id  = upd.actor_user_id
 		return Notification{}, apperr.Wrap(apperr.Internal, err, "update notification failed")
 	}
 	return n, nil
+}
+
+func (r *repo) MarkReadByThread(
+	ctx context.Context,
+	userID string,
+	threadID int64,
+	types []string,
+) (int64, error) {
+	userID = strings.TrimSpace(userID)
+	if userID == "" {
+		return 0, apperr.New(apperr.BadRequest, "invalid user_id")
+	}
+	if threadID <= 0 {
+		return 0, apperr.New(apperr.BadRequest, "invalid thread_id")
+	}
+
+	now := time.Now()
+
+	q := `
+UPDATE notifications
+SET
+  is_read = TRUE,
+  read_at = COALESCE(read_at, $3),
+  updated_at = NOW()
+WHERE user_id = $1
+  AND thread_id = $2
+  AND is_read = FALSE
+`
+	args := []any{userID, threadID, now}
+
+	if len(types) > 0 {
+		q += " AND type = ANY($4) "
+		args = append(args, types)
+	}
+
+	tag, err := r.db.Exec(ctx, q, args...)
+	if err != nil {
+		return 0, apperr.Wrap(apperr.Internal, err, "mark read by thread failed")
+	}
+	return tag.RowsAffected(), nil
+}
+
+func (r *repo) MarkReadByOrder(
+	ctx context.Context,
+	userID string,
+	orderID int64,
+	types []string,
+) (int64, error) {
+	userID = strings.TrimSpace(userID)
+	if userID == "" {
+		return 0, apperr.New(apperr.BadRequest, "invalid user_id")
+	}
+	if orderID <= 0 {
+		return 0, apperr.New(apperr.BadRequest, "invalid order_id")
+	}
+
+	now := time.Now()
+
+	q := `
+UPDATE notifications
+SET
+  is_read = TRUE,
+  read_at = COALESCE(read_at, $3),
+  updated_at = NOW()
+WHERE user_id = $1
+  AND order_id = $2
+  AND is_read = FALSE
+`
+	args := []any{userID, orderID, now}
+
+	if len(types) > 0 {
+		q += " AND type = ANY($4) "
+		args = append(args, types)
+	}
+
+	tag, err := r.db.Exec(ctx, q, args...)
+	if err != nil {
+		return 0, apperr.Wrap(apperr.Internal, err, "mark read by order failed")
+	}
+	return tag.RowsAffected(), nil
 }

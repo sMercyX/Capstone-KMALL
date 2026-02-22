@@ -79,6 +79,8 @@ type Service interface {
 	// generic operations (API)
 	List(ctx context.Context, in ListInput) ([]Notification, error)
 	MarkRead(ctx context.Context, in MarkReadInput) (Notification, error)
+	MarkReadByThread(ctx context.Context, userID string, threadID int64, types []string) (int64, error)
+	MarkReadByOrder(ctx context.Context, userID string, orderID int64, types []string) (int64, error)
 	Delete(ctx context.Context, userID string, notificationID int64) error
 	DeleteAll(ctx context.Context, userID string) (int64, error)
 	CountUnread(ctx context.Context, userID string) (int64, error)
@@ -314,4 +316,36 @@ func (s *service) UpdateNotification(ctx context.Context, in UpdateNotificationI
 
 	s.broadcastNotification(n.UserID, n)
 	return n, nil
+}
+
+func (s *service) MarkReadByThread(
+	ctx context.Context,
+	userID string,
+	threadID int64,
+	types []string,
+) (int64, error) {
+	userID = strings.TrimSpace(userID)
+	if userID == "" {
+		return 0, apperr.New(apperr.BadRequest, "invalid user_id")
+	}
+	if threadID <= 0 {
+		return 0, apperr.New(apperr.BadRequest, "invalid thread_id")
+	}
+	return s.repo.MarkReadByThread(ctx, userID, threadID, types)
+}
+
+func (s *service) MarkReadByOrder(
+	ctx context.Context,
+	userID string,
+	orderID int64,
+	types []string,
+) (int64, error) {
+	userID = strings.TrimSpace(userID)
+	if userID == "" {
+		return 0, apperr.New(apperr.BadRequest, "invalid user_id")
+	}
+	if orderID <= 0 {
+		return 0, apperr.New(apperr.BadRequest, "invalid order_id")
+	}
+	return s.repo.MarkReadByOrder(ctx, userID, orderID, types)
 }
