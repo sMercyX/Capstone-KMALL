@@ -244,7 +244,7 @@ func Attach(r *gin.Engine, db *pgxpool.Pool, cfg config.Config) {
 	cartHdl.Register(v1)
 
 	// orders
-	oHdl := order.NewHandler(oSvc, rSvc, uSvc, sSvc)
+	oHdl := order.NewHandler(oSvc, rSvc, uSvc, sSvc, notiSvc)
 	oHdl.Register(v1)
 
 	//search history
