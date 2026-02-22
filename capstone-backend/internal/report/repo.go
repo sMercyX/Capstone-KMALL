@@ -1,0 +1,717 @@
+package report
+
+import (
+	"context"
+	"errors"
+	"strings"
+	"time"
+
+	"github.com/jackc/pgconn"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
+
+	apperr "github.com/Perpasit/Capstone-KMALL/internal/apperr"
+)
+
+// ============================================================================
+// Repo Interface
+// ============================================================================
+
+type Repo interface {
+	// Report
+	CreateReport(ctx context.Context, in CreateReportInput) (Report, error)
+	GetReport(ctx context.Context, reportID int64) (Report, error)
+	ListReports(ctx context.Context, in ListReportsParams) ([]Report, error)
+	UpdateReportStatus(ctx context.Context, reportID int64, status string) (Report, error)
+
+	// Evidences
+	CreateReportEvidences(ctx context.Context, reportID int64, uploadedBy string, items []CreateReportEvidenceInput) ([]ReportEvidence, error)
+	ListEvidencesByReportID(ctx context.Context, reportID int64) ([]ReportEvidence, error)
+
+	// Snapshots
+	CreateOrderSnapshot(ctx context.Context, in ReportOrderSnapshot) error
+	CreateChatSnapshots(ctx context.Context, items []ReportChatSnapshot) error
+	ListChatSnapshotsByReportID(ctx context.Context, reportID int64) ([]ReportChatSnapshot, error)
+	GetOrderSnapshot(ctx context.Context, reportID int64) (ReportOrderSnapshot, error)
+
+	// Admin Actions
+	CreateAdminAction(ctx context.Context, in AdminActionInput) (ReportAdminAction, error)
+	ListAdminActionsByReportID(ctx context.Context, reportID int64) ([]ReportAdminAction, error)
+
+	// Blacklist
+	CreateUserBan(ctx context.Context, in CreateUserBanInput) (UserBlacklist, error)
+	RevokeUserBan(ctx context.Context, blacklistID int64) (UserBlacklist, error)
+	GetActiveBan(ctx context.Context, userID string) (*UserBlacklist, error)
+	ListBanHistory(ctx context.Context, in ListBanHistoryParams) ([]UserBlacklist, error)
+}
+
+type repo struct {
+	db *pgxpool.Pool
+}
+
+func NewRepo(db *pgxpool.Pool) Repo {
+	return &repo{db: db}
+}
+
+// ============================================================================
+// Scanners
+// ============================================================================
+
+func scanReport(row pgx.Row, r *Report) error {
+	return row.Scan(
+		&r.ID,
+		&r.OrderID,
+		&r.ReporterID,
+		&r.ReportedUserID,
+		&r.ReportedPartyType,
+		&r.ReasonCode,
+		&r.Description,
+		&r.Status,
+		&r.CreatedAt,
+		&r.UpdatedAt,
+	)
+}
+
+func scanEvidence(row pgx.Row, e *ReportEvidence) error {
+	return row.Scan(
+		&e.ID,
+		&e.ReportID,
+		&e.UploadedBy,
+		&e.FileURL,
+		&e.FileName,
+		&e.MimeType,
+		&e.FileSizeBytes,
+		&e.SHA256,
+		&e.CreatedAt,
+	)
+}
+
+func scanChatSnapshot(row pgx.Row, s *ReportChatSnapshot) error {
+	return row.Scan(
+		&s.ID,
+		&s.ReportID,
+		&s.SenderID,
+		&s.SenderRole,
+		&s.MessageText,
+		&s.MessageType,
+		&s.AttachmentURLs,
+		&s.MessageCreatedAt,
+	)
+}
+
+func scanAdminAction(row pgx.Row, a *ReportAdminAction) error {
+	return row.Scan(
+		&a.ID,
+		&a.ReportID,
+		&a.AdminID,
+		&a.ActionType,
+		&a.Note,
+		&a.TargetUserID,
+		&a.TargetStoreID,
+		&a.SuspendDays,
+		&a.IsPermanent,
+		&a.CreatedAt,
+	)
+}
+
+func scanUserBlacklist(row pgx.Row, b *UserBlacklist) error {
+	return row.Scan(
+		&b.ID,
+		&b.UserID,
+		&b.UserRole,
+		&b.ReportID,
+		&b.Reason,
+		&b.BanType,
+		&b.BannedFrom,
+		&b.BannedUntil,
+		&b.IsActive,
+		&b.CreatedBy,
+		&b.CreatedAt,
+	)
+}
+
+// ============================================================================
+// Report
+// ============================================================================
+
+func (r *repo) CreateReport(ctx context.Context, in CreateReportInput) (Report, error) {
+	in.ReporterID = strings.TrimSpace(in.ReporterID)
+	in.ReportedUserID = strings.TrimSpace(in.ReportedUserID)
+	in.ReasonCode = strings.TrimSpace(in.ReasonCode)
+	if in.ReporterID == "" || in.ReportedUserID == "" || in.ReasonCode == "" {
+		return Report{}, apperr.New(apperr.BadRequest, "reporter_id, reported_user_id, and reason_code are required")
+	}
+	if in.OrderID <= 0 {
+		return Report{}, apperr.New(apperr.BadRequest, "invalid order_id")
+	}
+
+	var rep Report
+	err := scanReport(r.db.QueryRow(ctx, `
+INSERT INTO reports (
+  order_id, reporter_id, reported_user_id, reported_party_type, reason_code, description
+) VALUES ($1,$2,$3,$4,$5,$6)
+RETURNING
+  report_id, order_id, reporter_id, reported_user_id, reported_party_type,
+  reason_code, description, status, created_at, updated_at
+`,
+		in.OrderID, in.ReporterID, in.ReportedUserID,
+		in.ReportedPartyType, in.ReasonCode, in.Description,
+	), &rep)
+
+	if err != nil {
+		if pgErr, ok := err.(*pgconn.PgError); ok {
+			switch pgErr.Code {
+			case "23505": // unique violation
+				return Report{}, apperr.New(apperr.Conflict, "report already exists for this order")
+			case "23503": // FK violation
+				return Report{}, apperr.WithFields(
+					apperr.Wrap(apperr.BadRequest, err, "invalid order_id or user_id"),
+					map[string]any{"pg_code": pgErr.Code, "constraint": pgErr.ConstraintName},
+				)
+			case "23514": // check constraint (self report)
+				return Report{}, apperr.New(apperr.BadRequest, "cannot report yourself")
+			}
+			return Report{}, apperr.WithFields(
+				apperr.Wrap(apperr.Internal, err, "insert report failed"),
+				map[string]any{"pg_code": pgErr.Code},
+			)
+		}
+		return Report{}, apperr.Wrap(apperr.Internal, err, "insert report failed")
+	}
+	return rep, nil
+}
+
+func (r *repo) GetReport(ctx context.Context, reportID int64) (Report, error) {
+	if reportID <= 0 {
+		return Report{}, apperr.New(apperr.BadRequest, "invalid report_id")
+	}
+
+	var rep Report
+	err := scanReport(r.db.QueryRow(ctx, `
+SELECT
+  report_id, order_id, reporter_id, reported_user_id, reported_party_type,
+  reason_code, description, status, created_at, updated_at
+FROM reports
+WHERE report_id = $1
+`, reportID), &rep)
+
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return Report{}, apperr.New(apperr.NotFound, "report not found")
+		}
+		return Report{}, apperr.Wrap(apperr.Internal, err, "get report failed")
+	}
+	return rep, nil
+}
+
+func (r *repo) ListReports(ctx context.Context, in ListReportsParams) ([]Report, error) {
+	if in.Limit <= 0 || in.Limit > 100 {
+		in.Limit = 20
+	}
+
+	query := `
+SELECT
+  report_id, order_id, reporter_id, reported_user_id, reported_party_type,
+  reason_code, description, status, created_at, updated_at
+FROM reports
+WHERE 1=1
+`
+	args := []any{}
+	i := 1
+
+	if in.Status != nil {
+		query += ` AND status = $` + itoa(i)
+		args = append(args, *in.Status)
+		i++
+	}
+	if in.ReportedPartyType != nil {
+		query += ` AND reported_party_type = $` + itoa(i)
+		args = append(args, *in.ReportedPartyType)
+		i++
+	}
+	if in.ReasonCode != nil {
+		query += ` AND reason_code = $` + itoa(i)
+		args = append(args, *in.ReasonCode)
+		i++
+	}
+	if in.FromDate != nil {
+		query += ` AND created_at >= $` + itoa(i)
+		args = append(args, *in.FromDate)
+		i++
+	}
+	if in.ToDate != nil {
+		query += ` AND created_at <= $` + itoa(i)
+		args = append(args, *in.ToDate)
+		i++
+	}
+
+	query += ` ORDER BY created_at DESC LIMIT $` + itoa(i) + ` OFFSET $` + itoa(i+1)
+	args = append(args, in.Limit, in.Offset)
+
+	rows, err := r.db.Query(ctx, query, args...)
+	if err != nil {
+		return nil, apperr.Wrap(apperr.Internal, err, "list reports failed")
+	}
+	defer rows.Close()
+
+	out := make([]Report, 0, in.Limit)
+	for rows.Next() {
+		var rep Report
+		if err := scanReport(rows, &rep); err != nil {
+			return nil, apperr.Wrap(apperr.Internal, err, "scan report failed")
+		}
+		out = append(out, rep)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, apperr.Wrap(apperr.Internal, err, "rows error")
+	}
+	return out, nil
+}
+
+func (r *repo) UpdateReportStatus(ctx context.Context, reportID int64, status string) (Report, error) {
+	if reportID <= 0 {
+		return Report{}, apperr.New(apperr.BadRequest, "invalid report_id")
+	}
+	status = strings.ToUpper(strings.TrimSpace(status))
+	if status == "" {
+		return Report{}, apperr.New(apperr.BadRequest, "status is required")
+	}
+
+	var rep Report
+	err := scanReport(r.db.QueryRow(ctx, `
+UPDATE reports
+SET status = $2, updated_at = NOW()
+WHERE report_id = $1
+RETURNING
+  report_id, order_id, reporter_id, reported_user_id, reported_party_type,
+  reason_code, description, status, created_at, updated_at
+`, reportID, status), &rep)
+
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return Report{}, apperr.New(apperr.NotFound, "report not found")
+		}
+		return Report{}, apperr.Wrap(apperr.Internal, err, "update report status failed")
+	}
+	return rep, nil
+}
+
+// ============================================================================
+// Evidences
+// ============================================================================
+
+func (r *repo) CreateReportEvidences(ctx context.Context, reportID int64, uploadedBy string, items []CreateReportEvidenceInput) ([]ReportEvidence, error) {
+	if len(items) == 0 {
+		return nil, nil
+	}
+	if reportID <= 0 {
+		return nil, apperr.New(apperr.BadRequest, "invalid report_id")
+	}
+	uploadedBy = strings.TrimSpace(uploadedBy)
+	if uploadedBy == "" {
+		return nil, apperr.New(apperr.BadRequest, "invalid uploaded_by")
+	}
+
+	batch := &pgx.Batch{}
+	for _, it := range items {
+		it.FileURL = strings.TrimSpace(it.FileURL)
+		if it.FileURL == "" {
+			return nil, apperr.New(apperr.BadRequest, "file_url is required")
+		}
+		batch.Queue(`
+INSERT INTO report_evidences (
+  report_id, uploaded_by, file_url, file_name, mime_type, file_size_bytes, sha256
+) VALUES ($1,$2,$3,$4,$5,$6,$7)
+RETURNING
+  evidence_id, report_id, uploaded_by, file_url, file_name, mime_type, file_size_bytes, sha256, created_at
+`, reportID, uploadedBy, it.FileURL, it.FileName, it.MimeType, it.FileSizeBytes, it.SHA256)
+	}
+
+	br := r.db.SendBatch(ctx, batch)
+	defer br.Close()
+
+	out := make([]ReportEvidence, 0, len(items))
+	for range items {
+		var e ReportEvidence
+		if err := scanEvidence(br.QueryRow(), &e); err != nil {
+			return nil, apperr.Wrap(apperr.Internal, err, "insert evidence failed")
+		}
+		out = append(out, e)
+	}
+	return out, nil
+}
+
+func (r *repo) ListEvidencesByReportID(ctx context.Context, reportID int64) ([]ReportEvidence, error) {
+	if reportID <= 0 {
+		return nil, apperr.New(apperr.BadRequest, "invalid report_id")
+	}
+
+	rows, err := r.db.Query(ctx, `
+SELECT
+  evidence_id, report_id, uploaded_by, file_url, file_name, mime_type, file_size_bytes, sha256, created_at
+FROM report_evidences
+WHERE report_id = $1
+ORDER BY evidence_id ASC
+`, reportID)
+	if err != nil {
+		return nil, apperr.Wrap(apperr.Internal, err, "list evidences failed")
+	}
+	defer rows.Close()
+
+	var out []ReportEvidence
+	for rows.Next() {
+		var e ReportEvidence
+		if err := scanEvidence(rows, &e); err != nil {
+			return nil, apperr.Wrap(apperr.Internal, err, "scan evidence failed")
+		}
+		out = append(out, e)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, apperr.Wrap(apperr.Internal, err, "rows error")
+	}
+	return out, nil
+}
+
+// ============================================================================
+// Snapshots
+// ============================================================================
+
+func (r *repo) CreateOrderSnapshot(ctx context.Context, in ReportOrderSnapshot) error {
+	if in.ReportID <= 0 {
+		return apperr.New(apperr.BadRequest, "invalid report_id")
+	}
+	_, err := r.db.Exec(ctx, `
+INSERT INTO report_order_snapshots (
+  report_id, order_status, delivery_method, total_price,
+  delivery_address, campus_location, delivery_time
+) VALUES ($1,$2,$3,$4,$5,$6,$7)
+`,
+		in.ReportID, in.OrderStatus, in.DeliveryMethod, in.TotalPrice,
+		in.DeliveryAddress, in.CampusLocation, in.DeliveryTime,
+	)
+	if err != nil {
+		return apperr.Wrap(apperr.Internal, err, "insert order snapshot failed")
+	}
+	return nil
+}
+
+func (r *repo) GetOrderSnapshot(ctx context.Context, reportID int64) (ReportOrderSnapshot, error) {
+	if reportID <= 0 {
+		return ReportOrderSnapshot{}, apperr.New(apperr.BadRequest, "invalid report_id")
+	}
+
+	var s ReportOrderSnapshot
+	err := r.db.QueryRow(ctx, `
+SELECT
+  report_id, order_status, delivery_method, total_price,
+  delivery_address, campus_location, delivery_time, created_at
+FROM report_order_snapshots
+WHERE report_id = $1
+`, reportID).Scan(
+		&s.ReportID, &s.OrderStatus, &s.DeliveryMethod, &s.TotalPrice,
+		&s.DeliveryAddress, &s.CampusLocation, &s.DeliveryTime, &s.CreatedAt,
+	)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return ReportOrderSnapshot{}, apperr.New(apperr.NotFound, "order snapshot not found")
+		}
+		return ReportOrderSnapshot{}, apperr.Wrap(apperr.Internal, err, "get order snapshot failed")
+	}
+	return s, nil
+}
+
+func (r *repo) CreateChatSnapshots(ctx context.Context, items []ReportChatSnapshot) error {
+	if len(items) == 0 {
+		return nil
+	}
+
+	batch := &pgx.Batch{}
+	for _, it := range items {
+		batch.Queue(`
+INSERT INTO report_chat_snapshots (
+  report_id, sender_id, sender_role, message_text, message_type,
+  attachment_urls, message_created_at
+) VALUES ($1,$2,$3,$4,$5,$6,$7)
+`,
+			it.ReportID, it.SenderID, it.SenderRole, it.MessageText,
+			it.MessageType, it.AttachmentURLs, it.MessageCreatedAt,
+		)
+	}
+
+	br := r.db.SendBatch(ctx, batch)
+	defer br.Close()
+
+	for range items {
+		if _, err := br.Exec(); err != nil {
+			return apperr.Wrap(apperr.Internal, err, "insert chat snapshot failed")
+		}
+	}
+	return nil
+}
+
+func (r *repo) ListChatSnapshotsByReportID(ctx context.Context, reportID int64) ([]ReportChatSnapshot, error) {
+	if reportID <= 0 {
+		return nil, apperr.New(apperr.BadRequest, "invalid report_id")
+	}
+
+	rows, err := r.db.Query(ctx, `
+SELECT
+  snapshot_id, report_id, sender_id, sender_role, message_text,
+  message_type, attachment_urls, message_created_at
+FROM report_chat_snapshots
+WHERE report_id = $1
+ORDER BY message_created_at ASC
+`, reportID)
+	if err != nil {
+		return nil, apperr.Wrap(apperr.Internal, err, "list chat snapshots failed")
+	}
+	defer rows.Close()
+
+	var out []ReportChatSnapshot
+	for rows.Next() {
+		var s ReportChatSnapshot
+		if err := scanChatSnapshot(rows, &s); err != nil {
+			return nil, apperr.Wrap(apperr.Internal, err, "scan chat snapshot failed")
+		}
+		out = append(out, s)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, apperr.Wrap(apperr.Internal, err, "rows error")
+	}
+	return out, nil
+}
+
+// ============================================================================
+// Admin Actions
+// ============================================================================
+
+func (r *repo) CreateAdminAction(ctx context.Context, in AdminActionInput) (ReportAdminAction, error) {
+	if in.ReportID <= 0 {
+		return ReportAdminAction{}, apperr.New(apperr.BadRequest, "invalid report_id")
+	}
+	in.AdminID = strings.TrimSpace(in.AdminID)
+	in.ActionType = strings.ToUpper(strings.TrimSpace(in.ActionType))
+	if in.AdminID == "" || in.ActionType == "" {
+		return ReportAdminAction{}, apperr.New(apperr.BadRequest, "admin_id and action_type are required")
+	}
+
+	var a ReportAdminAction
+	err := scanAdminAction(r.db.QueryRow(ctx, `
+INSERT INTO report_admin_actions (
+  report_id, admin_id, action_type, note,
+  target_user_id, target_store_id, suspend_days, is_permanent
+) VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
+RETURNING
+  action_id, report_id, admin_id, action_type, note,
+  target_user_id, target_store_id, suspend_days, is_permanent, created_at
+`,
+		in.ReportID, in.AdminID, in.ActionType, in.Note,
+		in.TargetUserID, in.TargetStoreID, in.SuspendDays, in.IsPermanent,
+	), &a)
+
+	if err != nil {
+		if pgErr, ok := err.(*pgconn.PgError); ok {
+			if pgErr.Code == "23514" {
+				return ReportAdminAction{}, apperr.WithFields(
+					apperr.Wrap(apperr.BadRequest, err, "constraint violation: check target fields for this action_type"),
+					map[string]any{"constraint": pgErr.ConstraintName},
+				)
+			}
+			return ReportAdminAction{}, apperr.WithFields(
+				apperr.Wrap(apperr.Internal, err, "insert admin action failed"),
+				map[string]any{"pg_code": pgErr.Code},
+			)
+		}
+		return ReportAdminAction{}, apperr.Wrap(apperr.Internal, err, "insert admin action failed")
+	}
+	return a, nil
+}
+
+func (r *repo) ListAdminActionsByReportID(ctx context.Context, reportID int64) ([]ReportAdminAction, error) {
+	if reportID <= 0 {
+		return nil, apperr.New(apperr.BadRequest, "invalid report_id")
+	}
+
+	rows, err := r.db.Query(ctx, `
+SELECT
+  action_id, report_id, admin_id, action_type, note,
+  target_user_id, target_store_id, suspend_days, is_permanent, created_at
+FROM report_admin_actions
+WHERE report_id = $1
+ORDER BY created_at ASC
+`, reportID)
+	if err != nil {
+		return nil, apperr.Wrap(apperr.Internal, err, "list admin actions failed")
+	}
+	defer rows.Close()
+
+	var out []ReportAdminAction
+	for rows.Next() {
+		var a ReportAdminAction
+		if err := scanAdminAction(rows, &a); err != nil {
+			return nil, apperr.Wrap(apperr.Internal, err, "scan admin action failed")
+		}
+		out = append(out, a)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, apperr.Wrap(apperr.Internal, err, "rows error")
+	}
+	return out, nil
+}
+
+// ============================================================================
+// Blacklist
+// ============================================================================
+
+func (r *repo) CreateUserBan(ctx context.Context, in CreateUserBanInput) (UserBlacklist, error) {
+	in.UserID = strings.TrimSpace(in.UserID)
+	in.CreatedBy = strings.TrimSpace(in.CreatedBy)
+	in.Reason = strings.TrimSpace(in.Reason)
+	in.BanType = strings.ToUpper(strings.TrimSpace(in.BanType))
+	if in.UserID == "" || in.CreatedBy == "" || in.Reason == "" || in.BanType == "" {
+		return UserBlacklist{}, apperr.New(apperr.BadRequest, "user_id, reason, ban_type, and created_by are required")
+	}
+
+	var b UserBlacklist
+	err := scanUserBlacklist(r.db.QueryRow(ctx, `
+INSERT INTO user_blacklists (
+  user_id, user_role, report_id, reason, ban_type, banned_until, created_by
+) VALUES ($1,$2,$3,$4,$5,$6,$7)
+RETURNING
+  blacklist_id, user_id, user_role, report_id, reason,
+  ban_type, banned_from, banned_until, is_active, created_by, created_at
+`,
+		in.UserID, in.UserRole, in.ReportID, in.Reason,
+		in.BanType, in.BannedUntil, in.CreatedBy,
+	), &b)
+
+	if err != nil {
+		if pgErr, ok := err.(*pgconn.PgError); ok {
+			if pgErr.Code == "23514" {
+				return UserBlacklist{}, apperr.WithFields(
+					apperr.Wrap(apperr.BadRequest, err, "constraint violation: check ban_type and banned_until"),
+					map[string]any{"constraint": pgErr.ConstraintName},
+				)
+			}
+			return UserBlacklist{}, apperr.WithFields(
+				apperr.Wrap(apperr.Internal, err, "insert user ban failed"),
+				map[string]any{"pg_code": pgErr.Code},
+			)
+		}
+		return UserBlacklist{}, apperr.Wrap(apperr.Internal, err, "insert user ban failed")
+	}
+	return b, nil
+}
+
+func (r *repo) RevokeUserBan(ctx context.Context, blacklistID int64) (UserBlacklist, error) {
+	if blacklistID <= 0 {
+		return UserBlacklist{}, apperr.New(apperr.BadRequest, "invalid blacklist_id")
+	}
+
+	var b UserBlacklist
+	err := scanUserBlacklist(r.db.QueryRow(ctx, `
+UPDATE user_blacklists
+SET is_active = FALSE
+WHERE blacklist_id = $1
+RETURNING
+  blacklist_id, user_id, user_role, report_id, reason,
+  ban_type, banned_from, banned_until, is_active, created_by, created_at
+`, blacklistID), &b)
+
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return UserBlacklist{}, apperr.New(apperr.NotFound, "ban record not found")
+		}
+		return UserBlacklist{}, apperr.Wrap(apperr.Internal, err, "revoke ban failed")
+	}
+	return b, nil
+}
+
+func (r *repo) GetActiveBan(ctx context.Context, userID string) (*UserBlacklist, error) {
+	userID = strings.TrimSpace(userID)
+	if userID == "" {
+		return nil, apperr.New(apperr.BadRequest, "invalid user_id")
+	}
+
+	var b UserBlacklist
+	err := scanUserBlacklist(r.db.QueryRow(ctx, `
+SELECT
+  blacklist_id, user_id, user_role, report_id, reason,
+  ban_type, banned_from, banned_until, is_active, created_by, created_at
+FROM user_blacklists
+WHERE user_id = $1
+  AND is_active = TRUE
+  AND (
+    ban_type = 'PERMANENT'
+    OR (ban_type = 'TEMPORARY' AND banned_until > NOW())
+  )
+ORDER BY created_at DESC
+LIMIT 1
+`, userID), &b)
+
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, nil // ไม่มี active ban
+		}
+		return nil, apperr.Wrap(apperr.Internal, err, "get active ban failed")
+	}
+	return &b, nil
+}
+
+func (r *repo) ListBanHistory(ctx context.Context, in ListBanHistoryParams) ([]UserBlacklist, error) {
+	in.UserID = strings.TrimSpace(in.UserID)
+	if in.UserID == "" {
+		return nil, apperr.New(apperr.BadRequest, "invalid user_id")
+	}
+	if in.Limit <= 0 || in.Limit > 100 {
+		in.Limit = 20
+	}
+
+	rows, err := r.db.Query(ctx, `
+SELECT
+  blacklist_id, user_id, user_role, report_id, reason,
+  ban_type, banned_from, banned_until, is_active, created_by, created_at
+FROM user_blacklists
+WHERE user_id = $1
+ORDER BY created_at DESC
+LIMIT $2 OFFSET $3
+`, in.UserID, in.Limit, in.Offset)
+	if err != nil {
+		return nil, apperr.Wrap(apperr.Internal, err, "list ban history failed")
+	}
+	defer rows.Close()
+
+	var out []UserBlacklist
+	for rows.Next() {
+		var b UserBlacklist
+		if err := scanUserBlacklist(rows, &b); err != nil {
+			return nil, apperr.Wrap(apperr.Internal, err, "scan ban failed")
+		}
+		out = append(out, b)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, apperr.Wrap(apperr.Internal, err, "rows error")
+	}
+	return out, nil
+}
+
+// ============================================================================
+// Helper
+// ============================================================================
+
+func itoa(n int) string {
+	if n == 0 {
+		return "0"
+	}
+	var buf [16]byte
+	i := len(buf)
+	for n > 0 {
+		i--
+		buf[i] = byte('0' + n%10)
+		n /= 10
+	}
+	return string(buf[i:])
+}
+
+// unused import guard
+var _ = time.Now

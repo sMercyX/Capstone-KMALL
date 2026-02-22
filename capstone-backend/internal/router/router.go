@@ -20,6 +20,7 @@ import (
 	"github.com/Perpasit/Capstone-KMALL/internal/order"
 	"github.com/Perpasit/Capstone-KMALL/internal/orderchat"
 	"github.com/Perpasit/Capstone-KMALL/internal/product"
+	"github.com/Perpasit/Capstone-KMALL/internal/report"
 	"github.com/Perpasit/Capstone-KMALL/internal/respond"
 	"github.com/Perpasit/Capstone-KMALL/internal/role"
 	"github.com/Perpasit/Capstone-KMALL/internal/searchhistory"
@@ -136,6 +137,9 @@ func Attach(r *gin.Engine, db *pgxpool.Pool, cfg config.Config) {
 
 	recRepo := recommendation.NewRepo(db)
 	recSvc := recommendation.NewService(recRepo)
+
+	reportRepo := report.NewRepo(db)
+	reportSvc := report.NewService(reportRepo, fs)
 
 	// v1 := r.Group("/api",
 	// 	apiLogger(),
@@ -258,11 +262,17 @@ func Attach(r *gin.Engine, db *pgxpool.Pool, cfg config.Config) {
 	ocHdl := orderchat.NewHandler(ocSvc, ocRepo, rSvc, uSvc)
 	ocHdl.Register(v1)
 
+	// recommendation
 	recHdl := recommendation.NewHandler(recSvc, uSvc)
 	recHdl.Register(v1)
 
+	// notification
 	notiHdl := notification.NewHandler(notiSvc)
 	notiHdl.Register(v1)
+
+	// report
+	reportHdl := report.NewHandler(reportSvc, rSvc, uSvc, oRepo, ocRepo)
+	reportHdl.Register(v1)
 
 	// ---- debug local (ยิงตรง http://localhost:18080/debug/headers) ----
 	r.GET("/debug/headers", func(c *gin.Context) {
