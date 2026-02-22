@@ -38,7 +38,10 @@ export function useOrderWebSocket(orderId: string | undefined, onUpdate: (data: 
   useEffect(() => {
     if (!orderId) return
 
-    const url = getWsUrl(`/ws/orders/${orderId}`)
+    // const url = getWsUrl(`/ws/orders/${orderId}`)
+    const devUser = localStorage.getItem("kmall_dev_mode")
+    const qs = devUser ? `?dev_user=${encodeURIComponent(devUser)}` : ""
+    const url = getWsUrl(`/ws/orders/${orderId}${qs}`) 
     console.log('[WebSocket] Connecting to:', url)
 
     const socket = new WebSocket(url)

@@ -133,6 +133,7 @@ func ServeWs(hub *Hub, c *gin.Context, roomID string, userID string) {
 		userID: userID,
 	}
 	client.hub.register <- client
+	log.Printf("[WS] Join room=%s user=%s", roomID, userID)
 
 	go client.writePump()
 	go client.readPump()

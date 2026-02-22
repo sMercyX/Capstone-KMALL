@@ -2,6 +2,7 @@ package order
 
 import (
 	"context"
+	"log"
 	"strconv"
 	"strings"
 	"time"
@@ -90,7 +91,12 @@ func (s *service) shouldSkipNotiForOrderRoom(orderID int64, recipientUserID stri
 		return false
 	}
 	roomID := "order_" + strconv.FormatInt(orderID, 10)
-	return s.notifier.IsUserInRoom(roomID, recipientUserID)
+
+	s.notifier.(interface{ LogRoomUsers(string) }).LogRoomUsers("order_" + strconv.FormatInt(orderID, 10))
+	inRoom := s.notifier.IsUserInRoom(roomID, recipientUserID)
+	log.Printf("[NOTI] check order room: room=%s recipient=%s inRoom=%v", roomID, recipientUserID, inRoom)
+
+	return inRoom
 }
 
 // ============================================================================
