@@ -1,7 +1,7 @@
 // src/pages/store/StoreOrderDetailPage.tsx
 import { useEffect, useState, useCallback, useRef } from "react"
 import { Link, useNavigate, useParams } from "react-router-dom"
-import { Store, User, Check } from "lucide-react"
+import { Store, User, Check, AlertTriangle } from "lucide-react"
 import BackButton from "../../components/Buttons/BackButton"
 
 import {
@@ -11,6 +11,8 @@ import {
 } from "../../api/orderSellerApi"
 import { useUserStore } from "../../stores/userStore"
 import ConfirmationModal from "../../components/Modal/ConfirmationModal"
+import ReportModal from "../../components/Modal/ReportModal"
+import { useReportApi } from "../../api/reportApi"
 import { toast } from "react-toastify"
 import { handleApiError } from "../../utils/handleApiError"
 import { resolveImageUrl } from "../../utils/resolve"
@@ -95,6 +97,7 @@ export default function StoreOrderDetailPage() {
   const { orderId } = useParams<{ orderId: string }>()
   const { getOrderDetail, updateOrderStatus, cancelledOrder, proposeOrder, acceptOrder } =
     useOrderSellerApi()
+  const { createOrderReport } = useReportApi()
   const { name: userName } = useUserStore()
   const navigate = useNavigate()
 
@@ -108,6 +111,7 @@ export default function StoreOrderDetailPage() {
   const [isRejectModalOpen, setIsRejectModalOpen] = useState(false)
   const [isAcceptModalOpen, setIsAcceptModalOpen] = useState(false)
   const [cancelReason, setCancelReason] = useState("")
+  const [isReportModalOpen, setIsReportModalOpen] = useState(false)
 
   // Handle chat button click
   const handleChatClick = () => {
@@ -672,6 +676,12 @@ export default function StoreOrderDetailPage() {
                 </span>
               </Link>
             )}
+            <button
+              onClick={() => setIsReportModalOpen(true)}
+              className="flex items-center gap-1 rounded-md border border-red-400 px-3 py-1 text-xs font-semibold text-red-500 hover:bg-red-50 transition-colors cursor-pointer"
+            >
+              Report <AlertTriangle className="h-3.5 w-3.5" />
+            </button>
           </div>
           <button 
             onClick={handleChatClick}
@@ -839,6 +849,26 @@ export default function StoreOrderDetailPage() {
         confirmText="Confirm"
         cancelText="Cancel"
         variant="info"
+      />
+
+      <ReportModal
+        isOpen={isReportModalOpen}
+        onClose={() => setIsReportModalOpen(false)}
+        onSubmit={async (reportData) => {
+          const orderId = order?.id
+          if (!orderId) return
+          const reported_user_id = isSellerPath
+            ? data?.buyer?.id ?? data?.order?.user_id ?? ""
+            : data?.seller_user_id ?? ""
+          const reported_party_type = isSellerPath ? "BUYER" as const : "SELLER" as const
+          await createOrderReport(orderId, {
+            reported_user_id,
+            reported_party_type,
+            reason_code: reportData.reasonCode,
+            description: reportData.details,
+            files: reportData.files.length > 0 ? reportData.files : undefined,
+          })
+        }}
       />
     </div>
   )
