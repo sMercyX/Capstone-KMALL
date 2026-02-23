@@ -28,6 +28,7 @@ type CreateChatNotificationInput struct {
 	ActorUserID     string
 
 	OrderID   int64
+	StoreID   int64
 	ThreadID  int64
 	MessageID int64
 
@@ -134,6 +135,7 @@ func (s *service) CreateChat(ctx context.Context, in CreateChatNotificationInput
 	}
 
 	oid := in.OrderID
+	sid := in.StoreID
 	tid := in.ThreadID
 	mid := in.MessageID
 	actor := in.ActorUserID
@@ -148,10 +150,11 @@ func (s *service) CreateChat(ctx context.Context, in CreateChatNotificationInput
 		data["message_preview"] = strings.TrimSpace(*in.MessagePreview)
 	}
 
-	return s.repo.Create(ctx, CreateNotificationInput{
+	n, err := s.repo.Create(ctx, CreateNotificationInput{
 		UserID:      in.RecipientUserID,
 		Type:        "CHAT_NEW_MESSAGE",
 		OrderID:     &oid,
+		StoreID:     &sid,
 		ThreadID:    &tid,
 		MessageID:   &mid,
 		ActorUserID: &actor,
@@ -159,6 +162,11 @@ func (s *service) CreateChat(ctx context.Context, in CreateChatNotificationInput
 		Body:        body,
 		Data:        data,
 	})
+	if err != nil {
+		return Notification{}, err
+	}
+	s.broadcastNotification(n.UserID, n)
+	return n, nil
 }
 
 // ============================================================================
@@ -198,7 +206,7 @@ func (s *service) CreateOrderStatus(ctx context.Context, in CreateOrderStatusNot
 		"new_status": in.NewStatus,
 	}
 
-	return s.repo.Create(ctx, CreateNotificationInput{
+	n, err := s.repo.Create(ctx, CreateNotificationInput{
 		UserID:      in.RecipientUserID,
 		Type:        "ORDER_STATUS_CHANGED",
 		OrderID:     &oid,
@@ -208,6 +216,11 @@ func (s *service) CreateOrderStatus(ctx context.Context, in CreateOrderStatusNot
 		Body:        strPtr(body),
 		Data:        data,
 	})
+	if err != nil {
+		return Notification{}, err
+	}
+	s.broadcastNotification(n.UserID, n)
+	return n, nil
 }
 
 func BuildOrderStatusMessage(oldStatus, newStatus string) (title, body string) {
