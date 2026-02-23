@@ -44,5 +44,13 @@ export function useNotificationApi() {
     return http.getItems(url)
   }
 
-  return { getNotifications }
+  async function markAsRead(notificationId: number): Promise<Notification> {
+    return http.postItem(`/notifications/${notificationId}/read`, {})
+  }
+
+  async function deleteAllNotifications(): Promise<{ deleted: boolean; deleted_rows: number }> {
+    return http.deleteItem(`/notifications`)
+  }
+
+  return { getNotifications, markAsRead, deleteAllNotifications }
 }

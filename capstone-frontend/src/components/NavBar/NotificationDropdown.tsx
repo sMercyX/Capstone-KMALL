@@ -1,10 +1,14 @@
-import { useEffect, useRef, useState } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
 import { useNavigate } from "react-router-dom"
 import { Bell, MessageCircle, Trash2 } from "lucide-react"
 import {
   useNotificationApi,
   type Notification,
 } from "../../api/notificationApi"
+import { useNotificationWebSocket } from "../../hooks/useNotificationWebSocket"
+import { useUserStore } from "../../stores/userStore"
+import { useStoreStore } from "../../stores/storeStore"
+import ConfirmationModal from "../Modal/ConfirmationModal"
 
 type Tab = "ALL" | "CHAT" | "ORDER"
 
@@ -45,11 +49,51 @@ export default function NotificationDropdown({
   onClose,
 }: Props) {
   const [notifications, setNotifications] = useState<Notification[]>([])
+  const [allUnreadCount, setAllUnreadCount] = useState(0)
   const [loading, setLoading] = useState(false)
   const [activeTab, setActiveTab] = useState<Tab>("ALL")
+  const [showDeleteModal, setShowDeleteModal] = useState(false)
   const dropdownRef = useRef<HTMLDivElement | null>(null)
   const navigate = useNavigate()
-  const { getNotifications } = useNotificationApi()
+  const { getNotifications, markAsRead, deleteAllNotifications } = useNotificationApi()
+  const userID = useUserStore((s) => s.id)
+  const roles = useUserStore((s) => s.roles)
+  const myStoreId = useStoreStore((s) => s.store?.id)
+  const fetchStore = useStoreStore((s) => s.fetchStore)
+
+  // ถ้า user เป็น seller ให้ fetch store ตอน mount เพื่อให้ได้ store id
+  const hasSeller = roles?.some((r) => r.toLowerCase() === "seller")
+  useEffect(() => {
+    if (hasSeller && !myStoreId) {
+      fetchStore()
+    }
+  }, [hasSeller, myStoreId, fetchStore])
+
+  // Fetch ALL notifications (for badge count)
+  const fetchAllForBadge = useCallback(async () => {
+    try {
+      const res = await getNotifications(10)
+      const items = res.notifications ?? []
+      setAllUnreadCount(items.filter((n: Notification) => !n.is_read).length)
+      return items
+    } catch (err) {
+      console.error("Failed to load notifications", err)
+      return []
+    }
+  }, [])
+
+  // WebSocket: เมื่อมี noti ใหม่ → re-fetch ALL สำหรับ badge
+  const handleWsNotification = useCallback(async () => {
+    const allItems = await fetchAllForBadge()
+    // ถ้า tab เป็น ALL อยู่ → อัพเดทลิสต์ด้วย
+    setNotifications((prev) => {
+      // Check current activeTab via the latest notifications context
+      // If it's showing ALL, update the list too
+      return allItems.length > 0 ? allItems : prev
+    })
+  }, [fetchAllForBadge])
+
+  useNotificationWebSocket(userID || undefined, handleWsNotification)
 
   // Map tab to API type param
   const typeParam =
@@ -59,13 +103,24 @@ export default function NotificationDropdown({
         ? "ORDER_STATUS_CHANGED" as const
         : undefined
 
-  // Fetch notifications when dropdown opens or tab changes
+  // Fetch on initial mount: badge + list
+  useEffect(() => {
+    ;(async () => {
+      const items = await fetchAllForBadge()
+      setNotifications(items)
+    })()
+  }, [fetchAllForBadge])
+
+  // Re-fetch when dropdown opens or tab changes (list only)
   useEffect(() => {
     if (!isOpen) return
 
     ;(async () => {
       try {
         setLoading(true)
+        // Always update badge from ALL
+        fetchAllForBadge()
+        // Fetch filtered list for the active tab
         const res = await getNotifications(10, typeParam)
         setNotifications(res.notifications ?? [])
       } catch (err) {
@@ -95,14 +150,40 @@ export default function NotificationDropdown({
     }
   }, [isOpen, onClose])
 
-  const unreadCount = notifications.filter((n) => !n.is_read).length
+  // Badge ใช้ allUnreadCount เสมอ (จาก ALL)
+  const unreadCount = allUnreadCount
 
-  function handleAction(n: Notification) {
+  async function handleAction(n: Notification) {
     onClose()
-    if (n.type === "CHAT_NEW_MESSAGE" && n.thread_id) {
-      navigate(`/chat/${n.thread_id}`)
+
+    // Mark as read
+    if (!n.is_read) {
+      try {
+        await markAsRead(n.notification_id)
+        // อัพเดท local state ทันที → จุดส้มหาย + bg เป็นสีขาว
+        setNotifications((prev) =>
+          prev.map((item) =>
+            item.notification_id === n.notification_id
+              ? { ...item, is_read: true }
+              : item
+          )
+        )
+        fetchAllForBadge()
+      } catch (err) {
+        console.error("Failed to mark notification as read", err)
+      }
+    }
+
+    // ถ้า store_id ของ noti ตรงกับ store ของเรา → เราเป็น seller
+    const isSeller = !!myStoreId && !!n.store_id && n.store_id === myStoreId
+    const isChat = n.type === "CHAT_NEW_MESSAGE"
+
+    if (isSeller) {
+      // Seller paths
+      navigate(isChat ? `/store/orders/${n.order_id}/chat` : `/store/orders/${n.order_id}`)
     } else {
-      navigate(`/orders/${n.order_id}`)
+      // Buyer paths
+      navigate(isChat ? `/orders/${n.order_id}/chat` : `/orders/${n.order_id}`)
     }
   }
 
@@ -137,7 +218,15 @@ export default function NotificationDropdown({
             <h3 className="text-lg font-semibold text-gray-900">
               Notifications
             </h3>
-            <button className="text-gray-400 hover:text-gray-600 cursor-pointer">
+            <button
+              onClick={() => setShowDeleteModal(true)}
+              disabled={notifications.length === 0}
+              className={`cursor-pointer ${
+                notifications.length === 0
+                  ? "text-gray-200 cursor-not-allowed"
+                  : "text-gray-400 hover:text-gray-600"
+              }`}
+            >
               <Trash2 className="h-5 w-5" />
             </button>
           </div>
@@ -243,6 +332,24 @@ export default function NotificationDropdown({
           </div>
         </div>
       )}
+      <ConfirmationModal
+        isOpen={showDeleteModal}
+        onClose={() => setShowDeleteModal(false)}
+        onConfirm={async () => {
+          try {
+            await deleteAllNotifications()
+            setNotifications([])
+            setAllUnreadCount(0)
+          } catch (err) {
+            console.error("Failed to delete notifications", err)
+          }
+        }}
+        title="Delete all notifications"
+        message="Are you sure you want to delete all notifications? This action cannot be undone."
+        confirmText="Delete"
+        cancelText="Cancel"
+        variant="danger"
+      />
     </div>
   )
 }
