@@ -79,6 +79,7 @@ export interface OrderDetailResponse {
   buyer: OrderBuyerDetail
   buyer_name:string
   seller_name:string
+  seller_user_id:string
   store_name:string
   store_profile_url:string
 }
