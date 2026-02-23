@@ -541,13 +541,13 @@ CREATE TABLE IF NOT EXISTS homepage_banners (
 CREATE TABLE IF NOT EXISTS reports (
   report_id BIGSERIAL PRIMARY KEY,
 
-  -- what happened
+  -- must reference an existing order (no order = no report)
   order_id INT NOT NULL REFERENCES orders(order_id) ON DELETE CASCADE,
 
   -- who reported
   reporter_id UUID NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
 
-  -- who got reported (buyer or seller)
+  -- who got reported
   reported_user_id UUID NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
 
   reported_party_type VARCHAR(10) NOT NULL
@@ -556,28 +556,53 @@ CREATE TABLE IF NOT EXISTS reports (
   reason_code VARCHAR(50) NOT NULL,
   description TEXT NULL,
 
+  -- NEEDS_INFO / REJECTED / REQUEST_MORE_INFO removed per scope
   status VARCHAR(15) NOT NULL DEFAULT 'PENDING'
-    CHECK (status IN ('PENDING','NEEDS_INFO','REVIEWED','RESOLVED','REJECTED','CLOSED')),
+    CHECK (status IN ('PENDING','REVIEWED','RESOLVED','CLOSED')),
 
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 
-  -- prevent spam/duplicate for the same target in same order
-  CONSTRAINT uq_report_once UNIQUE (order_id, reporter_id, reported_party_type, reported_user_id),
+  -- 1 reporter can report once per order (buyer and seller can each report once)
+  CONSTRAINT uq_report_per_reporter_per_order UNIQUE (order_id, reporter_id),
 
   CONSTRAINT chk_not_self_report CHECK (reporter_id <> reported_user_id)
 );
 
+-- ========= REPORT_EVIDENCES =========
+-- Files/images submitted by reporter at report creation time (one-time, no back-and-forth)
+CREATE TABLE IF NOT EXISTS report_evidences (
+  evidence_id     BIGSERIAL PRIMARY KEY,
+
+  report_id       BIGINT NOT NULL
+    REFERENCES reports(report_id) ON DELETE CASCADE,
+
+  uploaded_by     UUID NOT NULL
+    REFERENCES users(user_id) ON DELETE CASCADE,
+
+  file_url        VARCHAR(255) NOT NULL,
+  file_name       VARCHAR(120) NULL,
+  mime_type       VARCHAR(80)  NULL,
+  file_size_bytes BIGINT NULL,
+  sha256          CHAR(64) NULL,
+
+  created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+
+  CONSTRAINT chk_evidence_url_nonempty CHECK (btrim(file_url) <> ''),
+  CONSTRAINT chk_evidence_size_positive CHECK (file_size_bytes IS NULL OR file_size_bytes >= 0)
+);
+
 -- ========= REPORT_ORDER_SNAPSHOTS =========
+-- Snapshot of order data at the time of report submission
 CREATE TABLE IF NOT EXISTS report_order_snapshots (
-  report_id BIGINT PRIMARY KEY REFERENCES reports(report_id) ON DELETE CASCADE,
+  report_id BIGINT PRIMARY KEY
+    REFERENCES reports(report_id) ON DELETE CASCADE,
 
-  order_status VARCHAR(45) NOT NULL,
-  delivery_method VARCHAR(20) NOT NULL,
+  order_status     VARCHAR(45)    NOT NULL,
+  delivery_method  VARCHAR(20)    NOT NULL,
+  total_price      DECIMAL(10,2)  NOT NULL,
 
-  total_price DECIMAL(10,2) NOT NULL,
-
-  -- snapshot payloads (so admin can see what it was at report time)
+  -- snapshot payloads for admin context
   delivery_address JSONB NULL,
   campus_location  JSONB NULL,
   delivery_time    JSONB NULL,
@@ -586,39 +611,45 @@ CREATE TABLE IF NOT EXISTS report_order_snapshots (
 );
 
 -- ========= REPORT_CHAT_SNAPSHOTS =========
+-- Snapshot of all chat messages in the order at the time of report submission
 CREATE TABLE IF NOT EXISTS report_chat_snapshots (
   snapshot_id BIGSERIAL PRIMARY KEY,
 
-  report_id BIGINT NOT NULL REFERENCES reports(report_id) ON DELETE CASCADE,
+  report_id BIGINT NOT NULL
+    REFERENCES reports(report_id) ON DELETE CASCADE,
 
-  -- allow SYSTEM snapshot rows (sender_id can be NULL)
-  sender_id UUID NULL REFERENCES users(user_id) ON DELETE SET NULL,
+  -- NULL allowed for SYSTEM messages
+  sender_id UUID NULL
+    REFERENCES users(user_id) ON DELETE SET NULL,
 
   sender_role VARCHAR(10) NOT NULL
     CHECK (sender_role IN ('BUYER','SELLER','SYSTEM')),
 
   message_text TEXT NOT NULL,
-  message_type VARCHAR(20),
+  message_type VARCHAR(20) NULL,
+
+  -- snapshot also captures attachment urls of that message
+  attachment_urls JSONB NULL,
 
   message_created_at TIMESTAMPTZ NOT NULL
 );
 
 -- ========= REPORT_ADMIN_ACTIONS =========
--- keep log of admin workflow actions on a report (review, needs info, close, etc.)
+-- Log of every action admin takes on a report
 CREATE TABLE IF NOT EXISTS report_admin_actions (
   action_id BIGSERIAL PRIMARY KEY,
 
-  report_id BIGINT NOT NULL REFERENCES reports(report_id) ON DELETE CASCADE,
+  report_id BIGINT NOT NULL
+    REFERENCES reports(report_id) ON DELETE CASCADE,
 
-  admin_id UUID NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
+  admin_id UUID NOT NULL
+    REFERENCES users(user_id) ON DELETE CASCADE,
 
+  -- REQUEST_MORE_INFO / REVIEWED / REJECTED removed per scope
   action_type VARCHAR(25) NOT NULL
     CHECK (action_type IN (
-      'REVIEWED',
-      'REQUEST_MORE_INFO',
       'NO_ACTION',
       'RESOLVED',
-      'REJECTED',
       'CLOSED',
       'WARN_USER',
       'SUSPEND_USER',
@@ -630,16 +661,18 @@ CREATE TABLE IF NOT EXISTS report_admin_actions (
 
   note TEXT NULL,
 
-  -- optional action params (ex. suspend 3 days, which store was affected)
-  target_user_id UUID NULL REFERENCES users(user_id) ON DELETE SET NULL,
-  target_store_id INT NULL REFERENCES stores(store_id) ON DELETE SET NULL,
+  -- target of the punishment action
+  target_user_id  UUID NULL REFERENCES users(user_id) ON DELETE SET NULL,
+  target_store_id INT  NULL REFERENCES stores(store_id) ON DELETE SET NULL,
 
   suspend_days INT NULL,
   is_permanent BOOLEAN NOT NULL DEFAULT FALSE,
 
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 
-  CONSTRAINT chk_suspend_days_positive CHECK (suspend_days IS NULL OR suspend_days > 0),
+  CONSTRAINT chk_suspend_days_positive CHECK (
+    suspend_days IS NULL OR suspend_days > 0
+  ),
 
   CONSTRAINT chk_user_action_requires_target CHECK (
     action_type NOT IN ('WARN_USER','SUSPEND_USER','BAN_USER')
@@ -652,29 +685,37 @@ CREATE TABLE IF NOT EXISTS report_admin_actions (
   )
 );
 
--- ========= USER_BLACKLISTS (User restrictions) =========
--- Warn / Suspend (Temp) / Ban (Permanent)
+-- ========= USER_BLACKLISTS =========
+-- Platform-level ban issued by admin as result of a resolved report
+-- WARNING  : user is notified but can still place orders
+-- TEMPORARY: user cannot place orders until banned_until
+-- PERMANENT: user cannot place orders indefinitely
 CREATE TABLE IF NOT EXISTS user_blacklists (
   blacklist_id BIGSERIAL PRIMARY KEY,
 
-  user_id UUID NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
+  user_id UUID NOT NULL
+    REFERENCES users(user_id) ON DELETE CASCADE,
 
   user_role VARCHAR(10) NOT NULL
     CHECK (user_role IN ('BUYER','SELLER')),
 
-  report_id BIGINT NULL REFERENCES reports(report_id) ON DELETE SET NULL,
+  -- linked report that triggered this ban (nullable in case of manual ban)
+  report_id BIGINT NULL
+    REFERENCES reports(report_id) ON DELETE SET NULL,
 
   reason VARCHAR(255) NOT NULL,
 
   ban_type VARCHAR(10) NOT NULL
     CHECK (ban_type IN ('WARNING','TEMPORARY','PERMANENT')),
 
-  banned_from TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  banned_from  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   banned_until TIMESTAMPTZ NULL,
 
   is_active BOOLEAN NOT NULL DEFAULT TRUE,
 
-  created_by UUID NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
+  created_by UUID NOT NULL
+    REFERENCES users(user_id) ON DELETE CASCADE,
+
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 
   CONSTRAINT chk_temp_ban_requires_until CHECK (
@@ -683,33 +724,45 @@ CREATE TABLE IF NOT EXISTS user_blacklists (
 
   CONSTRAINT chk_perm_ban_until_null CHECK (
     ban_type <> 'PERMANENT' OR banned_until IS NULL
+  ),
+
+  CONSTRAINT chk_warning_until_null CHECK (
+    ban_type <> 'WARNING' OR banned_until IS NULL
   )
 );
 
--- ========= STORE_RESTRICTIONS (Store restrictions) =========
--- Hide / Suspend / Delete store
+-- ========= STORE_RESTRICTIONS =========
+-- Store-level restriction issued by admin
+-- HIDE   : store is hidden from public, requires restricted_until
+-- SUSPEND: store cannot receive orders, requires restricted_until
+-- DELETE : store permanently removed, no restricted_until
 CREATE TABLE IF NOT EXISTS store_restrictions (
   restriction_id BIGSERIAL PRIMARY KEY,
 
-  store_id INT NOT NULL REFERENCES stores(store_id) ON DELETE CASCADE,
+  store_id INT NOT NULL
+    REFERENCES stores(store_id) ON DELETE CASCADE,
 
-  report_id BIGINT NULL REFERENCES reports(report_id) ON DELETE SET NULL,
+  -- linked report that triggered this restriction (nullable in case of manual action)
+  report_id BIGINT NULL
+    REFERENCES reports(report_id) ON DELETE SET NULL,
 
   reason VARCHAR(255) NOT NULL,
 
   restriction_type VARCHAR(12) NOT NULL
     CHECK (restriction_type IN ('HIDE','SUSPEND','DELETE')),
 
-  restricted_from TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  restricted_from  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   restricted_until TIMESTAMPTZ NULL,
 
   is_active BOOLEAN NOT NULL DEFAULT TRUE,
 
-  created_by UUID NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
+  created_by UUID NOT NULL
+    REFERENCES users(user_id) ON DELETE CASCADE,
+
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 
   CONSTRAINT chk_hide_suspend_requires_until CHECK (
-    restriction_type IN ('DELETE') OR restricted_until IS NOT NULL
+    restriction_type = 'DELETE' OR restricted_until IS NOT NULL
   ),
 
   CONSTRAINT chk_delete_until_null CHECK (

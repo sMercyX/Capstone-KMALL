@@ -90,8 +90,16 @@ func firstEmail(list []string) string {
 
 func DevMockUser() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		// เลือกจาก header (หรือจะใช้ query ก็ได้)
+		// header มาก่อน
 		mode := strings.ToLower(strings.TrimSpace(c.GetHeader("X-Dev-User")))
+
+		if mode == "" {
+			mode = strings.ToLower(strings.TrimSpace(c.Query("dev_user")))
+		}
+		if mode == "" {
+			mode = strings.ToLower(strings.TrimSpace(c.Query("devUser")))
+		}
+
 		if mode == "" {
 			mode = "seller" // default
 		}
@@ -99,23 +107,11 @@ func DevMockUser() gin.HandlerFunc {
 		var u *UpstreamUser
 		switch mode {
 		case "buyer":
-			u = &UpstreamUser{
-				UID:   "dev-buyer-1",
-				Email: "buyer1@example.com",
-				Name:  "Dev Buyer 1",
-			}
+			u = &UpstreamUser{UID: "dev-buyer-1", Email: "buyer1@example.com", Name: "Dev Buyer 1"}
 		case "admin":
-			u = &UpstreamUser{
-				UID:   "dev-admin-1",
-				Email: "admin1@example.com",
-				Name:  "Dev Admin 1",
-			}
-		default: // seller
-			u = &UpstreamUser{
-				UID:   "dev-seller-1",
-				Email: "seller1@example.com",
-				Name:  "Dev Seller 1",
-			}
+			u = &UpstreamUser{UID: "dev-admin-1", Email: "admin1@example.com", Name: "Dev Admin 1"}
+		default:
+			u = &UpstreamUser{UID: "dev-seller-1", Email: "seller1@example.com", Name: "Dev Seller 1"}
 		}
 
 		c.Set(CtxUpstreamUser, u)

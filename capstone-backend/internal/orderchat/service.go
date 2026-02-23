@@ -2,7 +2,7 @@ package orderchat
 
 import (
 	"context"
-	"errors"
+	"log"
 	"mime/multipart"
 	"strings"
 	"time"
@@ -41,6 +41,7 @@ type FileStore interface {
 // Notifier broadcasts messages via WebSocket
 type Notifier interface {
 	BroadcastToRoom(roomID string, message interface{})
+	IsUserInRoom(roomID string, userID string) bool
 }
 
 // ============================================================================
@@ -187,61 +188,79 @@ func (s *service) upsertChatNotification(
 		return
 	}
 
-	// Determine recipient based on the sender's role
+	// recipient = อีกฝั่ง (ไม่ใช่คนส่ง)
 	recipientID := th.SellerID
 	if strings.EqualFold(senderID, th.SellerID) {
 		recipientID = th.BuyerID
 	}
 
-	// Create a message preview if there's a valid message text
-	var preview *string
-	if createdMsg.MessageText != nil && strings.TrimSpace(*createdMsg.MessageText) != "" {
-		p := strings.TrimSpace(*createdMsg.MessageText)
-		preview = &p
+	// ถ้าผู้รับอยู่ในห้องแชทอยู่แล้ว -> ไม่ต้องสร้าง noti
+	if s.hub != nil {
+		roomID := "chat_" + strconv.FormatInt(th.ID, 10)
+		inRoom := s.hub.IsUserInRoom(roomID, recipientID)
+		log.Printf("[NOTI] thread=%d recipient=%s inRoom=%v", th.ID, recipientID, inRoom)
+		if inRoom {
+			return
+		}
 	}
 
-	// Check for an existing notification of the correct type
-	existingNotification, err := s.noti.List(ctx, notification.ListInput{
+	// preview
+	var preview *string
+	if createdMsg.MessageText != nil {
+		p := strings.TrimSpace(*createdMsg.MessageText)
+		if p != "" {
+			preview = &p
+		}
+	}
+
+	// หา noti เดิม (ถ้ามี)
+	existing, err := s.noti.List(ctx, notification.ListInput{
 		UserID:   recipientID,
-		OrderID:  &th.OrderID,
 		ThreadID: &th.ID,
-		Types:    []string{"CHAT_NEW_MESSAGE"}, // Check for a specific notification type
-		Limit:    1,                            // Limit to 1 notification
+		Types:    []string{"CHAT_NEW_MESSAGE"},
+		Limit:    1,
 	})
-	if err != nil && !errors.Is(err, apperr.New(apperr.NotFound, "")) {
-		// If an error other than "not found" occurs, return early
+	if err != nil {
+		log.Printf("[NOTI] list failed: thread=%d recipient=%s err=%v", th.ID, recipientID, err)
 		return
 	}
 
-	if len(existingNotification) > 0 {
-		isUnread := false
-		newData := map[string]any{
-			"message_type":    createdMsg.MessageType,
-			"message_preview": "", // default
-		}
-		if preview != nil {
-			newData["message_preview"] = *preview
-		}
+	newData := map[string]any{
+		"message_type": createdMsg.MessageType,
+	}
+	if preview != nil {
+		newData["message_preview"] = *preview
+	}
 
-		_, _ = s.noti.UpdateNotification(ctx, notification.UpdateNotificationInput{
-			NotificationID: existingNotification[0].ID,
+	// ถ้ามีอยู่แล้ว -> update + set unread
+	if len(existing) > 0 {
+		isUnread := false
+		_, e := s.noti.UpdateNotification(ctx, notification.UpdateNotificationInput{
+			NotificationID: existing[0].ID,
 			Title:          strPtr("New message"),
 			Body:           strPtr("You have a new message."),
 			IsRead:         &isUnread,
 			Data:           newData,
 		})
-	} else {
-		// If no existing notification is found, create a new one
-		_, _ = s.noti.CreateChat(ctx, notification.CreateChatNotificationInput{
-			RecipientUserID: recipientID,
-			ActorUserID:     senderID,
-			OrderID:         th.OrderID,
-			StoreID:         th.StoreID,
-			ThreadID:        th.ID,
-			MessageID:       createdMsg.ID,
-			MessageType:     createdMsg.MessageType,
-			MessagePreview:  preview,
-		})
+		if e != nil {
+			log.Printf("[NOTI] update failed: notiID=%d thread=%d recipient=%s err=%v",
+				existing[0].ID, th.ID, recipientID, e)
+		}
+		return
+	}
+
+	// ไม่มี -> create ใหม่
+	_, e := s.noti.CreateChat(ctx, notification.CreateChatNotificationInput{
+		RecipientUserID: recipientID,
+		ActorUserID:     senderID,
+		OrderID:         th.OrderID,
+		ThreadID:        th.ID,
+		MessageID:       createdMsg.ID,
+		MessageType:     createdMsg.MessageType,
+		MessagePreview:  preview,
+	})
+	if e != nil {
+		log.Printf("[NOTI] create failed: thread=%d recipient=%s err=%v", th.ID, recipientID, e)
 	}
 }
 
@@ -263,6 +282,10 @@ func (s *service) ListMessages(ctx context.Context, actorUserID string, in ListM
 	}
 	if !isParticipant(th, actorUserID) {
 		return ListMessagesResult{}, apperr.New(apperr.Forbidden, "not allowed")
+	}
+
+	if s.noti != nil {
+		_, _ = s.noti.MarkReadByThread(ctx, actorUserID, in.ThreadID, []string{"CHAT_NEW_MESSAGE"})
 	}
 
 	otherUserID := th.SellerID

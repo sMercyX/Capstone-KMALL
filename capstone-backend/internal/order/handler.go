@@ -9,6 +9,7 @@ import (
 
 	apperr "github.com/Perpasit/Capstone-KMALL/internal/apperr"
 	"github.com/Perpasit/Capstone-KMALL/internal/middleware"
+	"github.com/Perpasit/Capstone-KMALL/internal/notification"
 	"github.com/Perpasit/Capstone-KMALL/internal/respond"
 	"github.com/Perpasit/Capstone-KMALL/internal/store"
 	"github.com/Perpasit/Capstone-KMALL/internal/user"
@@ -23,6 +24,7 @@ type Handler struct {
 	roleSvc  middleware.RoleNameLister
 	userSvc  user.Service
 	storeSvc store.Service
+	notiSvc  notification.Service
 }
 
 func NewHandler(
@@ -30,12 +32,14 @@ func NewHandler(
 	rl middleware.RoleNameLister,
 	us user.Service,
 	ss store.Service,
+	noti notification.Service,
 ) *Handler {
 	return &Handler{
 		svc:      s,
 		roleSvc:  rl,
 		userSvc:  us,
 		storeSvc: ss,
+		notiSvc:  noti,
 	}
 }
 
@@ -255,6 +259,15 @@ func (h *Handler) getOrder(c *gin.Context) {
 			"only buyer, store owner or admin can view this order",
 		))
 		return
+	}
+
+	if h.notiSvc != nil {
+		_, _ = h.notiSvc.MarkReadByOrder(
+			ctx,
+			userID,
+			id,
+			[]string{"ORDER_STATUS_CHANGED"},
+		)
 	}
 
 	st, err := h.storeSvc.Get(ctx, int64(order.StoreID))

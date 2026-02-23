@@ -44,6 +44,8 @@ type Client struct {
 
 	// Room ID this client is subscribed to (e.g. "order_123")
 	roomID string
+
+	userID string
 }
 
 // readPump pumps messages from the websocket connection to the hub.
@@ -117,17 +119,22 @@ func (c *Client) writePump() {
 }
 
 // ServeWs handles websocket requests from the peer.
-func ServeWs(hub *Hub, c *gin.Context, roomID string) {
+func ServeWs(hub *Hub, c *gin.Context, roomID string, userID string) {
 	conn, err := upgrader.Upgrade(c.Writer, c.Request, nil)
 	if err != nil {
 		log.Println(err)
 		return
 	}
-	client := &Client{hub: hub, conn: conn, send: make(chan []byte, 256), roomID: roomID}
+	client := &Client{
+		hub:    hub,
+		conn:   conn,
+		send:   make(chan []byte, 256),
+		roomID: roomID,
+		userID: userID,
+	}
 	client.hub.register <- client
+	log.Printf("[WS] Join room=%s user=%s", roomID, userID)
 
-	// Allow collection of memory referenced by the caller by doing all work in
-	// new goroutines.
 	go client.writePump()
 	go client.readPump()
 }

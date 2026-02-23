@@ -3,6 +3,7 @@ package websocket
 import (
 	"encoding/json"
 	"log"
+	"strings"
 	"sync"
 )
 
@@ -53,7 +54,7 @@ func (h *Hub) Run() {
 			if _, ok := h.clients[client]; ok {
 				delete(h.clients, client)
 				close(client.send)
-				
+
 				if room, ok := h.rooms[client.roomID]; ok {
 					delete(room, client)
 					if len(room) == 0 {
@@ -79,7 +80,7 @@ func (h *Hub) Run() {
 	}
 }
 
-	// BroadcastToRoom sends a message to all clients in a specific room
+// BroadcastToRoom sends a message to all clients in a specific room
 func (h *Hub) BroadcastToRoom(roomID string, message interface{}) {
 	bytes, err := json.Marshal(message)
 	if err != nil {
@@ -102,5 +103,33 @@ func (h *Hub) BroadcastToRoom(roomID string, message interface{}) {
 		}
 	} else {
 		log.Printf("[WS] No clients found in room %s", roomID)
+	}
+}
+
+func (h *Hub) IsUserInRoom(roomID string, userID string) bool {
+	h.mu.RLock()
+	defer h.mu.RUnlock()
+	clients, ok := h.rooms[roomID]
+	if !ok {
+		return false
+	}
+	for client := range clients {
+		if strings.EqualFold(client.userID, userID) {
+			return true
+		}
+	}
+	return false
+}
+
+func (h *Hub) LogRoomUsers(roomID string) {
+	h.mu.RLock()
+	defer h.mu.RUnlock()
+	clients, ok := h.rooms[roomID]
+	if !ok {
+		log.Printf("[HUB] room %s: empty", roomID)
+		return
+	}
+	for client := range clients {
+		log.Printf("[HUB] room %s: userID=%s", roomID, client.userID)
 	}
 }

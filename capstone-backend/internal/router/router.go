@@ -3,6 +3,7 @@ package router
 import (
 	"context"
 	"log"
+	"net/http"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -20,6 +21,7 @@ import (
 	"github.com/Perpasit/Capstone-KMALL/internal/order"
 	"github.com/Perpasit/Capstone-KMALL/internal/orderchat"
 	"github.com/Perpasit/Capstone-KMALL/internal/product"
+	"github.com/Perpasit/Capstone-KMALL/internal/report"
 	"github.com/Perpasit/Capstone-KMALL/internal/respond"
 	"github.com/Perpasit/Capstone-KMALL/internal/role"
 	"github.com/Perpasit/Capstone-KMALL/internal/searchhistory"
@@ -137,6 +139,9 @@ func Attach(r *gin.Engine, db *pgxpool.Pool, cfg config.Config) {
 	recRepo := recommendation.NewRepo(db)
 	recSvc := recommendation.NewService(recRepo)
 
+	reportRepo := report.NewRepo(db)
+	reportSvc := report.NewService(reportRepo, fs)
+
 	// v1 := r.Group("/api",
 	// 	apiLogger(),
 	// 	auth.AuthMiddleware(),
@@ -239,7 +244,7 @@ func Attach(r *gin.Engine, db *pgxpool.Pool, cfg config.Config) {
 	cartHdl.Register(v1)
 
 	// orders
-	oHdl := order.NewHandler(oSvc, rSvc, uSvc, sSvc)
+	oHdl := order.NewHandler(oSvc, rSvc, uSvc, sSvc, notiSvc)
 	oHdl.Register(v1)
 
 	//search history
@@ -258,11 +263,17 @@ func Attach(r *gin.Engine, db *pgxpool.Pool, cfg config.Config) {
 	ocHdl := orderchat.NewHandler(ocSvc, ocRepo, rSvc, uSvc)
 	ocHdl.Register(v1)
 
+	// recommendation
 	recHdl := recommendation.NewHandler(recSvc, uSvc)
 	recHdl.Register(v1)
 
+	// notification
 	notiHdl := notification.NewHandler(notiSvc)
 	notiHdl.Register(v1)
+
+	// report
+	reportHdl := report.NewHandler(reportSvc, rSvc, uSvc, oRepo, ocRepo)
+	reportHdl.Register(v1)
 
 	// ---- debug local (ยิงตรง http://localhost:18080/debug/headers) ----
 	r.GET("/debug/headers", func(c *gin.Context) {
@@ -281,35 +292,66 @@ func Attach(r *gin.Engine, db *pgxpool.Pool, cfg config.Config) {
 	})
 
 	// WebSocket Endpoint for Orders
-	r.GET("/api/ws/orders/:orderId", func(c *gin.Context) {
+	v1.GET("/ws/orders/:orderId", func(c *gin.Context) {
 		orderId := c.Param("orderId")
 		if orderId == "" {
 			return
 		}
-		// roomID pattern: order_{id}
+
+		up, ok := c.Get(middleware.CtxUpstreamUser)
+		if !ok || up == nil {
+			c.Status(http.StatusUnauthorized)
+			return
+		}
+		uu := up.(*middleware.UpstreamUser)
+		u, err := uSvc.FindByUpstreamID(c.Request.Context(), uu.UID)
+		if err != nil {
+			c.Status(http.StatusUnauthorized)
+			return
+		}
+
 		roomID := "order_" + orderId
-		websocket.ServeWs(hub, c, roomID)
+		websocket.ServeWs(hub, c, roomID, u.ID)
 	})
 
 	// WebSocket Endpoint for Chat
-	r.GET("/api/ws/chats/:threadId", func(c *gin.Context) {
+	v1.GET("/ws/chats/:threadId", func(c *gin.Context) {
 		threadId := c.Param("threadId")
 		if threadId == "" {
 			return
 		}
-		// roomID pattern: chat_{threadId}
-		roomID := "chat_" + threadId
-		websocket.ServeWs(hub, c, roomID)
-	})
 
-	// WebSocket Endpoint for Notifications
-	r.GET("/api/ws/notifications/:userID", func(c *gin.Context) {
-		userID := c.Param("userID")
-		if userID == "" {
+		up, ok := c.Get(middleware.CtxUpstreamUser)
+		if !ok || up == nil {
+			c.Status(http.StatusUnauthorized)
 			return
 		}
-		roomID := "notification_" + userID
-		websocket.ServeWs(hub, c, roomID)
+		uu := up.(*middleware.UpstreamUser)
+		u, err := uSvc.FindByUpstreamID(c.Request.Context(), uu.UID)
+		if err != nil {
+			c.Status(http.StatusUnauthorized)
+			return
+		}
+
+		roomID := "chat_" + threadId
+		websocket.ServeWs(hub, c, roomID, u.ID)
+	})
+
+	v1.GET("/ws/notifications", func(c *gin.Context) {
+		up, ok := c.Get(middleware.CtxUpstreamUser)
+		if !ok || up == nil {
+			c.Status(http.StatusUnauthorized)
+			return
+		}
+		uu := up.(*middleware.UpstreamUser)
+		u, err := uSvc.FindByUpstreamID(c.Request.Context(), uu.UID)
+		if err != nil {
+			c.Status(http.StatusUnauthorized)
+			return
+		}
+
+		roomID := "notification_" + u.ID
+		websocket.ServeWs(hub, c, roomID, u.ID)
 	})
 }
 
