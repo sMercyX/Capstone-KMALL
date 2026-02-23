@@ -107,6 +107,7 @@ type orderDetailResp struct {
 	StoreName       string                 `json:"store_name"`
 	StoreProfileURL *string                `json:"store_profile_url,omitempty"`
 	SellerName      string                 `json:"seller_name"`
+	SellerUserID    string                 `json:"seller_user_id"`
 	BuyerName       string                 `json:"buyer_name"`
 	Buyer           *orderBuyerDTO         `json:"buyer,omitempty"`
 }
@@ -289,6 +290,7 @@ func (h *Handler) getOrder(c *gin.Context) {
 		StoreName:       st.Name,
 		StoreProfileURL: st.ProfileURL,
 		SellerName:      sellerUser.DisplayName,
+		SellerUserID:    sellerUser.ID,
 		BuyerName:       buyerUser.DisplayName,
 		Buyer:           buyerDTO,
 	}
