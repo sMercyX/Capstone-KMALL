@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react'
+import { useUserStore } from '../stores/userStore'
 
 const getWsUrl = (path: string) => {
   // Try to get base URL from environment or fallback
@@ -39,8 +40,8 @@ export function useOrderWebSocket(orderId: string | undefined, onUpdate: (data: 
     if (!orderId) return
 
     // const url = getWsUrl(`/ws/orders/${orderId}`)
-    const devUser = localStorage.getItem("kmall_dev_mode")
-    const qs = devUser ? `?dev_user=${encodeURIComponent(devUser)}` : ""
+    const currentUserId = useUserStore.getState().id
+    const qs = currentUserId ? `?user_id=${encodeURIComponent(currentUserId)}` : ""
     const url = getWsUrl(`/ws/orders/${orderId}${qs}`) 
     console.log('[WebSocket] Connecting to:', url)
 

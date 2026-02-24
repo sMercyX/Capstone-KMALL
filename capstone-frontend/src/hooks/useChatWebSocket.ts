@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react'
+import { useUserStore } from '../stores/userStore'
 
 const getWsUrl = (path: string) => {
   // Try to get base URL from environment or fallback
@@ -64,8 +65,8 @@ export function useChatWebSocket(
     if (!threadId) return
 
     // const url = getWsUrl(`/ws/chats/${threadId}`)
-    const devUser = localStorage.getItem("kmall_dev_mode")
-    const qs = devUser ? `?dev_user=${encodeURIComponent(devUser)}` : ""
+    const currentUserId = useUserStore.getState().id
+    const qs = currentUserId ? `?user_id=${encodeURIComponent(currentUserId)}` : ""
     const url = getWsUrl(`/ws/chats/${threadId}${qs}`) 
     console.log('[Chat WebSocket] Connecting to:', url)
 
