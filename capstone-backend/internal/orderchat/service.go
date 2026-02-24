@@ -254,6 +254,7 @@ func (s *service) upsertChatNotification(
 		RecipientUserID: recipientID,
 		ActorUserID:     senderID,
 		OrderID:         th.OrderID,
+		StoreID:         th.StoreID,
 		ThreadID:        th.ID,
 		MessageID:       createdMsg.ID,
 		MessageType:     createdMsg.MessageType,
