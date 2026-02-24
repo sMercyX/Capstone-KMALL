@@ -41,7 +41,7 @@ export function useNotificationWebSocket(
     if (!userID) return
 
     function connect() {
-      const url = getWsUrl(`/ws/notifications/${userID}`)
+      const url = getWsUrl(`/ws/notifications?user_id=${encodeURIComponent(userID!)}`)
       console.log('[WS-Notification] Connecting to:', url)
 
       const socket = new WebSocket(url)
