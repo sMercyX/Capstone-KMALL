@@ -290,14 +290,15 @@ func Attach(r *gin.Engine, db *pgxpool.Pool, cfg config.Config) {
 		respond.Error(c, 404, "NOT_FOUND", "route not found", nil)
 	})
 
-	// WebSocket Endpoints (on root router, no auth — browser WebSocket API cannot send headers)
+	// WebSocket Endpoints — user_id comes from frontend query param
 	r.GET("/api/ws/orders/:orderId", func(c *gin.Context) {
 		orderId := c.Param("orderId")
 		if orderId == "" {
 			return
 		}
+		userID := c.Query("user_id")
 		roomID := "order_" + orderId
-		websocket.ServeWs(hub, c, roomID, "")
+		websocket.ServeWs(hub, c, roomID, userID)
 	})
 
 	r.GET("/api/ws/chats/:threadId", func(c *gin.Context) {
@@ -305,8 +306,9 @@ func Attach(r *gin.Engine, db *pgxpool.Pool, cfg config.Config) {
 		if threadId == "" {
 			return
 		}
+		userID := c.Query("user_id")
 		roomID := "chat_" + threadId
-		websocket.ServeWs(hub, c, roomID, "")
+		websocket.ServeWs(hub, c, roomID, userID)
 	})
 
 	r.GET("/api/ws/notifications", func(c *gin.Context) {
