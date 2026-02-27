@@ -3,6 +3,7 @@ import { useReportApi, type ReportResponse } from "../../api/reportApi"
 import { format } from "date-fns"
 import { FaChevronLeft, FaChevronRight, FaCheck, FaTimes } from "react-icons/fa"
 import { FiSearch } from "react-icons/fi"
+import { useNavigate } from "react-router-dom"
 
 interface ReportManagerProps {
   reportedPartyType: "SELLER" | "BUYER"
@@ -10,6 +11,7 @@ interface ReportManagerProps {
 
 export default function ReportManager({ reportedPartyType }: ReportManagerProps) {
   const { getReports } = useReportApi()
+  const navigate = useNavigate()
   
   const [pendingReports, setPendingReports] = useState<ReportResponse[]>([])
   const [secondaryReports, setSecondaryReports] = useState<ReportResponse[]>([])
@@ -104,7 +106,10 @@ export default function ReportManager({ reportedPartyType }: ReportManagerProps)
                 </div>
                 <div className="col-span-2 flex justify-end">
                   {isPending ? (
-                    <button className="bg-[#ff5a36] hover:bg-[#e04a29] text-white px-5 py-2 rounded-md font-medium text-sm transition-colors w-full max-w-[130px]">
+                    <button
+                      onClick={() => navigate(`/admin/report/${reportedPartyType.toLowerCase()}/${r.report_id}`)}
+                      className="bg-[#ff5a36] hover:bg-[#e04a29] text-white px-5 py-2 rounded-md font-medium text-sm transition-colors w-full max-w-[130px]"
+                    >
                       View Detail
                     </button>
                   ) : activeTab === "RESOLVED" ? (

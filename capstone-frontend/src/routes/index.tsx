@@ -44,6 +44,7 @@ import { PiWarningCircleBold } from "react-icons/pi"
 const AdminCategoryPage = lazy(() => import("../modules/AdminPage/CategoryPage/CategoryPage"))
 const AdminSellerReportPage = lazy(() => import("../modules/AdminPage/SellerReportPage/SellerReportPage"))
 const AdminBuyerReportPage = lazy(() => import("../modules/AdminPage/BuyerReportPage/BuyerReportPage"))
+const AdminReportDetailPage = lazy(() => import("../modules/AdminPage/ReportDetailPage/ReportDetailPage"))
 const AdminBlacklistPage = lazy(() => import("../modules/AdminPage/BlacklistPage/BlacklistPage"))
 
 const adminMenuItems = [
@@ -212,6 +213,7 @@ export default function AppRoutes() {
           <Route path="category" element={<AdminCategoryPage />} />
           <Route path="report/seller" element={<AdminSellerReportPage />} />
           <Route path="report/buyer" element={<AdminBuyerReportPage />} />
+          <Route path="report/:type/:reportId" element={<AdminReportDetailPage />} />
           <Route path="blacklist" element={<AdminBlacklistPage />} />
         </Route>
 
