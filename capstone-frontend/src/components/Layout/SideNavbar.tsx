@@ -18,9 +18,10 @@ export interface MenuItem {
 export interface SideNavbarProps {
   title?: string
   menuItems: MenuItem[]
+  onClose?: () => void
 }
 
-export default function SideNavbar({ title, menuItems }: SideNavbarProps) {
+export default function SideNavbar({ title, menuItems, onClose }: SideNavbarProps) {
   const location = useLocation()
   
   // Keep track of which dropdowns are open
@@ -45,7 +46,7 @@ export default function SideNavbar({ title, menuItems }: SideNavbarProps) {
   }
 
   return (
-    <aside className="w-[280px] flex-shrink-0 bg-white border-r border-gray-200 flex flex-col min-h-screen">
+    <aside className="w-[280px] flex-shrink-0 bg-white border-r border-gray-200 flex flex-col h-full bg-white">
       {/* Header Logo & Badge */}
       <div className="flex flex-col items-center pt-8 pb-6 border-b border-gray-100">
         <img src={kmallText} alt="KMALL" className={`h-10 ${title ? 'mb-6' : ''}`} />
@@ -110,6 +111,7 @@ export default function SideNavbar({ title, menuItems }: SideNavbarProps) {
                       <NavLink
                         key={subItem.path}
                         to={subItem.path}
+                        onClick={() => onClose?.()}
                         className={({ isActive }) =>
                           `block py-2 text-lg transition-colors relative ${
                             isActive
@@ -135,6 +137,7 @@ export default function SideNavbar({ title, menuItems }: SideNavbarProps) {
               // Direct Link Item
               <NavLink
                 to={item.path!}
+                onClick={() => onClose?.()}
                 className={({ isActive }) =>
                   `flex items-center gap-4 px-4 py-3 rounded-lg transition-colors relative group mb-1
                     ${
