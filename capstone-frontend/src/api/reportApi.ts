@@ -41,6 +41,20 @@ export function useReportApi() {
     }
     return http.postItem(`/reports/orders/${orderId}`, formData)
   }
+  async function getReports(params: {
+    reported_party_type: "SELLER" | "BUYER"
+    status?: "PENDING" | "RESOLVED" | "CLOSED"
+    limit?: number
+    page?: number
+  }): Promise<{ code: number; data: ReportResponse[]; status: string }> {
+    const queryParams = new URLSearchParams()
+    if (params.reported_party_type) queryParams.append("reported_party_type", params.reported_party_type)
+    if (params.status) queryParams.append("status", params.status)
+    if (params.limit) queryParams.append("limit", params.limit.toString())
+    if (params.page) queryParams.append("page", params.page.toString())
+    
+    return http.getItems(`/reports?${queryParams.toString()}`)
+  }
 
-  return { createOrderReport }
+  return { createOrderReport, getReports }
 }
