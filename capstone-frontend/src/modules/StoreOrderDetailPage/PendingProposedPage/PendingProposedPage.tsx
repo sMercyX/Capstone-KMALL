@@ -2,7 +2,7 @@
 import type { OrderItemDetail, orderSellerData } from "../../../api/orderSellerApi"
 import type { CampusLocation } from "../../../api/campusLocationApi"
 import { ZoneDropdown, BuildingDropdown, DateTimePicker } from "../../../components/Dropdown"
-import ProductList from "../components/ProductList"
+import ProductList from "../../../components/ProductList/ProductList"
 import MapKmuttButton from "../../../components/MapKmuttButton/MapKmuttButton"
 
 interface PendingProposedPageProps {

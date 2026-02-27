@@ -11,7 +11,7 @@ import { toast } from "react-toastify"
 import { processImageFile, SUPPORTED_IMAGE_TYPES } from "../../utils/imageProcessing"
 import { useOrderSellerApi, type OrderDetailResponse } from "../../api/orderSellerApi"
 import { getAllLocations, type CampusLocation } from "../../api/campusLocationApi"
-import ProductList from "../StoreOrderDetailPage/components/ProductList"
+import ProductList from "../../components/ProductList/ProductList"
 import MapKmuttButton from "../../components/MapKmuttButton/MapKmuttButton"
 
 // Types for UI messages

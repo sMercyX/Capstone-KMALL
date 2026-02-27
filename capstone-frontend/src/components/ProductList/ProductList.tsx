@@ -1,7 +1,6 @@
-// src/modules/StoreOrderDetailPage/components/ProductList.tsx
 import { Store } from "lucide-react"
-import type { OrderItemDetail } from "../../../api/orderSellerApi"
-import { resolveImageUrl } from "../../../utils/resolve"
+import type { OrderItemDetail } from "../../api/orderSellerApi"
+import { resolveImageUrl } from "../../utils/resolve"
 
 interface ProductListProps {
   items: OrderItemDetail[]

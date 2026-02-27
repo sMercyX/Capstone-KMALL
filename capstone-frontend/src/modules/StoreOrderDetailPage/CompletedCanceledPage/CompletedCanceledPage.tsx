@@ -4,7 +4,7 @@ import { Link } from "react-router-dom"
 import type { OrderItemDetail, orderSellerData } from "../../../api/orderSellerApi"
 import { useProductApi, type RecommendationProduct } from "../../../api/productApi"
 import { resolveImageUrl } from "../../../utils/resolve"
-import ProductList from "../components/ProductList"
+import ProductList from "../../../components/ProductList/ProductList"
 
 interface CompletedCanceledPageProps {
   order: orderSellerData

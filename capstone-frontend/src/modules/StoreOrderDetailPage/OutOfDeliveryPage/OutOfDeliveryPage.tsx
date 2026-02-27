@@ -1,6 +1,6 @@
 // src/modules/StoreOrderDetailPage/OutOfDeliveryPage/OutOfDeliveryPage.tsx
 import type { OrderItemDetail, orderSellerData } from "../../../api/orderSellerApi"
-import ProductList from "../components/ProductList"
+import ProductList from "../../../components/ProductList/ProductList"
 
 interface OutOfDeliveryPageProps {
   order: orderSellerData
