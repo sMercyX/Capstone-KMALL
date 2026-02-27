@@ -1,4 +1,4 @@
-import { Routes, Route } from "react-router-dom"
+import { Routes, Route, Navigate } from "react-router-dom"
 import { lazy, Suspense } from "react"
 import MainLayout from "../components/Layout/MainLayout"
 import LoadingSpinner from "../components/LoaingSpinner/LoadingSpinner"
@@ -29,6 +29,51 @@ const StoreOrderDetailPage = lazy(
 const OrderPage = lazy(() => import("../modules/OrderPage/OrderPage"))
 const ChatPage = lazy(() => import("../modules/ChatPage/ChatPage"))
 
+// --- Backend (Admin / Seller) Setup ---
+import BackendLayout from "../components/Layout/BackendLayout"
+import {
+  FaCoins,
+  FaUserLock,
+  FaUser,
+  FaBox,
+  FaHandHoldingUsd,
+  FaCog
+} from "react-icons/fa"
+import { PiWarningCircleBold } from "react-icons/pi"
+
+const AdminCategoryPage = lazy(() => import("../modules/AdminPage/CategoryPage/CategoryPage"))
+const AdminSellerReportPage = lazy(() => import("../modules/AdminPage/SellerReportPage/SellerReportPage"))
+const AdminBuyerReportPage = lazy(() => import("../modules/AdminPage/BuyerReportPage/BuyerReportPage"))
+const AdminBlacklistPage = lazy(() => import("../modules/AdminPage/BlacklistPage/BlacklistPage"))
+
+const adminMenuItems = [
+  {
+    label: "Category",
+    icon: <FaCoins />,
+    path: "/admin/category"
+  },
+  {
+    label: "Report",
+    icon: <PiWarningCircleBold />,
+    subItems: [
+      { label: "Reported by Seller", path: "/admin/report/seller" },
+      { label: "Reported by Buyer", path: "/admin/report/buyer" }
+    ]
+  },
+  {
+    label: "Blacklist",
+    icon: <FaUserLock />,
+    path: "/admin/blacklist"
+  }
+]
+
+const sellerMenuItems = [
+  { label: "My Store", icon: <FaUser />, path: "/store/me" },
+  { label: "Products", icon: <FaBox />, path: "/store/products" },
+  { label: "Orders", icon: <FaHandHoldingUsd />, path: "/store/orders" },
+  { label: "Store Settings", icon: <FaCog />, path: "/store/settings" }
+]
+
 export default function AppRoutes() {
   return (
     <Suspense fallback={<LoadingSpinner />}>
@@ -50,6 +95,7 @@ export default function AppRoutes() {
                 </ProtectedRoute>
               }
             />
+            {/* dashboard and store pages moved to BackendLayout */}
             <Route
               path="/categories/:category"
               element={
@@ -89,62 +135,6 @@ export default function AppRoutes() {
               element={
                 <ProtectedRoute>
                   <StoreRegisterPage />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/store/me"
-              element={
-                <ProtectedRoute>
-                  <StoreSellerPage />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/store/products"
-              element={
-                <ProtectedRoute>
-                  <StoreSellerPage />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/store/add"
-              element={
-                <ProtectedRoute>
-                  <StoreSellerPage />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/store/orders"
-              element={
-                <ProtectedRoute>
-                  <StoreSellerPage />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/store/orders/:orderId"
-              element={
-                <ProtectedRoute>
-                  <StoreOrderDetailPage />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/store/orders/:orderId/chat"
-              element={
-                <ProtectedRoute>
-                  <ChatPage />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/store/settings"
-              element={
-                <ProtectedRoute>
-                  <StoreSellerPage />
                 </ProtectedRoute>
               }
             />
@@ -208,7 +198,43 @@ export default function AppRoutes() {
 
           <Route path="*" element={<div>404</div>} />
         </Route>
+
+        {/* --- GLOBAL BACKEND ROUTES (Admin Layout) --- */}
+        <Route
+          path="/admin"
+          element={
+            <ProtectedRoute>
+              <BackendLayout title="Admin Panel" menuItems={adminMenuItems} />
+            </ProtectedRoute>
+          }
+        >
+          {/* Admin Sub-routes */}
+          <Route path="category" element={<AdminCategoryPage />} />
+          <Route path="report/seller" element={<AdminSellerReportPage />} />
+          <Route path="report/buyer" element={<AdminBuyerReportPage />} />
+          <Route path="blacklist" element={<AdminBlacklistPage />} />
+        </Route>
+
+        {/* --- GLOBAL SELLER ROUTES (Store Layout) --- */}
+        <Route
+          element={
+            <ProtectedRoute>
+              <BackendLayout menuItems={sellerMenuItems} />
+            </ProtectedRoute>
+          }
+        >
+          {/* Seller Sub-routes */}
+          <Route path="/store" element={<Navigate to="/store/me" replace />} />
+          <Route path="/store/me" element={<StoreSellerPage />} />
+          <Route path="/store/products" element={<StoreSellerPage />} />
+          <Route path="/store/add" element={<StoreSellerPage />} />
+          <Route path="/store/orders" element={<StoreSellerPage />} />
+          <Route path="/store/orders/:orderId" element={<StoreOrderDetailPage />} />
+          <Route path="/store/orders/:orderId/chat" element={<ChatPage />} />
+          <Route path="/store/settings" element={<StoreSellerPage />} />
+        </Route>
       </Routes>
     </Suspense>
   )
 }
+

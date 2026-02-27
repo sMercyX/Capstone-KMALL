@@ -1,8 +1,5 @@
 import { useLocation, useNavigate } from "react-router-dom"
 import Card from "../../components/Card/Card"
-import SwitchTabs, {
-  type SwitchTabItem,
-} from "../../components/SwitchTabs/SwitchTabs"
 import StoreInfoTab from "./StoreInfoTab/StoreInfoTab"
 import StoreOrdersTab from "./storeOrderTab/StoreOrdersTab"
 import StoreSettingsTab from "./StoreSettingTab"
@@ -19,13 +16,7 @@ export default function StorePage() {
   const navigate = useNavigate()
   const pathname = location.pathname
 
-  const tabs: SwitchTabItem[] = [
-    { key: "store", label: "My Store", href: "/store/me" },
-    { key: "products", label: "Products", href: "/store/products" },
-    { key: "add", label: "Add New Product", href: "/store/add" },
-    { key: "orders", label: "Orders", href: "/store/orders" },
-    { key: "settings", label: "Store Settings", href: "/store/settings" },
-  ]
+  // Tabs configuration removed since we now use BackendLayout sidebar
 
   // ✅ ตรงนี้คือจุดสำคัญ — ดูจาก URL แล้วแมปเป็น key
   let activeKey: StoreTabKey = "store"
@@ -36,8 +27,11 @@ export default function StorePage() {
   else if (pathname.startsWith("/store/settings")) activeKey = "settings"
   // ถ้าไม่ตรงอะไรเลย (เช่น /store) ก็เป็น "store"
 
-  const activeLabel =
-    tabs.find((t) => t.key === activeKey)?.label || "My Store"
+  let activeLabel = "My Store"
+  if (activeKey === "products") activeLabel = "Products"
+  else if (activeKey === "add") activeLabel = "Add New Product"
+  else if (activeKey === "orders") activeLabel = "Orders"
+  else if (activeKey === "settings") activeLabel = "Store Settings"
 
   const roles = useUserStore((s) => s.roles)
   // 🔒 ถ้ามี role seller อยู่แล้ว ห้ามเข้าหน้านี้ → เด้งไป /store/me
@@ -61,7 +55,6 @@ export default function StorePage() {
   return (
     <div className="max-w-6xl mx-auto py-10">
       <Card className="space-y-5">
-        <SwitchTabs tabs={tabs} />
         <h1 className="text-center text-3xl font-bold  text-black">
           {activeLabel}
         </h1>
