@@ -156,7 +156,7 @@ func (r *repo) ListReports(ctx context.Context, in ListReportsParams) ([]Report,
 	i := 1
 
 	if in.OrderID != "" {
-		query += ` AND order_id = $` + itoa(i)
+		query += ` AND order_id::text LIKE $` + itoa(i)
 		args = append(args, in.OrderID)
 		i++
 	}

@@ -196,6 +196,9 @@ func (h *Handler) listReports(c *gin.Context) {
 	q := parseListReportsQuery(c)
 
 	orderID := c.DefaultQuery("order_id", "")
+	if orderID != "" {
+		orderID = orderID + "%"
+	}
 
 	reports, err := h.svc.ListReports(c.Request.Context(), ListReportsParams{
 		Status:            q.Status,
