@@ -129,6 +129,7 @@ type ListReportsParams struct {
 	ToDate            *time.Time
 	Limit             int
 	Offset            int
+	OrderID           string
 }
 
 type AdminActionInput struct {

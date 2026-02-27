@@ -195,6 +195,8 @@ func (h *Handler) submitReport(c *gin.Context) {
 func (h *Handler) listReports(c *gin.Context) {
 	q := parseListReportsQuery(c)
 
+	orderID := c.DefaultQuery("order_id", "")
+
 	reports, err := h.svc.ListReports(c.Request.Context(), ListReportsParams{
 		Status:            q.Status,
 		ReportedPartyType: q.ReportedPartyType,
@@ -203,6 +205,7 @@ func (h *Handler) listReports(c *gin.Context) {
 		ToDate:            q.ToDate,
 		Limit:             q.Limit,
 		Offset:            q.Offset,
+		OrderID:           orderID,
 	})
 	if err != nil {
 		c.Error(err)

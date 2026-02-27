@@ -96,12 +96,6 @@ func (r *repo) CreateReport(ctx context.Context, in CreateReportInput) (Report, 
 		return Report{}, apperr.Wrap(apperr.Internal, err, "check existing report failed")
 	}
 
-	if err == nil {
-		return Report{}, apperr.New(apperr.Conflict, "report already exists for this order")
-	} else if !errors.Is(err, pgx.ErrNoRows) {
-		return Report{}, apperr.Wrap(apperr.Internal, err, "check existing report failed")
-	}
-
 	var rep Report
 	err = scanReport(r.db.QueryRow(ctx, `
 		INSERT INTO reports (order_id, reporter_id, reported_user_id, reported_party_type, reason_code, description)
@@ -130,6 +124,7 @@ func (r *repo) CreateReport(ctx context.Context, in CreateReportInput) (Report, 
 		}
 		return Report{}, apperr.Wrap(apperr.Internal, err, "insert report failed")
 	}
+
 	return rep, nil
 }
 
@@ -159,6 +154,13 @@ func (r *repo) ListReports(ctx context.Context, in ListReportsParams) ([]Report,
        reason_code, description, status, created_at, updated_at FROM reports WHERE 1=1`
 	args := []any{}
 	i := 1
+
+	if in.OrderID != "" {
+		query += ` AND order_id = $` + itoa(i)
+		args = append(args, in.OrderID)
+		i++
+	}
+
 	if in.Status != nil {
 		query += ` AND status = $` + itoa(i)
 		args = append(args, *in.Status)
