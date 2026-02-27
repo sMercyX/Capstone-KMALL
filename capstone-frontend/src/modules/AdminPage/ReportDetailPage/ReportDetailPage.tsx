@@ -1,5 +1,6 @@
 import { useParams, Link } from "react-router-dom"
 import { useState, useRef, useEffect } from "react"
+import ProductList from "../../../components/ProductList/ProductList"
 
 export default function ReportDetailPage() {
   const { type, reportId } = useParams()
@@ -161,83 +162,54 @@ export default function ReportDetailPage() {
         </div>
 
         {/* Order Snapshot */}
-        <div id="Order Snapshot" className="bg-white rounded-lg shadow-sm border border-gray-200 p-8 pt-10">
-          <h2 className="text-2xl font-bold text-gray-900 mb-6">Order Snapshot</h2>
-          
-          <div className="grid grid-cols-[80px_1fr_100px_120px_1fr] text-sm text-gray-400 mb-4 px-4 font-medium">
-            <div>ลำดับ</div>
-            <div>ชื่อสินค้า</div>
-            <div className="text-center">จำนวน</div>
-            <div>ราคา</div>
-            <div>หมายเหตุ</div>
-          </div>
-
-          <div className="space-y-3 mb-8">
-            {/* Item 1 */}
-            <div className="grid grid-cols-[80px_1fr_100px_120px_1fr] items-center bg-[#fff8f7] rounded-xl px-4 py-3 text-sm">
-              <div className="text-gray-700">1.</div>
-              <div className="flex items-center gap-4 bg-[#fff8f7]">
-                <div className="w-10 h-10 bg-gray-200 rounded-md overflow-hidden bg-[#fff8f7]">
-                  <img src="https://placehold.co/40x40/ddd/ddd" alt="Product" className="w-full h-full object-cover" />
-                </div>
-                <span className="font-medium text-gray-800">กำไลข้อมือ</span>
-              </div>
-              <div className="flex justify-center bg-[#fff8f7]">
-                <span className="bg-[#ff5a36] text-white px-3 py-1 rounded text-xs font-medium">2</span>
-              </div>
-              <div className="text-gray-700 bg-[#fff8f7]">78 บาท</div>
-              <div className="text-gray-600 bg-[#fff8f7]">เอาโทนชมพู</div>
-            </div>
-            
-            {/* Item 2 */}
-            <div className="grid grid-cols-[80px_1fr_100px_120px_1fr] items-center bg-[#fff8f7] rounded-xl px-4 py-3 text-sm">
-              <div className="text-gray-700">2.</div>
-              <div className="flex items-center gap-4 bg-[#fff8f7]">
-                <div className="w-10 h-10 bg-gray-200 rounded-md overflow-hidden bg-[#fff8f7]">
-                  <img src="https://placehold.co/40x40/ddd/ddd" alt="Product" className="w-full h-full object-cover" />
-                </div>
-                <span className="font-medium text-gray-800">สร้อยคอ</span>
-              </div>
-              <div className="flex justify-center bg-[#fff8f7]">
-                 <span className="bg-[#ff5a36] text-white px-3 py-1 rounded text-xs font-medium">1</span>
-              </div>
-              <div className="text-gray-700 bg-[#fff8f7]">45 บาท</div>
-              <div className="text-gray-600 bg-[#fff8f7]">เอาสีโทนธรรมชาติ ๆ</div>
-            </div>
-
-            {/* Item 3 */}
-            <div className="grid grid-cols-[80px_1fr_100px_120px_1fr] items-center bg-[#fff8f7] rounded-xl px-4 py-3 text-sm">
-              <div className="text-gray-700">3.</div>
-              <div className="flex items-center gap-4 bg-[#fff8f7]">
-                <div className="w-10 h-10 bg-gray-200 rounded-md overflow-hidden bg-[#fff8f7]">
-                  <img src="https://placehold.co/40x40/ddd/ddd" alt="Product" className="w-full h-full object-cover" />
-                </div>
-                <span className="font-medium text-gray-800">แหวน</span>
-              </div>
-              <div className="flex justify-center bg-[#fff8f7]">
-                 <span className="bg-[#ff5a36] text-white px-3 py-1 rounded text-xs font-medium">1</span>
-              </div>
-              <div className="text-gray-700 bg-[#fff8f7]">39 บาท</div>
-              <div className="text-gray-600 bg-[#fff8f7]">-</div>
-            </div>
-          </div>
-
-          <div className="mt-8 space-y-3">
-            <div className="flex justify-between text-gray-700 font-medium">
-              <span>Subtotal</span>
-              <span>฿ 162</span>
-            </div>
-            <div className="flex justify-between text-gray-700 font-medium pb-2">
-              <span>Delivery fee</span>
-              <span>-</span>
-            </div>
-            <div className="border-t border-gray-200 pt-4">
-              <div className="flex justify-between font-bold">
-                <span className="text-xl text-gray-900">Grand total</span>
-                <span className="text-xl text-[#ff5a36]">฿ 162</span>
-              </div>
-            </div>
-          </div>
+        <div id="Order Snapshot" className="bg-white rounded-lg shadow-sm border border-gray-200 p-8 pt-10 pb-16">
+          <ProductList
+            items={[
+              {
+                order_item_id: 1,
+                product_id: 1,
+                product_name: "กำไลข้อมือ",
+                product_image_url: "",
+                quantity: 2,
+                unit_price: 39,
+                subtotal: 78,
+                created_at: "",
+                updated_at: "",
+                price: 39
+              },
+              {
+                order_item_id: 2,
+                product_id: 2,
+                product_name: "สร้อยคอ",
+                product_image_url: "",
+                quantity: 1,
+                unit_price: 45,
+                subtotal: 45,
+                created_at: "",
+                updated_at: "",
+                price: 45
+              },
+              {
+                order_item_id: 3,
+                product_id: 3,
+                product_name: "แหวน",
+                product_image_url: "",
+                quantity: 1,
+                unit_price: 39,
+                subtotal: 39,
+                created_at: "",
+                updated_at: "",
+                price: 39
+              }
+            ] as any}
+            total={162}
+            subtotal={162}
+            deliveryFee={0}
+            notes="เอาโทนชมพู, เอาสีโทนธรรมชาติ ๆ"
+            showHeader={true}
+            showNotes={true}
+            showBreakdown={true}
+          />
         </div>
 
         {/* Chat Conversation */}
