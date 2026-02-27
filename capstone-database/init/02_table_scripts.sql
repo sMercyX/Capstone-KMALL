@@ -598,14 +598,25 @@ CREATE TABLE IF NOT EXISTS report_order_snapshots (
   report_id BIGINT PRIMARY KEY
     REFERENCES reports(report_id) ON DELETE CASCADE,
 
-  order_status     VARCHAR(45)    NOT NULL,
-  delivery_method  VARCHAR(20)    NOT NULL,
-  total_price      DECIMAL(10,2)  NOT NULL,
+  order_status       VARCHAR(45)   NOT NULL,
+  total_price        DECIMAL(10,2) NOT NULL,
+  order_date         TIMESTAMPTZ   NOT NULL,
+  delivery_method    VARCHAR(20)   NOT NULL,
 
-  -- snapshot payloads for admin context
-  delivery_address JSONB NULL,
-  campus_location  JSONB NULL,
-  delivery_time    JSONB NULL,
+  delivery_address   JSONB NULL,
+
+  campus_location_id INT NULL,
+  campus_detail_note VARCHAR(255) NULL,
+
+  proposed_at        TIMESTAMPTZ NULL,
+  meeting_location   JSONB NULL,
+  meeting_note       VARCHAR(255) NULL,
+
+  cancelled_at       TIMESTAMPTZ NULL,
+  cancelled_by       VARCHAR(10) NULL,
+  cancelled_reason   VARCHAR(255) NULL,
+
+  items              JSONB NOT NULL DEFAULT '[]',
 
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );

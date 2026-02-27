@@ -317,11 +317,16 @@ func (r *repo) CreateOrderSnapshot(ctx context.Context, in ReportOrderSnapshot) 
 		return apperr.New(apperr.BadRequest, "invalid report_id")
 	}
 	_, err := r.db.Exec(ctx, `
-INSERT INTO report_order_snapshots (report_id, order_status, delivery_method, total_price,
-  delivery_address, campus_location, delivery_time)
-VALUES ($1,$2,$3,$4,$5,$6,$7)`,
-		in.ReportID, in.OrderStatus, in.DeliveryMethod, in.TotalPrice,
-		in.DeliveryAddress, in.CampusLocation, in.DeliveryTime)
+INSERT INTO report_order_snapshots (
+    report_id, order_status, total_price, order_date, delivery_method,
+    delivery_address, campus_location_id, campus_detail_note,
+    proposed_at, meeting_location, meeting_note,
+    cancelled_at, cancelled_by, cancelled_reason, items
+) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)`,
+		in.ReportID, in.OrderStatus, in.TotalPrice, in.OrderDate, in.DeliveryMethod,
+		in.DeliveryAddress, in.CampusLocationID, in.CampusDetailNote,
+		in.ProposedAt, in.MeetingLocation, in.MeetingNote,
+		in.CancelledAt, in.CancelledBy, in.CancelledReason, in.Items)
 	if err != nil {
 		return apperr.Wrap(apperr.Internal, err, "insert order snapshot failed")
 	}
@@ -334,11 +339,15 @@ func (r *repo) GetOrderSnapshot(ctx context.Context, reportID int64) (ReportOrde
 	}
 	var s ReportOrderSnapshot
 	err := r.db.QueryRow(ctx, `
-SELECT report_id, order_status, delivery_method, total_price,
-       delivery_address, campus_location, delivery_time, created_at
+SELECT report_id, order_status, total_price, order_date, delivery_method,
+       delivery_address, campus_location_id, campus_detail_note,
+       proposed_at, meeting_location, meeting_note,
+       cancelled_at, cancelled_by, cancelled_reason, items, created_at
 FROM report_order_snapshots WHERE report_id = $1`, reportID).Scan(
-		&s.ReportID, &s.OrderStatus, &s.DeliveryMethod, &s.TotalPrice,
-		&s.DeliveryAddress, &s.CampusLocation, &s.DeliveryTime, &s.CreatedAt)
+		&s.ReportID, &s.OrderStatus, &s.TotalPrice, &s.OrderDate, &s.DeliveryMethod,
+		&s.DeliveryAddress, &s.CampusLocationID, &s.CampusDetailNote,
+		&s.ProposedAt, &s.MeetingLocation, &s.MeetingNote,
+		&s.CancelledAt, &s.CancelledBy, &s.CancelledReason, &s.Items, &s.CreatedAt)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return ReportOrderSnapshot{}, apperr.New(apperr.NotFound, "order snapshot not found")

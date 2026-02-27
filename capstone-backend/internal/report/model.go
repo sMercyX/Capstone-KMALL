@@ -1,6 +1,7 @@
 package report
 
 import (
+	"encoding/json"
 	"time"
 )
 
@@ -37,14 +38,28 @@ type ReportEvidence struct {
 }
 
 type ReportOrderSnapshot struct {
-	ReportID        int64     `json:"report_id"`
-	OrderStatus     string    `json:"order_status"`
-	DeliveryMethod  string    `json:"delivery_method"`
-	TotalPrice      float64   `json:"total_price"`
-	DeliveryAddress *any      `json:"delivery_address,omitempty"` // JSONB
-	CampusLocation  *any      `json:"campus_location,omitempty"`  // JSONB
-	DeliveryTime    *any      `json:"delivery_time,omitempty"`    // JSONB
-	CreatedAt       time.Time `json:"created_at"`
+	ReportID       int64     `json:"report_id"`
+	OrderStatus    string    `json:"order_status"`
+	TotalPrice     float64   `json:"total_price"`
+	OrderDate      time.Time `json:"order_date"`
+	DeliveryMethod string    `json:"delivery_method"`
+
+	DeliveryAddress *json.RawMessage `json:"delivery_address,omitempty"`
+
+	CampusLocationID *int    `json:"campus_location_id,omitempty"`
+	CampusDetailNote *string `json:"campus_detail_note,omitempty"`
+
+	ProposedAt      *time.Time       `json:"proposed_at,omitempty"`
+	MeetingLocation *json.RawMessage `json:"meeting_location,omitempty"`
+	MeetingNote     *string          `json:"meeting_note,omitempty"`
+
+	CancelledAt     *time.Time `json:"cancelled_at,omitempty"`
+	CancelledBy     *string    `json:"cancelled_by,omitempty"`
+	CancelledReason *string    `json:"cancelled_reason,omitempty"`
+
+	Items json.RawMessage `json:"items"`
+
+	CreatedAt time.Time `json:"created_at"`
 }
 
 type ReportChatSnapshot struct {

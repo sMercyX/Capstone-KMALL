@@ -1,6 +1,7 @@
 package report
 
 import (
+	"encoding/json"
 	"net/http"
 	"strconv"
 	"strings"
@@ -379,12 +380,29 @@ func (h *Handler) buildSnapshots(c *gin.Context, orderID int) (ReportOrderSnapsh
 		return ReportOrderSnapshot{}, nil, err
 	}
 
+	// ── Order items ──────────────────────────────────────────────────
+	items, err := h.orderRepo.ListItemsByOrderID(ctx, int64(orderID))
+	if err != nil {
+		return ReportOrderSnapshot{}, nil, err
+	}
+	itemsJSON, err := json.Marshal(items)
+	if err != nil {
+		return ReportOrderSnapshot{}, nil, apperr.Wrap(apperr.Internal, err, "marshal items failed")
+	}
+
 	orderSnapshot := ReportOrderSnapshot{
-		OrderStatus:    o.Status,
-		DeliveryMethod: o.DeliveryMethod,
-		TotalPrice:     float64(o.TotalPrice),
-		// DeliveryAddress / CampusLocation / DeliveryTime
-		// ใส่เป็น JSONB — marshal ที่นี่หรือ pass raw ก็ได้
+		OrderStatus:      o.Status,
+		TotalPrice:       float64(o.TotalPrice),
+		OrderDate:        o.OrderDate,
+		DeliveryMethod:   o.DeliveryMethod,
+		CampusLocationID: o.CampusLocationID,
+		CampusDetailNote: o.CampusDetailNote,
+		ProposedAt:       o.ProposedAt,
+		MeetingNote:      o.MeetingNote,
+		CancelledAt:      o.CancelledAt,
+		CancelledBy:      o.CancelledBy,
+		CancelledReason:  o.CancelledReason,
+		Items:            json.RawMessage(itemsJSON),
 	}
 
 	// ── Chat snapshot ────────────────────────────────────────────────
