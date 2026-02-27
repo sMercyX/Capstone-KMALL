@@ -9,16 +9,19 @@ import (
 // ============================================================================
 
 type Report struct {
-	ID                int64     `json:"report_id"`
-	OrderID           int       `json:"order_id"`
-	ReporterID        string    `json:"reporter_id"`
-	ReportedUserID    string    `json:"reported_user_id"`
-	ReportedPartyType string    `json:"reported_party_type"` // BUYER / SELLER
-	ReasonCode        string    `json:"reason_code"`
-	Description       *string   `json:"description,omitempty"`
-	Status            string    `json:"status"` // PENDING / REVIEWED / RESOLVED / CLOSED
-	CreatedAt         time.Time `json:"created_at"`
-	UpdatedAt         time.Time `json:"updated_at"`
+	ID                  int64     `json:"report_id"`
+	OrderID             int       `json:"order_id"`
+	StoreName           string    `json:"store_name"`
+	ReporterID          string    `json:"reporter_id"`
+	ReporterDisplayName string    `json:"reporter_display_name"`
+	ReportedUserID      string    `json:"reported_user_id"`
+	ReportedDisplayName string    `json:"reported_display_name"`
+	ReportedPartyType   string    `json:"reported_party_type"` // BUYER / SELLER
+	ReasonCode          string    `json:"reason_code"`
+	Description         *string   `json:"description,omitempty"`
+	Status              string    `json:"status"` // PENDING / REVIEWED / RESOLVED / CLOSED
+	CreatedAt           time.Time `json:"created_at"`
+	UpdatedAt           time.Time `json:"updated_at"`
 }
 
 type ReportEvidence struct {

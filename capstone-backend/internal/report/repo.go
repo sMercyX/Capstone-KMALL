@@ -37,8 +37,13 @@ type repo struct{ db *pgxpool.Pool }
 func NewRepo(db *pgxpool.Pool) Repo { return &repo{db: db} }
 
 func scanReport(row pgx.Row, r *Report) error {
-	return row.Scan(&r.ID, &r.OrderID, &r.ReporterID, &r.ReportedUserID, &r.ReportedPartyType,
-		&r.ReasonCode, &r.Description, &r.Status, &r.CreatedAt, &r.UpdatedAt)
+	return row.Scan(
+		&r.ID, &r.OrderID, &r.ReporterID, &r.ReportedUserID,
+		&r.ReportedPartyType, &r.ReasonCode, &r.Description, &r.Status,
+		&r.CreatedAt, &r.UpdatedAt,
+		&r.ReporterDisplayName, &r.ReportedDisplayName,
+		&r.StoreName,
+	)
 }
 func scanEvidence(row pgx.Row, e *ReportEvidence) error {
 	return row.Scan(&e.ID, &e.ReportID, &e.UploadedBy, &e.FileURL, &e.FileName,
@@ -96,14 +101,12 @@ func (r *repo) CreateReport(ctx context.Context, in CreateReportInput) (Report, 
 		return Report{}, apperr.Wrap(apperr.Internal, err, "check existing report failed")
 	}
 
-	var rep Report
-	err = scanReport(r.db.QueryRow(ctx, `
-		INSERT INTO reports (order_id, reporter_id, reported_user_id, reported_party_type, reason_code, description)
-		VALUES ($1,$2,$3,$4,$5,$6)
-		RETURNING report_id, order_id, reporter_id, reported_user_id, reported_party_type,
-		          reason_code, description, status, created_at, updated_at
-	`, in.OrderID, in.ReporterID, in.ReportedUserID, in.ReportedPartyType, in.ReasonCode, in.Description), &rep)
-
+	var newID int64
+	err = r.db.QueryRow(ctx, `
+    INSERT INTO reports (order_id, reporter_id, reported_user_id, reported_party_type, reason_code, description)
+    VALUES ($1,$2,$3,$4,$5,$6)
+    RETURNING report_id
+`, in.OrderID, in.ReporterID, in.ReportedUserID, in.ReportedPartyType, in.ReasonCode, in.Description).Scan(&newID)
 	if err != nil {
 		if pe, ok := pgErr(err); ok {
 			switch pe.Code {
@@ -125,7 +128,7 @@ func (r *repo) CreateReport(ctx context.Context, in CreateReportInput) (Report, 
 		return Report{}, apperr.Wrap(apperr.Internal, err, "insert report failed")
 	}
 
-	return rep, nil
+	return r.GetReport(ctx, newID)
 }
 
 func (r *repo) GetReport(ctx context.Context, reportID int64) (Report, error) {
@@ -134,9 +137,18 @@ func (r *repo) GetReport(ctx context.Context, reportID int64) (Report, error) {
 	}
 	var rep Report
 	err := scanReport(r.db.QueryRow(ctx, `
-SELECT report_id, order_id, reporter_id, reported_user_id, reported_party_type,
-       reason_code, description, status, created_at, updated_at
-FROM reports WHERE report_id = $1`, reportID), &rep)
+SELECT r.report_id, r.order_id, r.reporter_id, r.reported_user_id,
+       r.reported_party_type, r.reason_code, r.description, r.status,
+       r.created_at, r.updated_at,
+       u1.display_name AS reporter_display_name,
+       u2.display_name AS reported_display_name,
+       s.store_name
+FROM reports r
+JOIN users u1 ON u1.user_id = r.reporter_id
+JOIN users u2 ON u2.user_id = r.reported_user_id
+JOIN orders o ON o.order_id = r.order_id
+JOIN stores s ON s.store_id = o.store_id
+WHERE r.report_id = $1`, reportID), &rep)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return Report{}, apperr.New(apperr.NotFound, "report not found")
@@ -150,43 +162,51 @@ func (r *repo) ListReports(ctx context.Context, in ListReportsParams) ([]Report,
 	if in.Limit <= 0 || in.Limit > 100 {
 		in.Limit = 20
 	}
-	query := `SELECT report_id, order_id, reporter_id, reported_user_id, reported_party_type,
-       reason_code, description, status, created_at, updated_at FROM reports WHERE 1=1`
+	query := `SELECT r.report_id, r.order_id, r.reporter_id, r.reported_user_id, r.reported_party_type,
+       r.reason_code, r.description, r.status, r.created_at, r.updated_at,
+       u1.display_name AS reporter_display_name,
+       u2.display_name AS reported_display_name,
+       s.store_name
+FROM reports r
+JOIN users u1 ON u1.user_id = r.reporter_id
+JOIN users u2 ON u2.user_id = r.reported_user_id
+JOIN orders o ON o.order_id = r.order_id
+JOIN stores s ON s.store_id = o.store_id
+WHERE 1=1`
 	args := []any{}
 	i := 1
 
 	if in.OrderID != "" {
-		query += ` AND order_id::text LIKE $` + itoa(i)
+		query += ` AND r.order_id::text LIKE $` + itoa(i)
 		args = append(args, in.OrderID)
 		i++
 	}
-
 	if in.Status != nil {
-		query += ` AND status = $` + itoa(i)
+		query += ` AND r.status = $` + itoa(i)
 		args = append(args, *in.Status)
 		i++
 	}
 	if in.ReportedPartyType != nil {
-		query += ` AND reported_party_type = $` + itoa(i)
+		query += ` AND r.reported_party_type = $` + itoa(i)
 		args = append(args, *in.ReportedPartyType)
 		i++
 	}
 	if in.ReasonCode != nil {
-		query += ` AND reason_code = $` + itoa(i)
+		query += ` AND r.reason_code = $` + itoa(i)
 		args = append(args, *in.ReasonCode)
 		i++
 	}
 	if in.FromDate != nil {
-		query += ` AND created_at >= $` + itoa(i)
+		query += ` AND r.created_at >= $` + itoa(i)
 		args = append(args, *in.FromDate)
 		i++
 	}
 	if in.ToDate != nil {
-		query += ` AND created_at <= $` + itoa(i)
+		query += ` AND r.created_at <= $` + itoa(i)
 		args = append(args, *in.ToDate)
 		i++
 	}
-	query += ` ORDER BY created_at DESC LIMIT $` + itoa(i) + ` OFFSET $` + itoa(i+1)
+	query += ` ORDER BY r.created_at DESC LIMIT $` + itoa(i) + ` OFFSET $` + itoa(i+1)
 	args = append(args, in.Limit, in.Offset)
 
 	rows, err := r.db.Query(ctx, query, args...)
@@ -213,18 +233,21 @@ func (r *repo) UpdateReportStatus(ctx context.Context, reportID int64, status st
 	if status == "" {
 		return Report{}, apperr.New(apperr.BadRequest, "status is required")
 	}
-	var rep Report
-	err := scanReport(r.db.QueryRow(ctx, `
-UPDATE reports SET status = $2, updated_at = NOW() WHERE report_id = $1
-RETURNING report_id, order_id, reporter_id, reported_user_id, reported_party_type,
-          reason_code, description, status, created_at, updated_at`, reportID, status), &rep)
+	var updatedID int64
+	err := r.db.QueryRow(ctx, `
+    UPDATE reports SET status = $2, updated_at = NOW()
+    WHERE report_id = $1
+    RETURNING report_id`, reportID, status).Scan(&updatedID)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return Report{}, apperr.New(apperr.NotFound, "report not found")
 		}
+		if pe, ok := pgErr(err); ok && pe.Code == "23514" {
+			return Report{}, apperr.New(apperr.BadRequest, "invalid status value")
+		}
 		return Report{}, apperr.Wrap(apperr.Internal, err, "update report status failed")
 	}
-	return rep, nil
+	return r.GetReport(ctx, updatedID)
 }
 
 // ── Evidences ────────────────────────────────────────────────────────────────
