@@ -1,6 +1,5 @@
-// src/api/storeApi.ts
 import { useCrudApi } from "../utils/fetch"
-import type { ApiResponse, ApiUpdatedResponse } from "./responseType"
+import type { ApiResponse, ApiUpdatedResponse, PaginatedResponse } from "./responseType"
 
 export interface orderSellerRequest {
   fulfillment_type: "STANDARD" | "EXPRESS"
@@ -92,10 +91,12 @@ export function useOrderSellerApi() {
 
   async function getOrdersSellerByStatus(
     store_id: number,
-    status: OrderStatusGroup
-  ): Promise<ApiResponse<orderSellerResponse[]>> {
+    status: OrderStatusGroup,
+    limit: number = 10,
+    page: number = 1
+  ): Promise<PaginatedResponse<orderSellerResponse>> {
     return http.getItems(
-      `/stores/${store_id}/orders?status_group=${status}`
+      `/stores/${store_id}/orders?status_group=${status}&limit=${limit}&page=${page}`
     )
   }
 

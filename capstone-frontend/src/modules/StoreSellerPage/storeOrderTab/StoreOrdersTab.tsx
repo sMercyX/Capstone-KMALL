@@ -1,12 +1,13 @@
 // src/modules/StoreSellerPage/storeOrderTab/StoreOrdersTab.tsx
 import { useEffect, useState } from "react"
-import { useLocation, useNavigate } from "react-router-dom"
+import { useNavigate } from "react-router-dom"
 import SwitchTabs, { type SwitchTabItem } from "../../../components/SwitchTabs/SwitchTabs"
 import { useOrderSellerApi, type OrderStatusGroup, type orderSellerResponse } from "../../../api/orderSellerApi"
 import { Loader2 } from "lucide-react"
 import OrderListItem, { type OrderStatusContext } from "../../../components/Order/OrderListItem"
 import { getAllLocations, type CampusLocation } from "../../../api/campusLocationApi"
 import { useStoreStore } from "../../../stores/storeStore"
+import Pagination from "../../../components/Pagination/Pagination"
 
 const TABS: SwitchTabItem[] = [
   { key: "active", label: "ON GOING" },
@@ -31,7 +32,6 @@ function OrderListHeader() {
 export default function StoreOrdersTab() {
   const store = useStoreStore((s) => s.store)
   const storeId = store?.id
-  const location = useLocation()
   const navigate = useNavigate()
   
   const { getOrdersSellerByStatus } = useOrderSellerApi()
@@ -42,18 +42,21 @@ export default function StoreOrdersTab() {
   const [error, setError] = useState<string | null>(null)
   const [locations, setLocations] = useState<CampusLocation[]>([])
 
+  const [page, setPage] = useState(1)
+  const [totalPages, setTotalPages] = useState(1)
+
   // Load locations
   useEffect(() => {
     getAllLocations().then(setLocations).catch(console.error)
   }, [])
 
-  // Sync tab with URL
-  useEffect(() => {
-    const path = location.pathname
-    if (path.endsWith("/completed")) setActiveTab("completed")
-    else if (path.endsWith("/cancelled")) setActiveTab("cancelled")
-    else setActiveTab("active")
-  }, [location.pathname])
+  // Reset page when tab changes via state instead of URL sync
+  const handleTabChange = (key: string) => {
+    if (key !== activeTab) {
+      setActiveTab(key)
+      setPage(1)
+    }
+  }
 
   // Fetch orders
   useEffect(() => {
@@ -63,9 +66,17 @@ export default function StoreOrdersTab() {
     setLoading(true)
     setError(null)
 
-    getOrdersSellerByStatus(storeId, activeTab as OrderStatusGroup)
+    getOrdersSellerByStatus(storeId, activeTab as OrderStatusGroup, 5, page)
       .then(res => {
-        if (isMounted) setOrders(res.data || [])
+        if (isMounted) {
+            if (res.code === 200 && res.data) {
+              setOrders(res.data.items || [])
+              setTotalPages(Math.max(1, Math.ceil((res.data.total || 0) / (res.data.pageSize || 5))))
+            } else {
+              setOrders([])
+              setTotalPages(1)
+            }
+        }
       })
       .catch(err => {
         if (isMounted) {
@@ -79,7 +90,7 @@ export default function StoreOrdersTab() {
 
     return () => { isMounted = false }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [storeId, activeTab])
+  }, [storeId, activeTab, page])
 
   const getContext = (): OrderStatusContext => {
     if (activeTab === "completed") return "completed"
@@ -116,7 +127,7 @@ export default function StoreOrdersTab() {
           tabs={TABS} 
           useNavLink={false}
           activeKey={activeTab}
-          onChange={(key) => setActiveTab(key)}
+          onChange={handleTabChange}
         />
       </div>
 
@@ -140,7 +151,7 @@ export default function StoreOrdersTab() {
             <OrderListItem
               key={item.order.id}
               orderId={item.order.id}
-              index={idx}
+              index={(page - 1) * 5 + idx}
               date={item.order.order_date}
               totalPrice={item.order.total_price}
               status={item.order.status}
@@ -153,6 +164,14 @@ export default function StoreOrdersTab() {
             />
           ))}
         </div>
+        
+        {!error && totalPages > 1 && (
+          <Pagination
+            currentPage={page}
+            totalPages={totalPages}
+            onPageChange={setPage}
+          />
+        )}
       </div>
     </div>
   )

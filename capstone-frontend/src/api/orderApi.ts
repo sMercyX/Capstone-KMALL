@@ -25,13 +25,22 @@ export interface orderResponse {
   store_name: string
 }
 
+export interface PaginatedOrderResponse {
+  items: orderResponse[]
+  page_index: number
+  page_size: number
+  total: number
+}
+
 export function useOrderApi() {
   const http = useCrudApi()
 
   async function getOrdersByStatus(
-    path: OrderStatusGroup
-  ): Promise<ApiResponse<orderResponse[]>> {
-    return http.getItems(`/orders?status_group=${path}`)
+    path: OrderStatusGroup,
+    limit: number = 10,
+    page: number = 1
+  ): Promise<ApiResponse<PaginatedOrderResponse>> {
+    return http.getItems(`/orders?status_group=${path}&limit=${limit}&page=${page}`)
   }
 
   return { getOrdersByStatus }

@@ -6,6 +6,7 @@ import BackButton from "../../components/Buttons/BackButton"
 import SwitchTabs, {
   type SwitchTabItem,
 } from "../../components/SwitchTabs/SwitchTabs"
+import Pagination from "../../components/Pagination/Pagination"
 
 
 import { useOrderStore, type OrderTabKey } from "../../stores/orderStore"
@@ -65,6 +66,9 @@ export default function OrderPage() {
     startLoading,
     setOrders,
     setError,
+    page,
+    setPage,
+    totalPages,
   } = useOrderStore()
 
   const { getOrdersByStatus } = useOrderApi()
@@ -101,9 +105,13 @@ export default function OrderPage() {
     setError(null)
     ;(async () => {
       try {
-        const res = await getOrdersByStatus(group)
+        const res = await getOrdersByStatus(group, 5, page)
         if (!isCancelled) {
-          setOrders(res.data ?? [])
+          if (res.code === 200 && res.data) {
+            setOrders(res.data)
+          } else {
+            setOrders({ items: [], page_index: page, page_size: 5, total: 0 })
+          }
         }
       } catch (err) {
         if (!isCancelled) {
@@ -116,7 +124,7 @@ export default function OrderPage() {
       isCancelled = true
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeKey]) // เฉพาะ activeKey เพื่อป้องกัน fetch ซ้ำ
+  }, [activeKey, page]) // เพื่ม page เข้าไปเพื่อให้โหลดใหม่เมื่อหน้าเปลี่ยน
 
   return (
     <div className="max-w-6xl mx-auto py-10 px-4 relative">
@@ -156,12 +164,14 @@ export default function OrderPage() {
         </h2>
       </div>
 
-      <div className="bg-white rounded-3xl p-6 shadow-sm border border-gray-100 min-h-[500px]">
+      <div className="bg-white rounded-3xl p-6 shadow-sm border border-gray-100 min-h-[500px] flex flex-col">
         <OrderListHeader />
 
-        <div className="space-y-1 mt-2">
+        <div className="space-y-1 mt-2 flex-1 relative">
           {isLoading && (
-            <p className="text-center text-sm text-gray-500 mt-6"><Loader2 className="animate-spin inline mr-2"/>Loading...</p>
+            <div className="absolute inset-0 bg-white/50 z-10 flex items-center justify-center">
+              <p className="text-center text-sm text-gray-500 mt-6"><Loader2 className="animate-spin inline mr-2"/>Loading...</p>
+            </div>
           )}
 
           {error && <p className="text-center text-sm text-red-500 mt-6">{error}</p>}
@@ -172,13 +182,12 @@ export default function OrderPage() {
             </p>
           )}
 
-          {!isLoading &&
-            !error &&
+          {!error &&
             orders.map((item, idx) => (
               <OrderListItem
                 key={item.order.id}
                 orderId={item.order.id}
-                index={idx}
+                index={(page - 1) * 5 + idx}
                 date={item.order.order_date}
                 totalPrice={item.order.total_price}
                 status={item.order.status}
@@ -191,6 +200,14 @@ export default function OrderPage() {
               />
             ))}
         </div>
+
+        {!error && totalPages > 1 && (
+          <Pagination
+            currentPage={page}
+            totalPages={totalPages}
+            onPageChange={setPage}
+          />
+        )}
       </div>
     </div>
   )
