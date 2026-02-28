@@ -88,6 +88,8 @@ export default function ReportDetailPage() {
   const contentRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
+    if (loading) return
+
     const root = contentRef.current
     if (!root) return
 
@@ -101,7 +103,7 @@ export default function ReportDetailPage() {
       })
     }, {
       root: root,
-      rootMargin: "-10% 0px -80% 0px", // triggers when element reaches top 10%
+      rootMargin: "-20% 0px -60% 0px",
       threshold: 0
     })
 
@@ -111,7 +113,7 @@ export default function ReportDetailPage() {
     })
 
     return () => observer.disconnect()
-  }, [])
+  }, [loading])
 
   useEffect(() => {
     const cleanup = fetchReport()
@@ -390,11 +392,11 @@ export default function ReportDetailPage() {
           </div>
           
           {evidences && evidences.length > 0 ? (
-            <div className="flex gap-4 overflow-x-auto pb-4 custom-scrollbar">
+            <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
               {evidences.map((evidence, i) => (
                 <div 
                   key={i} 
-                  className="rounded-lg overflow-hidden border border-gray-100 cursor-pointer relative flex-shrink-0 w-[260px] h-[160px] bg-gray-50 flex items-center justify-center transition-all group"
+                  className="rounded-lg overflow-hidden border border-gray-100 cursor-pointer relative w-full h-[160px] bg-gray-50 flex items-center justify-center transition-all group"
                   onClick={() => {
                        if (evidence.mime_type.startsWith('image/')) {
                          setSelectedImage(resolveImageUrl(evidence.file_url))
