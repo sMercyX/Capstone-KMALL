@@ -3,6 +3,7 @@ package order
 import (
 	"context"
 	"errors"
+	"strconv"
 	"time"
 
 	"github.com/jackc/pgconn"
@@ -23,8 +24,8 @@ type Repo interface {
 	UpdateOrderStatus(ctx context.Context, id int64, status string) (Order, error)
 	CancelOrder(ctx context.Context, id int64, cancelledBy string, reason string) (Order, error)
 
-	ListByUserID(ctx context.Context, userID string, statuses []string) ([]Order, error)
-	ListByStoreID(ctx context.Context, storeID int64, statuses []string) ([]Order, error)
+	ListByUserID(ctx context.Context, userID string, statuses []string, limit, page int) ([]Order, int64, error)
+	ListByStoreID(ctx context.Context, storeID int64, statuses []string, limit, page int) ([]Order, int64, error)
 	Propose(ctx context.Context, id int64, proposedAt time.Time, meetingLocationID *int, meetingNote *string) (Order, error)
 	RespondProposal(ctx context.Context, id int64, accept bool) (Order, error)
 }
@@ -376,28 +377,40 @@ func (r *repo) CancelOrder(
 	return ord, nil
 }
 
-func (r *repo) ListByUserID(ctx context.Context, userID string, statuses []string) ([]Order, error) {
-	query := `
-SELECT
-  order_id, status, total_price, order_date, updated_at,
-  cancelled_at, cancelled_by, cancelled_reason,
-  user_id, store_id,
-  delivery_method, delivery_address_id, campus_location_id, campus_detail_note,
-  proposed_at, meeting_location_id, meeting_note
-FROM orders
-WHERE user_id = $1
-`
+func (r *repo) ListByUserID(ctx context.Context, userID string, statuses []string, limit, page int) ([]Order, int64, error) {
+	if limit <= 0 {
+		limit = 20
+	}
+	if page <= 0 {
+		page = 1
+	}
+	offset := (page - 1) * limit
+
+	base := `FROM orders WHERE user_id = $1`
 	args := []any{userID}
 
 	if len(statuses) > 0 {
-		query += " AND status = ANY($2)"
+		base += " AND status = ANY($2)"
 		args = append(args, statuses)
 	}
 
-	query += " ORDER BY order_date DESC;"
+	var total int64
+	if err := r.db.QueryRow(ctx, `SELECT COUNT(*) `+base, args...).Scan(&total); err != nil {
+		return nil, 0, apperr.Wrap(apperr.Internal, err, "count orders by user_id failed")
+	}
+
+	limitIdx := len(args) + 1
+	offsetIdx := len(args) + 2
+	query := `SELECT order_id, status, total_price, order_date, updated_at,
+  cancelled_at, cancelled_by, cancelled_reason, user_id, store_id,
+  delivery_method, delivery_address_id, campus_location_id, campus_detail_note,
+  proposed_at, meeting_location_id, meeting_note ` + base +
+		` ORDER BY order_date DESC LIMIT $` + strconv.Itoa(limitIdx) + ` OFFSET $` + strconv.Itoa(offsetIdx)
+	args = append(args, limit, offset)
+
 	rows, err := r.db.Query(ctx, query, args...)
 	if err != nil {
-		return nil, apperr.Wrap(apperr.Internal, err, "list orders by user_id failed")
+		return nil, 0, apperr.Wrap(apperr.Internal, err, "list orders by user_id failed")
 	}
 	defer rows.Close()
 
@@ -405,39 +418,47 @@ WHERE user_id = $1
 	for rows.Next() {
 		var o Order
 		if err := scanOrder(rows, &o); err != nil {
-			return nil, apperr.Wrap(apperr.Internal, err, "scan order failed")
+			return nil, 0, apperr.Wrap(apperr.Internal, err, "scan order failed")
 		}
 		out = append(out, o)
 	}
-	if err := rows.Err(); err != nil {
-		return nil, apperr.Wrap(apperr.Internal, err, "rows error")
-	}
-	return out, nil
+	return out, total, rows.Err()
 }
 
-func (r *repo) ListByStoreID(ctx context.Context, storeID int64, statuses []string) ([]Order, error) {
-	query := `
-SELECT
-  order_id, status, total_price, order_date, updated_at,
-  cancelled_at, cancelled_by, cancelled_reason,
-  user_id, store_id,
-  delivery_method, delivery_address_id, campus_location_id, campus_detail_note,
-  proposed_at, meeting_location_id, meeting_note
-FROM orders
-WHERE store_id = $1
-`
+func (r *repo) ListByStoreID(ctx context.Context, storeID int64, statuses []string, limit, page int) ([]Order, int64, error) {
+	if limit <= 0 {
+		limit = 20
+	}
+	if page <= 0 {
+		page = 1
+	}
+	offset := (page - 1) * limit
+
+	base := `FROM orders WHERE store_id = $1`
 	args := []any{storeID}
 
 	if len(statuses) > 0 {
-		query += " AND status = ANY($2)"
+		base += " AND status = ANY($2)"
 		args = append(args, statuses)
 	}
 
-	query += " ORDER BY order_date DESC;"
+	var total int64
+	if err := r.db.QueryRow(ctx, `SELECT COUNT(*) `+base, args...).Scan(&total); err != nil {
+		return nil, 0, apperr.Wrap(apperr.Internal, err, "count orders by store_id failed")
+	}
+
+	limitIdx := len(args) + 1
+	offsetIdx := len(args) + 2
+	query := `SELECT order_id, status, total_price, order_date, updated_at,
+  cancelled_at, cancelled_by, cancelled_reason, user_id, store_id,
+  delivery_method, delivery_address_id, campus_location_id, campus_detail_note,
+  proposed_at, meeting_location_id, meeting_note ` + base +
+		` ORDER BY order_date DESC LIMIT $` + strconv.Itoa(limitIdx) + ` OFFSET $` + strconv.Itoa(offsetIdx)
+	args = append(args, limit, offset)
 
 	rows, err := r.db.Query(ctx, query, args...)
 	if err != nil {
-		return nil, apperr.Wrap(apperr.Internal, err, "list orders by store_id failed")
+		return nil, 0, apperr.Wrap(apperr.Internal, err, "list orders by store_id failed")
 	}
 	defer rows.Close()
 
@@ -445,14 +466,11 @@ WHERE store_id = $1
 	for rows.Next() {
 		var o Order
 		if err := scanOrder(rows, &o); err != nil {
-			return nil, apperr.Wrap(apperr.Internal, err, "scan order failed")
+			return nil, 0, apperr.Wrap(apperr.Internal, err, "scan order failed")
 		}
 		out = append(out, o)
 	}
-	if err := rows.Err(); err != nil {
-		return nil, apperr.Wrap(apperr.Internal, err, "rows error")
-	}
-	return out, nil
+	return out, total, rows.Err()
 }
 
 func (r *repo) Propose(ctx context.Context, id int64, proposedAt time.Time, meetingLocationID *int, meetingNote *string) (Order, error) {
