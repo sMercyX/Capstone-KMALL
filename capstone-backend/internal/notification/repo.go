@@ -299,10 +299,10 @@ WHERE n.user_id = $1
 	}
 
 	// pagination
-	if in.BeforeID != nil && *in.BeforeID > 0 {
-		q += " AND n.notification_id < $" + itoa(argPos) + " "
-		args = append(args, *in.BeforeID)
-		argPos++
+	if in.BeforeUpdatedAt != nil && in.BeforeID != nil && *in.BeforeID > 0 {
+		q += " AND (n.updated_at, n.notification_id) < ($" + itoa(argPos) + ", $" + itoa(argPos+1) + ") "
+		args = append(args, *in.BeforeUpdatedAt, *in.BeforeID)
+		argPos += 2
 	}
 
 	if in.ThreadID != nil && *in.ThreadID > 0 {
@@ -311,7 +311,7 @@ WHERE n.user_id = $1
 		argPos++
 	}
 
-	q += " ORDER BY n.notification_id DESC LIMIT $" + itoa(argPos)
+	q += " ORDER BY n.updated_at DESC, n.notification_id DESC LIMIT $" + itoa(argPos)
 	args = append(args, in.Limit)
 
 	rows, err := r.db.Query(ctx, q, args...)

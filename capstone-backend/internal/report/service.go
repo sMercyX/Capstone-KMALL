@@ -71,7 +71,7 @@ type Service interface {
 	// PBI 22 - Report
 	SubmitReport(ctx context.Context, in SubmitReportInput, chatMessages []ReportChatSnapshot, orderSnapshot ReportOrderSnapshot) (Report, error)
 	GetReportDetail(ctx context.Context, reportID int64) (ReportDetail, error)
-	ListReports(ctx context.Context, in ListReportsParams) ([]Report, error)
+	ListReports(ctx context.Context, in ListReportsParams) (ReportListResponse, error)
 	AdminTakeAction(ctx context.Context, in AdminTakeActionInput) (ReportAdminAction, error)
 
 	// PBI 23 - Blacklist
@@ -79,6 +79,9 @@ type Service interface {
 	RevokeUserBan(ctx context.Context, blacklistID int64) (UserBlacklist, error)
 	GetActiveBan(ctx context.Context, userID string) (*UserBlacklist, error)
 	ListBanHistory(ctx context.Context, in ListBanHistoryParams) ([]UserBlacklist, error)
+
+	GetMyReport(ctx context.Context, reportID int64, reporterID string) (MyReportView, error)
+	ListMyReports(ctx context.Context, in ListMyReportsParams) (MyReportListResponse, error)
 }
 
 type service struct {
@@ -250,8 +253,29 @@ func (s *service) GetReportDetail(ctx context.Context, reportID int64) (ReportDe
 	}, nil
 }
 
-func (s *service) ListReports(ctx context.Context, in ListReportsParams) ([]Report, error) {
-	return s.repo.ListReports(ctx, in)
+func (s *service) ListReports(ctx context.Context, in ListReportsParams) (ReportListResponse, error) {
+	if in.Limit <= 0 {
+		in.Limit = 20
+	}
+	if in.Page <= 0 {
+		in.Page = 1
+	}
+
+	reports, total, err := s.repo.ListReports(ctx, in)
+	if err != nil {
+		return ReportListResponse{}, err
+	}
+
+	if reports == nil {
+		reports = []Report{}
+	}
+
+	return ReportListResponse{
+		PageSize:  in.Limit,
+		PageIndex: in.Page,
+		Total:     total,
+		Items:     reports,
+	}, nil
 }
 
 func (s *service) AdminTakeAction(ctx context.Context, in AdminTakeActionInput) (ReportAdminAction, error) {
@@ -378,6 +402,72 @@ func (s *service) GetActiveBan(ctx context.Context, userID string) (*UserBlackli
 
 func (s *service) ListBanHistory(ctx context.Context, in ListBanHistoryParams) ([]UserBlacklist, error) {
 	return s.repo.ListBanHistory(ctx, in)
+}
+
+func (s *service) GetMyReport(ctx context.Context, reportID int64, reporterID string) (MyReportView, error) {
+	if reportID <= 0 {
+		return MyReportView{}, apperr.New(apperr.BadRequest, "invalid report_id")
+	}
+	reporterID = strings.TrimSpace(reporterID)
+	if reporterID == "" {
+		return MyReportView{}, apperr.New(apperr.BadRequest, "invalid reporter_id")
+	}
+
+	rep, err := s.repo.GetMyReport(ctx, reportID, reporterID)
+	if err != nil {
+		return MyReportView{}, err
+	}
+
+	return MyReportView{
+		ReportID:            rep.ID,
+		CreatedAt:           rep.CreatedAt,
+		OrderID:             rep.OrderID,
+		StoreName:           rep.StoreName,
+		ReportedUserID:      rep.ReportedUserID,
+		ReportedDisplayName: rep.ReportedDisplayName,
+		ReasonCode:          rep.ReasonCode,
+		Status:              rep.Status,
+	}, nil
+}
+
+func (s *service) ListMyReports(ctx context.Context, in ListMyReportsParams) (MyReportListResponse, error) {
+	in.ReporterID = strings.TrimSpace(in.ReporterID)
+	if in.ReporterID == "" {
+		return MyReportListResponse{}, apperr.New(apperr.BadRequest, "invalid reporter_id")
+	}
+	if in.Limit <= 0 {
+		in.Limit = 20
+	}
+	if in.Page <= 0 {
+		in.Page = 1
+	}
+
+	reports, total, err := s.repo.ListMyReports(ctx, in)
+	if err != nil {
+		return MyReportListResponse{}, err
+	}
+
+	items := make([]MyReportView, 0, len(reports))
+	for _, rep := range reports {
+		items = append(items, MyReportView{
+			ReportID:            rep.ID,
+			CreatedAt:           rep.CreatedAt,
+			OrderID:             rep.OrderID,
+			StoreName:           rep.StoreName,
+			ReportedUserID:      rep.ReportedUserID,
+			ReportedDisplayName: rep.ReportedDisplayName,
+			ReportedPartyType:   rep.ReportedPartyType,
+			ReasonCode:          rep.ReasonCode,
+			Status:              rep.Status,
+		})
+	}
+
+	return MyReportListResponse{
+		PageSize:  in.Limit,
+		PageIndex: in.Page,
+		Total:     total,
+		Items:     items,
+	}, nil
 }
 
 // ============================================================================

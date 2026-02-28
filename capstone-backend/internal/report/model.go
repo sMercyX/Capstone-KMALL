@@ -1,6 +1,7 @@
 package report
 
 import (
+	"encoding/json"
 	"time"
 )
 
@@ -9,16 +10,19 @@ import (
 // ============================================================================
 
 type Report struct {
-	ID                int64     `json:"report_id"`
-	OrderID           int       `json:"order_id"`
-	ReporterID        string    `json:"reporter_id"`
-	ReportedUserID    string    `json:"reported_user_id"`
-	ReportedPartyType string    `json:"reported_party_type"` // BUYER / SELLER
-	ReasonCode        string    `json:"reason_code"`
-	Description       *string   `json:"description,omitempty"`
-	Status            string    `json:"status"` // PENDING / REVIEWED / RESOLVED / CLOSED
-	CreatedAt         time.Time `json:"created_at"`
-	UpdatedAt         time.Time `json:"updated_at"`
+	ID                  int64     `json:"report_id"`
+	OrderID             int       `json:"order_id"`
+	StoreName           string    `json:"store_name"`
+	ReporterID          string    `json:"reporter_id"`
+	ReporterDisplayName string    `json:"reporter_display_name"`
+	ReportedUserID      string    `json:"reported_user_id"`
+	ReportedDisplayName string    `json:"reported_display_name"`
+	ReportedPartyType   string    `json:"reported_party_type"` // BUYER / SELLER
+	ReasonCode          string    `json:"reason_code"`
+	Description         *string   `json:"description,omitempty"`
+	Status              string    `json:"status"` // PENDING / REVIEWED / RESOLVED / CLOSED
+	CreatedAt           time.Time `json:"created_at"`
+	UpdatedAt           time.Time `json:"updated_at"`
 }
 
 type ReportEvidence struct {
@@ -34,14 +38,28 @@ type ReportEvidence struct {
 }
 
 type ReportOrderSnapshot struct {
-	ReportID        int64     `json:"report_id"`
-	OrderStatus     string    `json:"order_status"`
-	DeliveryMethod  string    `json:"delivery_method"`
-	TotalPrice      float64   `json:"total_price"`
-	DeliveryAddress *any      `json:"delivery_address,omitempty"` // JSONB
-	CampusLocation  *any      `json:"campus_location,omitempty"`  // JSONB
-	DeliveryTime    *any      `json:"delivery_time,omitempty"`    // JSONB
-	CreatedAt       time.Time `json:"created_at"`
+	ReportID       int64     `json:"report_id"`
+	OrderStatus    string    `json:"order_status"`
+	TotalPrice     float64   `json:"total_price"`
+	OrderDate      time.Time `json:"order_date"`
+	DeliveryMethod string    `json:"delivery_method"`
+
+	DeliveryAddress *json.RawMessage `json:"delivery_address,omitempty"`
+
+	CampusLocationID *int    `json:"campus_location_id,omitempty"`
+	CampusDetailNote *string `json:"campus_detail_note,omitempty"`
+
+	ProposedAt      *time.Time       `json:"proposed_at,omitempty"`
+	MeetingLocation *json.RawMessage `json:"meeting_location,omitempty"`
+	MeetingNote     *string          `json:"meeting_note,omitempty"`
+
+	CancelledAt     *time.Time `json:"cancelled_at,omitempty"`
+	CancelledBy     *string    `json:"cancelled_by,omitempty"`
+	CancelledReason *string    `json:"cancelled_reason,omitempty"`
+
+	Items json.RawMessage `json:"items"`
+
+	CreatedAt time.Time `json:"created_at"`
 }
 
 type ReportChatSnapshot struct {
@@ -128,7 +146,8 @@ type ListReportsParams struct {
 	FromDate          *time.Time
 	ToDate            *time.Time
 	Limit             int
-	Offset            int
+	Page              int // เปลี่ยนจาก Offset
+	OrderID           string
 }
 
 type AdminActionInput struct {
@@ -156,4 +175,38 @@ type ListBanHistoryParams struct {
 	UserID string
 	Limit  int
 	Offset int
+}
+
+type MyReportView struct {
+	ReportID            int64     `json:"report_id"`
+	CreatedAt           time.Time `json:"created_at"`
+	OrderID             int       `json:"order_id"`
+	StoreName           string    `json:"store_name"`
+	ReportedUserID      string    `json:"reported_user_id"`
+	ReportedDisplayName string    `json:"reported_display_name"`
+	ReportedPartyType   string    `json:"reported_party_type"`
+	ReasonCode          string    `json:"reason_code"`
+	Status              string    `json:"status"`
+}
+
+type ListMyReportsParams struct {
+	ReporterID        string
+	ReportedPartyType *string
+	Status            *string
+	Limit             int
+	Page              int // เปลี่ยนจาก Offset เป็น Page
+}
+
+type ReportListResponse struct {
+	PageSize  int      `json:"page_size"`
+	PageIndex int      `json:"page_index"`
+	Total     int64    `json:"total"`
+	Items     []Report `json:"items"`
+}
+
+type MyReportListResponse struct {
+	PageSize  int            `json:"page_size"`
+	PageIndex int            `json:"page_index"`
+	Total     int64          `json:"total"`
+	Items     []MyReportView `json:"items"`
 }

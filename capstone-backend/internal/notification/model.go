@@ -54,9 +54,10 @@ type CreateNotificationInput struct {
 }
 
 type ListNotificationsParams struct {
-	UserID   string
-	BeforeID *int64
-	Limit    int
+	UserID          string
+	BeforeID        *int64
+	BeforeUpdatedAt *time.Time
+	Limit           int
 
 	OnlyRead *bool
 	Types    []string

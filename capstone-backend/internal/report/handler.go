@@ -1,6 +1,7 @@
 package report
 
 import (
+	"encoding/json"
 	"net/http"
 	"strconv"
 	"strings"
@@ -36,6 +37,8 @@ func (h *Handler) Register(r *gin.RouterGroup) {
 	g := r.Group("/reports")
 	{
 		// Buyer / Seller — submit report on an order
+		g.GET("/me", h.listMyReports)
+		g.GET("/me/:report_id", h.getMyReport)
 		g.POST("/orders/:order_id", h.submitReport)
 
 		// Admin only
@@ -126,7 +129,7 @@ type listReportsQuery struct {
 	FromDate          *time.Time
 	ToDate            *time.Time
 	Limit             int
-	Offset            int
+	Page              int
 }
 
 // ============================================================================
@@ -195,21 +198,27 @@ func (h *Handler) submitReport(c *gin.Context) {
 func (h *Handler) listReports(c *gin.Context) {
 	q := parseListReportsQuery(c)
 
-	reports, err := h.svc.ListReports(c.Request.Context(), ListReportsParams{
+	orderID := c.DefaultQuery("order_id", "")
+	if orderID != "" {
+		orderID = orderID + "%"
+	}
+
+	resp, err := h.svc.ListReports(c.Request.Context(), ListReportsParams{
 		Status:            q.Status,
 		ReportedPartyType: q.ReportedPartyType,
 		ReasonCode:        q.ReasonCode,
 		FromDate:          q.FromDate,
 		ToDate:            q.ToDate,
 		Limit:             q.Limit,
-		Offset:            q.Offset,
+		Page:              q.Page,
+		OrderID:           orderID,
 	})
 	if err != nil {
 		c.Error(err)
 		return
 	}
 
-	respond.OK(c, apperr.OK, reports)
+	respond.OK(c, apperr.OK, resp)
 }
 
 // GET /api/reports/:report_id  (admin only)
@@ -373,12 +382,29 @@ func (h *Handler) buildSnapshots(c *gin.Context, orderID int) (ReportOrderSnapsh
 		return ReportOrderSnapshot{}, nil, err
 	}
 
+	// ── Order items ──────────────────────────────────────────────────
+	items, err := h.orderRepo.ListItemsByOrderID(ctx, int64(orderID))
+	if err != nil {
+		return ReportOrderSnapshot{}, nil, err
+	}
+	itemsJSON, err := json.Marshal(items)
+	if err != nil {
+		return ReportOrderSnapshot{}, nil, apperr.Wrap(apperr.Internal, err, "marshal items failed")
+	}
+
 	orderSnapshot := ReportOrderSnapshot{
-		OrderStatus:    o.Status,
-		DeliveryMethod: o.DeliveryMethod,
-		TotalPrice:     float64(o.TotalPrice),
-		// DeliveryAddress / CampusLocation / DeliveryTime
-		// ใส่เป็น JSONB — marshal ที่นี่หรือ pass raw ก็ได้
+		OrderStatus:      o.Status,
+		TotalPrice:       float64(o.TotalPrice),
+		OrderDate:        o.OrderDate,
+		DeliveryMethod:   o.DeliveryMethod,
+		CampusLocationID: o.CampusLocationID,
+		CampusDetailNote: o.CampusDetailNote,
+		ProposedAt:       o.ProposedAt,
+		MeetingNote:      o.MeetingNote,
+		CancelledAt:      o.CancelledAt,
+		CancelledBy:      o.CancelledBy,
+		CancelledReason:  o.CancelledReason,
+		Items:            json.RawMessage(itemsJSON),
 	}
 
 	// ── Chat snapshot ────────────────────────────────────────────────
@@ -437,12 +463,67 @@ func (h *Handler) buildSnapshots(c *gin.Context, orderID int) (ReportOrderSnapsh
 	return orderSnapshot, chatSnapshots, nil
 }
 
+// GET /api/reports/:report_id  (buyer/seller — เห็นเฉพาะ report ของตัวเอง)
+func (h *Handler) getMyReport(c *gin.Context) {
+	userID, ok := h.resolveCurrentUserID(c)
+	if !ok {
+		return
+	}
+
+	reportID, ok := parsePathID(c, "report_id")
+	if !ok {
+		return
+	}
+
+	view, err := h.svc.GetMyReport(c.Request.Context(), reportID, userID)
+	if err != nil {
+		c.Error(err)
+		return
+	}
+
+	respond.OK(c, apperr.OK, view)
+}
+
+func (h *Handler) listMyReports(c *gin.Context) {
+	userID, ok := h.resolveCurrentUserID(c)
+	if !ok {
+		return
+	}
+
+	var reportedPartyType *string
+	if v := strings.ToUpper(strings.TrimSpace(c.Query("role"))); v == "BUYER" || v == "SELLER" {
+		reportedPartyType = &v
+	}
+
+	var status *string
+	if v := strings.ToUpper(strings.TrimSpace(c.Query("status"))); v != "" {
+		status = &v
+	}
+
+	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "20"))
+	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
+
+	resp, err := h.svc.ListMyReports(c.Request.Context(), ListMyReportsParams{
+		ReporterID:        userID,
+		ReportedPartyType: reportedPartyType,
+		Status:            status,
+		Limit:             limit,
+		Page:              page,
+	})
+	if err != nil {
+		c.Error(err)
+		return
+	}
+
+	respond.OK(c, apperr.OK, resp)
+}
+
 // ============================================================================
 // Query Parsers
 // ============================================================================
 
 func parseListReportsQuery(c *gin.Context) listReportsQuery {
-	q := listReportsQuery{Limit: 20, Offset: 0}
+	q := listReportsQuery{Limit: 20, Page: 1}
 
 	if v := strings.TrimSpace(c.Query("status")); v != "" {
 		q.Status = &v
@@ -469,8 +550,14 @@ func parseListReportsQuery(c *gin.Context) listReportsQuery {
 		}
 		q.Limit = v
 	}
-	if v, err := strconv.Atoi(c.Query("offset")); err == nil && v >= 0 {
-		q.Offset = v
+	if v, err := strconv.Atoi(c.Query("limit")); err == nil && v > 0 {
+		if v > 100 {
+			v = 100
+		}
+		q.Limit = v
+	}
+	if v, err := strconv.Atoi(c.Query("page")); err == nil && v > 0 {
+		q.Page = v
 	}
 
 	return q
