@@ -79,6 +79,8 @@ type Service interface {
 	RevokeUserBan(ctx context.Context, blacklistID int64) (UserBlacklist, error)
 	GetActiveBan(ctx context.Context, userID string) (*UserBlacklist, error)
 	ListBanHistory(ctx context.Context, in ListBanHistoryParams) ([]UserBlacklist, error)
+
+	GetMyReport(ctx context.Context, reportID int64, reporterID string) (MyReportView, error)
 }
 
 type service struct {
@@ -378,6 +380,32 @@ func (s *service) GetActiveBan(ctx context.Context, userID string) (*UserBlackli
 
 func (s *service) ListBanHistory(ctx context.Context, in ListBanHistoryParams) ([]UserBlacklist, error) {
 	return s.repo.ListBanHistory(ctx, in)
+}
+
+func (s *service) GetMyReport(ctx context.Context, reportID int64, reporterID string) (MyReportView, error) {
+	if reportID <= 0 {
+		return MyReportView{}, apperr.New(apperr.BadRequest, "invalid report_id")
+	}
+	reporterID = strings.TrimSpace(reporterID)
+	if reporterID == "" {
+		return MyReportView{}, apperr.New(apperr.BadRequest, "invalid reporter_id")
+	}
+
+	rep, err := s.repo.GetMyReport(ctx, reportID, reporterID)
+	if err != nil {
+		return MyReportView{}, err
+	}
+
+	return MyReportView{
+		ReportID:            rep.ID,
+		CreatedAt:           rep.CreatedAt,
+		OrderID:             rep.OrderID,
+		StoreName:           rep.StoreName,
+		ReportedUserID:      rep.ReportedUserID,
+		ReportedDisplayName: rep.ReportedDisplayName,
+		ReasonCode:          rep.ReasonCode,
+		Status:              rep.Status,
+	}, nil
 }
 
 // ============================================================================

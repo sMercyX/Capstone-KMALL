@@ -37,6 +37,7 @@ func (h *Handler) Register(r *gin.RouterGroup) {
 	g := r.Group("/reports")
 	{
 		// Buyer / Seller — submit report on an order
+		g.GET("/:report_id", h.getMyReport)
 		g.POST("/orders/:order_id", h.submitReport)
 
 		// Admin only
@@ -459,6 +460,27 @@ func (h *Handler) buildSnapshots(c *gin.Context, orderID int) (ReportOrderSnapsh
 	}
 
 	return orderSnapshot, chatSnapshots, nil
+}
+
+// GET /api/reports/:report_id  (buyer/seller — เห็นเฉพาะ report ของตัวเอง)
+func (h *Handler) getMyReport(c *gin.Context) {
+	userID, ok := h.resolveCurrentUserID(c)
+	if !ok {
+		return
+	}
+
+	reportID, ok := parsePathID(c, "report_id")
+	if !ok {
+		return
+	}
+
+	view, err := h.svc.GetMyReport(c.Request.Context(), reportID, userID)
+	if err != nil {
+		c.Error(err)
+		return
+	}
+
+	respond.OK(c, apperr.OK, view)
 }
 
 // ============================================================================

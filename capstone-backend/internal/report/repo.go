@@ -30,6 +30,7 @@ type Repo interface {
 	RevokeUserBan(ctx context.Context, blacklistID int64) (UserBlacklist, error)
 	GetActiveBan(ctx context.Context, userID string) (*UserBlacklist, error)
 	ListBanHistory(ctx context.Context, in ListBanHistoryParams) ([]UserBlacklist, error)
+	GetMyReport(ctx context.Context, reportID int64, reporterID string) (Report, error)
 }
 
 type repo struct{ db *pgxpool.Pool }
@@ -600,6 +601,39 @@ func itoa(n int) string {
 		n /= 10
 	}
 	return string(buf[i:])
+}
+
+func (r *repo) GetMyReport(ctx context.Context, reportID int64, reporterID string) (Report, error) {
+	if reportID <= 0 {
+		return Report{}, apperr.New(apperr.BadRequest, "invalid report_id")
+	}
+	var rep Report
+	err := r.db.QueryRow(ctx, `
+SELECT r.report_id, r.order_id, r.reporter_id, r.reported_user_id,
+       r.reported_party_type, r.reason_code, r.description, r.status,
+       r.created_at, r.updated_at,
+       u1.display_name AS reporter_display_name,
+       u2.display_name AS reported_display_name,
+       s.store_name
+FROM reports r
+JOIN users u1 ON u1.user_id = r.reporter_id
+JOIN users u2 ON u2.user_id = r.reported_user_id
+JOIN orders o ON o.order_id = r.order_id
+JOIN stores s ON s.store_id = o.store_id
+WHERE r.report_id = $1 AND r.reporter_id = $2`, reportID, reporterID).Scan(
+		&rep.ID, &rep.OrderID, &rep.ReporterID, &rep.ReportedUserID,
+		&rep.ReportedPartyType, &rep.ReasonCode, &rep.Description, &rep.Status,
+		&rep.CreatedAt, &rep.UpdatedAt,
+		&rep.ReporterDisplayName, &rep.ReportedDisplayName,
+		&rep.StoreName,
+	)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return Report{}, apperr.New(apperr.NotFound, "report not found")
+		}
+		return Report{}, apperr.Wrap(apperr.Internal, err, "get my report failed")
+	}
+	return rep, nil
 }
 
 var _ = time.Now

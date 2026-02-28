@@ -176,3 +176,14 @@ type ListBanHistoryParams struct {
 	Limit  int
 	Offset int
 }
+
+type MyReportView struct {
+	ReportID            int64     `json:"report_id"`
+	CreatedAt           time.Time `json:"created_at"`
+	OrderID             int       `json:"order_id"`
+	StoreName           string    `json:"store_name"`
+	ReportedUserID      string    `json:"reported_user_id"`
+	ReportedDisplayName string    `json:"reported_display_name"`
+	ReasonCode          string    `json:"reason_code"`
+	Status              string    `json:"status"`
+}
