@@ -19,7 +19,12 @@ export default function ReportManager({ reportedPartyType }: ReportManagerProps)
   
   // Pagination State
   const [pendingPage, setPendingPage] = useState(1)
+  const [pendingTotalPages, setPendingTotalPages] = useState(1)
+  const [pendingTotal, setPendingTotal] = useState(0)
+
   const [secondaryPage, setSecondaryPage] = useState(1)
+  const [secondaryTotalPages, setSecondaryTotalPages] = useState(1)
+  const [secondaryTotal, setSecondaryTotal] = useState(0)
 
   useEffect(() => {
     fetchPending()
@@ -34,11 +39,13 @@ export default function ReportManager({ reportedPartyType }: ReportManagerProps)
       const res = await getReports({
         reported_party_type: reportedPartyType,
         status: "PENDING",
-        limit: 10,
+        limit: 4,
         page: pendingPage
       })
-      if (res.code === 200) {
-        setPendingReports(res.data || [])
+      if (res.code === 200 && res.data) {
+        setPendingReports(res.data.items || [])
+        setPendingTotal(res.data.total || 0)
+        setPendingTotalPages(Math.max(1, Math.ceil((res.data.total || 0) / (res.data.page_size || 4))))
       }
     } catch (err) {
       console.error(err)
@@ -50,11 +57,13 @@ export default function ReportManager({ reportedPartyType }: ReportManagerProps)
       const res = await getReports({
         reported_party_type: reportedPartyType,
         status: activeTab,
-        limit: 10,
+        limit: 4,
         page: secondaryPage
       })
-      if (res.code === 200) {
-        setSecondaryReports(res.data || [])
+      if (res.code === 200 && res.data) {
+        setSecondaryReports(res.data.items || [])
+        setSecondaryTotal(res.data.total || 0)
+        setSecondaryTotalPages(Math.max(1, Math.ceil((res.data.total || 0) / (res.data.page_size || 4))))
       }
     } catch (err) {
       console.error(err)
@@ -143,7 +152,7 @@ export default function ReportManager({ reportedPartyType }: ReportManagerProps)
           <h1 className="text-3xl font-bold text-gray-900 flex items-center gap-3">
             {title}
             <span className="text-gray-400 text-xl font-normal">
-              ({pendingReports.length} Pending)
+              ({pendingTotal} Pending)
             </span>
           </h1>
           <div className="relative">
@@ -169,12 +178,20 @@ export default function ReportManager({ reportedPartyType }: ReportManagerProps)
             </button>
           </div>
           <div className="flex items-center gap-4 text-sm font-medium text-gray-600">
-            <span>1/7</span>
+            <span>{pendingTotalPages > 0 ? pendingPage : 0}/{pendingTotalPages}</span>
             <div className="flex border border-gray-200 rounded-lg overflow-hidden">
-              <button className="px-3 py-1.5 hover:bg-gray-50 border-r border-gray-200" disabled={pendingPage === 1} onClick={() => setPendingPage(p => p - 1)}>
-                <FaChevronLeft className="text-gray-400" size={12} />
+              <button 
+                className={`px-3 py-1.5 hover:bg-gray-50 border-r border-gray-200 disabled:opacity-50 disabled:cursor-not-allowed`} 
+                disabled={pendingPage <= 1} 
+                onClick={() => setPendingPage(p => p - 1)}
+              >
+                <FaChevronLeft className="text-gray-600" size={12} />
               </button>
-              <button className="px-3 py-1.5 hover:bg-gray-50" onClick={() => setPendingPage(p => p + 1)}>
+              <button 
+                className={`px-3 py-1.5 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed`} 
+                disabled={pendingPage >= pendingTotalPages} 
+                onClick={() => setPendingPage(p => p + 1)}
+              >
                 <FaChevronRight className="text-gray-600" size={12} />
               </button>
             </div>
@@ -211,12 +228,20 @@ export default function ReportManager({ reportedPartyType }: ReportManagerProps)
           </div>
           
           <div className="flex items-center gap-4 text-sm font-medium text-gray-600">
-            <span>1/7</span>
+            <span>{secondaryTotalPages > 0 ? secondaryPage : 0}/{secondaryTotalPages}</span>
             <div className="flex border border-gray-200 rounded-lg overflow-hidden">
-              <button className="px-3 py-1.5 hover:bg-gray-50 border-r border-gray-200" disabled={secondaryPage === 1} onClick={() => setSecondaryPage(p => p - 1)}>
-                <FaChevronLeft className="text-gray-400" size={12} />
+              <button 
+                className={`px-3 py-1.5 hover:bg-gray-50 border-r border-gray-200 disabled:opacity-50 disabled:cursor-not-allowed`} 
+                disabled={secondaryPage <= 1} 
+                onClick={() => setSecondaryPage(p => p - 1)}
+              >
+                <FaChevronLeft className="text-gray-600" size={12} />
               </button>
-              <button className="px-3 py-1.5 hover:bg-gray-50" onClick={() => setSecondaryPage(p => p + 1)}>
+              <button 
+                className={`px-3 py-1.5 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed`} 
+                disabled={secondaryPage >= secondaryTotalPages} 
+                onClick={() => setSecondaryPage(p => p + 1)}
+              >
                 <FaChevronRight className="text-gray-600" size={12} />
               </button>
             </div>
@@ -224,10 +249,17 @@ export default function ReportManager({ reportedPartyType }: ReportManagerProps)
         </div>
         
         {/* Tab content summary */}
-        {activeTab === "RESOLVED" && secondaryReports.length > 0 && (
+        {activeTab === "RESOLVED" && secondaryTotal > 0 && (
           <div className="flex items-center gap-2 mt-6 mb-2">
             <FaCheck className="text-green-500" size={20} />
-            <span className="text-xl font-medium text-gray-800">{secondaryReports.length} Resolved Reports</span>
+            <span className="text-xl font-medium text-gray-800">{secondaryTotal} Resolved Reports</span>
+          </div>
+        )}
+        
+        {activeTab === "CLOSED" && secondaryTotal > 0 && (
+          <div className="flex items-center gap-2 mt-6 mb-2">
+            <FaTimes className="text-red-500" size={20} />
+            <span className="text-xl font-medium text-gray-800">{secondaryTotal} Rejected Reports</span>
           </div>
         )}
         

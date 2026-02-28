@@ -37,7 +37,8 @@ import {
   FaUser,
   FaBox,
   FaHandHoldingUsd,
-  FaCog
+  FaCog,
+  FaHome
 } from "react-icons/fa"
 import { PiWarningCircleBold } from "react-icons/pi"
 
@@ -69,9 +70,11 @@ const adminMenuItems = [
 ]
 
 const sellerMenuItems = [
+  { label: "Dashboard", icon: <FaHome />, path: "/store/dashboard" },
   { label: "My Store", icon: <FaUser />, path: "/store/me" },
   { label: "Products", icon: <FaBox />, path: "/store/products" },
   { label: "Orders", icon: <FaHandHoldingUsd />, path: "/store/orders" },
+  { label: "Report", icon: <PiWarningCircleBold />, path: "/store/report" },
   { label: "Store Settings", icon: <FaCog />, path: "/store/settings" }
 ]
 
