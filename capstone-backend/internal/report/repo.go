@@ -33,6 +33,7 @@ type Repo interface {
 	ListBanHistory(ctx context.Context, in ListBanHistoryParams) ([]UserBlacklist, error)
 	GetMyReport(ctx context.Context, reportID int64, reporterID string) (Report, error)
 	ListMyReports(ctx context.Context, in ListMyReportsParams) ([]Report, int64, error)
+	ExpireBansByRole(ctx context.Context, userID, userRole string) error
 }
 
 type repo struct{ db *pgxpool.Pool }
@@ -479,6 +480,33 @@ FROM report_admin_actions WHERE report_id = $1 ORDER BY created_at ASC`, reportI
 	return out, rows.Err()
 }
 
+func (r *repo) ExpireBansByRole(ctx context.Context, userID, userRole string) error {
+	userID = strings.TrimSpace(userID)
+	userRole = strings.ToUpper(strings.TrimSpace(userRole))
+
+	if userID == "" {
+		return apperr.New(apperr.BadRequest, "invalid user_id")
+	}
+	if userRole != "BUYER" && userRole != "SELLER" {
+		return apperr.New(apperr.BadRequest, "invalid user_role")
+	}
+
+	_, err := r.db.Exec(ctx, `
+UPDATE user_blacklists
+SET is_active = FALSE
+WHERE user_id = $1
+  AND user_role = $2
+  AND is_active = TRUE
+  AND ban_type IN ('TEMPORARY','WARNING')
+  AND banned_until IS NOT NULL
+  AND banned_until <= NOW()
+`, userID, userRole)
+	if err != nil {
+		return apperr.Wrap(apperr.Internal, err, "expire bans failed")
+	}
+	return nil
+}
+
 func (r *repo) CreateUserBan(ctx context.Context, in CreateUserBanInput) (UserBlacklist, error) {
 	in.UserID = strings.TrimSpace(in.UserID)
 	in.UserRole = strings.ToUpper(strings.TrimSpace(in.UserRole))
@@ -490,6 +518,10 @@ func (r *repo) CreateUserBan(ctx context.Context, in CreateUserBanInput) (UserBl
 	in.BanType = strings.ToUpper(strings.TrimSpace(in.BanType))
 	if in.UserID == "" || in.CreatedBy == "" || in.Reason == "" || in.BanType == "" {
 		return UserBlacklist{}, apperr.New(apperr.BadRequest, "user_id, reason, ban_type, and created_by are required")
+	}
+
+	if err := r.ExpireBansByRole(ctx, in.UserID, in.UserRole); err != nil {
+		return UserBlacklist{}, err
 	}
 
 	if in.BanType == "WARNING" {
@@ -750,6 +782,8 @@ func (r *repo) ListActiveBans(ctx context.Context, userID string) ([]UserBlackli
 	if userID == "" {
 		return nil, apperr.New(apperr.BadRequest, "invalid user_id")
 	}
+	_ = r.ExpireBansByRole(ctx, userID, "BUYER")
+	_ = r.ExpireBansByRole(ctx, userID, "SELLER")
 
 	rows, err := r.db.Query(ctx, `
 SELECT blacklist_id, user_id, user_role, report_id, reason,
