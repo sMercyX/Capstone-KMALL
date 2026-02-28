@@ -24,6 +24,7 @@ type ActiveBan struct {
 
 type ActiveBanGetter interface {
 	GetActiveBan(ctx context.Context, userID string) (*ActiveBan, error)
+	ListActiveBans(ctx context.Context, userID string) ([]ActiveBan, error)
 }
 
 type Handler struct {
@@ -258,30 +259,30 @@ func (h *Handler) Me(c *gin.Context) {
 		roleNames = []string{}
 	}
 
-	// NEW: check active blacklist/ban
-	var ban any
+	// NEW: check active blacklist/ban (array)
+	bans := []gin.H{}
 	if h.banSvc != nil {
-		b, err := h.banSvc.GetActiveBan(c.Request.Context(), u.ID)
+		list, err := h.banSvc.ListActiveBans(c.Request.Context(), u.ID)
 		if err != nil {
 			c.Error(err)
 			return
 		}
-		if b != nil {
-			ban = gin.H{
+		for _, b := range list {
+			bans = append(bans, gin.H{
 				"user_role":    b.UserRole,
 				"reason":       b.Reason,
 				"ban_type":     b.BanType,
 				"banned_from":  b.BannedFrom,
 				"banned_until": b.BannedUntil,
 				"is_active":    b.IsActive,
-			}
+			})
 		}
 	}
 
 	respond.OK(c, apperr.OK, gin.H{
 		"user":  u,
 		"roles": roleNames,
-		"ban":   ban,
+		"bans":  bans,
 	})
 }
 

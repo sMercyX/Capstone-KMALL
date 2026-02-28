@@ -81,6 +81,7 @@ type Service interface {
 	BanUser(ctx context.Context, in BanUserInput) (UserBlacklist, error)
 	RevokeUserBan(ctx context.Context, blacklistID int64) (UserBlacklist, error)
 	GetActiveBan(ctx context.Context, userID string) (*UserBlacklist, error)
+	ListActiveBans(ctx context.Context, userID string) ([]UserBlacklist, error)
 	ListBanHistory(ctx context.Context, in ListBanHistoryParams) ([]UserBlacklist, error)
 
 	GetMyReport(ctx context.Context, reportID int64, reporterID string) (MyReportView, error)
@@ -113,7 +114,10 @@ func strPtr(s string) *string {
 // computeBannedUntil calculates banned_until from suspend_days
 func computeBannedUntil(banType string, suspendDays *int) (*time.Time, error) {
 	switch banType {
-	case "WARNING", "PERMANENT":
+	case "WARNING":
+		t := time.Now().Add(7 * 24 * time.Hour)
+		return &t, nil
+	case "PERMANENT":
 		return nil, nil
 	case "TEMPORARY":
 		if suspendDays == nil || *suspendDays <= 0 {
@@ -450,6 +454,14 @@ func (s *service) GetActiveBan(ctx context.Context, userID string) (*UserBlackli
 		return nil, apperr.New(apperr.BadRequest, "invalid user_id")
 	}
 	return s.repo.GetActiveBan(ctx, userID)
+}
+
+func (s *service) ListActiveBans(ctx context.Context, userID string) ([]UserBlacklist, error) {
+	userID = strings.TrimSpace(userID)
+	if userID == "" {
+		return nil, apperr.New(apperr.BadRequest, "invalid user_id")
+	}
+	return s.repo.ListActiveBans(ctx, userID)
 }
 
 func (s *service) ListBanHistory(ctx context.Context, in ListBanHistoryParams) ([]UserBlacklist, error) {

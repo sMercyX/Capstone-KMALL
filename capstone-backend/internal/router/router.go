@@ -366,3 +366,22 @@ func (a reportBanAdapter) GetActiveBan(ctx context.Context, userID string) (*use
 		IsActive:    b.IsActive,
 	}, nil
 }
+
+func (a reportBanAdapter) ListActiveBans(ctx context.Context, userID string) ([]user.ActiveBan, error) {
+	bans, err := a.svc.ListActiveBans(ctx, userID)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]user.ActiveBan, 0, len(bans))
+	for _, b := range bans {
+		out = append(out, user.ActiveBan{
+			UserRole:    b.UserRole,
+			Reason:      b.Reason,
+			BanType:     b.BanType,
+			BannedFrom:  b.BannedFrom,
+			BannedUntil: b.BannedUntil,
+			IsActive:    b.IsActive,
+		})
+	}
+	return out, nil
+}

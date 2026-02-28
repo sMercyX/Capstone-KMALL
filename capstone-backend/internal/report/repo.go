@@ -29,6 +29,7 @@ type Repo interface {
 	CreateUserBan(ctx context.Context, in CreateUserBanInput) (UserBlacklist, error)
 	RevokeUserBan(ctx context.Context, blacklistID int64) (UserBlacklist, error)
 	GetActiveBan(ctx context.Context, userID string) (*UserBlacklist, error)
+	ListActiveBans(ctx context.Context, userID string) ([]UserBlacklist, error)
 	ListBanHistory(ctx context.Context, in ListBanHistoryParams) ([]UserBlacklist, error)
 	GetMyReport(ctx context.Context, reportID int64, reporterID string) (Report, error)
 	ListMyReports(ctx context.Context, in ListMyReportsParams) ([]Report, int64, error)
@@ -509,6 +510,7 @@ func (r *repo) CreateUserBan(ctx context.Context, in CreateUserBanInput) (UserBl
     SELECT blacklist_id
     FROM user_blacklists
     WHERE user_id = $1
+      AND user_role = $2
       AND is_active = TRUE
       AND (
         ban_type = 'PERMANENT'
@@ -516,7 +518,7 @@ func (r *repo) CreateUserBan(ctx context.Context, in CreateUserBanInput) (UserBl
       )
     ORDER BY created_at DESC
     LIMIT 1;
-`, in.UserID).Scan(&existsID)
+`, in.UserID, in.UserRole).Scan(&existsID)
 
 	if err == nil {
 		return UserBlacklist{}, apperr.New(apperr.Conflict, "user already has an active ban")
@@ -536,7 +538,7 @@ func (r *repo) CreateUserBan(ctx context.Context, in CreateUserBanInput) (UserBl
 		if pe, ok := pgErr(err); ok {
 			switch pe.Code {
 			case "23505":
-				return UserBlacklist{}, apperr.New(apperr.Conflict, "user already has an active ban")
+				return UserBlacklist{}, apperr.New(apperr.Conflict, "user already has an active ban for this role")
 			case "23514":
 				return UserBlacklist{}, apperr.WithFields(
 					apperr.Wrap(apperr.BadRequest, err, "constraint violation: check ban_type and banned_until"),
@@ -741,6 +743,43 @@ WHERE r.reporter_id = $1`
 		out = append(out, rep)
 	}
 	return out, total, rows.Err()
+}
+
+func (r *repo) ListActiveBans(ctx context.Context, userID string) ([]UserBlacklist, error) {
+	userID = strings.TrimSpace(userID)
+	if userID == "" {
+		return nil, apperr.New(apperr.BadRequest, "invalid user_id")
+	}
+
+	rows, err := r.db.Query(ctx, `
+SELECT blacklist_id, user_id, user_role, report_id, reason,
+       ban_type, banned_from, banned_until, is_active, created_by, created_at
+FROM user_blacklists
+WHERE user_id = $1
+  AND is_active = TRUE
+  AND (
+    ban_type = 'PERMANENT'
+    OR (ban_type IN ('TEMPORARY','WARNING') AND banned_until > NOW())
+  )
+ORDER BY created_at DESC
+`, userID)
+	if err != nil {
+		return nil, apperr.Wrap(apperr.Internal, err, "list active bans failed")
+	}
+	defer rows.Close()
+
+	out := []UserBlacklist{}
+	for rows.Next() {
+		var b UserBlacklist
+		if err := scanUserBlacklist(rows, &b); err != nil {
+			return nil, apperr.Wrap(apperr.Internal, err, "scan active ban failed")
+		}
+		out = append(out, b)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, apperr.Wrap(apperr.Internal, err, "list active bans failed")
+	}
+	return out, nil
 }
 
 var _ = time.Now

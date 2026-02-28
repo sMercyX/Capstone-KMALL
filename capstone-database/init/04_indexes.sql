@@ -168,10 +168,10 @@ DROP INDEX IF EXISTS idx_store_restrictions_store_active_until;
 CREATE INDEX IF NOT EXISTS idx_store_restrictions_store_active_until
   ON store_restrictions(store_id, is_active, restricted_until);
 
-DROP INDEX IF EXISTS uq_user_blacklists_one_active;
-CREATE UNIQUE INDEX IF NOT EXISTS uq_user_blacklists_one_active
-  ON user_blacklists(user_id)
-  WHERE is_active = TRUE;
+-- DROP INDEX IF EXISTS uq_user_blacklists_one_active;
+-- CREATE UNIQUE INDEX IF NOT EXISTS uq_user_blacklists_one_active
+--   ON user_blacklists(user_id)
+--   WHERE is_active = TRUE;
 
 DROP INDEX IF EXISTS uq_store_restrictions_one_active;
 CREATE UNIQUE INDEX IF NOT EXISTS uq_store_restrictions_one_active
