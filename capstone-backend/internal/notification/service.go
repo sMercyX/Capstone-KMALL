@@ -367,7 +367,7 @@ func (s *service) MarkReadByOrder(
 
 func (s *service) CreateAdminAction(ctx context.Context, in CreateAdminActionNotificationInput) (Notification, error) {
 	in.RecipientUserID = strings.TrimSpace(in.RecipientUserID)
-	in.ActionType = strings.TrimSpace(in.ActionType)
+	in.ActionType = strings.ToUpper(strings.TrimSpace(in.ActionType))
 
 	if in.RecipientUserID == "" {
 		return Notification{}, apperr.New(apperr.BadRequest, "invalid recipient_user_id")
@@ -381,23 +381,81 @@ func (s *service) CreateAdminAction(ctx context.Context, in CreateAdminActionNot
 
 	oid := in.OrderID
 
-	title := strPtr("Admin action")
-	body := strPtr("An admin has taken action on your account.")
+	// ===============================
+	// Decide notification TYPE
+	// ===============================
+	notiType := "ADMIN_ACTION"
 
-	// ทำให้ title/body ดูดีขึ้นตาม action_type ได้
-	switch strings.ToUpper(in.ActionType) {
-	case "BAN_USER":
-		title = strPtr("Account restricted")
-		body = strPtr("An admin has restricted your account.")
-	case "REVOKE_BAN":
-		title = strPtr("Restriction lifted")
-		body = strPtr("Your restriction has been lifted.")
+	if in.ActionType == "REPORT_ACTION_TAKEN" {
+		notiType = "REPORT_ACTION_TAKEN"
 	}
 
+	// ===============================
+	// Default
+	// ===============================
+	title := strPtr("Admin action update")
+	body := strPtr("An admin has taken action regarding your report.")
+
+	// ===============================
+	// Customize by action_type
+	// ===============================
+	switch in.ActionType {
+
+	// ====== ฝั่งคนโดน action ======
+	case "WARN_USER":
+		title = strPtr("Warning issued")
+		body = strPtr("You have received a warning from an admin.")
+
+	case "SUSPEND_USER":
+		title = strPtr("Account temporarily suspended")
+		body = strPtr("Your account has been temporarily suspended by an admin.")
+
+	case "BAN_USER":
+		title = strPtr("Account permanently banned")
+		body = strPtr("Your account has been permanently banned by an admin.")
+
+	case "REVOKE_BAN":
+		title = strPtr("Restriction lifted")
+		body = strPtr("Your account restriction has been lifted.")
+
+	case "HIDE_STORE":
+		title = strPtr("Store hidden")
+		body = strPtr("The store has been hidden by an admin.")
+
+	case "SUSPEND_STORE":
+		title = strPtr("Store suspended")
+		body = strPtr("The store has been temporarily suspended.")
+
+	case "DELETE_STORE":
+		title = strPtr("Store removed")
+		body = strPtr("The store has been permanently removed by an admin.")
+
+	// ====== ฝั่งคน report ======
+	case "REPORT_ACTION_TAKEN":
+		title = strPtr("Report updated")
+		body = strPtr("An admin has reviewed your report and taken appropriate action.")
+
+	case "NO_ACTION":
+		title = strPtr("Report reviewed")
+		body = strPtr("Your report has been reviewed. No further action was taken.")
+
+	case "RESOLVED":
+		title = strPtr("Report resolved")
+		body = strPtr("The report has been resolved by an admin.")
+
+	case "CLOSED":
+		title = strPtr("Report closed")
+		body = strPtr("The report has been closed.")
+	}
+
+	// ===============================
+	// Data payload
+	// ===============================
 	data := map[string]any{
 		"report_id":   in.ReportID,
 		"action_type": in.ActionType,
 	}
+
 	if in.BanType != nil {
 		data["ban_type"] = strings.TrimSpace(*in.BanType)
 	}
@@ -410,7 +468,7 @@ func (s *service) CreateAdminAction(ctx context.Context, in CreateAdminActionNot
 
 	n, err := s.repo.Create(ctx, CreateNotificationInput{
 		UserID:      in.RecipientUserID,
-		Type:        "ADMIN_ACTION",
+		Type:        notiType,
 		OrderID:     &oid,
 		StoreID:     in.StoreID,
 		ActorUserID: in.ActorUserID,

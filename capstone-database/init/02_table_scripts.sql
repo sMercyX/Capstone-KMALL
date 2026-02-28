@@ -801,7 +801,8 @@ CREATE TABLE IF NOT EXISTS notifications (
     CHECK (type IN (
       'ORDER_STATUS_CHANGED',
       'CHAT_NEW_MESSAGE',
-      'ADMIN_ACTION'
+      'ADMIN_ACTION',
+      'REPORT_ACTION_TAKEN'
     )),
 
   order_id INT NULL

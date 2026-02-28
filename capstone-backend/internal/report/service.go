@@ -294,11 +294,11 @@ func (s *service) AdminTakeAction(ctx context.Context, in AdminTakeActionInput) 
 		return ReportAdminAction{}, apperr.New(apperr.BadRequest, "invalid report_id")
 	}
 
-	if _, err := s.repo.GetReport(ctx, in.ReportID); err != nil {
+	rep, err := s.repo.GetReport(ctx, in.ReportID)
+	if err != nil {
 		return ReportAdminAction{}, err
 	}
 
-	// Determine new report status based on action
 	var newStatus string
 	switch in.ActionType {
 	case "NO_ACTION", "CLOSED":
@@ -309,12 +309,12 @@ func (s *service) AdminTakeAction(ctx context.Context, in AdminTakeActionInput) 
 		return ReportAdminAction{}, apperr.New(apperr.BadRequest, "invalid action_type")
 	}
 
-	// If action involves banning a user — create ban record automatically
 	switch in.ActionType {
 	case "WARN_USER", "SUSPEND_USER", "BAN_USER":
 		if in.TargetUserID == nil {
 			return ReportAdminAction{}, apperr.New(apperr.BadRequest, "target_user_id is required for user actions")
 		}
+
 		banType := map[string]string{
 			"WARN_USER":    "WARNING",
 			"SUSPEND_USER": "TEMPORARY",
@@ -328,8 +328,8 @@ func (s *service) AdminTakeAction(ctx context.Context, in AdminTakeActionInput) 
 
 		reportID := in.ReportID
 		if _, err := s.repo.CreateUserBan(ctx, CreateUserBanInput{
-			UserID:      *in.TargetUserID,
-			UserRole:    in.UserRole,
+			UserID:      strings.TrimSpace(*in.TargetUserID),
+			UserRole:    strings.ToUpper(strings.TrimSpace(in.UserRole)),
 			ReportID:    &reportID,
 			Reason:      noteOrDefault(in.Note, in.ActionType),
 			BanType:     banType,
@@ -360,32 +360,46 @@ func (s *service) AdminTakeAction(ctx context.Context, in AdminTakeActionInput) 
 		return ReportAdminAction{}, err
 	}
 
+	// ===============================
+	// Notifications
+	// ===============================
 	if s.noti != nil {
-		// เอา order_id จาก report
-		rep, err := s.repo.GetReport(ctx, in.ReportID)
-		if err == nil {
-			// หา recipient ตามประเภท action
-			recipient, storeID := s.resolveAdminActionRecipient(ctx, in)
-			if recipient != "" {
-				log.Printf("[ADMIN_ACTION] report=%d order=%d recipient=%s action=%s",
-					in.ReportID, rep.OrderID, recipient, in.ActionType)
-				note := in.Note
-				reason := strPtr(noteOrDefault(in.Note, in.ActionType))
+		recipient, storeID := s.resolveAdminActionRecipient(ctx, in)
 
-				if _, err := s.noti.CreateAdminAction(ctx, notification.CreateAdminActionNotificationInput{
-					RecipientUserID: recipient,
-					ActorUserID:     &in.AdminID,
-					ReportID:        in.ReportID,
-					OrderID:         int64(rep.OrderID),
-					StoreID:         storeID,
-					ActionType:      in.ActionType,
-					Note:            note,
-					BanType:         nil,
-					Reason:          reason,
-				}); err != nil {
-					return ReportAdminAction{}, err
-				}
+		log.Printf("[ADMIN_ACTION] report=%d order=%d recipient=%s action=%s reporter=%s",
+			in.ReportID, rep.OrderID, recipient, in.ActionType, rep.ReporterID)
+
+		reason := strPtr(noteOrDefault(in.Note, in.ActionType))
+
+		if recipient != "" {
+			if _, err := s.noti.CreateAdminAction(ctx, notification.CreateAdminActionNotificationInput{
+				RecipientUserID: recipient,
+				ActorUserID:     &in.AdminID,
+				ReportID:        in.ReportID,
+				OrderID:         int64(rep.OrderID),
+				StoreID:         storeID,
+				ActionType:      in.ActionType,
+				Note:            in.Note,
+				BanType:         nil,
+				Reason:          reason,
+			}); err != nil {
+				return ReportAdminAction{}, err
 			}
+		}
+
+		reporterID := strings.TrimSpace(rep.ReporterID)
+		if reporterID != "" && reporterID != recipient {
+			_, _ = s.noti.CreateAdminAction(ctx, notification.CreateAdminActionNotificationInput{
+				RecipientUserID: reporterID,
+				ActorUserID:     &in.AdminID,
+				ReportID:        in.ReportID,
+				OrderID:         int64(rep.OrderID),
+				StoreID:         storeID,
+				ActionType:      "REPORT_ACTION_TAKEN",
+				Note:            in.Note,
+				BanType:         nil,
+				Reason:          reason,
+			})
 		}
 	}
 
