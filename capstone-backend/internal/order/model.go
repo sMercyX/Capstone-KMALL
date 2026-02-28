@@ -81,3 +81,17 @@ type CheckoutConfirmInput struct {
 	CampusLocationID *int    `json:"campus_location_id,omitempty"`
 	CampusDetailNote *string `json:"campus_detail_note,omitempty"`
 }
+
+type BuyerOrderListResponse struct {
+	PageSize  int             `json:"page_size"`
+	PageIndex int             `json:"page_index"`
+	Total     int64           `json:"total"`
+	Items     []buyerOrderDTO `json:"items"`
+}
+
+type StoreOrderListResponse struct {
+	PageSize  int             `json:"page_size"`
+	PageIndex int             `json:"page_index"`
+	Total     int64           `json:"total"`
+	Items     []storeOrderDTO `json:"items"`
+}

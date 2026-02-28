@@ -383,16 +383,18 @@ func (h *Handler) listBuyerOrders(c *gin.Context) {
 	}
 
 	statusGroup := strings.ToLower(strings.TrimSpace(c.Query("status_group")))
-	orders, err := h.svc.ListBuyerOrders(c.Request.Context(), userID, statusGroup)
+	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "20"))
+	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
+
+	orders, total, err := h.svc.ListBuyerOrders(c.Request.Context(), userID, statusGroup, limit, page)
 	if err != nil {
 		c.Error(err)
 		return
 	}
 
 	ctx := c.Request.Context()
-
 	storeNameCache := make(map[int]string)
-	resp := make([]buyerOrderDTO, 0, len(orders))
+	items := make([]buyerOrderDTO, 0, len(orders))
 
 	for _, o := range orders {
 		name, ok := storeNameCache[o.StoreID]
@@ -405,14 +407,15 @@ func (h *Handler) listBuyerOrders(c *gin.Context) {
 			name = st.Name
 			storeNameCache[o.StoreID] = name
 		}
-
-		resp = append(resp, buyerOrderDTO{
-			Order:     o,
-			StoreName: name,
-		})
+		items = append(items, buyerOrderDTO{Order: o, StoreName: name})
 	}
 
-	respond.OK(c, apperr.OK, resp)
+	respond.OK(c, apperr.OK, gin.H{
+		"page_size":  limit,
+		"page_index": page,
+		"total":      total,
+		"items":      items,
+	})
 }
 
 func (h *Handler) listStoreOrders(c *gin.Context) {
@@ -434,17 +437,18 @@ func (h *Handler) listStoreOrders(c *gin.Context) {
 	}
 
 	statusGroup := strings.ToLower(strings.TrimSpace(c.Query("status_group")))
+	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "20"))
+	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
 
-	orders, err := h.svc.ListStoreOrders(c.Request.Context(), storeID, statusGroup)
+	orders, total, err := h.svc.ListStoreOrders(c.Request.Context(), storeID, statusGroup, limit, page)
 	if err != nil {
 		c.Error(err)
 		return
 	}
 
 	ctx := c.Request.Context()
-
 	buyerCache := make(map[string]user.User)
-	resp := make([]storeOrderDTO, 0, len(orders))
+	items := make([]storeOrderDTO, 0, len(orders))
 
 	for _, o := range orders {
 		u, ok := buyerCache[o.UserID]
@@ -457,8 +461,7 @@ func (h *Handler) listStoreOrders(c *gin.Context) {
 			u = usr
 			buyerCache[o.UserID] = u
 		}
-
-		resp = append(resp, storeOrderDTO{
+		items = append(items, storeOrderDTO{
 			Order:            o,
 			BuyerID:          u.ID,
 			BuyerDisplayName: u.DisplayName,
@@ -466,7 +469,12 @@ func (h *Handler) listStoreOrders(c *gin.Context) {
 		})
 	}
 
-	respond.OK(c, apperr.OK, resp)
+	respond.OK(c, apperr.OK, gin.H{
+		"page_size":  limit,
+		"page_index": page,
+		"total":      total,
+		"items":      items,
+	})
 }
 
 func (h *Handler) propose(c *gin.Context) {

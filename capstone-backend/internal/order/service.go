@@ -51,16 +51,8 @@ type Service interface {
 		id int64,
 		reason string,
 	) (Order, error)
-	ListBuyerOrders(
-		ctx context.Context,
-		userID string,
-		statusGroup string,
-	) ([]Order, error)
-	ListStoreOrders(
-		ctx context.Context,
-		storeID int64,
-		statusGroup string,
-	) ([]Order, error)
+	ListBuyerOrders(ctx context.Context, userID string, statusGroup string, limit, page int) ([]Order, int64, error)
+	ListStoreOrders(ctx context.Context, storeID int64, statusGroup string, limit, page int) ([]Order, int64, error)
 }
 
 // Notifier is an interface for sending notifications
@@ -789,36 +781,24 @@ func (s *service) updateOrderStatusNotiBestEffort(
 	return nil
 }
 
-func (s *service) ListBuyerOrders(ctx context.Context, userID string, statusGroup string) ([]Order, error) {
+func (s *service) ListBuyerOrders(ctx context.Context, userID string, statusGroup string, limit, page int) ([]Order, int64, error) {
 	if strings.TrimSpace(userID) == "" {
-		return nil, apperr.New(apperr.BadRequest, "invalid user_id")
+		return nil, 0, apperr.New(apperr.BadRequest, "invalid user_id")
 	}
-
 	statuses, err := mapStatusGroup(statusGroup)
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
-
-	orders, err := s.repo.ListByUserID(ctx, userID, statuses)
-	if err != nil {
-		return nil, err
-	}
-	return orders, nil
+	return s.repo.ListByUserID(ctx, userID, statuses, limit, page)
 }
 
-func (s *service) ListStoreOrders(ctx context.Context, storeID int64, statusGroup string) ([]Order, error) {
+func (s *service) ListStoreOrders(ctx context.Context, storeID int64, statusGroup string, limit, page int) ([]Order, int64, error) {
 	if storeID <= 0 {
-		return nil, apperr.New(apperr.BadRequest, "invalid store_id")
+		return nil, 0, apperr.New(apperr.BadRequest, "invalid store_id")
 	}
-
 	statuses, err := mapStatusGroup(statusGroup)
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
-
-	orders, err := s.repo.ListByStoreID(ctx, storeID, statuses)
-	if err != nil {
-		return nil, err
-	}
-	return orders, nil
+	return s.repo.ListByStoreID(ctx, storeID, statuses, limit, page)
 }
