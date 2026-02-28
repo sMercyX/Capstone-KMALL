@@ -37,8 +37,8 @@ func (h *Handler) Register(r *gin.RouterGroup) {
 	g := r.Group("/reports")
 	{
 		// Buyer / Seller — submit report on an order
-		g.GET("", h.listMyReports)
-		g.GET("/:report_id", h.getMyReport)
+		g.GET("/me", h.listMyReports)
+		g.GET("/me/:report_id", h.getMyReport)
 		g.POST("/orders/:order_id", h.submitReport)
 
 		// Admin only
@@ -129,7 +129,7 @@ type listReportsQuery struct {
 	FromDate          *time.Time
 	ToDate            *time.Time
 	Limit             int
-	Offset            int
+	Page              int
 }
 
 // ============================================================================
@@ -203,14 +203,14 @@ func (h *Handler) listReports(c *gin.Context) {
 		orderID = orderID + "%"
 	}
 
-	reports, err := h.svc.ListReports(c.Request.Context(), ListReportsParams{
+	resp, err := h.svc.ListReports(c.Request.Context(), ListReportsParams{
 		Status:            q.Status,
 		ReportedPartyType: q.ReportedPartyType,
 		ReasonCode:        q.ReasonCode,
 		FromDate:          q.FromDate,
 		ToDate:            q.ToDate,
 		Limit:             q.Limit,
-		Offset:            q.Offset,
+		Page:              q.Page,
 		OrderID:           orderID,
 	})
 	if err != nil {
@@ -218,7 +218,7 @@ func (h *Handler) listReports(c *gin.Context) {
 		return
 	}
 
-	respond.OK(c, apperr.OK, reports)
+	respond.OK(c, apperr.OK, resp)
 }
 
 // GET /api/reports/:report_id  (admin only)
@@ -500,31 +500,22 @@ func (h *Handler) listMyReports(c *gin.Context) {
 		status = &v
 	}
 
-	limit := 20
-	offset := 0
-	if v, err := strconv.Atoi(c.Query("limit")); err == nil && v > 0 {
-		if v > 100 {
-			v = 100
-		}
-		limit = v
-	}
-	if v, err := strconv.Atoi(c.Query("offset")); err == nil && v >= 0 {
-		offset = v
-	}
+	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "20"))
+	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
 
-	reports, err := h.svc.ListMyReports(c.Request.Context(), ListMyReportsParams{
+	resp, err := h.svc.ListMyReports(c.Request.Context(), ListMyReportsParams{
 		ReporterID:        userID,
 		ReportedPartyType: reportedPartyType,
 		Status:            status,
 		Limit:             limit,
-		Offset:            offset,
+		Page:              page,
 	})
 	if err != nil {
 		c.Error(err)
 		return
 	}
 
-	respond.OK(c, apperr.OK, reports)
+	respond.OK(c, apperr.OK, resp)
 }
 
 // ============================================================================
@@ -532,7 +523,7 @@ func (h *Handler) listMyReports(c *gin.Context) {
 // ============================================================================
 
 func parseListReportsQuery(c *gin.Context) listReportsQuery {
-	q := listReportsQuery{Limit: 20, Offset: 0}
+	q := listReportsQuery{Limit: 20, Page: 1}
 
 	if v := strings.TrimSpace(c.Query("status")); v != "" {
 		q.Status = &v
@@ -559,8 +550,14 @@ func parseListReportsQuery(c *gin.Context) listReportsQuery {
 		}
 		q.Limit = v
 	}
-	if v, err := strconv.Atoi(c.Query("offset")); err == nil && v >= 0 {
-		q.Offset = v
+	if v, err := strconv.Atoi(c.Query("limit")); err == nil && v > 0 {
+		if v > 100 {
+			v = 100
+		}
+		q.Limit = v
+	}
+	if v, err := strconv.Atoi(c.Query("page")); err == nil && v > 0 {
+		q.Page = v
 	}
 
 	return q

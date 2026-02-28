@@ -146,7 +146,7 @@ type ListReportsParams struct {
 	FromDate          *time.Time
 	ToDate            *time.Time
 	Limit             int
-	Offset            int
+	Page              int // เปลี่ยนจาก Offset
 	OrderID           string
 }
 
@@ -191,8 +191,22 @@ type MyReportView struct {
 
 type ListMyReportsParams struct {
 	ReporterID        string
-	ReportedPartyType *string // BUYER / SELLER — กรองว่า report ในฐานะอะไร
+	ReportedPartyType *string
 	Status            *string
 	Limit             int
-	Offset            int
+	Page              int // เปลี่ยนจาก Offset เป็น Page
+}
+
+type ReportListResponse struct {
+	PageSize  int      `json:"page_size"`
+	PageIndex int      `json:"page_index"`
+	Total     int64    `json:"total"`
+	Items     []Report `json:"items"`
+}
+
+type MyReportListResponse struct {
+	PageSize  int            `json:"page_size"`
+	PageIndex int            `json:"page_index"`
+	Total     int64          `json:"total"`
+	Items     []MyReportView `json:"items"`
 }

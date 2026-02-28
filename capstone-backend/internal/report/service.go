@@ -71,7 +71,7 @@ type Service interface {
 	// PBI 22 - Report
 	SubmitReport(ctx context.Context, in SubmitReportInput, chatMessages []ReportChatSnapshot, orderSnapshot ReportOrderSnapshot) (Report, error)
 	GetReportDetail(ctx context.Context, reportID int64) (ReportDetail, error)
-	ListReports(ctx context.Context, in ListReportsParams) ([]Report, error)
+	ListReports(ctx context.Context, in ListReportsParams) (ReportListResponse, error)
 	AdminTakeAction(ctx context.Context, in AdminTakeActionInput) (ReportAdminAction, error)
 
 	// PBI 23 - Blacklist
@@ -81,7 +81,7 @@ type Service interface {
 	ListBanHistory(ctx context.Context, in ListBanHistoryParams) ([]UserBlacklist, error)
 
 	GetMyReport(ctx context.Context, reportID int64, reporterID string) (MyReportView, error)
-	ListMyReports(ctx context.Context, in ListMyReportsParams) ([]MyReportView, error)
+	ListMyReports(ctx context.Context, in ListMyReportsParams) (MyReportListResponse, error)
 }
 
 type service struct {
@@ -253,8 +253,29 @@ func (s *service) GetReportDetail(ctx context.Context, reportID int64) (ReportDe
 	}, nil
 }
 
-func (s *service) ListReports(ctx context.Context, in ListReportsParams) ([]Report, error) {
-	return s.repo.ListReports(ctx, in)
+func (s *service) ListReports(ctx context.Context, in ListReportsParams) (ReportListResponse, error) {
+	if in.Limit <= 0 {
+		in.Limit = 20
+	}
+	if in.Page <= 0 {
+		in.Page = 1
+	}
+
+	reports, total, err := s.repo.ListReports(ctx, in)
+	if err != nil {
+		return ReportListResponse{}, err
+	}
+
+	if reports == nil {
+		reports = []Report{}
+	}
+
+	return ReportListResponse{
+		PageSize:  in.Limit,
+		PageIndex: in.Page,
+		Total:     total,
+		Items:     reports,
+	}, nil
 }
 
 func (s *service) AdminTakeAction(ctx context.Context, in AdminTakeActionInput) (ReportAdminAction, error) {
@@ -409,20 +430,26 @@ func (s *service) GetMyReport(ctx context.Context, reportID int64, reporterID st
 	}, nil
 }
 
-func (s *service) ListMyReports(ctx context.Context, in ListMyReportsParams) ([]MyReportView, error) {
+func (s *service) ListMyReports(ctx context.Context, in ListMyReportsParams) (MyReportListResponse, error) {
 	in.ReporterID = strings.TrimSpace(in.ReporterID)
 	if in.ReporterID == "" {
-		return nil, apperr.New(apperr.BadRequest, "invalid reporter_id")
+		return MyReportListResponse{}, apperr.New(apperr.BadRequest, "invalid reporter_id")
+	}
+	if in.Limit <= 0 {
+		in.Limit = 20
+	}
+	if in.Page <= 0 {
+		in.Page = 1
 	}
 
-	reports, err := s.repo.ListMyReports(ctx, in)
+	reports, total, err := s.repo.ListMyReports(ctx, in)
 	if err != nil {
-		return nil, err
+		return MyReportListResponse{}, err
 	}
 
-	out := make([]MyReportView, 0, len(reports))
+	items := make([]MyReportView, 0, len(reports))
 	for _, rep := range reports {
-		out = append(out, MyReportView{
+		items = append(items, MyReportView{
 			ReportID:            rep.ID,
 			CreatedAt:           rep.CreatedAt,
 			OrderID:             rep.OrderID,
@@ -434,7 +461,13 @@ func (s *service) ListMyReports(ctx context.Context, in ListMyReportsParams) ([]
 			Status:              rep.Status,
 		})
 	}
-	return out, nil
+
+	return MyReportListResponse{
+		PageSize:  in.Limit,
+		PageIndex: in.Page,
+		Total:     total,
+		Items:     items,
+	}, nil
 }
 
 // ============================================================================

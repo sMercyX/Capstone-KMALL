@@ -16,7 +16,7 @@ import (
 type Repo interface {
 	CreateReport(ctx context.Context, in CreateReportInput) (Report, error)
 	GetReport(ctx context.Context, reportID int64) (Report, error)
-	ListReports(ctx context.Context, in ListReportsParams) ([]Report, error)
+	ListReports(ctx context.Context, in ListReportsParams) ([]Report, int64, error)
 	UpdateReportStatus(ctx context.Context, reportID int64, status string) (Report, error)
 	CreateReportEvidences(ctx context.Context, reportID int64, uploadedBy string, items []CreateReportEvidenceInput) ([]ReportEvidence, error)
 	ListEvidencesByReportID(ctx context.Context, reportID int64) ([]ReportEvidence, error)
@@ -31,7 +31,7 @@ type Repo interface {
 	GetActiveBan(ctx context.Context, userID string) (*UserBlacklist, error)
 	ListBanHistory(ctx context.Context, in ListBanHistoryParams) ([]UserBlacklist, error)
 	GetMyReport(ctx context.Context, reportID int64, reporterID string) (Report, error)
-	ListMyReports(ctx context.Context, in ListMyReportsParams) ([]Report, error)
+	ListMyReports(ctx context.Context, in ListMyReportsParams) ([]Report, int64, error)
 }
 
 type repo struct{ db *pgxpool.Pool }
@@ -160,71 +160,85 @@ WHERE r.report_id = $1`, reportID), &rep)
 	return rep, nil
 }
 
-func (r *repo) ListReports(ctx context.Context, in ListReportsParams) ([]Report, error) {
+func (r *repo) ListReports(ctx context.Context, in ListReportsParams) ([]Report, int64, error) {
 	if in.Limit <= 0 || in.Limit > 100 {
 		in.Limit = 20
 	}
-	query := `SELECT r.report_id, r.order_id, r.reporter_id, r.reported_user_id, r.reported_party_type,
-       r.reason_code, r.description, r.status, r.created_at, r.updated_at,
-       u1.display_name AS reporter_display_name,
-       u2.display_name AS reported_display_name,
-       s.store_name
-FROM reports r
+	if in.Page <= 0 {
+		in.Page = 1
+	}
+	offset := (in.Page - 1) * in.Limit
+
+	base := `FROM reports r
 JOIN users u1 ON u1.user_id = r.reporter_id
 JOIN users u2 ON u2.user_id = r.reported_user_id
 JOIN orders o ON o.order_id = r.order_id
 JOIN stores s ON s.store_id = o.store_id
 WHERE 1=1`
+
 	args := []any{}
 	i := 1
 
 	if in.OrderID != "" {
-		query += ` AND r.order_id::text LIKE $` + itoa(i)
+		base += ` AND r.order_id::text LIKE $` + itoa(i)
 		args = append(args, in.OrderID)
 		i++
 	}
 	if in.Status != nil {
-		query += ` AND r.status = $` + itoa(i)
+		base += ` AND r.status = $` + itoa(i)
 		args = append(args, *in.Status)
 		i++
 	}
 	if in.ReportedPartyType != nil {
-		query += ` AND r.reported_party_type = $` + itoa(i)
+		base += ` AND r.reported_party_type = $` + itoa(i)
 		args = append(args, *in.ReportedPartyType)
 		i++
 	}
 	if in.ReasonCode != nil {
-		query += ` AND r.reason_code = $` + itoa(i)
+		base += ` AND r.reason_code = $` + itoa(i)
 		args = append(args, *in.ReasonCode)
 		i++
 	}
 	if in.FromDate != nil {
-		query += ` AND r.created_at >= $` + itoa(i)
+		base += ` AND r.created_at >= $` + itoa(i)
 		args = append(args, *in.FromDate)
 		i++
 	}
 	if in.ToDate != nil {
-		query += ` AND r.created_at <= $` + itoa(i)
+		base += ` AND r.created_at <= $` + itoa(i)
 		args = append(args, *in.ToDate)
 		i++
 	}
-	query += ` ORDER BY r.created_at DESC LIMIT $` + itoa(i) + ` OFFSET $` + itoa(i+1)
-	args = append(args, in.Limit, in.Offset)
 
-	rows, err := r.db.Query(ctx, query, args...)
+	// count
+	var total int64
+	if err := r.db.QueryRow(ctx, `SELECT COUNT(*) `+base, args...).Scan(&total); err != nil {
+		return nil, 0, apperr.Wrap(apperr.Internal, err, "count reports failed")
+	}
+
+	// data
+	selectQuery := `SELECT r.report_id, r.order_id, r.reporter_id, r.reported_user_id, r.reported_party_type,
+       r.reason_code, r.description, r.status, r.created_at, r.updated_at,
+       u1.display_name AS reporter_display_name,
+       u2.display_name AS reported_display_name,
+       s.store_name ` + base +
+		` ORDER BY r.created_at DESC LIMIT $` + itoa(i) + ` OFFSET $` + itoa(i+1)
+	args = append(args, in.Limit, offset)
+
+	rows, err := r.db.Query(ctx, selectQuery, args...)
 	if err != nil {
-		return nil, apperr.Wrap(apperr.Internal, err, "list reports failed")
+		return nil, 0, apperr.Wrap(apperr.Internal, err, "list reports failed")
 	}
 	defer rows.Close()
 	out := make([]Report, 0, in.Limit)
 	for rows.Next() {
 		var rep Report
 		if err := scanReport(rows, &rep); err != nil {
-			return nil, apperr.Wrap(apperr.Internal, err, "scan report failed")
+			return nil, 0, apperr.Wrap(apperr.Internal, err, "scan report failed")
 		}
 		out = append(out, rep)
 	}
-	return out, rows.Err()
+	return out, total, rows.Err()
 }
 
 func (r *repo) UpdateReportStatus(ctx context.Context, reportID int64, status string) (Report, error) {
@@ -637,51 +651,65 @@ WHERE r.report_id = $1 AND r.reporter_id = $2`, reportID, reporterID).Scan(
 	return rep, nil
 }
 
-func (r *repo) ListMyReports(ctx context.Context, in ListMyReportsParams) ([]Report, error) {
+func (r *repo) ListMyReports(ctx context.Context, in ListMyReportsParams) ([]Report, int64, error) {
 	if in.Limit <= 0 || in.Limit > 100 {
 		in.Limit = 20
 	}
-	query := `SELECT r.report_id, r.order_id, r.reporter_id, r.reported_user_id, r.reported_party_type,
-       r.reason_code, r.description, r.status, r.created_at, r.updated_at,
-       u1.display_name AS reporter_display_name,
-       u2.display_name AS reported_display_name,
-       s.store_name
-FROM reports r
+	if in.Page <= 0 {
+		in.Page = 1
+	}
+	offset := (in.Page - 1) * in.Limit
+
+	base := `FROM reports r
 JOIN users u1 ON u1.user_id = r.reporter_id
 JOIN users u2 ON u2.user_id = r.reported_user_id
 JOIN orders o ON o.order_id = r.order_id
 JOIN stores s ON s.store_id = o.store_id
 WHERE r.reporter_id = $1`
+
 	args := []any{in.ReporterID}
 	i := 2
 
 	if in.ReportedPartyType != nil {
-		query += ` AND r.reported_party_type = $` + itoa(i)
+		base += ` AND r.reported_party_type = $` + itoa(i)
 		args = append(args, *in.ReportedPartyType)
 		i++
 	}
 	if in.Status != nil {
-		query += ` AND r.status = $` + itoa(i)
+		base += ` AND r.status = $` + itoa(i)
 		args = append(args, *in.Status)
 		i++
 	}
-	query += ` ORDER BY r.created_at DESC LIMIT $` + itoa(i) + ` OFFSET $` + itoa(i+1)
-	args = append(args, in.Limit, in.Offset)
 
-	rows, err := r.db.Query(ctx, query, args...)
+	// count
+	var total int64
+	if err := r.db.QueryRow(ctx, `SELECT COUNT(*) `+base, args...).Scan(&total); err != nil {
+		return nil, 0, apperr.Wrap(apperr.Internal, err, "count my reports failed")
+	}
+
+	// data
+	selectQuery := `SELECT r.report_id, r.order_id, r.reporter_id, r.reported_user_id, r.reported_party_type,
+       r.reason_code, r.description, r.status, r.created_at, r.updated_at,
+       u1.display_name AS reporter_display_name,
+       u2.display_name AS reported_display_name,
+       s.store_name ` + base +
+		` ORDER BY r.created_at DESC LIMIT $` + itoa(i) + ` OFFSET $` + itoa(i+1)
+	args = append(args, in.Limit, offset)
+
+	rows, err := r.db.Query(ctx, selectQuery, args...)
 	if err != nil {
-		return nil, apperr.Wrap(apperr.Internal, err, "list my reports failed")
+		return nil, 0, apperr.Wrap(apperr.Internal, err, "list my reports failed")
 	}
 	defer rows.Close()
 	out := make([]Report, 0, in.Limit)
 	for rows.Next() {
 		var rep Report
 		if err := scanReport(rows, &rep); err != nil {
-			return nil, apperr.Wrap(apperr.Internal, err, "scan report failed")
+			return nil, 0, apperr.Wrap(apperr.Internal, err, "scan report failed")
 		}
 		out = append(out, rep)
 	}
-	return out, rows.Err()
+	return out, total, rows.Err()
 }
 
 var _ = time.Now
