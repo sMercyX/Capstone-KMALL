@@ -146,8 +146,8 @@ type ListReportsParams struct {
 	FromDate          *time.Time
 	ToDate            *time.Time
 	Limit             int
-	Page              int // เปลี่ยนจาก Offset
-	OrderID           string
+	Page              int
+	Q                 string
 }
 
 type AdminActionInput struct {
@@ -194,7 +194,8 @@ type ListMyReportsParams struct {
 	ReportedPartyType *string
 	Status            *string
 	Limit             int
-	Page              int // เปลี่ยนจาก Offset เป็น Page
+	Page              int
+	Q                 string
 }
 
 type ReportListResponse struct {

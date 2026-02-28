@@ -179,9 +179,9 @@ WHERE 1=1`
 	args := []any{}
 	i := 1
 
-	if in.OrderID != "" {
-		base += ` AND r.order_id::text LIKE $` + itoa(i)
-		args = append(args, in.OrderID)
+	if in.Q != "" {
+		base += ` AND (r.report_id::text LIKE $` + itoa(i) + ` OR r.order_id::text LIKE $` + itoa(i) + `)`
+		args = append(args, in.Q)
 		i++
 	}
 	if in.Status != nil {
@@ -669,6 +669,12 @@ WHERE r.reporter_id = $1`
 
 	args := []any{in.ReporterID}
 	i := 2
+
+	if in.Q != "" {
+		base += ` AND (r.report_id::text LIKE $` + itoa(i) + ` OR r.order_id::text LIKE $` + itoa(i) + `)`
+		args = append(args, in.Q)
+		i++
+	}
 
 	if in.ReportedPartyType != nil {
 		base += ` AND r.reported_party_type = $` + itoa(i)

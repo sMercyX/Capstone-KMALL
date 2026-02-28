@@ -195,23 +195,24 @@ func (h *Handler) submitReport(c *gin.Context) {
 
 // GET /api/reports  (admin only)
 // query: status, reported_party_type, reason_code, from_date, to_date, limit, offset
-func (h *Handler) listReports(c *gin.Context) {
-	q := parseListReportsQuery(c)
 
-	orderID := c.DefaultQuery("order_id", "")
-	if orderID != "" {
-		orderID = orderID + "%"
+func (h *Handler) listReports(c *gin.Context) {
+	qp := parseListReportsQuery(c)
+
+	q := strings.TrimSpace(c.Query("q"))
+	if q != "" {
+		q = q + "%" // prefix search
 	}
 
 	resp, err := h.svc.ListReports(c.Request.Context(), ListReportsParams{
-		Status:            q.Status,
-		ReportedPartyType: q.ReportedPartyType,
-		ReasonCode:        q.ReasonCode,
-		FromDate:          q.FromDate,
-		ToDate:            q.ToDate,
-		Limit:             q.Limit,
-		Page:              q.Page,
-		OrderID:           orderID,
+		Status:            qp.Status,
+		ReportedPartyType: qp.ReportedPartyType,
+		ReasonCode:        qp.ReasonCode,
+		FromDate:          qp.FromDate,
+		ToDate:            qp.ToDate,
+		Limit:             qp.Limit,
+		Page:              qp.Page,
+		Q:                 q,
 	})
 	if err != nil {
 		c.Error(err)
@@ -500,6 +501,11 @@ func (h *Handler) listMyReports(c *gin.Context) {
 		status = &v
 	}
 
+	q := strings.TrimSpace(c.Query("q"))
+	if q != "" {
+		q = q + "%" // prefix search
+	}
+
 	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "20"))
 	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
 
@@ -509,6 +515,7 @@ func (h *Handler) listMyReports(c *gin.Context) {
 		Status:            status,
 		Limit:             limit,
 		Page:              page,
+		Q:                 q,
 	})
 	if err != nil {
 		c.Error(err)
