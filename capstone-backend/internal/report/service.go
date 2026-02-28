@@ -81,6 +81,7 @@ type Service interface {
 	ListBanHistory(ctx context.Context, in ListBanHistoryParams) ([]UserBlacklist, error)
 
 	GetMyReport(ctx context.Context, reportID int64, reporterID string) (MyReportView, error)
+	ListMyReports(ctx context.Context, in ListMyReportsParams) ([]MyReportView, error)
 }
 
 type service struct {
@@ -406,6 +407,34 @@ func (s *service) GetMyReport(ctx context.Context, reportID int64, reporterID st
 		ReasonCode:          rep.ReasonCode,
 		Status:              rep.Status,
 	}, nil
+}
+
+func (s *service) ListMyReports(ctx context.Context, in ListMyReportsParams) ([]MyReportView, error) {
+	in.ReporterID = strings.TrimSpace(in.ReporterID)
+	if in.ReporterID == "" {
+		return nil, apperr.New(apperr.BadRequest, "invalid reporter_id")
+	}
+
+	reports, err := s.repo.ListMyReports(ctx, in)
+	if err != nil {
+		return nil, err
+	}
+
+	out := make([]MyReportView, 0, len(reports))
+	for _, rep := range reports {
+		out = append(out, MyReportView{
+			ReportID:            rep.ID,
+			CreatedAt:           rep.CreatedAt,
+			OrderID:             rep.OrderID,
+			StoreName:           rep.StoreName,
+			ReportedUserID:      rep.ReportedUserID,
+			ReportedDisplayName: rep.ReportedDisplayName,
+			ReportedPartyType:   rep.ReportedPartyType,
+			ReasonCode:          rep.ReasonCode,
+			Status:              rep.Status,
+		})
+	}
+	return out, nil
 }
 
 // ============================================================================

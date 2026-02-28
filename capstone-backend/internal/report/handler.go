@@ -37,6 +37,7 @@ func (h *Handler) Register(r *gin.RouterGroup) {
 	g := r.Group("/reports")
 	{
 		// Buyer / Seller — submit report on an order
+		g.GET("", h.listMyReports)
 		g.GET("/:report_id", h.getMyReport)
 		g.POST("/orders/:order_id", h.submitReport)
 
@@ -481,6 +482,49 @@ func (h *Handler) getMyReport(c *gin.Context) {
 	}
 
 	respond.OK(c, apperr.OK, view)
+}
+
+func (h *Handler) listMyReports(c *gin.Context) {
+	userID, ok := h.resolveCurrentUserID(c)
+	if !ok {
+		return
+	}
+
+	var reportedPartyType *string
+	if v := strings.ToUpper(strings.TrimSpace(c.Query("role"))); v == "BUYER" || v == "SELLER" {
+		reportedPartyType = &v
+	}
+
+	var status *string
+	if v := strings.ToUpper(strings.TrimSpace(c.Query("status"))); v != "" {
+		status = &v
+	}
+
+	limit := 20
+	offset := 0
+	if v, err := strconv.Atoi(c.Query("limit")); err == nil && v > 0 {
+		if v > 100 {
+			v = 100
+		}
+		limit = v
+	}
+	if v, err := strconv.Atoi(c.Query("offset")); err == nil && v >= 0 {
+		offset = v
+	}
+
+	reports, err := h.svc.ListMyReports(c.Request.Context(), ListMyReportsParams{
+		ReporterID:        userID,
+		ReportedPartyType: reportedPartyType,
+		Status:            status,
+		Limit:             limit,
+		Offset:            offset,
+	})
+	if err != nil {
+		c.Error(err)
+		return
+	}
+
+	respond.OK(c, apperr.OK, reports)
 }
 
 // ============================================================================

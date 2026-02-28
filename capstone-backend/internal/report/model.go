@@ -184,6 +184,15 @@ type MyReportView struct {
 	StoreName           string    `json:"store_name"`
 	ReportedUserID      string    `json:"reported_user_id"`
 	ReportedDisplayName string    `json:"reported_display_name"`
+	ReportedPartyType   string    `json:"reported_party_type"`
 	ReasonCode          string    `json:"reason_code"`
 	Status              string    `json:"status"`
+}
+
+type ListMyReportsParams struct {
+	ReporterID        string
+	ReportedPartyType *string // BUYER / SELLER — กรองว่า report ในฐานะอะไร
+	Status            *string
+	Limit             int
+	Offset            int
 }
