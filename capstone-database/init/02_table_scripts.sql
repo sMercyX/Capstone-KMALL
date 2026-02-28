@@ -800,7 +800,8 @@ CREATE TABLE IF NOT EXISTS notifications (
   type VARCHAR(30) NOT NULL
     CHECK (type IN (
       'ORDER_STATUS_CHANGED',
-      'CHAT_NEW_MESSAGE'
+      'CHAT_NEW_MESSAGE',
+      'ADMIN_ACTION'
     )),
 
   order_id INT NULL

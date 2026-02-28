@@ -137,7 +137,7 @@ func Attach(r *gin.Engine, db *pgxpool.Pool, cfg config.Config) {
 	recSvc := recommendation.NewService(recRepo)
 
 	reportRepo := report.NewRepo(db)
-	reportSvc := report.NewService(reportRepo, fs)
+	reportSvc := report.NewService(reportRepo, fs, notiSvc, sSvc)
 
 	banAdapter := reportBanAdapter{svc: reportSvc}
 

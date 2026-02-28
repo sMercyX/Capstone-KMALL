@@ -87,6 +87,8 @@ type Service interface {
 	CountUnread(ctx context.Context, userID string) (int64, error)
 
 	UpdateNotification(ctx context.Context, in UpdateNotificationInput) (Notification, error)
+
+	CreateAdminAction(ctx context.Context, in CreateAdminActionNotificationInput) (Notification, error)
 }
 
 type service struct {
@@ -361,4 +363,65 @@ func (s *service) MarkReadByOrder(
 		return 0, apperr.New(apperr.BadRequest, "invalid order_id")
 	}
 	return s.repo.MarkReadByOrder(ctx, userID, orderID, types)
+}
+
+func (s *service) CreateAdminAction(ctx context.Context, in CreateAdminActionNotificationInput) (Notification, error) {
+	in.RecipientUserID = strings.TrimSpace(in.RecipientUserID)
+	in.ActionType = strings.TrimSpace(in.ActionType)
+
+	if in.RecipientUserID == "" {
+		return Notification{}, apperr.New(apperr.BadRequest, "invalid recipient_user_id")
+	}
+	if in.OrderID <= 0 {
+		return Notification{}, apperr.New(apperr.BadRequest, "invalid order_id")
+	}
+	if in.ActionType == "" {
+		return Notification{}, apperr.New(apperr.BadRequest, "action_type is required")
+	}
+
+	oid := in.OrderID
+
+	title := strPtr("Admin action")
+	body := strPtr("An admin has taken action on your account.")
+
+	// ทำให้ title/body ดูดีขึ้นตาม action_type ได้
+	switch strings.ToUpper(in.ActionType) {
+	case "BAN_USER":
+		title = strPtr("Account restricted")
+		body = strPtr("An admin has restricted your account.")
+	case "REVOKE_BAN":
+		title = strPtr("Restriction lifted")
+		body = strPtr("Your restriction has been lifted.")
+	}
+
+	data := map[string]any{
+		"report_id":   in.ReportID,
+		"action_type": in.ActionType,
+	}
+	if in.BanType != nil {
+		data["ban_type"] = strings.TrimSpace(*in.BanType)
+	}
+	if in.Reason != nil {
+		data["reason"] = strings.TrimSpace(*in.Reason)
+	}
+	if in.Note != nil {
+		data["note"] = strings.TrimSpace(*in.Note)
+	}
+
+	n, err := s.repo.Create(ctx, CreateNotificationInput{
+		UserID:      in.RecipientUserID,
+		Type:        "ADMIN_ACTION",
+		OrderID:     &oid,
+		StoreID:     in.StoreID,
+		ActorUserID: in.ActorUserID,
+		Title:       title,
+		Body:        body,
+		Data:        data,
+	})
+	if err != nil {
+		return Notification{}, err
+	}
+
+	s.broadcastNotification(n.UserID, n)
+	return n, nil
 }

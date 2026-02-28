@@ -2,12 +2,15 @@ package report
 
 import (
 	"context"
+	"log"
 	"mime/multipart"
 	"strings"
 	"time"
 
 	apperr "github.com/Perpasit/Capstone-KMALL/internal/apperr"
 	"github.com/Perpasit/Capstone-KMALL/internal/filestore"
+	"github.com/Perpasit/Capstone-KMALL/internal/notification"
+	"github.com/Perpasit/Capstone-KMALL/internal/store"
 )
 
 // ============================================================================
@@ -85,12 +88,14 @@ type Service interface {
 }
 
 type service struct {
-	repo Repo
-	fs   FileStore
+	repo     Repo
+	fs       FileStore
+	noti     notification.Service
+	storeSvc store.Service
 }
 
-func NewService(r Repo, fs FileStore) Service {
-	return &service{repo: r, fs: fs}
+func NewService(r Repo, fs FileStore, noti notification.Service, st store.Service) Service {
+	return &service{repo: r, fs: fs, noti: noti, storeSvc: st}
 }
 
 // ============================================================================
@@ -289,6 +294,10 @@ func (s *service) AdminTakeAction(ctx context.Context, in AdminTakeActionInput) 
 		return ReportAdminAction{}, apperr.New(apperr.BadRequest, "invalid report_id")
 	}
 
+	if _, err := s.repo.GetReport(ctx, in.ReportID); err != nil {
+		return ReportAdminAction{}, err
+	}
+
 	// Determine new report status based on action
 	var newStatus string
 	switch in.ActionType {
@@ -349,6 +358,35 @@ func (s *service) AdminTakeAction(ctx context.Context, in AdminTakeActionInput) 
 	// Update report status
 	if _, err := s.repo.UpdateReportStatus(ctx, in.ReportID, newStatus); err != nil {
 		return ReportAdminAction{}, err
+	}
+
+	if s.noti != nil {
+		// เอา order_id จาก report
+		rep, err := s.repo.GetReport(ctx, in.ReportID)
+		if err == nil {
+			// หา recipient ตามประเภท action
+			recipient, storeID := s.resolveAdminActionRecipient(ctx, in)
+			if recipient != "" {
+				log.Printf("[ADMIN_ACTION] report=%d order=%d recipient=%s action=%s",
+					in.ReportID, rep.OrderID, recipient, in.ActionType)
+				note := in.Note
+				reason := strPtr(noteOrDefault(in.Note, in.ActionType))
+
+				if _, err := s.noti.CreateAdminAction(ctx, notification.CreateAdminActionNotificationInput{
+					RecipientUserID: recipient,
+					ActorUserID:     &in.AdminID,
+					ReportID:        in.ReportID,
+					OrderID:         int64(rep.OrderID),
+					StoreID:         storeID,
+					ActionType:      in.ActionType,
+					Note:            note,
+					BanType:         nil,
+					Reason:          reason,
+				}); err != nil {
+					return ReportAdminAction{}, err
+				}
+			}
+		}
 	}
 
 	return action, nil
@@ -479,4 +517,31 @@ func noteOrDefault(note *string, fallback string) string {
 		return strings.TrimSpace(*note)
 	}
 	return fallback
+}
+
+func (s *service) resolveAdminActionRecipient(ctx context.Context, in AdminTakeActionInput) (recipient string, storeID *int64) {
+	// user actions
+	switch in.ActionType {
+	case "WARN_USER", "SUSPEND_USER", "BAN_USER":
+		if in.TargetUserID != nil {
+			return strings.TrimSpace(*in.TargetUserID), nil
+		}
+		return "", nil
+	}
+
+	// store actions
+	switch in.ActionType {
+	case "HIDE_STORE", "SUSPEND_STORE", "DELETE_STORE":
+		if in.TargetStoreID != nil && *in.TargetStoreID > 0 && s.storeSvc != nil {
+			st, err := s.storeSvc.Get(ctx, int64(*in.TargetStoreID))
+			if err != nil {
+				return "", nil
+			}
+			sid := int64(*in.TargetStoreID)
+			return st.UserID.String(), &sid
+		}
+		return "", nil
+	}
+
+	return "", nil
 }
