@@ -81,8 +81,6 @@ func Attach(r *gin.Engine, db *pgxpool.Pool, cfg config.Config) {
 		c.JSON(200, start)
 	})
 
-	// static files (รูป)
-
 	// ===== wiring repos & services =====
 	uRepo := user.NewRepo(db)
 	rRepo := role.NewRepo(db)
@@ -140,6 +138,8 @@ func Attach(r *gin.Engine, db *pgxpool.Pool, cfg config.Config) {
 
 	reportRepo := report.NewRepo(db)
 	reportSvc := report.NewService(reportRepo, fs)
+
+	banAdapter := reportBanAdapter{svc: reportSvc}
 
 	// v1 := r.Group("/api",
 	// 	apiLogger(),
@@ -213,7 +213,7 @@ func Attach(r *gin.Engine, db *pgxpool.Pool, cfg config.Config) {
 	})
 
 	// users
-	uHdl := user.NewHandler(uSvc, rSvc)
+	uHdl := user.NewHandler(uSvc, rSvc, banAdapter)
 	uHdl.Register(v1)
 
 	// roles
@@ -346,4 +346,23 @@ func apiLogger() gin.HandlerFunc {
 			time.Since(start),
 		)
 	}
+}
+
+type reportBanAdapter struct {
+	svc report.Service
+}
+
+func (a reportBanAdapter) GetActiveBan(ctx context.Context, userID string) (*user.ActiveBan, error) {
+	b, err := a.svc.GetActiveBan(ctx, userID)
+	if err != nil || b == nil {
+		return nil, err
+	}
+	return &user.ActiveBan{
+		UserRole:    b.UserRole,
+		Reason:      b.Reason,
+		BanType:     b.BanType,
+		BannedFrom:  b.BannedFrom,
+		BannedUntil: b.BannedUntil,
+		IsActive:    b.IsActive,
+	}, nil
 }

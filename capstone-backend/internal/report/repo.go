@@ -480,6 +480,10 @@ FROM report_admin_actions WHERE report_id = $1 ORDER BY created_at ASC`, reportI
 
 func (r *repo) CreateUserBan(ctx context.Context, in CreateUserBanInput) (UserBlacklist, error) {
 	in.UserID = strings.TrimSpace(in.UserID)
+	in.UserRole = strings.ToUpper(strings.TrimSpace(in.UserRole))
+	if in.UserRole != "BUYER" && in.UserRole != "SELLER" {
+		return UserBlacklist{}, apperr.New(apperr.BadRequest, "invalid user_role")
+	}
 	in.CreatedBy = strings.TrimSpace(in.CreatedBy)
 	in.Reason = strings.TrimSpace(in.Reason)
 	in.BanType = strings.ToUpper(strings.TrimSpace(in.BanType))
@@ -487,16 +491,32 @@ func (r *repo) CreateUserBan(ctx context.Context, in CreateUserBanInput) (UserBl
 		return UserBlacklist{}, apperr.New(apperr.BadRequest, "user_id, reason, ban_type, and created_by are required")
 	}
 
+	if in.BanType == "WARNING" {
+		t := time.Now().Add(7 * 24 * time.Hour)
+		in.BannedUntil = &t
+	}
+
+	if in.BanType == "TEMPORARY" && in.BannedUntil == nil {
+		return UserBlacklist{}, apperr.New(apperr.BadRequest, "banned_until is required for TEMPORARY")
+	}
+
+	if in.BanType == "PERMANENT" {
+		in.BannedUntil = nil
+	}
+
 	var existsID int64
 	err := r.db.QueryRow(ctx, `
-		SELECT blacklist_id
-		FROM user_blacklists
-		WHERE user_id = $1
-		  AND is_active = TRUE
-		  AND (ban_type = 'PERMANENT' OR (ban_type = 'TEMPORARY' AND banned_until > NOW()))
-		ORDER BY created_at DESC
-		LIMIT 1;
-	`, in.UserID).Scan(&existsID)
+    SELECT blacklist_id
+    FROM user_blacklists
+    WHERE user_id = $1
+      AND is_active = TRUE
+      AND (
+        ban_type = 'PERMANENT'
+        OR (ban_type IN ('TEMPORARY','WARNING') AND banned_until > NOW())
+      )
+    ORDER BY created_at DESC
+    LIMIT 1;
+`, in.UserID).Scan(&existsID)
 
 	if err == nil {
 		return UserBlacklist{}, apperr.New(apperr.Conflict, "user already has an active ban")
@@ -563,8 +583,13 @@ SELECT blacklist_id, user_id, user_role, report_id, reason,
 FROM user_blacklists
 WHERE user_id = $1
   AND is_active = TRUE
-  AND (ban_type = 'PERMANENT' OR (ban_type = 'TEMPORARY' AND banned_until > NOW()))
-ORDER BY created_at DESC LIMIT 1`, userID), &b)
+  AND (
+    ban_type = 'PERMANENT'
+    OR (ban_type IN ('TEMPORARY','WARNING') AND banned_until > NOW())
+  )
+ORDER BY created_at DESC
+LIMIT 1
+`, userID), &b)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, nil

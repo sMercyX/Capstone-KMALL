@@ -737,8 +737,8 @@ CREATE TABLE IF NOT EXISTS user_blacklists (
     ban_type <> 'PERMANENT' OR banned_until IS NULL
   ),
 
-  CONSTRAINT chk_warning_until_null CHECK (
-    ban_type <> 'WARNING' OR banned_until IS NULL
+  CONSTRAINT chk_warning_requires_until CHECK (
+    ban_type <> 'WARNING' OR banned_until IS NOT NULL
   )
 );
 
