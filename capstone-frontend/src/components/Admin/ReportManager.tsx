@@ -3,6 +3,7 @@ import { useReportApi, type ReportResponse } from "../../api/reportApi"
 import { format } from "date-fns"
 import { FaChevronLeft, FaChevronRight, FaCheck, FaTimes } from "react-icons/fa"
 import { FiSearch } from "react-icons/fi"
+import { Loader2 } from "lucide-react"
 import { useNavigate } from "react-router-dom"
 
 interface ReportManagerProps {
@@ -83,59 +84,60 @@ export default function ReportManager({ reportedPartyType }: ReportManagerProps)
 
   const renderTable = (items: ReportResponse[], isPending: boolean) => {
     return (
-      <div className="mt-4">
-        {/* Header row */}
-        <div className="grid grid-cols-12 gap-4 bg-[#fbfaf8] border border-gray-200 rounded-lg px-6 py-4 text-sm font-medium text-gray-600 mb-3">
-          <div className="col-span-2">Report ID</div>
-          <div className="col-span-3">Created at</div>
-          <div className="col-span-2">Order ID</div>
-          <div className="col-span-3">Reason (s)</div>
-          <div className="col-span-2"></div>
-        </div>
+      <div className="mt-4 overflow-x-auto">
+        <div className="min-w-[900px] mb-2 pb-2">
+          {/* Header row */}
+          <div className="grid grid-cols-12 gap-4 bg-[#fbfaf8] border border-gray-200 rounded-lg px-6 py-4 text-sm font-medium text-gray-600 mb-3">
+            <div className="col-span-2">Report ID</div>
+            <div className="col-span-2">Created at</div>
+            <div className="col-span-2">Order ID</div>
+            <div className="col-span-4">Reason (s)</div>
+            <div className="col-span-2"></div>
+          </div>
 
-        {/* List of items */}
-        <div className="space-y-3">
-          {items.length === 0 ? (
-            <div className="py-8 text-center text-gray-400 border border-gray-200 rounded-lg bg-white">
-              No reports found.
-            </div>
-          ) : (
-            items.map((r) => (
-              <div
-                key={r.report_id}
-                className="grid grid-cols-12 gap-4 items-center bg-white border border-gray-200 rounded-lg px-6 py-4 shadow-[0_1px_2px_rgba(0,0,0,0.02)] transition-colors hover:border-gray-300"
-              >
-                <div className="col-span-2 text-gray-800 text-sm font-medium">
-                  #RPT-{r.report_id.toString().padStart(4, "0")}
-                </div>
-                <div className="col-span-3 text-gray-500 text-sm">{formatDate(r.created_at)}</div>
-                <div className="col-span-2 text-gray-500 text-sm">ORDER : #{r.order_id}</div>
-                <div className="col-span-3 text-gray-500 text-sm truncate pr-4" title={r.reason_code}>
-                  {r.reason_code}
-                </div>
-                <div className="col-span-2 flex justify-end">
-                  {isPending ? (
-                    <button
-                      onClick={() => navigate(`/admin/report/${reportedPartyType.toLowerCase()}/${r.report_id}`)}
-                      className="bg-[#ff5a36] hover:bg-[#e04a29] text-white px-5 py-2 rounded-md font-medium text-sm transition-colors w-full max-w-[130px]"
-                    >
-                      View Detail
-                    </button>
-                  ) : activeTab === "RESOLVED" ? (
-                    <div className="inline-flex items-center justify-center gap-2 px-5 py-2 rounded-full text-white text-sm font-medium bg-[#63c063] w-full max-w-[130px]">
-                      <FaCheck size={12} />
-                      Resolved
-                    </div>
-                  ) : (
-                    <div className="inline-flex items-center justify-center gap-2 px-5 py-2 rounded-full text-white text-sm font-medium bg-[#f05252] w-full max-w-[130px]">
-                      <FaTimes size={12} />
-                      Rejected
-                    </div>
-                  )}
-                </div>
+          {/* List of items */}
+          <div className="space-y-3">
+            {items.length === 0 ? (
+              <div className="py-8 text-center text-gray-400 border border-gray-200 rounded-lg bg-white">
+                No reports found.
               </div>
-            ))
-          )}
+            ) : (
+              items.map((r) => (
+                <div
+                  key={r.report_id}
+                  onClick={() => navigate(`/admin/report/${reportedPartyType.toLowerCase()}/${r.report_id}`)}
+                  className="cursor-pointer grid grid-cols-12 gap-4 items-center bg-white border border-gray-200 rounded-lg px-6 py-4 shadow-[0_1px_2px_rgba(0,0,0,0.02)] transition-colors hover:border-[#ff5a36]"
+                >
+                  <div className="col-span-2 text-gray-800 text-sm font-medium">
+                    #RPT-{r.report_id.toString().padStart(4, "0")}
+                  </div>
+                  <div className="col-span-2 text-gray-500 text-sm">{formatDate(r.created_at)}</div>
+                  <div className="col-span-2 text-gray-500 text-sm">ORDER : #{r.order_id}</div>
+                  <div className="col-span-4 text-gray-500 text-sm truncate pr-4" title={r.reason_code}>
+                    {r.reason_code}
+                  </div>
+                  <div className="col-span-2 flex justify-end">
+                    {isPending ? (
+                      <div className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-full text-[#8e7314] text-xs font-semibold bg-[#fad450] w-[160px] whitespace-nowrap">
+                        <Loader2 className="animate-spin flex-shrink-0" size={14} />
+                        Waiting for resolve
+                      </div>
+                    ) : activeTab === "RESOLVED" ? (
+                      <div className="inline-flex items-center justify-center gap-2 px-5 py-2 rounded-full text-white text-sm font-medium bg-[#63c063] w-[140px] whitespace-nowrap">
+                        <FaCheck size={12} />
+                        Resolved
+                      </div>
+                    ) : (
+                      <div className="inline-flex items-center justify-center gap-2 px-5 py-2 rounded-full text-white text-sm font-medium bg-[#f05252] w-[140px] whitespace-nowrap">
+                        <FaTimes size={12} />
+                        Rejected
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
         </div>
       </div>
     )
