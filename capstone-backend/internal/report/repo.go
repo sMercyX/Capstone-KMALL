@@ -34,6 +34,7 @@ type Repo interface {
 	GetMyReport(ctx context.Context, reportID int64, reporterID string) (Report, error)
 	ListMyReports(ctx context.Context, in ListMyReportsParams) ([]Report, int64, error)
 	ExpireBansByRole(ctx context.Context, userID, userRole string) error
+	MarkReviewedIfPending(ctx context.Context, reportID int64) error
 }
 
 type repo struct{ db *pgxpool.Pool }
@@ -814,6 +815,23 @@ ORDER BY created_at DESC
 		return nil, apperr.Wrap(apperr.Internal, err, "list active bans failed")
 	}
 	return out, nil
+}
+
+func (r *repo) MarkReviewedIfPending(ctx context.Context, reportID int64) error {
+	if reportID <= 0 {
+		return apperr.New(apperr.BadRequest, "invalid report_id")
+	}
+
+	_, err := r.db.Exec(ctx, `
+UPDATE reports
+SET status = 'REVIEWED', updated_at = NOW()
+WHERE report_id = $1
+  AND status = 'PENDING'
+`, reportID)
+	if err != nil {
+		return apperr.Wrap(apperr.Internal, err, "mark reviewed failed")
+	}
+	return nil
 }
 
 var _ = time.Now

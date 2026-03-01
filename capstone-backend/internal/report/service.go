@@ -228,6 +228,10 @@ func (s *service) GetReportDetail(ctx context.Context, reportID int64) (ReportDe
 		return ReportDetail{}, apperr.New(apperr.BadRequest, "invalid report_id")
 	}
 
+	if err := s.repo.MarkReviewedIfPending(ctx, reportID); err != nil {
+		return ReportDetail{}, err
+	}
+
 	rep, err := s.repo.GetReport(ctx, reportID)
 	if err != nil {
 		return ReportDetail{}, err
