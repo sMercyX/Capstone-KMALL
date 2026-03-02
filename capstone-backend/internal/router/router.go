@@ -3,6 +3,7 @@ package router
 import (
 	"context"
 	"log"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -110,16 +111,6 @@ func Attach(r *gin.Engine, db *pgxpool.Pool, cfg config.Config) {
 	notiRepo := notification.NewRepo(db)
 	notiSvc := notification.NewService(notiRepo, hub)
 
-	oRepo := order.NewRepo(db)
-	oSvc := order.NewService(
-		oRepo,
-		cartSvc,
-		pSvc,
-		sSvc,
-		hub,
-		notiSvc,
-	)
-
 	shRepo := searchhistory.NewRepo(db)
 	shSvc := searchhistory.NewService(shRepo)
 
@@ -129,16 +120,35 @@ func Attach(r *gin.Engine, db *pgxpool.Pool, cfg config.Config) {
 	addrRepo := address.NewRepo(db)
 	addrSvc := address.NewService(addrRepo)
 
-	ocRepo := orderchat.NewRepo(db)
 	fs := filestore.NewLocalStore("./uploads", "/uploads")
+
+	ocRepo := orderchat.NewRepo(db)
 	ocSvc := orderchat.NewService(ocRepo, fs, hub, notiSvc)
 
+	// recommendation (อย่าลืม)
 	recRepo := recommendation.NewRepo(db)
 	recSvc := recommendation.NewService(recRepo)
 
+	// report repo (ใช้ทั้ง report service + ban provider)
 	reportRepo := report.NewRepo(db)
-	reportSvc := report.NewService(reportRepo, fs, notiSvc, sSvc)
+	orderBanProvider := reportOrderBanProvider{repo: reportRepo}
 
+	// order service
+	oRepo := order.NewRepo(db)
+	oSvc := order.NewService(
+		oRepo,
+		cartSvc,
+		pSvc,
+		sSvc,
+		hub,
+		notiSvc,
+		orderBanProvider,
+	)
+
+	// report service (ต้องได้ order canceller)
+	reportSvc := report.NewService(reportRepo, fs, notiSvc, sSvc, oSvc)
+
+	// adapter สำหรับ user handler
 	banAdapter := reportBanAdapter{svc: reportSvc}
 
 	// v1 := r.Group("/api",
@@ -381,6 +391,30 @@ func (a reportBanAdapter) ListActiveBans(ctx context.Context, userID string) ([]
 			BannedFrom:  b.BannedFrom,
 			BannedUntil: b.BannedUntil,
 			IsActive:    b.IsActive,
+		})
+	}
+	return out, nil
+}
+
+type reportOrderBanProvider struct {
+	repo report.Repo
+}
+
+func (p reportOrderBanProvider) ListActiveBans(ctx context.Context, userID string) ([]order.UserBlacklist, error) {
+	bans, err := p.repo.ListActiveBans(ctx, strings.TrimSpace(userID))
+	if err != nil {
+		return nil, err
+	}
+
+	out := make([]order.UserBlacklist, 0, len(bans))
+	for _, b := range bans {
+		out = append(out, order.UserBlacklist{
+			BanType:     b.BanType,
+			BannedFrom:  b.BannedFrom,
+			BannedUntil: b.BannedUntil,
+			IsActive:    b.IsActive,
+			Reason:      b.Reason,
+			UserRole:    b.UserRole,
 		})
 	}
 	return out, nil

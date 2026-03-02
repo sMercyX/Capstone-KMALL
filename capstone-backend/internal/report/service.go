@@ -66,6 +66,11 @@ type BanUserInput struct {
 	CreatedBy   string
 }
 
+type OrderCanceller interface {
+	CancelOrdersByUserRole(ctx context.Context, userID, role, reason string) (int64, error)
+	CancelOrdersByStore(ctx context.Context, storeID int64, reason string) (int64, error)
+}
+
 // ============================================================================
 // Service Interface
 // ============================================================================
@@ -93,10 +98,11 @@ type service struct {
 	fs       FileStore
 	noti     notification.Service
 	storeSvc store.Service
+	orderSvc OrderCanceller
 }
 
-func NewService(r Repo, fs FileStore, noti notification.Service, st store.Service) Service {
-	return &service{repo: r, fs: fs, noti: noti, storeSvc: st}
+func NewService(r Repo, fs FileStore, noti notification.Service, st store.Service, ord OrderCanceller) Service {
+	return &service{repo: r, fs: fs, noti: noti, storeSvc: st, orderSvc: ord}
 }
 
 // ============================================================================
@@ -294,6 +300,7 @@ func (s *service) ListReports(ctx context.Context, in ListReportsParams) (Report
 func (s *service) AdminTakeAction(ctx context.Context, in AdminTakeActionInput) (ReportAdminAction, error) {
 	in.AdminID = strings.TrimSpace(in.AdminID)
 	in.ActionType = strings.ToUpper(strings.TrimSpace(in.ActionType))
+	in.UserRole = strings.ToUpper(strings.TrimSpace(in.UserRole))
 
 	if in.AdminID == "" || in.ActionType == "" {
 		return ReportAdminAction{}, apperr.New(apperr.BadRequest, "admin_id and action_type are required")
@@ -317,10 +324,25 @@ func (s *service) AdminTakeAction(ctx context.Context, in AdminTakeActionInput) 
 		return ReportAdminAction{}, apperr.New(apperr.BadRequest, "invalid action_type")
 	}
 
+	// ===============================
+	// User actions (ban/suspend/warn)
+	// ===============================
 	switch in.ActionType {
 	case "WARN_USER", "SUSPEND_USER", "BAN_USER":
-		if in.TargetUserID == nil {
+		if in.TargetUserID == nil || strings.TrimSpace(*in.TargetUserID) == "" {
 			return ReportAdminAction{}, apperr.New(apperr.BadRequest, "target_user_id is required for user actions")
+		}
+
+		// user_role required + validate
+		if in.UserRole != "BUYER" && in.UserRole != "SELLER" {
+			return ReportAdminAction{}, apperr.New(apperr.BadRequest, "user_role must be BUYER or SELLER")
+		}
+
+		// Because 1 seller = 1 store, require target_store_id for seller actions
+		if in.UserRole == "SELLER" {
+			if in.TargetStoreID == nil || *in.TargetStoreID <= 0 {
+				return ReportAdminAction{}, apperr.New(apperr.BadRequest, "target_store_id is required for seller actions")
+			}
 		}
 
 		banType := map[string]string{
@@ -335,9 +357,12 @@ func (s *service) AdminTakeAction(ctx context.Context, in AdminTakeActionInput) 
 		}
 
 		reportID := in.ReportID
+		targetUserID := strings.TrimSpace(*in.TargetUserID)
+
+		// Create ban record
 		if _, err := s.repo.CreateUserBan(ctx, CreateUserBanInput{
-			UserID:      strings.TrimSpace(*in.TargetUserID),
-			UserRole:    strings.ToUpper(strings.TrimSpace(in.UserRole)),
+			UserID:      targetUserID,
+			UserRole:    in.UserRole,
 			ReportID:    &reportID,
 			Reason:      noteOrDefault(in.Note, in.ActionType),
 			BanType:     banType,
@@ -346,9 +371,25 @@ func (s *service) AdminTakeAction(ctx context.Context, in AdminTakeActionInput) 
 		}); err != nil {
 			return ReportAdminAction{}, err
 		}
+
+		// Best-effort cancel active orders when TEMPORARY/PERMANENT
+		if s.orderSvc != nil && banType != "WARNING" {
+			cancelReason := "AUTO_CANCELLED_DUE_TO_" + banType + "_" + in.ActionType + "_" + in.UserRole
+
+			switch in.UserRole {
+			case "BUYER":
+				_, _ = s.orderSvc.CancelOrdersByUserRole(ctx, targetUserID, "BUYER", cancelReason)
+
+			case "SELLER":
+				// 1 seller = 1 store => cancel by store_id
+				_, _ = s.orderSvc.CancelOrdersByStore(ctx, int64(*in.TargetStoreID), cancelReason)
+			}
+		}
 	}
 
+	// ===============================
 	// Log admin action
+	// ===============================
 	action, err := s.repo.CreateAdminAction(ctx, AdminActionInput{
 		ReportID:      in.ReportID,
 		AdminID:       in.AdminID,
@@ -363,7 +404,9 @@ func (s *service) AdminTakeAction(ctx context.Context, in AdminTakeActionInput) 
 		return ReportAdminAction{}, err
 	}
 
+	// ===============================
 	// Update report status
+	// ===============================
 	if _, err := s.repo.UpdateReportStatus(ctx, in.ReportID, newStatus); err != nil {
 		return ReportAdminAction{}, err
 	}
