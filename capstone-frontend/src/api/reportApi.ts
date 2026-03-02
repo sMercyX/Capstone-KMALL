@@ -134,6 +134,21 @@ export function useReportApi() {
     return http.getItems(`/reports?${queryParams.toString()}`)
   }
 
+  async function getReportsMe(params: {
+    status?: string
+    limit?: number
+    page?: number
+    q?: string
+  }): Promise<{ code: number; data: PaginatedReports; status: string }> {
+    const queryParams = new URLSearchParams()
+    if (params.status) queryParams.append("status", params.status)
+    if (params.limit) queryParams.append("limit", params.limit.toString())
+    if (params.page) queryParams.append("page", params.page.toString())
+    if (params.q) queryParams.append("q", params.q)
+    
+    return http.getItems(`/reports/me?${queryParams.toString()}`)
+  }
+
   async function getReportDetail(reportId: string | number): Promise<{ code: number; data: ReportDetailResponse; status: string }> {
     return http.getItems(`/reports/${reportId}`)
   }
@@ -151,5 +166,5 @@ export function useReportApi() {
     return http.postItem(`/reports/${reportId}/action`, data)
   }
 
-  return { createOrderReport, getReports, getReportDetail, actionReport }
+  return { createOrderReport, getReports, getReportsMe, getReportDetail, actionReport }
 }

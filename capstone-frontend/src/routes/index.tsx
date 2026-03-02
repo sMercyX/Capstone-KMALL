@@ -26,6 +26,9 @@ const CheckoutPage = lazy(() => import("../modules/CheckoutPage/CheckoutPage"))
 const StoreOrderDetailPage = lazy(
   () => import("../modules/StoreOrderDetailPage/StoreOrderDetailPage")
 )
+const StoreReportStatusPage = lazy(
+  () => import("../modules/StoreSellerPage/StoreReportStatusPage")
+)
 const OrderPage = lazy(() => import("../modules/OrderPage/OrderPage"))
 const ChatPage = lazy(() => import("../modules/ChatPage/ChatPage"))
 
@@ -236,6 +239,7 @@ export default function AppRoutes() {
           <Route path="/store/orders" element={<StoreSellerPage />} />
           <Route path="/store/orders/:orderId" element={<StoreOrderDetailPage />} />
           <Route path="/store/orders/:orderId/chat" element={<ChatPage />} />
+          <Route path="/store/report" element={<StoreReportStatusPage />} />
           <Route path="/store/settings" element={<StoreSellerPage />} />
         </Route>
       </Routes>
