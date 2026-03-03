@@ -778,12 +778,18 @@ WHERE r.reporter_id = $1`
 	}
 
 	// data
-	selectQuery := `SELECT r.report_id, r.order_id, r.reporter_id, r.reported_user_id, r.reported_party_type,
-       r.reason_code, r.description, r.status, r.created_at, r.updated_at,
-       u1.display_name AS reporter_display_name,
-       u2.display_name AS reported_display_name,
-       s.store_name ` + base +
-		` ORDER BY r.created_at DESC LIMIT $` + itoa(i) + ` OFFSET $` + itoa(i+1)
+	selectQuery := `
+SELECT 
+r.report_id, r.order_id, r.reporter_id, r.reported_user_id,
+r.reported_party_type, r.reason_code, r.description, r.status,
+r.created_at, r.updated_at,
+u1.display_name AS reporter_display_name,
+u2.display_name AS reported_display_name,
+s.store_name,
+s.store_id
+` + base + `
+ORDER BY r.created_at DESC
+LIMIT $` + itoa(i) + ` OFFSET $` + itoa(i+1)
 	args = append(args, in.Limit, offset)
 
 	rows, err := r.db.Query(ctx, selectQuery, args...)
