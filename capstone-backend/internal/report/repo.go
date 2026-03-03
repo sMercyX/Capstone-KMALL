@@ -226,7 +226,8 @@ WHERE 1=1`
        r.reason_code, r.description, r.status, r.created_at, r.updated_at,
        u1.display_name AS reporter_display_name,
        u2.display_name AS reported_display_name,
-       s.store_name ` + base +
+       s.store_name,
+       o.store_id ` + base +
 		` ORDER BY r.created_at DESC LIMIT $` + itoa(i) + ` OFFSET $` + itoa(i+1)
 	args = append(args, in.Limit, offset)
 
