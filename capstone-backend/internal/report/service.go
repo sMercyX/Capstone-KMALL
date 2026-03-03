@@ -426,16 +426,7 @@ func (s *service) AdminTakeAction(ctx context.Context, in AdminTakeActionInput) 
 			in.AdminID, targetUserID, cancelReason)
 
 		count, err := s.orderSvc.CancelOrdersByUserRole(ctx, in.AdminID, targetUserID, "BUYER", cancelReason)
-		log.Printf("[ADMIN] CancelOrdersByUserRole result: cancelled=%d err=%v",
-			count, err)
-	}
-
-	if in.UserRole == "SELLER" && banType == "PERMANENT" {
-		if s.storeSvc != nil {
-			if err := s.storeSvc.DeleteByAdmin(ctx, int64(*in.TargetStoreID)); err != nil {
-				return ReportAdminAction{}, err
-			}
-		}
+		log.Printf("[ADMIN] CancelOrdersByUserRole result: cancelled=%d err=%v", count, err)
 	}
 
 	action, err := s.repo.CreateAdminAction(ctx, AdminActionInput{
@@ -460,11 +451,15 @@ func (s *service) AdminTakeAction(ctx context.Context, in AdminTakeActionInput) 
 		reason := strPtr(strings.TrimSpace(*in.Note))
 		reporterID := strings.TrimSpace(rep.ReporterID)
 
-		recipient, storeID := s.resolveAdminActionRecipient(ctx, in)
+		var storeID *int64
+		if in.UserRole == "SELLER" && in.TargetStoreID != nil && *in.TargetStoreID > 0 {
+			sid := int64(*in.TargetStoreID)
+			storeID = &sid
+		}
 
-		if recipient != "" {
-			if _, err := s.noti.CreateAdminAction(ctx, notification.CreateAdminActionNotificationInput{
-				RecipientUserID: recipient,
+		if targetUserID != "" {
+			_, _ = s.noti.CreateAdminAction(ctx, notification.CreateAdminActionNotificationInput{
+				RecipientUserID: targetUserID,
 				ActorUserID:     &in.AdminID,
 				ReportID:        in.ReportID,
 				OrderID:         int64(rep.OrderID),
@@ -473,12 +468,10 @@ func (s *service) AdminTakeAction(ctx context.Context, in AdminTakeActionInput) 
 				Note:            in.Note,
 				BanType:         &banType,
 				Reason:          reason,
-			}); err != nil {
-				return ReportAdminAction{}, err
-			}
+			})
 		}
 
-		if reporterID != "" && reporterID != recipient {
+		if reporterID != "" && reporterID != targetUserID {
 			_, _ = s.noti.CreateAdminAction(ctx, notification.CreateAdminActionNotificationInput{
 				RecipientUserID: reporterID,
 				ActorUserID:     &in.AdminID,
