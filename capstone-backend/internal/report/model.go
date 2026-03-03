@@ -96,6 +96,7 @@ type UserBlacklist struct {
 	UserID      string     `json:"user_id"`
 	UserRole    string     `json:"user_role"` // BUYER / SELLER
 	ReportID    *int64     `json:"report_id,omitempty"`
+	OrderID     *int64     `json:"order_id,omitempty"`
 	Reason      string     `json:"reason"`
 	BanType     string     `json:"ban_type"` // WARNING / TEMPORARY / PERMANENT
 	BannedFrom  time.Time  `json:"banned_from"`
