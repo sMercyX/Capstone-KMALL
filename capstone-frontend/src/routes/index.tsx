@@ -30,6 +30,9 @@ const StoreReportStatusPage = lazy(
   () => import("../modules/StoreSellerPage/StoreReportStatusPage")
 )
 const OrderPage = lazy(() => import("../modules/OrderPage/OrderPage"))
+const BuyerReportStatusPage = lazy(
+  () => import("../modules/ReportPage/BuyerReportStatusPage")
+)
 const ChatPage = lazy(() => import("../modules/ChatPage/ChatPage"))
 
 // --- Backend (Admin / Seller) Setup ---
@@ -198,6 +201,14 @@ export default function AppRoutes() {
               element={
                 <ProtectedRoute>
                   <ChatPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/reports"
+              element={
+                <ProtectedRoute>
+                  <BuyerReportStatusPage />
                 </ProtectedRoute>
               }
             />

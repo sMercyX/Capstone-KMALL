@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react"
 import { FiSearch } from "react-icons/fi"
+import { FaCheck, FaTimes } from "react-icons/fa"
 import { useNavigate } from "react-router-dom"
 import { useReportApi, type ReportResponse } from "../../api/reportApi"
 import { format } from "date-fns"
@@ -77,12 +78,14 @@ export default function StoreReportStatusPage() {
       case "RESOLVED":
         return (
           <div className="inline-flex items-center justify-center gap-2 px-5 py-2 rounded-full text-white text-sm font-medium bg-[#63c063] w-full max-w-[130px] whitespace-nowrap">
+            <FaCheck size={12} />
             Resolved
           </div>
         )
       case "CLOSED":
         return (
           <div className="inline-flex items-center justify-center gap-2 px-5 py-2 rounded-full text-white text-sm font-medium bg-[#f05252] w-full max-w-[130px] whitespace-nowrap">
+            <FaTimes size={12} />
             Evidence
           </div>
         )

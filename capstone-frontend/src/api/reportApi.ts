@@ -124,12 +124,14 @@ export function useReportApi() {
     status?: "PENDING" | "RESOLVED" | "CLOSED"
     limit?: number
     page?: number
+    q?: string
   }): Promise<{ code: number; data: PaginatedReports; status: string }> {
     const queryParams = new URLSearchParams()
     if (params.reported_party_type) queryParams.append("reported_party_type", params.reported_party_type)
     if (params.status) queryParams.append("status", params.status)
     if (params.limit) queryParams.append("limit", params.limit.toString())
     if (params.page) queryParams.append("page", params.page.toString())
+    if (params.q) queryParams.append("q", params.q)
     
     return http.getItems(`/reports?${queryParams.toString()}`)
   }

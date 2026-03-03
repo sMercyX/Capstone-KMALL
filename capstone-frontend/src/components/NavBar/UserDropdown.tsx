@@ -149,6 +149,19 @@ export default function UserDropdown({
               {isCartActive && <Check className="h-4 w-4 text-orange-500" />}
             </Link>
 
+            <Link
+              to="/reports"
+              className={`flex w-full items-center justify-between gap-2 rounded-xl px-2 py-2 text-sm text-gray-500 hover:bg-white`}
+              onClick={onClose}
+            >
+              <div className="flex items-center gap-2 text-gray-500">
+                <span className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-gray-100">
+                  <Image className="h-4 w-4 text-gray-400" />
+                </span>
+                My Reports
+              </div>
+            </Link>
+
             <button
               className="flex w-full items-center gap-2 rounded-xl px-2 py-2 text-sm text-gray-500 hover:bg-white cursor-pointer"
               onClick={() => {

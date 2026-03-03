@@ -270,12 +270,12 @@ export default function ReportDetailPage() {
             
             <div className="grid grid-cols-[140px_1fr]">
               <span className="font-semibold text-gray-800 text-[#63c063]">Reporter :</span>
-              <span className="text-[#63c063] font-medium">{report.reporter_display_name}</span>
+              <span className="text-[#63c063] font-medium">{type === "seller" ? (report.store_name || report.reporter_display_name) : report.reporter_display_name}</span>
             </div>
             
             <div className="grid grid-cols-[140px_1fr]">
               <span className="font-semibold text-gray-800 text-[#f05252]">Reported User :</span>
-              <span className="text-[#f05252] font-medium">{report.reported_display_name}</span>
+              <span className="text-[#f05252] font-medium">{type === "buyer" ? (report.store_name || report.reported_display_name) : report.reported_display_name}</span>
             </div>
             
             {/* Reason box */}
