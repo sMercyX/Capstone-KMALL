@@ -29,9 +29,15 @@ type Repo interface {
 	CreateUserBan(ctx context.Context, in CreateUserBanInput) (UserBlacklist, error)
 	RevokeUserBan(ctx context.Context, blacklistID int64) (UserBlacklist, error)
 	GetActiveBan(ctx context.Context, userID string) (*UserBlacklist, error)
+	ListActiveBans(ctx context.Context, userID string) ([]UserBlacklist, error)
 	ListBanHistory(ctx context.Context, in ListBanHistoryParams) ([]UserBlacklist, error)
 	GetMyReport(ctx context.Context, reportID int64, reporterID string) (Report, error)
 	ListMyReports(ctx context.Context, in ListMyReportsParams) ([]Report, int64, error)
+	ExpireBansByRole(ctx context.Context, userID, userRole string) error
+	MarkReviewedIfPending(ctx context.Context, reportID int64) error
+
+	ListUserBlacklists(ctx context.Context, in ListUserBlacklistsParams) ([]UserBlacklist, int64, error)
+	GetUserBlacklist(ctx context.Context, blacklistID int64) (UserBlacklist, error)
 }
 
 type repo struct{ db *pgxpool.Pool }
@@ -45,6 +51,7 @@ func scanReport(row pgx.Row, r *Report) error {
 		&r.CreatedAt, &r.UpdatedAt,
 		&r.ReporterDisplayName, &r.ReportedDisplayName,
 		&r.StoreName,
+		&r.StoreID,
 	)
 }
 func scanEvidence(row pgx.Row, e *ReportEvidence) error {
@@ -144,7 +151,8 @@ SELECT r.report_id, r.order_id, r.reporter_id, r.reported_user_id,
        r.created_at, r.updated_at,
        u1.display_name AS reporter_display_name,
        u2.display_name AS reported_display_name,
-       s.store_name
+       s.store_name,
+	   o.store_id
 FROM reports r
 JOIN users u1 ON u1.user_id = r.reporter_id
 JOIN users u2 ON u2.user_id = r.reported_user_id
@@ -179,9 +187,9 @@ WHERE 1=1`
 	args := []any{}
 	i := 1
 
-	if in.OrderID != "" {
-		base += ` AND r.order_id::text LIKE $` + itoa(i)
-		args = append(args, in.OrderID)
+	if in.Q != "" {
+		base += ` AND (r.report_id::text LIKE $` + itoa(i) + ` OR r.order_id::text LIKE $` + itoa(i) + `)`
+		args = append(args, "%"+in.Q+"%")
 		i++
 	}
 	if in.Status != nil {
@@ -221,7 +229,8 @@ WHERE 1=1`
        r.reason_code, r.description, r.status, r.created_at, r.updated_at,
        u1.display_name AS reporter_display_name,
        u2.display_name AS reported_display_name,
-       s.store_name ` + base +
+       s.store_name,
+       o.store_id ` + base +
 		` ORDER BY r.created_at DESC LIMIT $` + itoa(i) + ` OFFSET $` + itoa(i+1)
 	args = append(args, in.Limit, offset)
 
@@ -478,8 +487,39 @@ FROM report_admin_actions WHERE report_id = $1 ORDER BY created_at ASC`, reportI
 	return out, rows.Err()
 }
 
+func (r *repo) ExpireBansByRole(ctx context.Context, userID, userRole string) error {
+	userID = strings.TrimSpace(userID)
+	userRole = strings.ToUpper(strings.TrimSpace(userRole))
+
+	if userID == "" {
+		return apperr.New(apperr.BadRequest, "invalid user_id")
+	}
+	if userRole != "BUYER" && userRole != "SELLER" {
+		return apperr.New(apperr.BadRequest, "invalid user_role")
+	}
+
+	_, err := r.db.Exec(ctx, `
+UPDATE user_blacklists
+SET is_active = FALSE
+WHERE user_id = $1
+  AND user_role = $2
+  AND is_active = TRUE
+  AND ban_type IN ('TEMPORARY','WARNING')
+  AND banned_until IS NOT NULL
+  AND banned_until <= NOW()
+`, userID, userRole)
+	if err != nil {
+		return apperr.Wrap(apperr.Internal, err, "expire bans failed")
+	}
+	return nil
+}
+
 func (r *repo) CreateUserBan(ctx context.Context, in CreateUserBanInput) (UserBlacklist, error) {
 	in.UserID = strings.TrimSpace(in.UserID)
+	in.UserRole = strings.ToUpper(strings.TrimSpace(in.UserRole))
+	if in.UserRole != "BUYER" && in.UserRole != "SELLER" {
+		return UserBlacklist{}, apperr.New(apperr.BadRequest, "invalid user_role")
+	}
 	in.CreatedBy = strings.TrimSpace(in.CreatedBy)
 	in.Reason = strings.TrimSpace(in.Reason)
 	in.BanType = strings.ToUpper(strings.TrimSpace(in.BanType))
@@ -487,16 +527,37 @@ func (r *repo) CreateUserBan(ctx context.Context, in CreateUserBanInput) (UserBl
 		return UserBlacklist{}, apperr.New(apperr.BadRequest, "user_id, reason, ban_type, and created_by are required")
 	}
 
+	if err := r.ExpireBansByRole(ctx, in.UserID, in.UserRole); err != nil {
+		return UserBlacklist{}, err
+	}
+
+	if in.BanType == "WARNING" {
+		t := time.Now().Add(7 * 24 * time.Hour)
+		in.BannedUntil = &t
+	}
+
+	if in.BanType == "TEMPORARY" && in.BannedUntil == nil {
+		return UserBlacklist{}, apperr.New(apperr.BadRequest, "banned_until is required for TEMPORARY")
+	}
+
+	if in.BanType == "PERMANENT" {
+		in.BannedUntil = nil
+	}
+
 	var existsID int64
 	err := r.db.QueryRow(ctx, `
-		SELECT blacklist_id
-		FROM user_blacklists
-		WHERE user_id = $1
-		  AND is_active = TRUE
-		  AND (ban_type = 'PERMANENT' OR (ban_type = 'TEMPORARY' AND banned_until > NOW()))
-		ORDER BY created_at DESC
-		LIMIT 1;
-	`, in.UserID).Scan(&existsID)
+    SELECT blacklist_id
+    FROM user_blacklists
+    WHERE user_id = $1
+      AND user_role = $2
+      AND is_active = TRUE
+      AND (
+        ban_type = 'PERMANENT'
+        OR (ban_type IN ('TEMPORARY','WARNING') AND banned_until > NOW())
+      )
+    ORDER BY created_at DESC
+    LIMIT 1;
+`, in.UserID, in.UserRole).Scan(&existsID)
 
 	if err == nil {
 		return UserBlacklist{}, apperr.New(apperr.Conflict, "user already has an active ban")
@@ -516,7 +577,7 @@ func (r *repo) CreateUserBan(ctx context.Context, in CreateUserBanInput) (UserBl
 		if pe, ok := pgErr(err); ok {
 			switch pe.Code {
 			case "23505":
-				return UserBlacklist{}, apperr.New(apperr.Conflict, "user already has an active ban")
+				return UserBlacklist{}, apperr.New(apperr.Conflict, "user already has an active ban for this role")
 			case "23514":
 				return UserBlacklist{}, apperr.WithFields(
 					apperr.Wrap(apperr.BadRequest, err, "constraint violation: check ban_type and banned_until"),
@@ -563,8 +624,13 @@ SELECT blacklist_id, user_id, user_role, report_id, reason,
 FROM user_blacklists
 WHERE user_id = $1
   AND is_active = TRUE
-  AND (ban_type = 'PERMANENT' OR (ban_type = 'TEMPORARY' AND banned_until > NOW()))
-ORDER BY created_at DESC LIMIT 1`, userID), &b)
+  AND (
+    ban_type = 'PERMANENT'
+    OR (ban_type IN ('TEMPORARY','WARNING') AND banned_until > NOW())
+  )
+ORDER BY created_at DESC
+LIMIT 1
+`, userID), &b)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, nil
@@ -670,6 +736,12 @@ WHERE r.reporter_id = $1`
 	args := []any{in.ReporterID}
 	i := 2
 
+	if in.Q != "" {
+		base += ` AND (r.report_id::text LIKE $` + itoa(i) + ` OR r.order_id::text LIKE $` + itoa(i) + `)`
+		args = append(args, in.Q)
+		i++
+	}
+
 	if in.ReportedPartyType != nil {
 		base += ` AND r.reported_party_type = $` + itoa(i)
 		args = append(args, *in.ReportedPartyType)
@@ -710,6 +782,164 @@ WHERE r.reporter_id = $1`
 		out = append(out, rep)
 	}
 	return out, total, rows.Err()
+}
+
+func (r *repo) ListActiveBans(ctx context.Context, userID string) ([]UserBlacklist, error) {
+	userID = strings.TrimSpace(userID)
+	if userID == "" {
+		return nil, apperr.New(apperr.BadRequest, "invalid user_id")
+	}
+	_ = r.ExpireBansByRole(ctx, userID, "BUYER")
+	_ = r.ExpireBansByRole(ctx, userID, "SELLER")
+
+	rows, err := r.db.Query(ctx, `
+SELECT blacklist_id, user_id, user_role, report_id, reason,
+       ban_type, banned_from, banned_until, is_active, created_by, created_at
+FROM user_blacklists
+WHERE user_id = $1
+  AND is_active = TRUE
+  AND (
+    ban_type = 'PERMANENT'
+    OR (ban_type IN ('TEMPORARY','WARNING') AND banned_until > NOW())
+  )
+ORDER BY created_at DESC
+`, userID)
+	if err != nil {
+		return nil, apperr.Wrap(apperr.Internal, err, "list active bans failed")
+	}
+	defer rows.Close()
+
+	out := []UserBlacklist{}
+	for rows.Next() {
+		var b UserBlacklist
+		if err := scanUserBlacklist(rows, &b); err != nil {
+			return nil, apperr.Wrap(apperr.Internal, err, "scan active ban failed")
+		}
+		out = append(out, b)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, apperr.Wrap(apperr.Internal, err, "list active bans failed")
+	}
+	return out, nil
+}
+
+func (r *repo) MarkReviewedIfPending(ctx context.Context, reportID int64) error {
+	if reportID <= 0 {
+		return apperr.New(apperr.BadRequest, "invalid report_id")
+	}
+
+	_, err := r.db.Exec(ctx, `
+UPDATE reports
+SET status = 'REVIEWED', updated_at = NOW()
+WHERE report_id = $1
+  AND status = 'PENDING'
+`, reportID)
+	if err != nil {
+		return apperr.Wrap(apperr.Internal, err, "mark reviewed failed")
+	}
+	return nil
+}
+
+func (r *repo) ListUserBlacklists(ctx context.Context, in ListUserBlacklistsParams) ([]UserBlacklist, int64, error) {
+	if in.Limit <= 0 || in.Limit > 100 {
+		in.Limit = 20
+	}
+	if in.Page <= 0 {
+		in.Page = 1
+	}
+	offset := (in.Page - 1) * in.Limit
+
+	base := `FROM user_blacklists ub WHERE 1=1`
+	args := []any{}
+	i := 1
+
+	if in.IsActive != nil {
+		base += ` AND ub.is_active = $` + itoa(i)
+		args = append(args, *in.IsActive)
+		i++
+	}
+	if in.UserRole != nil {
+		v := strings.ToUpper(strings.TrimSpace(*in.UserRole))
+		base += ` AND ub.user_role = $` + itoa(i)
+		args = append(args, v)
+		i++
+	}
+	if in.BanType != nil {
+		v := strings.ToUpper(strings.TrimSpace(*in.BanType))
+		base += ` AND ub.ban_type = $` + itoa(i)
+		args = append(args, v)
+		i++
+	}
+	if in.FromDate != nil {
+		base += ` AND ub.created_at >= $` + itoa(i)
+		args = append(args, *in.FromDate)
+		i++
+	}
+	if in.ToDate != nil {
+		base += ` AND ub.created_at <= $` + itoa(i)
+		args = append(args, *in.ToDate)
+		i++
+	}
+	if q := strings.TrimSpace(in.Q); q != "" {
+		base += ` AND (
+			ub.user_id::text ILIKE $` + itoa(i) + `
+			OR ub.blacklist_id::text ILIKE $` + itoa(i) + `
+			OR ub.reason ILIKE $` + itoa(i) + `
+		)`
+		args = append(args, "%"+q+"%")
+		i++
+	}
+
+	var total int64
+	if err := r.db.QueryRow(ctx, `SELECT COUNT(*) `+base, args...).Scan(&total); err != nil {
+		return nil, 0, apperr.Wrap(apperr.Internal, err, "count user_blacklists failed")
+	}
+
+	selectQuery := `SELECT ub.blacklist_id, ub.user_id, ub.user_role, ub.report_id, ub.reason,
+       ub.ban_type, ub.banned_from, ub.banned_until, ub.is_active, ub.created_by, ub.created_at ` + base +
+		` ORDER BY ub.created_at DESC LIMIT $` + itoa(i) + ` OFFSET $` + itoa(i+1)
+
+	args = append(args, in.Limit, offset)
+
+	rows, err := r.db.Query(ctx, selectQuery, args...)
+	if err != nil {
+		return nil, 0, apperr.Wrap(apperr.Internal, err, "list user_blacklists failed")
+	}
+	defer rows.Close()
+
+	out := make([]UserBlacklist, 0, in.Limit)
+	for rows.Next() {
+		var b UserBlacklist
+		if err := scanUserBlacklist(rows, &b); err != nil {
+			return nil, 0, apperr.Wrap(apperr.Internal, err, "scan user_blacklist failed")
+		}
+		out = append(out, b)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, 0, apperr.Wrap(apperr.Internal, err, "list user_blacklists failed")
+	}
+
+	return out, total, nil
+}
+
+func (r *repo) GetUserBlacklist(ctx context.Context, blacklistID int64) (UserBlacklist, error) {
+	if blacklistID <= 0 {
+		return UserBlacklist{}, apperr.New(apperr.BadRequest, "invalid blacklist_id")
+	}
+	var b UserBlacklist
+	err := scanUserBlacklist(r.db.QueryRow(ctx, `
+SELECT blacklist_id, user_id, user_role, report_id, reason,
+       ban_type, banned_from, banned_until, is_active, created_by, created_at
+FROM user_blacklists
+WHERE blacklist_id = $1
+`, blacklistID), &b)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return UserBlacklist{}, apperr.New(apperr.NotFound, "blacklist not found")
+		}
+		return UserBlacklist{}, apperr.Wrap(apperr.Internal, err, "get user_blacklist failed")
+	}
+	return b, nil
 }
 
 var _ = time.Now

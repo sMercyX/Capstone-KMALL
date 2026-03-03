@@ -12,6 +12,7 @@ import (
 type Report struct {
 	ID                  int64     `json:"report_id"`
 	OrderID             int       `json:"order_id"`
+	StoreID             int       `json:"store_id"`
 	StoreName           string    `json:"store_name"`
 	ReporterID          string    `json:"reporter_id"`
 	ReporterDisplayName string    `json:"reporter_display_name"`
@@ -146,8 +147,8 @@ type ListReportsParams struct {
 	FromDate          *time.Time
 	ToDate            *time.Time
 	Limit             int
-	Page              int // เปลี่ยนจาก Offset
-	OrderID           string
+	Page              int
+	Q                 string
 }
 
 type AdminActionInput struct {
@@ -194,7 +195,8 @@ type ListMyReportsParams struct {
 	ReportedPartyType *string
 	Status            *string
 	Limit             int
-	Page              int // เปลี่ยนจาก Offset เป็น Page
+	Page              int
+	Q                 string
 }
 
 type ReportListResponse struct {
@@ -209,4 +211,22 @@ type MyReportListResponse struct {
 	PageIndex int            `json:"page_index"`
 	Total     int64          `json:"total"`
 	Items     []MyReportView `json:"items"`
+}
+
+type UserBlacklistListResponse struct {
+	PageSize  int             `json:"page_size"`
+	PageIndex int             `json:"page_index"`
+	Total     int64           `json:"total"`
+	Items     []UserBlacklist `json:"items"`
+}
+
+type ListUserBlacklistsParams struct {
+	IsActive *bool
+	UserRole *string
+	BanType  *string
+	Limit    int
+	Page     int
+	Q        string
+	FromDate *time.Time
+	ToDate   *time.Time
 }

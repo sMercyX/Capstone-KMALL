@@ -1,8 +1,10 @@
 package user
 
 import (
+	"context"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/gin-gonic/gin"
 
@@ -11,13 +13,28 @@ import (
 	"github.com/Perpasit/Capstone-KMALL/internal/respond"
 )
 
+type ActiveBan struct {
+	UserRole    string     `json:"user_role"`
+	Reason      string     `json:"reason"`
+	BanType     string     `json:"ban_type"`
+	BannedFrom  time.Time  `json:"banned_from"`
+	BannedUntil *time.Time `json:"banned_until,omitempty"`
+	IsActive    bool       `json:"is_active"`
+}
+
+type ActiveBanGetter interface {
+	GetActiveBan(ctx context.Context, userID string) (*ActiveBan, error)
+	ListActiveBans(ctx context.Context, userID string) ([]ActiveBan, error)
+}
+
 type Handler struct {
 	svc     Service
 	roleSvc middleware.RoleNameLister
+	banSvc  ActiveBanGetter
 }
 
-func NewHandler(s Service, rl middleware.RoleNameLister) *Handler {
-	return &Handler{svc: s, roleSvc: rl}
+func NewHandler(s Service, rl middleware.RoleNameLister, banSvc ActiveBanGetter) *Handler {
+	return &Handler{svc: s, roleSvc: rl, banSvc: banSvc}
 }
 
 func (h *Handler) Register(r *gin.RouterGroup) {
@@ -242,9 +259,30 @@ func (h *Handler) Me(c *gin.Context) {
 		roleNames = []string{}
 	}
 
+	// NEW: check active blacklist/ban (array)
+	bans := []gin.H{}
+	if h.banSvc != nil {
+		list, err := h.banSvc.ListActiveBans(c.Request.Context(), u.ID)
+		if err != nil {
+			c.Error(err)
+			return
+		}
+		for _, b := range list {
+			bans = append(bans, gin.H{
+				"user_role":    b.UserRole,
+				"reason":       b.Reason,
+				"ban_type":     b.BanType,
+				"banned_from":  b.BannedFrom,
+				"banned_until": b.BannedUntil,
+				"is_active":    b.IsActive,
+			})
+		}
+	}
+
 	respond.OK(c, apperr.OK, gin.H{
 		"user":  u,
 		"roles": roleNames,
+		"bans":  bans,
 	})
 }
 

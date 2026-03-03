@@ -83,3 +83,15 @@ type UpdateNotificationInput struct {
 	Type           *string `json:"type,omitempty"`
 	Data           any     `json:"data,omitempty"`
 }
+
+type CreateAdminActionNotificationInput struct {
+	RecipientUserID string
+	ActorUserID     *string
+	ReportID        int64
+	OrderID         int64
+	StoreID         *int64
+	ActionType      string
+	Note            *string
+	BanType         *string
+	Reason          *string
+}

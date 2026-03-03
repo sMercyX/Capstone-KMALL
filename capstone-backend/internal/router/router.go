@@ -3,6 +3,7 @@ package router
 import (
 	"context"
 	"log"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -81,17 +82,13 @@ func Attach(r *gin.Engine, db *pgxpool.Pool, cfg config.Config) {
 		c.JSON(200, start)
 	})
 
-	// static files (รูป)
-
 	// ===== wiring repos & services =====
 	uRepo := user.NewRepo(db)
 	rRepo := role.NewRepo(db)
+	reportRepo := report.NewRepo(db)
 
 	rSvc := role.NewService(rRepo)
 	uSvc := user.NewService(uRepo, rSvc)
-
-	sRepo := store.NewRepo(db)
-	sSvc := store.NewService(sRepo, uSvc, uRepo)
 
 	cRepo := category.NewRepo(db)
 	cSvc := category.NewService(cRepo)
@@ -112,16 +109,6 @@ func Attach(r *gin.Engine, db *pgxpool.Pool, cfg config.Config) {
 	notiRepo := notification.NewRepo(db)
 	notiSvc := notification.NewService(notiRepo, hub)
 
-	oRepo := order.NewRepo(db)
-	oSvc := order.NewService(
-		oRepo,
-		cartSvc,
-		pSvc,
-		sSvc,
-		hub,
-		notiSvc,
-	)
-
 	shRepo := searchhistory.NewRepo(db)
 	shSvc := searchhistory.NewService(shRepo)
 
@@ -131,15 +118,40 @@ func Attach(r *gin.Engine, db *pgxpool.Pool, cfg config.Config) {
 	addrRepo := address.NewRepo(db)
 	addrSvc := address.NewService(addrRepo)
 
-	ocRepo := orderchat.NewRepo(db)
 	fs := filestore.NewLocalStore("./uploads", "/uploads")
+
+	ocRepo := orderchat.NewRepo(db)
 	ocSvc := orderchat.NewService(ocRepo, fs, hub, notiSvc)
 
+	// recommendation (อย่าลืม)
 	recRepo := recommendation.NewRepo(db)
 	recSvc := recommendation.NewService(recRepo)
 
-	reportRepo := report.NewRepo(db)
-	reportSvc := report.NewService(reportRepo, fs)
+	orderBanProvider := reportOrderBanProvider{repo: reportRepo}
+	storeBanProvider := reportStoreBanProvider{repo: reportRepo}
+
+	sRepo := store.NewRepo(db)
+	sSvc := store.NewService(sRepo, uSvc, uRepo, storeBanProvider)
+
+	oRepo := order.NewRepo(db)
+	oSvc := order.NewService(
+		oRepo,
+		cartSvc,
+		pSvc,
+		sSvc,
+		hub,
+		notiSvc,
+		orderBanProvider,
+	)
+
+	ocAdapter := orderCancellerAdapter{svc: oSvc}
+
+	sSvc.SetOrderCanceller(ocAdapter)
+
+	reportSvc := report.NewService(reportRepo, fs, notiSvc, sSvc, ocAdapter)
+
+	// adapter สำหรับ user handler
+	banAdapter := reportBanAdapter{svc: reportSvc}
 
 	// v1 := r.Group("/api",
 	// 	apiLogger(),
@@ -213,7 +225,7 @@ func Attach(r *gin.Engine, db *pgxpool.Pool, cfg config.Config) {
 	})
 
 	// users
-	uHdl := user.NewHandler(uSvc, rSvc)
+	uHdl := user.NewHandler(uSvc, rSvc, banAdapter)
 	uHdl.Register(v1)
 
 	// roles
@@ -346,4 +358,121 @@ func apiLogger() gin.HandlerFunc {
 			time.Since(start),
 		)
 	}
+}
+
+type reportBanAdapter struct {
+	svc report.Service
+}
+
+func (a reportBanAdapter) GetActiveBan(ctx context.Context, userID string) (*user.ActiveBan, error) {
+	b, err := a.svc.GetActiveBan(ctx, userID)
+	if err != nil || b == nil {
+		return nil, err
+	}
+	return &user.ActiveBan{
+		UserRole:    b.UserRole,
+		Reason:      b.Reason,
+		BanType:     b.BanType,
+		BannedFrom:  b.BannedFrom,
+		BannedUntil: b.BannedUntil,
+		IsActive:    b.IsActive,
+	}, nil
+}
+
+type reportStoreBanProvider struct {
+	repo report.Repo
+}
+
+func (p reportStoreBanProvider) ListActiveBans(ctx context.Context, userID string) ([]store.BanInfo, error) {
+	bans, err := p.repo.ListActiveBans(ctx, strings.TrimSpace(userID))
+	if err != nil {
+		return nil, err
+	}
+
+	out := make([]store.BanInfo, 0, len(bans))
+	for _, b := range bans {
+		out = append(out, store.BanInfo{
+			UserRole:    b.UserRole,
+			BanType:     b.BanType,
+			IsActive:    b.IsActive,
+			Reason:      b.Reason,
+			BannedUntil: b.BannedUntil,
+		})
+	}
+	return out, nil
+}
+
+type reportOrderBanProvider struct {
+	repo report.Repo
+}
+
+func (p reportOrderBanProvider) ListActiveBans(ctx context.Context, userID string) ([]order.UserBlacklist, error) {
+	bans, err := p.repo.ListActiveBans(ctx, strings.TrimSpace(userID))
+	if err != nil {
+		return nil, err
+	}
+
+	out := make([]order.UserBlacklist, 0, len(bans))
+	for _, b := range bans {
+		out = append(out, order.UserBlacklist{
+			BanType:     b.BanType,
+			BannedFrom:  b.BannedFrom,
+			BannedUntil: b.BannedUntil,
+			IsActive:    b.IsActive,
+			Reason:      b.Reason,
+			UserRole:    b.UserRole,
+		})
+	}
+	return out, nil
+}
+
+func (a reportBanAdapter) ListActiveBans(ctx context.Context, userID string) ([]user.ActiveBan, error) {
+	bans, err := a.svc.ListActiveBans(ctx, userID)
+	if err != nil {
+		return nil, err
+	}
+
+	out := make([]user.ActiveBan, 0, len(bans))
+	for _, b := range bans {
+		out = append(out, user.ActiveBan{
+			UserRole:    b.UserRole,
+			Reason:      b.Reason,
+			BanType:     b.BanType,
+			BannedFrom:  b.BannedFrom,
+			BannedUntil: b.BannedUntil,
+			IsActive:    b.IsActive,
+		})
+	}
+	return out, nil
+}
+
+type orderCancellerAdapter struct {
+	svc order.Service
+}
+
+func (a orderCancellerAdapter) CancelOrdersByStore(
+	ctx context.Context,
+	actorUserID string,
+	storeID int64,
+	reason string,
+) (int64, error) {
+
+	ids, err := a.svc.CancelOrdersByStore(ctx, actorUserID, storeID, reason)
+	if err != nil {
+		return 0, err
+	}
+	return int64(len(ids)), nil
+}
+
+func (a orderCancellerAdapter) CancelOrdersByUserRole(
+	ctx context.Context,
+	actorUserID string,
+	userID, role, reason string,
+) (int64, error) {
+
+	ids, err := a.svc.CancelOrdersByUserRole(ctx, actorUserID, userID, role, reason)
+	if err != nil {
+		return 0, err
+	}
+	return int64(len(ids)), nil
 }

@@ -2,12 +2,15 @@ package report
 
 import (
 	"context"
+	"log"
 	"mime/multipart"
 	"strings"
 	"time"
 
 	apperr "github.com/Perpasit/Capstone-KMALL/internal/apperr"
 	"github.com/Perpasit/Capstone-KMALL/internal/filestore"
+	"github.com/Perpasit/Capstone-KMALL/internal/notification"
+	"github.com/Perpasit/Capstone-KMALL/internal/store"
 )
 
 // ============================================================================
@@ -63,6 +66,11 @@ type BanUserInput struct {
 	CreatedBy   string
 }
 
+type OrderCanceller interface {
+	CancelOrdersByStore(ctx context.Context, actorUserID string, storeID int64, reason string) (int64, error)
+	CancelOrdersByUserRole(ctx context.Context, actorUserID string, userID, role, reason string) (int64, error)
+}
+
 // ============================================================================
 // Service Interface
 // ============================================================================
@@ -78,19 +86,26 @@ type Service interface {
 	BanUser(ctx context.Context, in BanUserInput) (UserBlacklist, error)
 	RevokeUserBan(ctx context.Context, blacklistID int64) (UserBlacklist, error)
 	GetActiveBan(ctx context.Context, userID string) (*UserBlacklist, error)
+	ListActiveBans(ctx context.Context, userID string) ([]UserBlacklist, error)
 	ListBanHistory(ctx context.Context, in ListBanHistoryParams) ([]UserBlacklist, error)
 
 	GetMyReport(ctx context.Context, reportID int64, reporterID string) (MyReportView, error)
 	ListMyReports(ctx context.Context, in ListMyReportsParams) (MyReportListResponse, error)
+
+	GetUserBlacklist(ctx context.Context, blacklistID int64) (UserBlacklist, error)
+	ListUserBlacklists(ctx context.Context, in ListUserBlacklistsParams) (UserBlacklistListResponse, error)
 }
 
 type service struct {
-	repo Repo
-	fs   FileStore
+	repo     Repo
+	fs       FileStore
+	noti     notification.Service
+	storeSvc store.Service
+	orderSvc OrderCanceller
 }
 
-func NewService(r Repo, fs FileStore) Service {
-	return &service{repo: r, fs: fs}
+func NewService(r Repo, fs FileStore, noti notification.Service, st store.Service, ord OrderCanceller) Service {
+	return &service{repo: r, fs: fs, noti: noti, storeSvc: st, orderSvc: ord}
 }
 
 // ============================================================================
@@ -108,7 +123,10 @@ func strPtr(s string) *string {
 // computeBannedUntil calculates banned_until from suspend_days
 func computeBannedUntil(banType string, suspendDays *int) (*time.Time, error) {
 	switch banType {
-	case "WARNING", "PERMANENT":
+	case "WARNING":
+		t := time.Now().Add(7 * 24 * time.Hour)
+		return &t, nil
+	case "PERMANENT":
 		return nil, nil
 	case "TEMPORARY":
 		if suspendDays == nil || *suspendDays <= 0 {
@@ -219,6 +237,10 @@ func (s *service) GetReportDetail(ctx context.Context, reportID int64) (ReportDe
 		return ReportDetail{}, apperr.New(apperr.BadRequest, "invalid report_id")
 	}
 
+	// if err := s.repo.MarkReviewedIfPending(ctx, reportID); err != nil {
+	// 	return ReportDetail{}, err
+	// }
+
 	rep, err := s.repo.GetReport(ctx, reportID)
 	if err != nil {
 		return ReportDetail{}, err
@@ -281,6 +303,7 @@ func (s *service) ListReports(ctx context.Context, in ListReportsParams) (Report
 func (s *service) AdminTakeAction(ctx context.Context, in AdminTakeActionInput) (ReportAdminAction, error) {
 	in.AdminID = strings.TrimSpace(in.AdminID)
 	in.ActionType = strings.ToUpper(strings.TrimSpace(in.ActionType))
+	in.UserRole = strings.ToUpper(strings.TrimSpace(in.UserRole))
 
 	if in.AdminID == "" || in.ActionType == "" {
 		return ReportAdminAction{}, apperr.New(apperr.BadRequest, "admin_id and action_type are required")
@@ -288,50 +311,127 @@ func (s *service) AdminTakeAction(ctx context.Context, in AdminTakeActionInput) 
 	if in.ReportID <= 0 {
 		return ReportAdminAction{}, apperr.New(apperr.BadRequest, "invalid report_id")
 	}
+	if in.Note == nil || strings.TrimSpace(*in.Note) == "" {
+		return ReportAdminAction{}, apperr.New(apperr.BadRequest, "note is required")
+	}
 
-	// Determine new report status based on action
-	var newStatus string
 	switch in.ActionType {
-	case "NO_ACTION", "CLOSED":
-		newStatus = "CLOSED"
-	case "RESOLVED", "WARN_USER", "SUSPEND_USER", "BAN_USER", "HIDE_STORE", "SUSPEND_STORE", "DELETE_STORE":
-		newStatus = "RESOLVED"
+	case "NO_ACTION", "WARN_USER", "SUSPEND_USER", "BAN_USER":
 	default:
 		return ReportAdminAction{}, apperr.New(apperr.BadRequest, "invalid action_type")
 	}
 
-	// If action involves banning a user — create ban record automatically
-	switch in.ActionType {
-	case "WARN_USER", "SUSPEND_USER", "BAN_USER":
-		if in.TargetUserID == nil {
-			return ReportAdminAction{}, apperr.New(apperr.BadRequest, "target_user_id is required for user actions")
-		}
-		banType := map[string]string{
-			"WARN_USER":    "WARNING",
-			"SUSPEND_USER": "TEMPORARY",
-			"BAN_USER":     "PERMANENT",
-		}[in.ActionType]
+	rep, err := s.repo.GetReport(ctx, in.ReportID)
+	if err != nil {
+		return ReportAdminAction{}, err
+	}
 
-		bannedUntil, err := computeBannedUntil(banType, in.SuspendDays)
+	if in.ActionType == "NO_ACTION" {
+		action, err := s.repo.CreateAdminAction(ctx, AdminActionInput{
+			ReportID:   in.ReportID,
+			AdminID:    in.AdminID,
+			ActionType: "NO_ACTION",
+			Note:       in.Note,
+		})
 		if err != nil {
 			return ReportAdminAction{}, err
 		}
 
-		reportID := in.ReportID
-		if _, err := s.repo.CreateUserBan(ctx, CreateUserBanInput{
-			UserID:      *in.TargetUserID,
-			UserRole:    in.UserRole,
-			ReportID:    &reportID,
-			Reason:      noteOrDefault(in.Note, in.ActionType),
-			BanType:     banType,
-			BannedUntil: bannedUntil,
-			CreatedBy:   in.AdminID,
-		}); err != nil {
+		if _, err := s.repo.UpdateReportStatus(ctx, in.ReportID, "CLOSED"); err != nil {
 			return ReportAdminAction{}, err
+		}
+
+		if s.noti != nil {
+			reason := strPtr(strings.TrimSpace(*in.Note))
+			reporterID := strings.TrimSpace(rep.ReporterID)
+			if reporterID != "" {
+				_, _ = s.noti.CreateAdminAction(ctx, notification.CreateAdminActionNotificationInput{
+					RecipientUserID: reporterID,
+					ActorUserID:     &in.AdminID,
+					ReportID:        in.ReportID,
+					OrderID:         int64(rep.OrderID),
+					ActionType:      "REPORT_ACTION_TAKEN",
+					Note:            in.Note,
+					Reason:          reason,
+				})
+			}
+		}
+
+		return action, nil
+	}
+
+	if in.TargetUserID == nil || strings.TrimSpace(*in.TargetUserID) == "" {
+		return ReportAdminAction{}, apperr.New(apperr.BadRequest, "target_user_id is required")
+	}
+	targetUserID := strings.TrimSpace(*in.TargetUserID)
+
+	if in.UserRole != "BUYER" && in.UserRole != "SELLER" {
+		return ReportAdminAction{}, apperr.New(apperr.BadRequest, "user_role must be BUYER or SELLER")
+	}
+
+	if in.UserRole == "SELLER" {
+		if in.TargetStoreID == nil || *in.TargetStoreID <= 0 {
+			return ReportAdminAction{}, apperr.New(apperr.BadRequest, "target_store_id is required for seller actions")
 		}
 	}
 
-	// Log admin action
+	banType := map[string]string{
+		"WARN_USER":    "WARNING",
+		"SUSPEND_USER": "TEMPORARY",
+		"BAN_USER":     "PERMANENT",
+	}[in.ActionType]
+
+	bannedUntil, err := computeBannedUntil(banType, in.SuspendDays)
+	if err != nil {
+		return ReportAdminAction{}, err
+	}
+
+	reportID := in.ReportID
+	if _, err := s.repo.CreateUserBan(ctx, CreateUserBanInput{
+		UserID:      targetUserID,
+		UserRole:    in.UserRole,
+		ReportID:    &reportID,
+		Reason:      strings.TrimSpace(*in.Note),
+		BanType:     banType,
+		BannedUntil: bannedUntil,
+		CreatedBy:   in.AdminID,
+	}); err != nil {
+		return ReportAdminAction{}, err
+	}
+
+	if in.UserRole == "SELLER" && banType != "WARNING" {
+		storeID := int64(*in.TargetStoreID)
+		reason := "AUTO_CANCELLED_DUE_TO_" + banType + "_" + in.ActionType + "_SELLER"
+
+		if s.storeSvc != nil {
+			log.Printf("[ADMIN] ForceClose store: admin=%s store=%d reason=%s", in.AdminID, storeID, reason)
+			if err := s.storeSvc.ForceCloseByAdmin(ctx, in.AdminID, storeID, reason); err != nil {
+				log.Printf("[ADMIN] ForceCloseByAdmin failed: admin=%s store=%d err=%v", in.AdminID, storeID, err)
+				return ReportAdminAction{}, err
+			}
+		} else {
+			log.Printf("[ADMIN] ForceClose skipped: storeSvc=nil store=%d", storeID)
+		}
+
+		if s.orderSvc != nil {
+			log.Printf("[ADMIN] Cancel orders by store: admin=%s store=%d reason=%s", in.AdminID, storeID, reason)
+			count, err := s.orderSvc.CancelOrdersByStore(ctx, in.AdminID, storeID, reason)
+			log.Printf("[ADMIN] CancelOrdersByStore done: store=%d cancelled=%d err=%v", storeID, count, err)
+		} else {
+			log.Printf("[ADMIN] CancelOrdersByStore skipped: orderSvc=nil store=%d", storeID)
+		}
+	}
+
+	if s.orderSvc != nil && banType != "WARNING" && in.UserRole == "BUYER" {
+		cancelReason := "AUTO_CANCELLED_DUE_TO_" + banType + "_" + in.ActionType + "_BUYER"
+
+		log.Printf("[ADMIN] Trigger cancel by buyer: admin=%s buyer=%s reason=%s",
+			in.AdminID, targetUserID, cancelReason)
+
+		count, err := s.orderSvc.CancelOrdersByUserRole(ctx, in.AdminID, targetUserID, "BUYER", cancelReason)
+		log.Printf("[ADMIN] CancelOrdersByUserRole result: cancelled=%d err=%v", count, err)
+	}
+
 	action, err := s.repo.CreateAdminAction(ctx, AdminActionInput{
 		ReportID:      in.ReportID,
 		AdminID:       in.AdminID,
@@ -346,9 +446,47 @@ func (s *service) AdminTakeAction(ctx context.Context, in AdminTakeActionInput) 
 		return ReportAdminAction{}, err
 	}
 
-	// Update report status
-	if _, err := s.repo.UpdateReportStatus(ctx, in.ReportID, newStatus); err != nil {
+	if _, err := s.repo.UpdateReportStatus(ctx, in.ReportID, "RESOLVED"); err != nil {
 		return ReportAdminAction{}, err
+	}
+
+	if s.noti != nil {
+		reason := strPtr(strings.TrimSpace(*in.Note))
+		reporterID := strings.TrimSpace(rep.ReporterID)
+
+		var storeID *int64
+		if in.UserRole == "SELLER" && in.TargetStoreID != nil && *in.TargetStoreID > 0 {
+			sid := int64(*in.TargetStoreID)
+			storeID = &sid
+		}
+
+		if targetUserID != "" {
+			_, _ = s.noti.CreateAdminAction(ctx, notification.CreateAdminActionNotificationInput{
+				RecipientUserID: targetUserID,
+				ActorUserID:     &in.AdminID,
+				ReportID:        in.ReportID,
+				OrderID:         int64(rep.OrderID),
+				StoreID:         storeID,
+				ActionType:      in.ActionType,
+				Note:            in.Note,
+				BanType:         &banType,
+				Reason:          reason,
+			})
+		}
+
+		if reporterID != "" && reporterID != targetUserID {
+			_, _ = s.noti.CreateAdminAction(ctx, notification.CreateAdminActionNotificationInput{
+				RecipientUserID: reporterID,
+				ActorUserID:     &in.AdminID,
+				ReportID:        in.ReportID,
+				OrderID:         int64(rep.OrderID),
+				StoreID:         storeID,
+				ActionType:      "REPORT_ACTION_TAKEN",
+				Note:            in.Note,
+				BanType:         &banType,
+				Reason:          reason,
+			})
+		}
 	}
 
 	return action, nil
@@ -398,6 +536,14 @@ func (s *service) GetActiveBan(ctx context.Context, userID string) (*UserBlackli
 		return nil, apperr.New(apperr.BadRequest, "invalid user_id")
 	}
 	return s.repo.GetActiveBan(ctx, userID)
+}
+
+func (s *service) ListActiveBans(ctx context.Context, userID string) ([]UserBlacklist, error) {
+	userID = strings.TrimSpace(userID)
+	if userID == "" {
+		return nil, apperr.New(apperr.BadRequest, "invalid user_id")
+	}
+	return s.repo.ListActiveBans(ctx, userID)
 }
 
 func (s *service) ListBanHistory(ctx context.Context, in ListBanHistoryParams) ([]UserBlacklist, error) {
@@ -479,4 +625,62 @@ func noteOrDefault(note *string, fallback string) string {
 		return strings.TrimSpace(*note)
 	}
 	return fallback
+}
+
+func (s *service) resolveAdminActionRecipient(ctx context.Context, in AdminTakeActionInput) (recipient string, storeID *int64) {
+	// user actions
+	switch in.ActionType {
+	case "WARN_USER", "SUSPEND_USER", "BAN_USER":
+		if in.TargetUserID != nil {
+			return strings.TrimSpace(*in.TargetUserID), nil
+		}
+		return "", nil
+	}
+
+	// store actions
+	switch in.ActionType {
+	case "HIDE_STORE", "SUSPEND_STORE", "DELETE_STORE":
+		if in.TargetStoreID != nil && *in.TargetStoreID > 0 && s.storeSvc != nil {
+			st, err := s.storeSvc.Get(ctx, int64(*in.TargetStoreID))
+			if err != nil {
+				return "", nil
+			}
+			sid := int64(*in.TargetStoreID)
+			return st.UserID.String(), &sid
+		}
+		return "", nil
+	}
+
+	return "", nil
+}
+
+func (s *service) ListUserBlacklists(ctx context.Context, in ListUserBlacklistsParams) (UserBlacklistListResponse, error) {
+	if in.Limit <= 0 {
+		in.Limit = 20
+	}
+	if in.Page <= 0 {
+		in.Page = 1
+	}
+	in.Q = strings.TrimSpace(in.Q)
+
+	items, total, err := s.repo.ListUserBlacklists(ctx, in)
+	if err != nil {
+		return UserBlacklistListResponse{}, err
+	}
+	if items == nil {
+		items = []UserBlacklist{}
+	}
+	return UserBlacklistListResponse{
+		PageSize:  in.Limit,
+		PageIndex: in.Page,
+		Total:     total,
+		Items:     items,
+	}, nil
+}
+
+func (s *service) GetUserBlacklist(ctx context.Context, blacklistID int64) (UserBlacklist, error) {
+	if blacklistID <= 0 {
+		return UserBlacklist{}, apperr.New(apperr.BadRequest, "invalid blacklist_id")
+	}
+	return s.repo.GetUserBlacklist(ctx, blacklistID)
 }

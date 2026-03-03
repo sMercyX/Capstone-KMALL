@@ -737,8 +737,8 @@ CREATE TABLE IF NOT EXISTS user_blacklists (
     ban_type <> 'PERMANENT' OR banned_until IS NULL
   ),
 
-  CONSTRAINT chk_warning_until_null CHECK (
-    ban_type <> 'WARNING' OR banned_until IS NULL
+  CONSTRAINT chk_warning_requires_until CHECK (
+    ban_type <> 'WARNING' OR banned_until IS NOT NULL
   )
 );
 
@@ -800,7 +800,9 @@ CREATE TABLE IF NOT EXISTS notifications (
   type VARCHAR(30) NOT NULL
     CHECK (type IN (
       'ORDER_STATUS_CHANGED',
-      'CHAT_NEW_MESSAGE'
+      'CHAT_NEW_MESSAGE',
+      'ADMIN_ACTION',
+      'REPORT_ACTION_TAKEN'
     )),
 
   order_id INT NULL

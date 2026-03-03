@@ -53,6 +53,8 @@ type Service interface {
 	) (Order, error)
 	ListBuyerOrders(ctx context.Context, userID string, statusGroup string, limit, page int) ([]Order, int64, error)
 	ListStoreOrders(ctx context.Context, storeID int64, statusGroup string, limit, page int) ([]Order, int64, error)
+	CancelOrdersByUserRole(ctx context.Context, actorUserID, userID, role, reason string) ([]int64, error)
+	CancelOrdersByStore(ctx context.Context, actorUserID string, storeID int64, reason string) ([]int64, error)
 }
 
 // Notifier is an interface for sending notifications
@@ -68,13 +70,36 @@ type service struct {
 	storeSvc   store.Service
 	notifier   Notifier
 	noti       notification.Service
+	banSvc     BanProvider
 }
 
-func NewService(r Repo, c cart.Service, p product.Service, st store.Service, n Notifier, noti notification.Service) Service {
+type BanProvider interface {
+	ListActiveBans(ctx context.Context, userID string) ([]UserBlacklist, error)
+}
+
+type UserBlacklist struct {
+	BanType     string     `json:"ban_type"`
+	BannedFrom  time.Time  `json:"banned_from"`
+	BannedUntil *time.Time `json:"banned_until"`
+	IsActive    bool       `json:"is_active"`
+	Reason      string     `json:"reason"`
+	UserRole    string     `json:"user_role"`
+}
+
+func NewService(
+	r Repo,
+	c cart.Service,
+	p product.Service,
+	st store.Service,
+	n Notifier,
+	noti notification.Service,
+	ban BanProvider,
+) Service {
 	return &service{
 		repo: r, cartSvc: c, productSvc: p, storeSvc: st,
 		notifier: n,
 		noti:     noti,
+		banSvc:   ban,
 	}
 }
 
@@ -84,7 +109,9 @@ func (s *service) shouldSkipNotiForOrderRoom(orderID int64, recipientUserID stri
 	}
 	roomID := "order_" + strconv.FormatInt(orderID, 10)
 
-	s.notifier.(interface{ LogRoomUsers(string) }).LogRoomUsers("order_" + strconv.FormatInt(orderID, 10))
+	if lg, ok := s.notifier.(interface{ LogRoomUsers(string) }); ok {
+		lg.LogRoomUsers(roomID)
+	}
 	inRoom := s.notifier.IsUserInRoom(roomID, recipientUserID)
 	log.Printf("[NOTI] check order room: room=%s recipient=%s inRoom=%v", roomID, recipientUserID, inRoom)
 
@@ -246,6 +273,47 @@ func (s *service) notifyUpdate(ctx context.Context, orderID int64) {
 	s.notifier.BroadcastToRoom(roomID, payload)
 }
 
+func (s *service) getBlockingBanByRole(ctx context.Context, userID, role string) (*UserBlacklist, error) {
+	if s.banSvc == nil {
+		return nil, nil
+	}
+
+	bans, err := s.banSvc.ListActiveBans(ctx, userID)
+	if err != nil {
+		if apperr.Is(err, apperr.NotFound) {
+			return nil, nil
+		}
+		return nil, err
+	}
+
+	for i := range bans {
+		b := bans[i]
+		if !b.IsActive {
+			continue
+		}
+		if !strings.EqualFold(strings.TrimSpace(b.UserRole), strings.TrimSpace(role)) {
+			continue
+		}
+		// WARNING ใช้งานได้
+		if strings.EqualFold(b.BanType, "WARNING") {
+			continue
+		}
+		// TEMPORARY / PERMANENT บล็อกจริง
+		if strings.EqualFold(b.BanType, "TEMPORARY") || strings.EqualFold(b.BanType, "PERMANENT") {
+			return &b, nil
+		}
+	}
+	return nil, nil
+}
+
+func banCancelReason(b *UserBlacklist) string {
+	// ใส่ลง cancelled_reason
+	return "AUTO_CANCELLED_DUE_TO_" +
+		strings.ToUpper(strings.TrimSpace(b.BanType)) + "_" +
+		strings.ToUpper(strings.TrimSpace(b.Reason)) + "_" +
+		strings.ToUpper(strings.TrimSpace(b.UserRole))
+}
+
 // ============================================================================
 // Service Methods
 // ============================================================================
@@ -260,6 +328,13 @@ func (s *service) CreateFromCart(ctx context.Context, userID string, in Checkout
 	}
 	if err := validateDelivery(&in); err != nil {
 		return OrderWithItems{}, err
+	}
+
+	if b, err := s.getBlockingBanByRole(ctx, userID, "BUYER"); err != nil {
+		return OrderWithItems{}, err
+	} else if b != nil {
+		_, _ = s.repo.BulkCancelActiveOrdersByBuyer(ctx, userID, banCancelReason(b))
+		return OrderWithItems{}, apperr.New(apperr.Forbidden, "buyer is banned, cannot create order")
 	}
 
 	cw, err := s.cartSvc.GetCart(ctx, userID)
@@ -401,6 +476,14 @@ func (s *service) UpdateStatus(ctx context.Context, actorUserID string, id int64
 
 	switch {
 	case isSeller:
+		if b, err := s.getBlockingBanByRole(ctx, actorUserID, "SELLER"); err != nil {
+			return Order{}, err
+		} else if b != nil {
+			_, _ = s.repo.BulkCancelActiveOrdersByStoreID(ctx, int64(ord.StoreID), banCancelReason(b))
+			ord, _ = s.repo.GetOrder(ctx, id)
+			s.notifyUpdate(ctx, id)
+			return Order{}, apperr.New(apperr.Forbidden, "seller is banned, cannot update order")
+		}
 		// allow Pending->Accepted สำหรับ ROUND_UNIVERSITY
 		if from == "Pending" && strings.ToUpper(strings.TrimSpace(ord.DeliveryMethod)) == "ROUND_UNIVERSITY" {
 			if to != "Accepted" {
@@ -420,6 +503,16 @@ func (s *service) UpdateStatus(ctx context.Context, actorUserID string, id int64
 		}
 
 	case isBuyer:
+		if from == "Proposed" && to == "Accepted" {
+			if b, err := s.getBlockingBanByRole(ctx, actorUserID, "BUYER"); err != nil {
+				return Order{}, err
+			} else if b != nil {
+				_, _ = s.repo.BulkCancelActiveOrdersByBuyer(ctx, actorUserID, banCancelReason(b))
+				_, _ = s.repo.CancelOrder(ctx, id, "SYSTEM", banCancelReason(b))
+				s.notifyUpdate(ctx, id)
+				return Order{}, apperr.New(apperr.Forbidden, "buyer is banned, cannot accept order")
+			}
+		}
 		if !allowedBuyerTransition(from, to) {
 			return Order{}, apperr.New(apperr.BadRequest, "buyer cannot change status like this")
 		}
@@ -552,6 +645,14 @@ func (s *service) Propose(ctx context.Context, actorUserID string, id int64, in 
 		return Order{}, apperr.New(apperr.Forbidden, "only store owner can propose")
 	}
 
+	if b, err := s.getBlockingBanByRole(ctx, actorUserID, "SELLER"); err != nil {
+		return Order{}, err
+	} else if b != nil {
+		_, _ = s.repo.CancelOrder(ctx, id, "SYSTEM", banCancelReason(b))
+		s.notifyUpdate(ctx, id)
+		return Order{}, apperr.New(apperr.Forbidden, "seller is banned, cannot propose")
+	}
+
 	switch ord.Status {
 	case "Pending", "Proposed":
 	case "Accepted":
@@ -607,6 +708,15 @@ func (s *service) AcceptProposed(
 	}
 
 	from := ord.Status
+
+	if b, err := s.getBlockingBanByRole(ctx, actorUserID, "BUYER"); err != nil {
+		return Order{}, err
+	} else if b != nil {
+		_, _ = s.repo.BulkCancelActiveOrdersByStoreID(ctx, int64(ord.StoreID), banCancelReason(b))
+		ord, _ = s.repo.GetOrder(ctx, id)
+		s.notifyUpdate(ctx, id)
+		return Order{}, apperr.New(apperr.Forbidden, "buyer is banned, cannot accept proposal")
+	}
 
 	ord, err = s.repo.RespondProposal(ctx, id, in.Accept)
 	if err != nil {
@@ -753,6 +863,7 @@ func (s *service) updateOrderStatusNotiBestEffort(
 		if apperr.Is(err, apperr.NotFound) {
 			existing = nil
 		} else {
+			log.Printf("[NOTI] list failed: recipient=%s order=%d err=%v", recipient, ordID, err)
 			return nil
 		}
 	}
@@ -766,6 +877,7 @@ func (s *service) updateOrderStatusNotiBestEffort(
 			IsRead:         &isUnread,
 			Data:           newData,
 		})
+		log.Printf("[NOTI] update failed: recipient=%s order=%d err=%v", recipient, ordID, err)
 		return nil
 	}
 
@@ -777,6 +889,7 @@ func (s *service) updateOrderStatusNotiBestEffort(
 		OldStatus:       from,
 		NewStatus:       to,
 	})
+	log.Printf("[NOTI] create failed: recipient=%s order=%d err=%v", recipient, ordID, err)
 
 	return nil
 }
@@ -801,4 +914,89 @@ func (s *service) ListStoreOrders(ctx context.Context, storeID int64, statusGrou
 		return nil, 0, err
 	}
 	return s.repo.ListByStoreID(ctx, storeID, statuses, limit, page)
+}
+
+func (s *service) CancelOrdersByUserRole(ctx context.Context, actorUserID, userID, role, reason string) ([]int64, error) {
+	actorUserID = strings.TrimSpace(actorUserID)
+	role = strings.ToUpper(strings.TrimSpace(role))
+	userID = strings.TrimSpace(userID)
+	reason = strings.TrimSpace(reason)
+
+	if actorUserID == "" {
+		return nil, apperr.New(apperr.BadRequest, "invalid actor_user_id")
+	}
+	if userID == "" {
+		return nil, apperr.New(apperr.BadRequest, "invalid user_id")
+	}
+	if reason == "" {
+		return nil, apperr.New(apperr.BadRequest, "cancel reason is required")
+	}
+
+	switch role {
+	case "BUYER":
+		cancelled, err := s.repo.BulkCancelActiveOrdersByBuyer(ctx, userID, reason)
+		if err != nil {
+			return nil, err
+		}
+
+		ids := make([]int64, 0, len(cancelled))
+		for _, c := range cancelled {
+			ids = append(ids, c.OrderID)
+
+			ord, e := s.repo.GetOrder(ctx, c.OrderID)
+			if e != nil {
+				continue
+			}
+
+			s.notifyUpdate(ctx, c.OrderID)
+
+			// ✅ ใช้ actorUserID (uuid) ไม่ใช่ "SYSTEM"
+			_ = s.updateOrderStatusNotiBestEffort(ctx, ord, actorUserID, c.OldStatus, "Cancelled")
+		}
+		return ids, nil
+
+	case "SELLER":
+		return nil, apperr.New(apperr.BadRequest, "use CancelOrdersByStore for SELLER")
+
+	default:
+		return nil, apperr.New(apperr.BadRequest, "role must be BUYER or SELLER")
+	}
+}
+
+func (s *service) CancelOrdersByStore(ctx context.Context, actorUserID string, storeID int64, reason string) ([]int64, error) {
+	actorUserID = strings.TrimSpace(actorUserID)
+	reason = strings.TrimSpace(reason)
+
+	if actorUserID == "" {
+		return nil, apperr.New(apperr.BadRequest, "invalid actor_user_id")
+	}
+	if storeID <= 0 {
+		return nil, apperr.New(apperr.BadRequest, "invalid store_id")
+	}
+	if reason == "" {
+		return nil, apperr.New(apperr.BadRequest, "cancel reason is required")
+	}
+
+	cancelled, err := s.repo.BulkCancelActiveOrdersByStoreID(ctx, storeID, reason)
+	log.Printf("[CANCEL] store=%d cancelled_count=%d err=%v", storeID, len(cancelled), err)
+	if err != nil {
+		return nil, err
+	}
+
+	ids := make([]int64, 0, len(cancelled))
+	for _, c := range cancelled {
+		ids = append(ids, c.OrderID)
+
+		ord, e := s.repo.GetOrder(ctx, c.OrderID)
+		if e != nil {
+			continue
+		}
+
+		s.notifyUpdate(ctx, c.OrderID)
+
+		// ✅ ใช้ actorUserID (uuid)
+		_ = s.updateOrderStatusNotiBestEffort(ctx, ord, actorUserID, c.OldStatus, "Cancelled")
+	}
+
+	return ids, nil
 }
