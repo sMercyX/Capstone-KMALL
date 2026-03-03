@@ -48,6 +48,7 @@ func scanReport(row pgx.Row, r *Report) error {
 		&r.CreatedAt, &r.UpdatedAt,
 		&r.ReporterDisplayName, &r.ReportedDisplayName,
 		&r.StoreName,
+		&r.StoreID,
 	)
 }
 func scanEvidence(row pgx.Row, e *ReportEvidence) error {
@@ -147,7 +148,8 @@ SELECT r.report_id, r.order_id, r.reporter_id, r.reported_user_id,
        r.created_at, r.updated_at,
        u1.display_name AS reporter_display_name,
        u2.display_name AS reported_display_name,
-       s.store_name
+       s.store_name,
+	   o.store_id
 FROM reports r
 JOIN users u1 ON u1.user_id = r.reporter_id
 JOIN users u2 ON u2.user_id = r.reported_user_id
@@ -184,7 +186,7 @@ WHERE 1=1`
 
 	if in.Q != "" {
 		base += ` AND (r.report_id::text LIKE $` + itoa(i) + ` OR r.order_id::text LIKE $` + itoa(i) + `)`
-		args = append(args, in.Q)
+		args = append(args, "%"+in.Q+"%")
 		i++
 	}
 	if in.Status != nil {

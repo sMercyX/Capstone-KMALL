@@ -53,8 +53,8 @@ type Service interface {
 	) (Order, error)
 	ListBuyerOrders(ctx context.Context, userID string, statusGroup string, limit, page int) ([]Order, int64, error)
 	ListStoreOrders(ctx context.Context, storeID int64, statusGroup string, limit, page int) ([]Order, int64, error)
-	CancelOrdersByUserRole(ctx context.Context, userID, role, reason string) (int64, error)
-	CancelOrdersByStore(ctx context.Context, storeID int64, reason string) (int64, error)
+	CancelOrdersByUserRole(ctx context.Context, userID, role, reason string) ([]int64, error)
+	CancelOrdersByStore(ctx context.Context, storeID int64, reason string) ([]int64, error)
 }
 
 // Notifier is an interface for sending notifications
@@ -913,21 +913,64 @@ func (s *service) ListStoreOrders(ctx context.Context, storeID int64, statusGrou
 	return s.repo.ListByStoreID(ctx, storeID, statuses, limit, page)
 }
 
-func (s *service) CancelOrdersByUserRole(ctx context.Context, userID, role, reason string) (int64, error) {
+func (s *service) CancelOrdersByUserRole(ctx context.Context, userID, role, reason string) ([]int64, error) {
 	role = strings.ToUpper(strings.TrimSpace(role))
+	userID = strings.TrimSpace(userID)
+	reason = strings.TrimSpace(reason)
+
+	if userID == "" {
+		return nil, apperr.New(apperr.BadRequest, "invalid user_id")
+	}
+	if reason == "" {
+		return nil, apperr.New(apperr.BadRequest, "cancel reason is required")
+	}
+
 	switch role {
 	case "BUYER":
-		return s.repo.BulkCancelActiveOrdersByBuyer(ctx, userID, reason)
+		ids, err := s.repo.BulkCancelActiveOrdersByBuyer(ctx, userID, reason)
+		if err != nil {
+			return nil, err
+		}
+		for _, id := range ids {
+			ord, e := s.repo.GetOrder(ctx, id)
+			if e != nil {
+				continue
+			}
+			s.notifyUpdate(ctx, id)
+			_ = s.updateOrderStatusNotiBestEffort(ctx, ord, "SYSTEM", "", "Cancelled")
+		}
+		return ids, nil
+
 	case "SELLER":
-		return 0, apperr.New(apperr.BadRequest, "use CancelOrdersByStore for SELLER")
+		return nil, apperr.New(apperr.BadRequest, "use CancelOrdersByStore for SELLER")
+
 	default:
-		return 0, apperr.New(apperr.BadRequest, "role must be BUYER or SELLER")
+		return nil, apperr.New(apperr.BadRequest, "role must be BUYER or SELLER")
 	}
 }
 
-func (s *service) CancelOrdersByStore(ctx context.Context, storeID int64, reason string) (int64, error) {
+func (s *service) CancelOrdersByStore(ctx context.Context, storeID int64, reason string) ([]int64, error) {
+	reason = strings.TrimSpace(reason)
 	if storeID <= 0 {
-		return 0, apperr.New(apperr.BadRequest, "invalid store_id")
+		return nil, apperr.New(apperr.BadRequest, "invalid store_id")
 	}
-	return s.repo.BulkCancelActiveOrdersByStoreID(ctx, storeID, reason)
+	if reason == "" {
+		return nil, apperr.New(apperr.BadRequest, "cancel reason is required")
+	}
+
+	ids, err := s.repo.BulkCancelActiveOrdersByStoreID(ctx, storeID, reason)
+	if err != nil {
+		return nil, err
+	}
+
+	for _, id := range ids {
+		ord, e := s.repo.GetOrder(ctx, id)
+		if e != nil {
+			continue
+		}
+		s.notifyUpdate(ctx, id)
+		_ = s.updateOrderStatusNotiBestEffort(ctx, ord, "SYSTEM", "", "Cancelled")
+	}
+
+	return ids, nil
 }

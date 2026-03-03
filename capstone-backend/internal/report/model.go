@@ -12,6 +12,7 @@ import (
 type Report struct {
 	ID                  int64     `json:"report_id"`
 	OrderID             int       `json:"order_id"`
+	StoreID             int       `json:"store_id"`
 	StoreName           string    `json:"store_name"`
 	ReporterID          string    `json:"reporter_id"`
 	ReporterDisplayName string    `json:"reporter_display_name"`

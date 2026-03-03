@@ -85,12 +85,10 @@ func Attach(r *gin.Engine, db *pgxpool.Pool, cfg config.Config) {
 	// ===== wiring repos & services =====
 	uRepo := user.NewRepo(db)
 	rRepo := role.NewRepo(db)
+	reportRepo := report.NewRepo(db)
 
 	rSvc := role.NewService(rRepo)
 	uSvc := user.NewService(uRepo, rSvc)
-
-	sRepo := store.NewRepo(db)
-	sSvc := store.NewService(sRepo, uSvc, uRepo)
 
 	cRepo := category.NewRepo(db)
 	cSvc := category.NewService(cRepo)
@@ -129,11 +127,12 @@ func Attach(r *gin.Engine, db *pgxpool.Pool, cfg config.Config) {
 	recRepo := recommendation.NewRepo(db)
 	recSvc := recommendation.NewService(recRepo)
 
-	// report repo (ใช้ทั้ง report service + ban provider)
-	reportRepo := report.NewRepo(db)
 	orderBanProvider := reportOrderBanProvider{repo: reportRepo}
+	storeBanProvider := reportStoreBanProvider{repo: reportRepo}
 
-	// order service
+	sRepo := store.NewRepo(db)
+	sSvc := store.NewService(sRepo, uSvc, uRepo, storeBanProvider)
+
 	oRepo := order.NewRepo(db)
 	oSvc := order.NewService(
 		oRepo,
@@ -145,8 +144,11 @@ func Attach(r *gin.Engine, db *pgxpool.Pool, cfg config.Config) {
 		orderBanProvider,
 	)
 
-	// report service (ต้องได้ order canceller)
-	reportSvc := report.NewService(reportRepo, fs, notiSvc, sSvc, oSvc)
+	ocAdapter := orderCancellerAdapter{svc: oSvc}
+
+	sSvc.SetOrderCanceller(ocAdapter)
+
+	reportSvc := report.NewService(reportRepo, fs, notiSvc, sSvc, ocAdapter)
 
 	// adapter สำหรับ user handler
 	banAdapter := reportBanAdapter{svc: reportSvc}
@@ -377,20 +379,24 @@ func (a reportBanAdapter) GetActiveBan(ctx context.Context, userID string) (*use
 	}, nil
 }
 
-func (a reportBanAdapter) ListActiveBans(ctx context.Context, userID string) ([]user.ActiveBan, error) {
-	bans, err := a.svc.ListActiveBans(ctx, userID)
+type reportStoreBanProvider struct {
+	repo report.Repo
+}
+
+func (p reportStoreBanProvider) ListActiveBans(ctx context.Context, userID string) ([]store.BanInfo, error) {
+	bans, err := p.repo.ListActiveBans(ctx, strings.TrimSpace(userID))
 	if err != nil {
 		return nil, err
 	}
-	out := make([]user.ActiveBan, 0, len(bans))
+
+	out := make([]store.BanInfo, 0, len(bans))
 	for _, b := range bans {
-		out = append(out, user.ActiveBan{
+		out = append(out, store.BanInfo{
 			UserRole:    b.UserRole,
-			Reason:      b.Reason,
 			BanType:     b.BanType,
-			BannedFrom:  b.BannedFrom,
-			BannedUntil: b.BannedUntil,
 			IsActive:    b.IsActive,
+			Reason:      b.Reason,
+			BannedUntil: b.BannedUntil,
 		})
 	}
 	return out, nil
@@ -418,4 +424,44 @@ func (p reportOrderBanProvider) ListActiveBans(ctx context.Context, userID strin
 		})
 	}
 	return out, nil
+}
+
+func (a reportBanAdapter) ListActiveBans(ctx context.Context, userID string) ([]user.ActiveBan, error) {
+	bans, err := a.svc.ListActiveBans(ctx, userID)
+	if err != nil {
+		return nil, err
+	}
+
+	out := make([]user.ActiveBan, 0, len(bans))
+	for _, b := range bans {
+		out = append(out, user.ActiveBan{
+			UserRole:    b.UserRole,
+			Reason:      b.Reason,
+			BanType:     b.BanType,
+			BannedFrom:  b.BannedFrom,
+			BannedUntil: b.BannedUntil,
+			IsActive:    b.IsActive,
+		})
+	}
+	return out, nil
+}
+
+type orderCancellerAdapter struct {
+	svc order.Service
+}
+
+func (a orderCancellerAdapter) CancelOrdersByStore(ctx context.Context, storeID int64, reason string) (int64, error) {
+	ids, err := a.svc.CancelOrdersByStore(ctx, storeID, reason) // svc คืน []int64
+	if err != nil {
+		return 0, err
+	}
+	return int64(len(ids)), nil
+}
+
+func (a orderCancellerAdapter) CancelOrdersByUserRole(ctx context.Context, userID, role, reason string) (int64, error) {
+	ids, err := a.svc.CancelOrdersByUserRole(ctx, userID, role, reason) // svc คืน []int64
+	if err != nil {
+		return 0, err
+	}
+	return int64(len(ids)), nil
 }

@@ -29,8 +29,8 @@ type Repo interface {
 	Propose(ctx context.Context, id int64, proposedAt time.Time, meetingLocationID *int, meetingNote *string) (Order, error)
 	RespondProposal(ctx context.Context, id int64, accept bool) (Order, error)
 
-	BulkCancelActiveOrdersByBuyer(ctx context.Context, buyerUserID string, reason string) (int64, error)
-	BulkCancelActiveOrdersByStoreID(ctx context.Context, storeID int64, reason string) (int64, error)
+	BulkCancelActiveOrdersByStoreID(ctx context.Context, storeID int64, reason string) ([]int64, error)
+	BulkCancelActiveOrdersByBuyer(ctx context.Context, buyerID string, reason string) ([]int64, error)
 }
 
 type repo struct {
@@ -65,6 +65,13 @@ type OrderItemCreateParams struct {
 	DepositAmount    *float64
 	PromisedShipDate time.Time
 	ProductID        int
+}
+
+type BulkCancelledOrder struct {
+	OrderID     int64
+	OldStatus   string
+	BuyerUserID string
+	StoreID     int64
 }
 
 // ============================================================================
@@ -536,8 +543,8 @@ func (r *repo) RespondProposal(ctx context.Context, id int64, accept bool) (Orde
 	return ord, nil
 }
 
-func (r *repo) BulkCancelActiveOrdersByBuyer(ctx context.Context, buyerUserID string, reason string) (int64, error) {
-	tag, err := r.db.Exec(ctx, `
+func (r *repo) BulkCancelActiveOrdersByBuyer(ctx context.Context, buyerUserID string, reason string) ([]int64, error) {
+	rows, err := r.db.Query(ctx, `
 		UPDATE orders
 		SET
 			status = 'Cancelled',
@@ -547,15 +554,30 @@ func (r *repo) BulkCancelActiveOrdersByBuyer(ctx context.Context, buyerUserID st
 			updated_at = NOW()
 		WHERE user_id = $1
 		  AND status IN ('Pending','Proposed','Accepted','Out For Delivery','Arrived')
+		RETURNING order_id
 	`, buyerUserID, reason)
 	if err != nil {
-		return 0, apperr.Wrap(apperr.Internal, err, "bulk cancel active orders by buyer failed")
+		return nil, apperr.Wrap(apperr.Internal, err, "bulk cancel active orders by buyer failed")
 	}
-	return tag.RowsAffected(), nil
+	defer rows.Close()
+
+	ids := make([]int64, 0)
+	for rows.Next() {
+		var id int64
+		if err := rows.Scan(&id); err != nil {
+			return nil, apperr.Wrap(apperr.Internal, err, "scan cancelled order_id failed")
+		}
+		ids = append(ids, id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, apperr.Wrap(apperr.Internal, err, "rows error")
+	}
+
+	return ids, nil
 }
 
-func (r *repo) BulkCancelActiveOrdersByStoreID(ctx context.Context, storeID int64, reason string) (int64, error) {
-	tag, err := r.db.Exec(ctx, `
+func (r *repo) BulkCancelActiveOrdersByStoreID(ctx context.Context, storeID int64, reason string) ([]int64, error) {
+	rows, err := r.db.Query(ctx, `
 		UPDATE orders
 		SET
 			status = 'Cancelled',
@@ -565,9 +587,24 @@ func (r *repo) BulkCancelActiveOrdersByStoreID(ctx context.Context, storeID int6
 			updated_at = NOW()
 		WHERE store_id = $1
 		  AND status IN ('Pending','Proposed','Accepted','Out For Delivery','Arrived')
+		RETURNING order_id
 	`, storeID, reason)
 	if err != nil {
-		return 0, apperr.Wrap(apperr.Internal, err, "bulk cancel active orders by store_id failed")
+		return nil, apperr.Wrap(apperr.Internal, err, "bulk cancel active orders by store_id failed")
 	}
-	return tag.RowsAffected(), nil
+	defer rows.Close()
+
+	ids := make([]int64, 0)
+	for rows.Next() {
+		var id int64
+		if err := rows.Scan(&id); err != nil {
+			return nil, apperr.Wrap(apperr.Internal, err, "scan cancelled order_id failed")
+		}
+		ids = append(ids, id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, apperr.Wrap(apperr.Internal, err, "rows error")
+	}
+
+	return ids, nil
 }
