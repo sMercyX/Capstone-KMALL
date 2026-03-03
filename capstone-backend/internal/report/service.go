@@ -2,6 +2,7 @@ package report
 
 import (
 	"context"
+	"log"
 	"mime/multipart"
 	"strings"
 	"time"
@@ -66,8 +67,8 @@ type BanUserInput struct {
 }
 
 type OrderCanceller interface {
-	CancelOrdersByUserRole(ctx context.Context, userID, role, reason string) (int64, error)
-	CancelOrdersByStore(ctx context.Context, storeID int64, reason string) (int64, error)
+	CancelOrdersByStore(ctx context.Context, actorUserID string, storeID int64, reason string) (int64, error)
+	CancelOrdersByUserRole(ctx context.Context, actorUserID string, userID, role, reason string) (int64, error)
 }
 
 // ============================================================================
@@ -397,17 +398,36 @@ func (s *service) AdminTakeAction(ctx context.Context, in AdminTakeActionInput) 
 
 	if in.UserRole == "SELLER" && banType != "WARNING" {
 		storeID := int64(*in.TargetStoreID)
+		reason := "AUTO_CANCELLED_DUE_TO_" + banType + "_" + in.ActionType + "_SELLER"
+
 		if s.storeSvc != nil {
-			reason := "AUTO_CANCELLED_DUE_TO_" + banType + "_" + in.ActionType + "_SELLER"
-			if err := s.storeSvc.ForceCloseByAdmin(ctx, storeID, reason); err != nil {
+			log.Printf("[ADMIN] ForceClose store: admin=%s store=%d reason=%s", in.AdminID, storeID, reason)
+			if err := s.storeSvc.ForceCloseByAdmin(ctx, in.AdminID, storeID, reason); err != nil {
+				log.Printf("[ADMIN] ForceCloseByAdmin failed: admin=%s store=%d err=%v", in.AdminID, storeID, err)
 				return ReportAdminAction{}, err
 			}
+		} else {
+			log.Printf("[ADMIN] ForceClose skipped: storeSvc=nil store=%d", storeID)
+		}
+
+		if s.orderSvc != nil {
+			log.Printf("[ADMIN] Cancel orders by store: admin=%s store=%d reason=%s", in.AdminID, storeID, reason)
+			count, err := s.orderSvc.CancelOrdersByStore(ctx, in.AdminID, storeID, reason)
+			log.Printf("[ADMIN] CancelOrdersByStore done: store=%d cancelled=%d err=%v", storeID, count, err)
+		} else {
+			log.Printf("[ADMIN] CancelOrdersByStore skipped: orderSvc=nil store=%d", storeID)
 		}
 	}
 
 	if s.orderSvc != nil && banType != "WARNING" && in.UserRole == "BUYER" {
 		cancelReason := "AUTO_CANCELLED_DUE_TO_" + banType + "_" + in.ActionType + "_BUYER"
-		_, _ = s.orderSvc.CancelOrdersByUserRole(ctx, targetUserID, "BUYER", cancelReason)
+
+		log.Printf("[ADMIN] Trigger cancel by buyer: admin=%s buyer=%s reason=%s",
+			in.AdminID, targetUserID, cancelReason)
+
+		count, err := s.orderSvc.CancelOrdersByUserRole(ctx, in.AdminID, targetUserID, "BUYER", cancelReason)
+		log.Printf("[ADMIN] CancelOrdersByUserRole result: cancelled=%d err=%v",
+			count, err)
 	}
 
 	if in.UserRole == "SELLER" && banType == "PERMANENT" {

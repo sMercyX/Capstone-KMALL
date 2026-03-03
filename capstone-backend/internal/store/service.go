@@ -2,6 +2,7 @@ package store
 
 import (
 	"context"
+	"log"
 	"net/url"
 	"strings"
 	"time"
@@ -39,7 +40,8 @@ type BanInfo struct {
 }
 
 type OrderCanceller interface {
-	CancelOrdersByStore(ctx context.Context, storeID int64, reason string) (int64, error)
+	CancelOrdersByStore(ctx context.Context, actorUserID string, storeID int64, reason string) (int64, error)
+	CancelOrdersByUserRole(ctx context.Context, actorUserID string, userID, role, reason string) (int64, error)
 }
 
 // ===== Service Interface =====
@@ -52,7 +54,7 @@ type Service interface {
 	Update(ctx context.Context, id int64, in UpdateInput) (Store, error)
 	Delete(ctx context.Context, id int64) error
 	DeleteByAdmin(ctx context.Context, id int64) error
-	ForceCloseByAdmin(ctx context.Context, storeID int64, reason string) error
+	ForceCloseByAdmin(ctx context.Context, actorUserID string, storeID int64, reason string) error
 	SetOrderCanceller(oc OrderCanceller)
 }
 
@@ -241,7 +243,7 @@ func (s *service) Update(ctx context.Context, id int64, in UpdateInput) (Store, 
 	} else if b != nil {
 		if strings.EqualFold(b.BanType, "TEMPORARY") {
 			if strings.EqualFold(st.IsActive, "YES") {
-				s.forceCloseStore(ctx, id, "AUTO_CANCELLED_DUE_TO_STORE_SUSPENDED")
+				s.forceCloseStore(ctx, st.UserID.String(), id, "AUTO_CANCELLED_DUE_TO_STORE_SUSPENDED")
 			}
 			return Store{}, apperr.New(apperr.Forbidden, "seller is suspended, store cannot be updated")
 		}
@@ -268,7 +270,7 @@ func (s *service) Delete(ctx context.Context, id int64) error {
 	} else if b != nil {
 		if strings.EqualFold(b.BanType, "TEMPORARY") {
 			if strings.EqualFold(st.IsActive, "YES") {
-				s.forceCloseStore(ctx, id, "AUTO_CANCELLED_DUE_TO_STORE_SUSPENDED")
+				s.forceCloseStore(ctx, st.UserID.String(), id, "AUTO_CANCELLED_DUE_TO_STORE_SUSPENDED")
 			}
 			return apperr.New(apperr.Forbidden, "seller is suspended, cannot delete store")
 		}
@@ -331,7 +333,8 @@ func (s *service) DeleteByAdmin(ctx context.Context, id int64) error {
 	}
 
 	if s.orderSvc != nil {
-		_, _ = s.orderSvc.CancelOrdersByStore(ctx, id, "AUTO_CANCELLED_DUE_TO_STORE_DELETED")
+		n, err := s.orderSvc.CancelOrdersByStore(ctx, "SYSTEM", id, "AUTO_CANCELLED_DUE_TO_STORE_DELETED")
+		log.Printf("[STORE] delete store=%d cancel_count=%d err=%v", id, n, err)
 	}
 
 	if err := s.repo.Delete(ctx, id); err != nil {
@@ -344,20 +347,39 @@ func (s *service) DeleteByAdmin(ctx context.Context, id int64) error {
 	return nil
 }
 
-func (s *service) forceCloseStore(ctx context.Context, storeID int64, reason string) {
+func (s *service) forceCloseStore(ctx context.Context, actorUserID string, storeID int64, reason string) {
+	actorUserID = strings.TrimSpace(actorUserID)
+	if actorUserID == "" {
+		actorUserID = "SYSTEM"
+	}
+
 	// 1) close store
 	no := "NO"
 	_, _ = s.repo.Update(ctx, storeID, UpdateParams{IsActive: &no})
 
 	// 2) cancel active orders (best effort)
 	if s.orderSvc != nil {
-		_, _ = s.orderSvc.CancelOrdersByStore(ctx, storeID, reason)
+		n, err := s.orderSvc.CancelOrdersByStore(ctx, actorUserID, storeID, reason)
+		log.Printf("[STORE] force close store=%d actor=%s cancel_count=%d err=%v reason=%s",
+			storeID, actorUserID, n, err, reason)
+	} else {
+		log.Printf("[STORE] force close store=%d actor=%s skip cancel: orderSvc=nil reason=%s",
+			storeID, actorUserID, reason)
 	}
 }
 
-func (s *service) ForceCloseByAdmin(ctx context.Context, storeID int64, reason string) error {
+func (s *service) ForceCloseByAdmin(ctx context.Context, actorUserID string, storeID int64, reason string) error {
+	actorUserID = strings.TrimSpace(actorUserID)
+	reason = strings.TrimSpace(reason)
+
+	if actorUserID == "" {
+		return apperr.New(apperr.BadRequest, "invalid actor_user_id")
+	}
 	if storeID <= 0 {
 		return apperr.New(apperr.BadRequest, "invalid store_id")
+	}
+	if reason == "" {
+		return apperr.New(apperr.BadRequest, "reason is required")
 	}
 
 	st, err := s.repo.Get(ctx, storeID)
@@ -366,8 +388,9 @@ func (s *service) ForceCloseByAdmin(ctx context.Context, storeID int64, reason s
 	}
 
 	if strings.EqualFold(st.IsActive, "YES") {
-		s.forceCloseStore(ctx, storeID, reason)
+		s.forceCloseStore(ctx, actorUserID, storeID, reason)
 	}
+
 	return nil
 }
 

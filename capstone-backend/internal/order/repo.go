@@ -29,8 +29,8 @@ type Repo interface {
 	Propose(ctx context.Context, id int64, proposedAt time.Time, meetingLocationID *int, meetingNote *string) (Order, error)
 	RespondProposal(ctx context.Context, id int64, accept bool) (Order, error)
 
-	BulkCancelActiveOrdersByStoreID(ctx context.Context, storeID int64, reason string) ([]int64, error)
-	BulkCancelActiveOrdersByBuyer(ctx context.Context, buyerID string, reason string) ([]int64, error)
+	BulkCancelActiveOrdersByStoreID(ctx context.Context, storeID int64, reason string) ([]BulkCancelledOrder, error)
+	BulkCancelActiveOrdersByBuyer(ctx context.Context, buyerID string, reason string) ([]BulkCancelledOrder, error)
 }
 
 type repo struct {
@@ -542,69 +542,104 @@ func (r *repo) RespondProposal(ctx context.Context, id int64, accept bool) (Orde
 	}
 	return ord, nil
 }
+func (r *repo) BulkCancelActiveOrdersByBuyer(
+	ctx context.Context,
+	buyerUserID string,
+	reason string,
+) ([]BulkCancelledOrder, error) {
 
-func (r *repo) BulkCancelActiveOrdersByBuyer(ctx context.Context, buyerUserID string, reason string) ([]int64, error) {
 	rows, err := r.db.Query(ctx, `
-		UPDATE orders
-		SET
-			status = 'Cancelled',
-			cancelled_at = NOW(),
-			cancelled_by = 'SYSTEM',
-			cancelled_reason = $2,
-			updated_at = NOW()
-		WHERE user_id = $1
-		  AND status IN ('Pending','Proposed','Accepted','Out For Delivery','Arrived')
-		RETURNING order_id
+		WITH to_cancel AS (
+			SELECT order_id, status AS old_status, user_id, store_id
+			FROM orders
+			WHERE user_id = $1
+			  AND status IN ('Pending','Proposed','Accepted','Out For Delivery','Arrived')
+			FOR UPDATE
+		),
+		upd AS (
+			UPDATE orders o
+			SET
+				status = 'Cancelled',
+				cancelled_at = NOW(),
+				cancelled_by = 'SYSTEM',
+				cancelled_reason = $2,
+				updated_at = NOW()
+			FROM to_cancel tc
+			WHERE o.order_id = tc.order_id
+			RETURNING o.order_id
+		)
+		SELECT tc.order_id, tc.old_status, tc.user_id, tc.store_id
+		FROM to_cancel tc
+		JOIN upd u ON u.order_id = tc.order_id
+		ORDER BY tc.order_id ASC
 	`, buyerUserID, reason)
 	if err != nil {
 		return nil, apperr.Wrap(apperr.Internal, err, "bulk cancel active orders by buyer failed")
 	}
 	defer rows.Close()
 
-	ids := make([]int64, 0)
+	out := make([]BulkCancelledOrder, 0)
 	for rows.Next() {
-		var id int64
-		if err := rows.Scan(&id); err != nil {
-			return nil, apperr.Wrap(apperr.Internal, err, "scan cancelled order_id failed")
+		var b BulkCancelledOrder
+		if err := rows.Scan(&b.OrderID, &b.OldStatus, &b.BuyerUserID, &b.StoreID); err != nil {
+			return nil, apperr.Wrap(apperr.Internal, err, "scan bulk cancelled order failed")
 		}
-		ids = append(ids, id)
+		out = append(out, b)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, apperr.Wrap(apperr.Internal, err, "rows error")
 	}
 
-	return ids, nil
+	return out, nil
 }
 
-func (r *repo) BulkCancelActiveOrdersByStoreID(ctx context.Context, storeID int64, reason string) ([]int64, error) {
+func (r *repo) BulkCancelActiveOrdersByStoreID(
+	ctx context.Context,
+	storeID int64,
+	reason string,
+) ([]BulkCancelledOrder, error) {
+
 	rows, err := r.db.Query(ctx, `
-		UPDATE orders
-		SET
-			status = 'Cancelled',
-			cancelled_at = NOW(),
-			cancelled_by = 'SYSTEM',
-			cancelled_reason = $2,
-			updated_at = NOW()
-		WHERE store_id = $1
-		  AND status IN ('Pending','Proposed','Accepted','Out For Delivery','Arrived')
-		RETURNING order_id
+		WITH to_cancel AS (
+			SELECT order_id, status AS old_status, user_id, store_id
+			FROM orders
+			WHERE store_id = $1
+			  AND status IN ('Pending','Proposed','Accepted','Out For Delivery','Arrived')
+			FOR UPDATE
+		),
+		upd AS (
+			UPDATE orders o
+			SET
+				status = 'Cancelled',
+				cancelled_at = NOW(),
+				cancelled_by = 'SYSTEM',
+				cancelled_reason = $2,
+				updated_at = NOW()
+			FROM to_cancel tc
+			WHERE o.order_id = tc.order_id
+			RETURNING o.order_id
+		)
+		SELECT tc.order_id, tc.old_status, tc.user_id, tc.store_id
+		FROM to_cancel tc
+		JOIN upd u ON u.order_id = tc.order_id
+		ORDER BY tc.order_id ASC
 	`, storeID, reason)
 	if err != nil {
 		return nil, apperr.Wrap(apperr.Internal, err, "bulk cancel active orders by store_id failed")
 	}
 	defer rows.Close()
 
-	ids := make([]int64, 0)
+	out := make([]BulkCancelledOrder, 0)
 	for rows.Next() {
-		var id int64
-		if err := rows.Scan(&id); err != nil {
-			return nil, apperr.Wrap(apperr.Internal, err, "scan cancelled order_id failed")
+		var b BulkCancelledOrder
+		if err := rows.Scan(&b.OrderID, &b.OldStatus, &b.BuyerUserID, &b.StoreID); err != nil {
+			return nil, apperr.Wrap(apperr.Internal, err, "scan bulk cancelled order failed")
 		}
-		ids = append(ids, id)
+		out = append(out, b)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, apperr.Wrap(apperr.Internal, err, "rows error")
 	}
 
-	return ids, nil
+	return out, nil
 }

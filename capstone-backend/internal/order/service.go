@@ -53,8 +53,8 @@ type Service interface {
 	) (Order, error)
 	ListBuyerOrders(ctx context.Context, userID string, statusGroup string, limit, page int) ([]Order, int64, error)
 	ListStoreOrders(ctx context.Context, storeID int64, statusGroup string, limit, page int) ([]Order, int64, error)
-	CancelOrdersByUserRole(ctx context.Context, userID, role, reason string) ([]int64, error)
-	CancelOrdersByStore(ctx context.Context, storeID int64, reason string) ([]int64, error)
+	CancelOrdersByUserRole(ctx context.Context, actorUserID, userID, role, reason string) ([]int64, error)
+	CancelOrdersByStore(ctx context.Context, actorUserID string, storeID int64, reason string) ([]int64, error)
 }
 
 // Notifier is an interface for sending notifications
@@ -863,6 +863,7 @@ func (s *service) updateOrderStatusNotiBestEffort(
 		if apperr.Is(err, apperr.NotFound) {
 			existing = nil
 		} else {
+			log.Printf("[NOTI] list failed: recipient=%s order=%d err=%v", recipient, ordID, err)
 			return nil
 		}
 	}
@@ -876,6 +877,7 @@ func (s *service) updateOrderStatusNotiBestEffort(
 			IsRead:         &isUnread,
 			Data:           newData,
 		})
+		log.Printf("[NOTI] update failed: recipient=%s order=%d err=%v", recipient, ordID, err)
 		return nil
 	}
 
@@ -887,6 +889,7 @@ func (s *service) updateOrderStatusNotiBestEffort(
 		OldStatus:       from,
 		NewStatus:       to,
 	})
+	log.Printf("[NOTI] create failed: recipient=%s order=%d err=%v", recipient, ordID, err)
 
 	return nil
 }
@@ -913,11 +916,15 @@ func (s *service) ListStoreOrders(ctx context.Context, storeID int64, statusGrou
 	return s.repo.ListByStoreID(ctx, storeID, statuses, limit, page)
 }
 
-func (s *service) CancelOrdersByUserRole(ctx context.Context, userID, role, reason string) ([]int64, error) {
+func (s *service) CancelOrdersByUserRole(ctx context.Context, actorUserID, userID, role, reason string) ([]int64, error) {
+	actorUserID = strings.TrimSpace(actorUserID)
 	role = strings.ToUpper(strings.TrimSpace(role))
 	userID = strings.TrimSpace(userID)
 	reason = strings.TrimSpace(reason)
 
+	if actorUserID == "" {
+		return nil, apperr.New(apperr.BadRequest, "invalid actor_user_id")
+	}
 	if userID == "" {
 		return nil, apperr.New(apperr.BadRequest, "invalid user_id")
 	}
@@ -927,17 +934,24 @@ func (s *service) CancelOrdersByUserRole(ctx context.Context, userID, role, reas
 
 	switch role {
 	case "BUYER":
-		ids, err := s.repo.BulkCancelActiveOrdersByBuyer(ctx, userID, reason)
+		cancelled, err := s.repo.BulkCancelActiveOrdersByBuyer(ctx, userID, reason)
 		if err != nil {
 			return nil, err
 		}
-		for _, id := range ids {
-			ord, e := s.repo.GetOrder(ctx, id)
+
+		ids := make([]int64, 0, len(cancelled))
+		for _, c := range cancelled {
+			ids = append(ids, c.OrderID)
+
+			ord, e := s.repo.GetOrder(ctx, c.OrderID)
 			if e != nil {
 				continue
 			}
-			s.notifyUpdate(ctx, id)
-			_ = s.updateOrderStatusNotiBestEffort(ctx, ord, "SYSTEM", "", "Cancelled")
+
+			s.notifyUpdate(ctx, c.OrderID)
+
+			// ✅ ใช้ actorUserID (uuid) ไม่ใช่ "SYSTEM"
+			_ = s.updateOrderStatusNotiBestEffort(ctx, ord, actorUserID, c.OldStatus, "Cancelled")
 		}
 		return ids, nil
 
@@ -949,8 +963,13 @@ func (s *service) CancelOrdersByUserRole(ctx context.Context, userID, role, reas
 	}
 }
 
-func (s *service) CancelOrdersByStore(ctx context.Context, storeID int64, reason string) ([]int64, error) {
+func (s *service) CancelOrdersByStore(ctx context.Context, actorUserID string, storeID int64, reason string) ([]int64, error) {
+	actorUserID = strings.TrimSpace(actorUserID)
 	reason = strings.TrimSpace(reason)
+
+	if actorUserID == "" {
+		return nil, apperr.New(apperr.BadRequest, "invalid actor_user_id")
+	}
 	if storeID <= 0 {
 		return nil, apperr.New(apperr.BadRequest, "invalid store_id")
 	}
@@ -958,18 +977,25 @@ func (s *service) CancelOrdersByStore(ctx context.Context, storeID int64, reason
 		return nil, apperr.New(apperr.BadRequest, "cancel reason is required")
 	}
 
-	ids, err := s.repo.BulkCancelActiveOrdersByStoreID(ctx, storeID, reason)
+	cancelled, err := s.repo.BulkCancelActiveOrdersByStoreID(ctx, storeID, reason)
+	log.Printf("[CANCEL] store=%d cancelled_count=%d err=%v", storeID, len(cancelled), err)
 	if err != nil {
 		return nil, err
 	}
 
-	for _, id := range ids {
-		ord, e := s.repo.GetOrder(ctx, id)
+	ids := make([]int64, 0, len(cancelled))
+	for _, c := range cancelled {
+		ids = append(ids, c.OrderID)
+
+		ord, e := s.repo.GetOrder(ctx, c.OrderID)
 		if e != nil {
 			continue
 		}
-		s.notifyUpdate(ctx, id)
-		_ = s.updateOrderStatusNotiBestEffort(ctx, ord, "SYSTEM", "", "Cancelled")
+
+		s.notifyUpdate(ctx, c.OrderID)
+
+		// ✅ ใช้ actorUserID (uuid)
+		_ = s.updateOrderStatusNotiBestEffort(ctx, ord, actorUserID, c.OldStatus, "Cancelled")
 	}
 
 	return ids, nil

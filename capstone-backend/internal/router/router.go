@@ -450,16 +450,27 @@ type orderCancellerAdapter struct {
 	svc order.Service
 }
 
-func (a orderCancellerAdapter) CancelOrdersByStore(ctx context.Context, storeID int64, reason string) (int64, error) {
-	ids, err := a.svc.CancelOrdersByStore(ctx, storeID, reason) // svc คืน []int64
+func (a orderCancellerAdapter) CancelOrdersByStore(
+	ctx context.Context,
+	actorUserID string,
+	storeID int64,
+	reason string,
+) (int64, error) {
+
+	ids, err := a.svc.CancelOrdersByStore(ctx, actorUserID, storeID, reason)
 	if err != nil {
 		return 0, err
 	}
 	return int64(len(ids)), nil
 }
 
-func (a orderCancellerAdapter) CancelOrdersByUserRole(ctx context.Context, userID, role, reason string) (int64, error) {
-	ids, err := a.svc.CancelOrdersByUserRole(ctx, userID, role, reason) // svc คืน []int64
+func (a orderCancellerAdapter) CancelOrdersByUserRole(
+	ctx context.Context,
+	actorUserID string,
+	userID, role, reason string,
+) (int64, error) {
+
+	ids, err := a.svc.CancelOrdersByUserRole(ctx, actorUserID, userID, role, reason)
 	if err != nil {
 		return 0, err
 	}
