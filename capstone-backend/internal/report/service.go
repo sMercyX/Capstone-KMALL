@@ -91,6 +91,9 @@ type Service interface {
 
 	GetMyReport(ctx context.Context, reportID int64, reporterID string) (MyReportView, error)
 	ListMyReports(ctx context.Context, in ListMyReportsParams) (MyReportListResponse, error)
+
+	GetUserBlacklist(ctx context.Context, blacklistID int64) (UserBlacklist, error)
+	ListUserBlacklists(ctx context.Context, in ListUserBlacklistsParams) (UserBlacklistListResponse, error)
 }
 
 type service struct {
@@ -649,4 +652,35 @@ func (s *service) resolveAdminActionRecipient(ctx context.Context, in AdminTakeA
 	}
 
 	return "", nil
+}
+
+func (s *service) ListUserBlacklists(ctx context.Context, in ListUserBlacklistsParams) (UserBlacklistListResponse, error) {
+	if in.Limit <= 0 {
+		in.Limit = 20
+	}
+	if in.Page <= 0 {
+		in.Page = 1
+	}
+	in.Q = strings.TrimSpace(in.Q)
+
+	items, total, err := s.repo.ListUserBlacklists(ctx, in)
+	if err != nil {
+		return UserBlacklistListResponse{}, err
+	}
+	if items == nil {
+		items = []UserBlacklist{}
+	}
+	return UserBlacklistListResponse{
+		PageSize:  in.Limit,
+		PageIndex: in.Page,
+		Total:     total,
+		Items:     items,
+	}, nil
+}
+
+func (s *service) GetUserBlacklist(ctx context.Context, blacklistID int64) (UserBlacklist, error) {
+	if blacklistID <= 0 {
+		return UserBlacklist{}, apperr.New(apperr.BadRequest, "invalid blacklist_id")
+	}
+	return s.repo.GetUserBlacklist(ctx, blacklistID)
 }

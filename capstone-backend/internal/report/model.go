@@ -212,3 +212,21 @@ type MyReportListResponse struct {
 	Total     int64          `json:"total"`
 	Items     []MyReportView `json:"items"`
 }
+
+type UserBlacklistListResponse struct {
+	PageSize  int             `json:"page_size"`
+	PageIndex int             `json:"page_index"`
+	Total     int64           `json:"total"`
+	Items     []UserBlacklist `json:"items"`
+}
+
+type ListUserBlacklistsParams struct {
+	IsActive *bool
+	UserRole *string
+	BanType  *string
+	Limit    int
+	Page     int
+	Q        string
+	FromDate *time.Time
+	ToDate   *time.Time
+}

@@ -50,6 +50,12 @@ func (h *Handler) Register(r *gin.RouterGroup) {
 		}
 	}
 
+	admin := r.Group("/admin", middleware.RequireRolesAny(h.roleSvc, "admin"))
+	{
+		admin.GET("/user-blacklists", h.listUserBlacklists)
+		admin.GET("/user-blacklists/:blacklist_id", h.getUserBlacklist)
+	}
+
 	// Ban management — admin only
 	ban := r.Group("/admin/users", middleware.RequireRolesAny(h.roleSvc, "admin"))
 	{
@@ -568,4 +574,76 @@ func parseListReportsQuery(c *gin.Context) listReportsQuery {
 	}
 
 	return q
+}
+
+func (h *Handler) listUserBlacklists(c *gin.Context) {
+	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "20"))
+	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
+	q := strings.TrimSpace(c.Query("q"))
+
+	var isActive *bool
+	if v := strings.TrimSpace(c.Query("is_active")); v != "" {
+		if v == "true" || v == "false" {
+			b := v == "true"
+			isActive = &b
+		}
+	}
+
+	var userRole *string
+	if v := strings.ToUpper(strings.TrimSpace(c.Query("user_role"))); v == "BUYER" || v == "SELLER" {
+		userRole = &v
+	}
+
+	var banType *string
+	if v := strings.ToUpper(strings.TrimSpace(c.Query("ban_type"))); v != "" {
+		banType = &v
+	}
+
+	var fromDate *time.Time
+	if v := strings.TrimSpace(c.Query("from_date")); v != "" {
+		if t, err := time.Parse(time.RFC3339, v); err == nil {
+			fromDate = &t
+		}
+	}
+
+	var toDate *time.Time
+	if v := strings.TrimSpace(c.Query("to_date")); v != "" {
+		if t, err := time.Parse(time.RFC3339, v); err == nil {
+			toDate = &t
+		}
+	}
+
+	resp, err := h.svc.ListUserBlacklists(c.Request.Context(), ListUserBlacklistsParams{
+		IsActive: isActive,
+		UserRole: userRole,
+		BanType:  banType,
+		Limit:    limit,
+		Page:     page,
+		Q:        q,
+		FromDate: fromDate,
+		ToDate:   toDate,
+	})
+	if err != nil {
+		c.Error(err)
+		return
+	}
+	respond.OK(c, apperr.OK, resp)
+}
+
+func (h *Handler) getUserBlacklist(c *gin.Context) {
+	id, ok := parsePathID(c, "blacklist_id")
+	if !ok {
+		return
+	}
+	b, err := h.svc.GetUserBlacklist(c.Request.Context(), id)
+	if err != nil {
+		c.Error(err)
+		return
+	}
+	respond.OK(c, apperr.OK, b)
+}
+
+func (h *Handler) healthAdmin(c *gin.Context) {
+	respond.OK(c, apperr.OK, gin.H{"status": "ok"})
+	c.Status(http.StatusOK)
 }
