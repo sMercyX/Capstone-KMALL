@@ -51,8 +51,8 @@ type Service interface {
 		id int64,
 		reason string,
 	) (Order, error)
-	ListBuyerOrders(ctx context.Context, userID string, statusGroup string, limit, page int) ([]Order, int64, error)
-	ListStoreOrders(ctx context.Context, storeID int64, statusGroup string, limit, page int) ([]Order, int64, error)
+	ListBuyerOrders(ctx context.Context, userID string, statusGroup string, q string, limit, page int) ([]Order, int64, error)
+	ListStoreOrders(ctx context.Context, storeID int64, statusGroup string, q string, limit, page int) ([]Order, int64, error)
 	CancelOrdersByUserRole(ctx context.Context, actorUserID, userID, role, reason string) ([]int64, error)
 	CancelOrdersByStore(ctx context.Context, actorUserID string, storeID int64, reason string) ([]int64, error)
 }
@@ -894,7 +894,7 @@ func (s *service) updateOrderStatusNotiBestEffort(
 	return nil
 }
 
-func (s *service) ListBuyerOrders(ctx context.Context, userID string, statusGroup string, limit, page int) ([]Order, int64, error) {
+func (s *service) ListBuyerOrders(ctx context.Context, userID, statusGroup, q string, limit, page int) ([]Order, int64, error) {
 	if strings.TrimSpace(userID) == "" {
 		return nil, 0, apperr.New(apperr.BadRequest, "invalid user_id")
 	}
@@ -902,10 +902,10 @@ func (s *service) ListBuyerOrders(ctx context.Context, userID string, statusGrou
 	if err != nil {
 		return nil, 0, err
 	}
-	return s.repo.ListByUserID(ctx, userID, statuses, limit, page)
+	return s.repo.ListByUserID(ctx, userID, statuses, q, limit, page)
 }
 
-func (s *service) ListStoreOrders(ctx context.Context, storeID int64, statusGroup string, limit, page int) ([]Order, int64, error) {
+func (s *service) ListStoreOrders(ctx context.Context, storeID int64, statusGroup, q string, limit, page int) ([]Order, int64, error) {
 	if storeID <= 0 {
 		return nil, 0, apperr.New(apperr.BadRequest, "invalid store_id")
 	}
@@ -913,7 +913,7 @@ func (s *service) ListStoreOrders(ctx context.Context, storeID int64, statusGrou
 	if err != nil {
 		return nil, 0, err
 	}
-	return s.repo.ListByStoreID(ctx, storeID, statuses, limit, page)
+	return s.repo.ListByStoreID(ctx, storeID, statuses, q, limit, page)
 }
 
 func (s *service) CancelOrdersByUserRole(ctx context.Context, actorUserID, userID, role, reason string) ([]int64, error) {

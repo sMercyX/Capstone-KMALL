@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/jackc/pgconn"
@@ -24,8 +25,8 @@ type Repo interface {
 	UpdateOrderStatus(ctx context.Context, id int64, status string) (Order, error)
 	CancelOrder(ctx context.Context, id int64, cancelledBy string, reason string) (Order, error)
 
-	ListByUserID(ctx context.Context, userID string, statuses []string, limit, page int) ([]Order, int64, error)
-	ListByStoreID(ctx context.Context, storeID int64, statuses []string, limit, page int) ([]Order, int64, error)
+	ListByUserID(ctx context.Context, userID string, statuses []string, q string, limit, page int) ([]Order, int64, error)
+	ListByStoreID(ctx context.Context, storeID int64, statuses []string, q string, limit, page int) ([]Order, int64, error)
 	Propose(ctx context.Context, id int64, proposedAt time.Time, meetingLocationID *int, meetingNote *string) (Order, error)
 	RespondProposal(ctx context.Context, id int64, accept bool) (Order, error)
 
@@ -387,7 +388,7 @@ func (r *repo) CancelOrder(
 	return ord, nil
 }
 
-func (r *repo) ListByUserID(ctx context.Context, userID string, statuses []string, limit, page int) ([]Order, int64, error) {
+func (r *repo) ListByUserID(ctx context.Context, userID string, statuses []string, q string, limit, page int) ([]Order, int64, error) {
 	if limit <= 0 {
 		limit = 20
 	}
@@ -396,12 +397,31 @@ func (r *repo) ListByUserID(ctx context.Context, userID string, statuses []strin
 	}
 	offset := (page - 1) * limit
 
-	base := `FROM orders WHERE user_id = $1`
+	q = strings.TrimSpace(q)
+
+	base := `
+FROM orders o
+JOIN stores s ON s.store_id = o.store_id
+WHERE o.user_id = $1
+`
 	args := []any{userID}
+	argIdx := 2
 
 	if len(statuses) > 0 {
-		base += " AND status = ANY($2)"
+		base += " AND o.status = ANY($" + strconv.Itoa(argIdx) + ")"
 		args = append(args, statuses)
+		argIdx++
+	}
+
+	if q != "" {
+		base += `
+ AND (
+   CAST(o.order_id AS TEXT) ILIKE $` + strconv.Itoa(argIdx) + `
+   OR s.store_name ILIKE $` + strconv.Itoa(argIdx) + `
+ )
+`
+		args = append(args, q+"%")
+		argIdx++
 	}
 
 	var total int64
@@ -409,13 +429,20 @@ func (r *repo) ListByUserID(ctx context.Context, userID string, statuses []strin
 		return nil, 0, apperr.Wrap(apperr.Internal, err, "count orders by user_id failed")
 	}
 
-	limitIdx := len(args) + 1
-	offsetIdx := len(args) + 2
-	query := `SELECT order_id, status, total_price, order_date, updated_at,
-  cancelled_at, cancelled_by, cancelled_reason, user_id, store_id,
-  delivery_method, delivery_address_id, campus_location_id, campus_detail_note,
-  proposed_at, meeting_location_id, meeting_note ` + base +
-		` ORDER BY order_date DESC LIMIT $` + strconv.Itoa(limitIdx) + ` OFFSET $` + strconv.Itoa(offsetIdx)
+	limitIdx := argIdx
+	offsetIdx := argIdx + 1
+
+	query := `
+SELECT
+  o.order_id, o.status, o.total_price, o.order_date, o.updated_at,
+  o.cancelled_at, o.cancelled_by, o.cancelled_reason,
+  o.user_id, o.store_id,
+  o.delivery_method, o.delivery_address_id, o.campus_location_id, o.campus_detail_note,
+  o.proposed_at, o.meeting_location_id, o.meeting_note
+` + base + `
+ORDER BY o.order_date DESC
+LIMIT $` + strconv.Itoa(limitIdx) + ` OFFSET $` + strconv.Itoa(offsetIdx)
+
 	args = append(args, limit, offset)
 
 	rows, err := r.db.Query(ctx, query, args...)
@@ -435,7 +462,7 @@ func (r *repo) ListByUserID(ctx context.Context, userID string, statuses []strin
 	return out, total, rows.Err()
 }
 
-func (r *repo) ListByStoreID(ctx context.Context, storeID int64, statuses []string, limit, page int) ([]Order, int64, error) {
+func (r *repo) ListByStoreID(ctx context.Context, storeID int64, statuses []string, q string, limit, page int) ([]Order, int64, error) {
 	if limit <= 0 {
 		limit = 20
 	}
@@ -444,12 +471,32 @@ func (r *repo) ListByStoreID(ctx context.Context, storeID int64, statuses []stri
 	}
 	offset := (page - 1) * limit
 
-	base := `FROM orders WHERE store_id = $1`
+	q = strings.TrimSpace(q)
+
+	base := `
+FROM orders o
+JOIN users u ON u.user_id = o.user_id
+WHERE o.store_id = $1
+`
 	args := []any{storeID}
+	argIdx := 2
 
 	if len(statuses) > 0 {
-		base += " AND status = ANY($2)"
+		base += " AND o.status = ANY($" + strconv.Itoa(argIdx) + ")"
 		args = append(args, statuses)
+		argIdx++
+	}
+
+	if q != "" {
+		base += `
+ AND (
+   CAST(o.order_id AS TEXT) ILIKE $` + strconv.Itoa(argIdx) + `
+   OR u.display_name ILIKE $` + strconv.Itoa(argIdx) + `
+   OR u.email ILIKE $` + strconv.Itoa(argIdx) + `
+ )
+`
+		args = append(args, q+"%")
+		argIdx++
 	}
 
 	var total int64
@@ -457,13 +504,20 @@ func (r *repo) ListByStoreID(ctx context.Context, storeID int64, statuses []stri
 		return nil, 0, apperr.Wrap(apperr.Internal, err, "count orders by store_id failed")
 	}
 
-	limitIdx := len(args) + 1
-	offsetIdx := len(args) + 2
-	query := `SELECT order_id, status, total_price, order_date, updated_at,
-  cancelled_at, cancelled_by, cancelled_reason, user_id, store_id,
-  delivery_method, delivery_address_id, campus_location_id, campus_detail_note,
-  proposed_at, meeting_location_id, meeting_note ` + base +
-		` ORDER BY order_date DESC LIMIT $` + strconv.Itoa(limitIdx) + ` OFFSET $` + strconv.Itoa(offsetIdx)
+	limitIdx := argIdx
+	offsetIdx := argIdx + 1
+
+	query := `
+SELECT
+  o.order_id, o.status, o.total_price, o.order_date, o.updated_at,
+  o.cancelled_at, o.cancelled_by, o.cancelled_reason,
+  o.user_id, o.store_id,
+  o.delivery_method, o.delivery_address_id, o.campus_location_id, o.campus_detail_note,
+  o.proposed_at, o.meeting_location_id, o.meeting_note
+` + base + `
+ORDER BY o.order_date DESC
+LIMIT $` + strconv.Itoa(limitIdx) + ` OFFSET $` + strconv.Itoa(offsetIdx)
+
 	args = append(args, limit, offset)
 
 	rows, err := r.db.Query(ctx, query, args...)

@@ -385,8 +385,10 @@ func (h *Handler) listBuyerOrders(c *gin.Context) {
 	statusGroup := strings.ToLower(strings.TrimSpace(c.Query("status_group")))
 	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "20"))
 	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
+	q := strings.TrimSpace(c.Query("q"))
 
-	orders, total, err := h.svc.ListBuyerOrders(c.Request.Context(), userID, statusGroup, limit, page)
+	orders, total, err := h.svc.ListBuyerOrders(c.Request.Context(), userID, statusGroup, q, limit, page)
+
 	if err != nil {
 		c.Error(err)
 		return
@@ -439,8 +441,9 @@ func (h *Handler) listStoreOrders(c *gin.Context) {
 	statusGroup := strings.ToLower(strings.TrimSpace(c.Query("status_group")))
 	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "20"))
 	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
+	q := strings.TrimSpace(c.Query("q"))
 
-	orders, total, err := h.svc.ListStoreOrders(c.Request.Context(), storeID, statusGroup, limit, page)
+	orders, total, err := h.svc.ListStoreOrders(c.Request.Context(), storeID, statusGroup, q, limit, page)
 	if err != nil {
 		c.Error(err)
 		return
