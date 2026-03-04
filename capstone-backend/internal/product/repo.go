@@ -112,16 +112,17 @@ func vectorLiteral(v []float64) (string, error) {
 }
 
 func (r *repo) Create(ctx context.Context, in CreateParams) (Product, error) {
+	// normalize
+	in.Name = strings.TrimSpace(in.Name)
 	in.IsActive = strings.ToUpper(strings.TrimSpace(in.IsActive))
 	if in.IsActive == "" {
 		in.IsActive = "YES"
 	}
 
+	// unique name check
 	var exists bool
 	if err := r.db.QueryRow(ctx, `
-		SELECT EXISTS(
-			SELECT 1 FROM products WHERE name = $1
-		);
+		SELECT EXISTS (SELECT 1 FROM products WHERE name = $1)
 	`, in.Name).Scan(&exists); err != nil {
 		return Product{}, apperr.Wrap(apperr.Internal, err, "check product name failed")
 	}
@@ -141,6 +142,47 @@ func (r *repo) Create(ctx context.Context, in CreateParams) (Product, error) {
 	embCat, err := toVecArg(in.EmbCategory)
 	if err != nil {
 		return Product{}, apperr.Wrap(apperr.Internal, err, "format embedding_category failed")
+	}
+
+	// ===== category must be ACTIVE sub category =====
+	var parentID *int
+	var subActive string
+
+	err = r.db.QueryRow(ctx, `
+		SELECT parent_id, is_active
+		FROM categories
+		WHERE category_id = $1
+	`, in.CategoryID).Scan(&parentID, &subActive)
+
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return Product{}, apperr.New(apperr.BadRequest, "invalid category_id")
+		}
+		return Product{}, apperr.Wrap(apperr.Internal, err, "check category failed")
+	}
+	if parentID == nil {
+		return Product{}, apperr.New(apperr.BadRequest, "product category must be a sub category")
+	}
+	if strings.ToUpper(strings.TrimSpace(subActive)) != "YES" {
+		return Product{}, apperr.New(apperr.BadRequest, "category is inactive")
+	}
+
+	// (optional but recommended) main must be active too
+	var mainActive string
+	err = r.db.QueryRow(ctx, `
+		SELECT is_active
+		FROM categories
+		WHERE category_id = $1
+	`, *parentID).Scan(&mainActive)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			// shouldn't happen if FK is correct, but safe
+			return Product{}, apperr.New(apperr.BadRequest, "invalid main category")
+		}
+		return Product{}, apperr.Wrap(apperr.Internal, err, "check main category failed")
+	}
+	if strings.ToUpper(strings.TrimSpace(mainActive)) != "YES" {
+		return Product{}, apperr.New(apperr.BadRequest, "main category is inactive")
 	}
 
 	// ----- INSERT -----

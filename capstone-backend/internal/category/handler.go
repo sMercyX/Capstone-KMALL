@@ -23,30 +23,35 @@ func NewHandler(s Service, rl middleware.RoleNameLister) *Handler {
 }
 
 func (h *Handler) Register(r *gin.RouterGroup) {
-	g := r.Group("/categories")
+	// public
+	pub := r.Group("/categories")
+	pub.GET("", h.listPublic)
+	pub.GET("/:id/public", h.getPublic)
 
-	// ----- Public -----
-	g.GET("", h.listPublic)           // ?q=&parent_id=&page=&limit=
-	g.GET("/:id/public", h.getPublic) // เฉพาะ is_active = YES
-
-	// ----- Admin-only -----
-	admin := g.Group("", middleware.RequireRolesAny(h.roleSvc, "Admin"))
-	{
-		admin.POST("", h.create)
-		admin.GET("/:id", h.get)
-		admin.PUT("/:id", h.update)
-		admin.DELETE("/:id", h.delete)
-	}
+	// admin
+	admin := r.Group("/admin/categories", middleware.RequireRolesAny(h.roleSvc, "Admin"))
+	admin.GET("", h.listAdmin)
+	admin.POST("", h.create)
+	admin.GET("/:id", h.get)
+	admin.PUT("/:id", h.update)
+	admin.DELETE("/:id", h.delete)
+	admin.PATCH("/:id/deactivate", h.deactivate)
 }
 
 // ===== Request DTOs =====
-
 type createReq struct {
-	Name      string  `json:"name"       binding:"required"`
-	Slug      *string `json:"slug"`                // optional, ไม่ส่ง -> gen จาก name
-	ParentID  *int    `json:"parent_id"`           // optional
-	SortOrder *int    `json:"sort_order"`          // optional, default 0
-	IsActive  string  `json:"is_active,omitempty"` // YES/NO, ว่าง -> YES
+	Name      string  `json:"name" binding:"required"`
+	Slug      *string `json:"slug"`
+	ParentID  *int    `json:"parent_id"`
+	SortOrder *int    `json:"sort_order"`
+	IsActive  string  `json:"is_active,omitempty"`
+
+	Subcategories []struct {
+		Name      string  `json:"name" binding:"required"`
+		Slug      *string `json:"slug"`
+		SortOrder *int    `json:"sort_order"`
+		IsActive  string  `json:"is_active,omitempty"`
+	} `json:"subcategories,omitempty"`
 }
 
 type updateReq struct {
@@ -55,6 +60,28 @@ type updateReq struct {
 	ParentID  *int    `json:"parent_id"`
 	SortOrder *int    `json:"sort_order"`
 	IsActive  *string `json:"is_active"`
+}
+
+type upsertTreeReq struct {
+	MainCategory struct {
+		ID        *int    `json:"id,omitempty"`
+		Name      string  `json:"name" binding:"required"`
+		Slug      *string `json:"slug,omitempty"`
+		SortOrder *int    `json:"sort_order,omitempty"`
+		IsActive  string  `json:"is_active,omitempty"`
+	} `json:"main_category" binding:"required"`
+
+	SubCategories []struct {
+		ID        *int    `json:"id,omitempty"`
+		Name      string  `json:"name" binding:"required"`
+		Slug      *string `json:"slug,omitempty"`
+		SortOrder *int    `json:"sort_order,omitempty"`
+		IsActive  string  `json:"is_active,omitempty"`
+	} `json:"sub_categories" binding:"required"`
+}
+
+type moveReq struct {
+	MoveToSubCategoryID int64 `json:"move_to_sub_category_id"`
 }
 
 // ===== Helpers =====
@@ -121,18 +148,48 @@ func parseParentIDQuery(c *gin.Context) *int64 {
 
 // POST /api/categories (Admin)
 func (h *Handler) create(c *gin.Context) {
-	var in createReq
+	var in upsertTreeReq
 	if err := c.ShouldBindJSON(&in); err != nil {
 		c.Error(apperr.New(apperr.BadRequest, "bad json"))
 		return
 	}
 
-	cat, err := h.svc.Create(c.Request.Context(), CreateInput(in))
+	if len(in.SubCategories) < 1 {
+		c.Error(apperr.New(apperr.BadRequest, "sub_categories must have at least 1 item"))
+		return
+	}
+
+	// map -> service input (คุณจะต้องสร้าง input ใหม่ฝั่ง service)
+	subs := make([]UpsertNodeInput, 0, len(in.SubCategories))
+	for _, s := range in.SubCategories {
+		subs = append(subs, UpsertNodeInput{
+			ID:        s.ID,
+			Name:      s.Name,
+			Slug:      s.Slug,
+			SortOrder: s.SortOrder,
+			IsActive:  s.IsActive,
+		})
+	}
+
+	main, outSubs, err := h.svc.UpsertCategoryTree(c.Request.Context(), UpsertCategoryTreeInput{
+		Main: UpsertNodeInput{
+			ID:        in.MainCategory.ID,
+			Name:      in.MainCategory.Name,
+			Slug:      in.MainCategory.Slug,
+			SortOrder: in.MainCategory.SortOrder,
+			IsActive:  in.MainCategory.IsActive,
+		},
+		Subs: subs,
+	})
 	if err != nil {
 		c.Error(err)
 		return
 	}
-	respond.Created(c, apperr.Created, cat)
+
+	respond.Created(c, apperr.Created, gin.H{
+		"main_category":  main,
+		"sub_categories": outSubs,
+	})
 }
 
 // GET /api/categories/:id (Admin)
@@ -177,10 +234,23 @@ func (h *Handler) delete(c *gin.Context) {
 		return
 	}
 
-	if err := h.svc.Delete(c.Request.Context(), id); err != nil {
+	moveToStr := strings.TrimSpace(c.Query("move_to_sub_category_id"))
+	var moveTo int64
+	if moveToStr != "" {
+		v, err := strconv.ParseInt(moveToStr, 10, 64)
+		if err != nil || v <= 0 {
+			c.Error(apperr.New(apperr.BadRequest, "invalid move_to_sub_category_id"))
+			return
+		}
+		moveTo = v
+	}
+
+	// ส่ง moveTo ไป service ให้ service enforce rule เอง
+	if err := h.svc.DeleteCategory(c.Request.Context(), id, moveTo); err != nil {
 		c.Error(err)
 		return
 	}
+
 	respond.Deleted(c, apperr.Deleted, gin.H{"deleted": true})
 }
 
@@ -241,4 +311,63 @@ func (h *Handler) getPublic(c *gin.Context) {
 		return
 	}
 	respond.OK(c, apperr.OK, cat)
+}
+
+// GET /api/categories (Admin)
+// ?q=&parent_id=&is_active=&page=&limit=
+func (h *Handler) listAdmin(c *gin.Context) {
+	q := strings.TrimSpace(c.Query("q"))
+	parentID := parseParentIDQuery(c)
+
+	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "50"))
+	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
+
+	// is_active: YES/NO/"" (ว่าง = ไม่ filter)
+	isActive := strings.TrimSpace(c.Query("is_active"))
+	var isActivePtr *string
+	if isActive != "" {
+		up := strings.ToUpper(isActive)
+		if up != "YES" && up != "NO" {
+			c.Error(apperr.New(apperr.BadRequest, "is_active must be YES or NO"))
+			return
+		}
+		isActivePtr = &up
+	}
+
+	cats, err := h.svc.ListAdmin(c.Request.Context(), q, parentID, isActivePtr, limit, page)
+	if err != nil {
+		c.Error(err)
+		return
+	}
+	if cats == nil {
+		cats = []Category{}
+	}
+	respond.OK(c, apperr.OK, cats)
+}
+
+func (h *Handler) deactivate(c *gin.Context) {
+	id, ok := parseID(c)
+	if !ok {
+		return
+	}
+
+	var body moveReq
+	if err := c.ShouldBindJSON(&body); err != nil {
+		// ยอมให้ body ว่างได้
+		// (บาง gin จะเป็น EOF)
+		// ถ้าอยาก strict กว่านี้ เช็คว่า err เป็น EOF ค่อยยอม
+		body.MoveToSubCategoryID = 0
+	}
+
+	cat, err := h.svc.DeactivateCategory(
+		c.Request.Context(),
+		id,
+		body.MoveToSubCategoryID, // 0 ได้
+	)
+	if err != nil {
+		c.Error(err)
+		return
+	}
+
+	respond.Updated(c, apperr.Updated, cat)
 }
