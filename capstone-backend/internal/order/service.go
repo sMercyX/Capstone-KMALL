@@ -320,7 +320,7 @@ func banCancelReason(b *UserBlacklist) string {
 
 // CreateFromCart แปลง cart ของ user → order + order_items
 func (s *service) CreateFromCart(ctx context.Context, userID string, in CheckoutConfirmInput) (OrderWithItems, error) {
-	if userID == "" {
+	if strings.TrimSpace(userID) == "" {
 		return OrderWithItems{}, apperr.New(apperr.BadRequest, "invalid user_id")
 	}
 	if err := validateCheckoutInput(&in); err != nil {
@@ -330,6 +330,7 @@ func (s *service) CreateFromCart(ctx context.Context, userID string, in Checkout
 		return OrderWithItems{}, err
 	}
 
+	// Buyer ban check
 	if b, err := s.getBlockingBanByRole(ctx, userID, "BUYER"); err != nil {
 		return OrderWithItems{}, err
 	} else if b != nil {
@@ -337,6 +338,7 @@ func (s *service) CreateFromCart(ctx context.Context, userID string, in Checkout
 		return OrderWithItems{}, apperr.New(apperr.Forbidden, "buyer is banned, cannot create order")
 	}
 
+	// Get cart
 	cw, err := s.cartSvc.GetCart(ctx, userID)
 	if err != nil {
 		return OrderWithItems{}, err
@@ -346,9 +348,10 @@ func (s *service) CreateFromCart(ctx context.Context, userID string, in Checkout
 	}
 
 	var (
-		storeID    int
-		totalPrice float64
-		items      []OrderItemCreateParams
+		storeID     int
+		itemsTotal  float64
+		deliveryFee float64
+		items       []OrderItemCreateParams
 	)
 
 	for i, ci := range cw.Items {
@@ -361,6 +364,7 @@ func (s *service) CreateFromCart(ctx context.Context, userID string, in Checkout
 			return OrderWithItems{}, err
 		}
 
+		// Validate single-store + compute delivery fee once
 		if i == 0 {
 			storeID = p.StoreID
 
@@ -372,13 +376,27 @@ func (s *service) CreateFromCart(ctx context.Context, userID string, in Checkout
 				return OrderWithItems{}, apperr.New(apperr.BadRequest, "store is not active, cannot place order")
 			}
 
+			// Delivery fee for ROUND_UNIVERSITY
+			if strings.EqualFold(strings.TrimSpace(in.DeliveryMethod), "ROUND_UNIVERSITY") {
+				if !st.DeliveryRoundUniversityEnabled {
+					return OrderWithItems{}, apperr.New(apperr.BadRequest, "store does not support ROUND_UNIVERSITY delivery")
+				}
+				if st.RoundUniBaseFee == nil {
+					return OrderWithItems{}, apperr.New(apperr.BadRequest, "store round university base fee is not set")
+				}
+				if *st.RoundUniBaseFee < 0 {
+					return OrderWithItems{}, apperr.New(apperr.BadRequest, "store round university base fee is invalid")
+				}
+				deliveryFee = *st.RoundUniBaseFee
+			}
 		} else if p.StoreID != storeID {
 			return OrderWithItems{}, apperr.New(apperr.BadRequest, "cart contains items from multiple stores")
 		}
 
+		// Item price calc
 		unit := p.Price
 		sub := unit * float64(ci.Quantity)
-		totalPrice += sub
+		itemsTotal += sub
 
 		items = append(items, OrderItemCreateParams{
 			Quantity:         ci.Quantity,
@@ -391,11 +409,15 @@ func (s *service) CreateFromCart(ctx context.Context, userID string, in Checkout
 		})
 	}
 
+	grandTotal := itemsTotal + deliveryFee
+
 	params := OrderCreateParams{
-		Status:     "Pending",
-		TotalPrice: totalPrice,
-		UserID:     userID,
-		StoreID:    storeID,
+		Status:      "Pending",
+		TotalPrice:  grandTotal,  // ✅ itemsTotal + deliveryFee
+		DeliveryFee: deliveryFee, // ✅ แยกเก็บใน column delivery_fee
+
+		UserID:  userID,
+		StoreID: storeID,
 
 		DeliveryMethod:    in.DeliveryMethod,
 		DeliveryAddressID: in.DeliveryAddressID,
@@ -407,8 +429,10 @@ func (s *service) CreateFromCart(ctx context.Context, userID string, in Checkout
 	if err != nil {
 		return OrderWithItems{}, err
 	}
+
 	s.createOrderStatusNotiBestEffort(ctx, ow.Order, userID, "", "Pending")
 
+	// Clear cart best-effort (คุณทำแบบ strict ก็โอเค)
 	for _, ci := range cw.Items {
 		if err := s.cartSvc.DeleteItem(ctx, userID, int64(ci.ID)); err != nil {
 			return ow, apperr.Wrap(apperr.Internal, err, "order created but failed to clear cart")

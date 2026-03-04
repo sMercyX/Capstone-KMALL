@@ -25,6 +25,9 @@ type UpdateInput struct {
 	Description *string `json:"description,omitempty"`
 	ProfileURL  *string `json:"profile_url,omitempty"`
 	IsActive    *string `json:"is_active,omitempty"` // "YES" | "NO"
+
+	DeliveryRoundUniversityEnabled *bool    `json:"delivery_round_university_enabled,omitempty"`
+	RoundUniBaseFee                *float64 `json:"round_uni_base_fee,omitempty"`
 }
 
 type BanProvider interface {
@@ -40,8 +43,8 @@ type BanInfo struct {
 }
 
 type OrderCanceller interface {
-	CancelOrdersByStore(ctx context.Context, actorUserID string, storeID int64, reason string) (int64, error)
-	CancelOrdersByUserRole(ctx context.Context, actorUserID string, userID, role, reason string) (int64, error)
+	CancelOrdersByStore(ctx context.Context, actorUserID string, storeID int64, reason string) ([]int64, error)
+	CancelOrdersByUserRole(ctx context.Context, actorUserID string, userID, role, reason string) ([]int64, error)
 }
 
 // ===== Service Interface =====
@@ -256,7 +259,17 @@ func (s *service) Update(ctx context.Context, id int64, in UpdateInput) (Store, 
 		return Store{}, err
 	}
 
-	return s.repo.Update(ctx, id, UpdateParams(in))
+	params := UpdateParams{
+		Name:        in.Name,
+		Description: in.Description,
+		ProfileURL:  in.ProfileURL,
+		IsActive:    in.IsActive,
+
+		DeliveryRoundUniversityEnabled: in.DeliveryRoundUniversityEnabled,
+		RoundUniBaseFee:                in.RoundUniBaseFee,
+	}
+
+	return s.repo.Update(ctx, id, params)
 }
 
 func (s *service) Delete(ctx context.Context, id int64) error {
@@ -333,8 +346,8 @@ func (s *service) DeleteByAdmin(ctx context.Context, id int64) error {
 	}
 
 	if s.orderSvc != nil {
-		n, err := s.orderSvc.CancelOrdersByStore(ctx, "SYSTEM", id, "AUTO_CANCELLED_DUE_TO_STORE_DELETED")
-		log.Printf("[STORE] delete store=%d cancel_count=%d err=%v", id, n, err)
+		ids, err := s.orderSvc.CancelOrdersByStore(ctx, "SYSTEM", id, "AUTO_CANCELLED_DUE_TO_STORE_DELETED")
+		log.Printf("[STORE] delete store=%d cancel_count=%d err=%v", id, len(ids), err)
 	}
 
 	if err := s.repo.Delete(ctx, id); err != nil {
@@ -359,9 +372,9 @@ func (s *service) forceCloseStore(ctx context.Context, actorUserID string, store
 
 	// 2) cancel active orders (best effort)
 	if s.orderSvc != nil {
-		n, err := s.orderSvc.CancelOrdersByStore(ctx, actorUserID, storeID, reason)
+		ids, err := s.orderSvc.CancelOrdersByStore(ctx, actorUserID, storeID, reason)
 		log.Printf("[STORE] force close store=%d actor=%s cancel_count=%d err=%v reason=%s",
-			storeID, actorUserID, n, err, reason)
+			storeID, actorUserID, len(ids), err, reason)
 	} else {
 		log.Printf("[STORE] force close store=%d actor=%s skip cancel: orderSvc=nil reason=%s",
 			storeID, actorUserID, reason)

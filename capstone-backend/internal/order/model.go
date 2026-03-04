@@ -3,9 +3,11 @@ package order
 import "time"
 
 type Order struct {
-	ID          int        `json:"id"`
-	Status      string     `json:"status"`
-	TotalPrice  float64    `json:"total_price"`
+	ID          int     `json:"id"`
+	Status      string  `json:"status"`
+	TotalPrice  float64 `json:"total_price"`
+	DeliveryFee float64 `json:"delivery_fee"`
+
 	OrderDate   time.Time  `json:"order_date"`
 	UpdatedAt   time.Time  `json:"updated_at"`
 	CancelledAt *time.Time `json:"cancelled_at,omitempty"`

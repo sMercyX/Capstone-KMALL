@@ -67,8 +67,18 @@ type BanUserInput struct {
 }
 
 type OrderCanceller interface {
-	CancelOrdersByStore(ctx context.Context, actorUserID string, storeID int64, reason string) (int64, error)
-	CancelOrdersByUserRole(ctx context.Context, actorUserID string, userID, role, reason string) (int64, error)
+	CancelOrdersByStore(
+		ctx context.Context,
+		actorUserID string,
+		storeID int64,
+		reason string,
+	) ([]int64, error)
+
+	CancelOrdersByUserRole(
+		ctx context.Context,
+		actorUserID string,
+		userID, role, reason string,
+	) ([]int64, error)
 }
 
 // ============================================================================

@@ -43,6 +43,7 @@ CREATE TABLE IF NOT EXISTS stores (
   profile_url VARCHAR(255) NULL,
 
   delivery_round_university_enabled BOOLEAN NOT NULL DEFAULT FALSE,
+  round_uni_base_fee DECIMAL(10,2) NULL,
 
   campus_enabled BOOLEAN NOT NULL DEFAULT FALSE,
 
@@ -56,7 +57,13 @@ CREATE TABLE IF NOT EXISTS stores (
     ON DELETE NO ACTION
     ON UPDATE NO ACTION,
 
-  CONSTRAINT uq_stores_store_name UNIQUE (store_name)
+  CONSTRAINT uq_stores_store_name UNIQUE (store_name),
+
+  -- ===== Enforce: if delivery_round_university_enabled = TRUE, must have base fee =====
+  CONSTRAINT chk_round_uni_base_fee_required CHECK (
+    delivery_round_university_enabled = FALSE
+    OR (round_uni_base_fee IS NOT NULL AND round_uni_base_fee >= 0)
+  )
 );
 
 -- ========= CATEGORIES =========
@@ -172,6 +179,7 @@ CREATE TABLE IF NOT EXISTS orders (
     )),
 
   total_price DECIMAL(10,2) NOT NULL,
+  delivery_fee DECIMAL(10,2) NOT NULL DEFAULT 0,
 
   order_date TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
