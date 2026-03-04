@@ -233,9 +233,12 @@ func (h *Handler) listByStore(c *gin.Context) {
 		page = 1
 	}
 
+	q := strings.TrimSpace(c.Query("q"))
+
 	items, total, err := h.svc.ListByStoreID(
 		c.Request.Context(),
 		storeID,
+		q,
 		limit,
 		page,
 	)
