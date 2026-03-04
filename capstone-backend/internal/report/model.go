@@ -104,6 +104,10 @@ type UserBlacklist struct {
 	IsActive    bool       `json:"is_active"`
 	CreatedBy   string     `json:"created_by"`
 	CreatedAt   time.Time  `json:"created_at"`
+
+	DisplayName string  `json:"display_name"`
+	StoreID     *int64  `json:"store_id,omitempty"`
+	StoreName   *string `json:"store_name,omitempty"`
 }
 
 type StoreRestriction struct {
