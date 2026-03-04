@@ -6,6 +6,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/jackc/pgconn"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
@@ -359,14 +360,14 @@ func (r *repo) UpsertMainAndLinkSubs(
 	var createdMain Category
 
 	if main.ID != nil && *main.ID > 0 {
-		// lock row
+		// lock main + ensure it's main (parent_id must be NULL)
 		var parentID *int
 		err := tx.QueryRow(ctx, `
-			SELECT category_id, parent_id
+			SELECT parent_id
 			FROM categories
 			WHERE category_id = $1
 			FOR UPDATE
-		`, *main.ID).Scan(new(int), &parentID)
+		`, *main.ID).Scan(&parentID)
 		if err != nil {
 			if errors.Is(err, pgx.ErrNoRows) {
 				return Category{}, nil, apperr.New(apperr.NotFound, "main category not found")
@@ -388,11 +389,18 @@ func (r *repo) UpsertMainAndLinkSubs(
 			    updated_at = NOW()
 			WHERE category_id = $1
 			RETURNING category_id, name, slug, parent_id, sort_order, is_active, created_at, updated_at
-		`, *main.ID, strings.TrimSpace(main.Name), strings.TrimSpace(main.Slug), main.SortOrder, main.IsActive).
-			Scan(&createdMain.ID, &createdMain.Name, &createdMain.Slug, &createdMain.ParentID,
-				&createdMain.SortOrder, &createdMain.IsActive, &createdMain.CreatedAt, &createdMain.UpdatedAt)
+		`,
+			*main.ID,
+			strings.TrimSpace(main.Name),
+			strings.TrimSpace(main.Slug),
+			main.SortOrder,
+			main.IsActive,
+		).Scan(
+			&createdMain.ID, &createdMain.Name, &createdMain.Slug, &createdMain.ParentID,
+			&createdMain.SortOrder, &createdMain.IsActive, &createdMain.CreatedAt, &createdMain.UpdatedAt,
+		)
 		if err != nil {
-			return Category{}, nil, apperr.Wrap(apperr.Internal, err, "update main category failed")
+			return Category{}, nil, mapCategoryPgErr(err, "update main category failed")
 		}
 	} else {
 		// insert main
@@ -400,21 +408,26 @@ func (r *repo) UpsertMainAndLinkSubs(
 			INSERT INTO categories (name, slug, parent_id, sort_order, is_active)
 			VALUES ($1, $2, NULL, $3, $4)
 			RETURNING category_id, name, slug, parent_id, sort_order, is_active, created_at, updated_at
-		`, strings.TrimSpace(main.Name), strings.TrimSpace(main.Slug), main.SortOrder, main.IsActive).
-			Scan(&createdMain.ID, &createdMain.Name, &createdMain.Slug, &createdMain.ParentID,
-				&createdMain.SortOrder, &createdMain.IsActive, &createdMain.CreatedAt, &createdMain.UpdatedAt)
+		`,
+			strings.TrimSpace(main.Name),
+			strings.TrimSpace(main.Slug),
+			main.SortOrder,
+			main.IsActive,
+		).Scan(
+			&createdMain.ID, &createdMain.Name, &createdMain.Slug, &createdMain.ParentID,
+			&createdMain.SortOrder, &createdMain.IsActive, &createdMain.CreatedAt, &createdMain.UpdatedAt,
+		)
 		if err != nil {
-			return Category{}, nil, apperr.Wrap(apperr.Internal, err, "insert main category failed")
+			return Category{}, nil, mapCategoryPgErr(err, "insert main category failed")
 		}
 	}
 
 	mainID := createdMain.ID
-
 	createdSubs := make([]Category, 0, len(subs))
 
 	seen := map[int]bool{}
 	for _, sc := range subs {
-		// กัน id ซ้ำใน request
+		// duplicate id in request
 		if sc.ID != nil && *sc.ID > 0 {
 			if seen[*sc.ID] {
 				return Category{}, nil, apperr.New(apperr.BadRequest, "duplicate sub_categories.id in request")
@@ -424,7 +437,7 @@ func (r *repo) UpsertMainAndLinkSubs(
 
 		var c Category
 		if sc.ID != nil && *sc.ID > 0 {
-			// lock & validate sub (ห้ามเป็น main)
+			// lock & validate existing sub: must be sub (parent_id != NULL)
 			var parentID *int
 			err := tx.QueryRow(ctx, `
 				SELECT parent_id
@@ -439,11 +452,10 @@ func (r *repo) UpsertMainAndLinkSubs(
 				return Category{}, nil, apperr.Wrap(apperr.Internal, err, "get sub category failed")
 			}
 			if parentID == nil {
-				// policy: ห้ามเอา main มาเป็น sub
 				return Category{}, nil, apperr.New(apperr.BadRequest, "sub_categories.id must be a sub category (cannot use a main category as sub)")
 			}
 
-			// update sub + force link to main
+			// update sub + force parent_id=mainID
 			err = tx.QueryRow(ctx, `
 				UPDATE categories
 				SET name = $2,
@@ -454,10 +466,18 @@ func (r *repo) UpsertMainAndLinkSubs(
 				    updated_at = NOW()
 				WHERE category_id = $1
 				RETURNING category_id, name, slug, parent_id, sort_order, is_active, created_at, updated_at
-			`, *sc.ID, strings.TrimSpace(sc.Name), strings.TrimSpace(sc.Slug), mainID, sc.SortOrder, sc.IsActive).
-				Scan(&c.ID, &c.Name, &c.Slug, &c.ParentID, &c.SortOrder, &c.IsActive, &c.CreatedAt, &c.UpdatedAt)
+			`,
+				*sc.ID,
+				strings.TrimSpace(sc.Name),
+				strings.TrimSpace(sc.Slug),
+				mainID,
+				sc.SortOrder,
+				sc.IsActive,
+			).Scan(
+				&c.ID, &c.Name, &c.Slug, &c.ParentID, &c.SortOrder, &c.IsActive, &c.CreatedAt, &c.UpdatedAt,
+			)
 			if err != nil {
-				return Category{}, nil, apperr.Wrap(apperr.Internal, err, "update subcategory failed")
+				return Category{}, nil, mapCategoryPgErr(err, "update subcategory failed")
 			}
 		} else {
 			// insert sub
@@ -465,10 +485,17 @@ func (r *repo) UpsertMainAndLinkSubs(
 				INSERT INTO categories (name, slug, parent_id, sort_order, is_active)
 				VALUES ($1, $2, $3, $4, $5)
 				RETURNING category_id, name, slug, parent_id, sort_order, is_active, created_at, updated_at
-			`, strings.TrimSpace(sc.Name), strings.TrimSpace(sc.Slug), mainID, sc.SortOrder, sc.IsActive).
-				Scan(&c.ID, &c.Name, &c.Slug, &c.ParentID, &c.SortOrder, &c.IsActive, &c.CreatedAt, &c.UpdatedAt)
+			`,
+				strings.TrimSpace(sc.Name),
+				strings.TrimSpace(sc.Slug),
+				mainID,
+				sc.SortOrder,
+				sc.IsActive,
+			).Scan(
+				&c.ID, &c.Name, &c.Slug, &c.ParentID, &c.SortOrder, &c.IsActive, &c.CreatedAt, &c.UpdatedAt,
+			)
 			if err != nil {
-				return Category{}, nil, apperr.Wrap(apperr.Internal, err, "insert subcategory failed")
+				return Category{}, nil, mapCategoryPgErr(err, "insert subcategory failed")
 			}
 		}
 
@@ -708,4 +735,39 @@ func (r *repo) DeleteSubAndMoveProducts(ctx context.Context, subID, moveToSubID 
 	}
 
 	return moved, nil
+}
+
+func mapCategoryPgErr(err error, op string) error {
+	var pgErr *pgconn.PgError
+	if errors.As(err, &pgErr) {
+
+		// unique violation
+		if pgErr.Code == "23505" {
+			switch pgErr.ConstraintName {
+			case "uq_categories_slug":
+				return apperr.WithFields(
+					apperr.New(apperr.Conflict, "slug already exists"),
+					map[string]any{
+						"field":      "slug",
+						"constraint": pgErr.ConstraintName,
+						"detail":     pgErr.Detail,
+					},
+				)
+			default:
+				return apperr.WithFields(
+					apperr.New(apperr.Conflict, "duplicate value"),
+					map[string]any{
+						"constraint": pgErr.ConstraintName,
+						"detail":     pgErr.Detail,
+					},
+				)
+			}
+		}
+
+		if pgErr.Code == "23503" {
+			return apperr.New(apperr.BadRequest, "invalid reference")
+		}
+	}
+
+	return apperr.Wrap(apperr.Internal, err, op)
 }

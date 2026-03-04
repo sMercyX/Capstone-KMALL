@@ -1,6 +1,7 @@
 package category
 
 import (
+	"fmt"
 	"strconv"
 	"strings"
 
@@ -148,39 +149,42 @@ func parseParentIDQuery(c *gin.Context) *int64 {
 
 // POST /api/categories (Admin)
 func (h *Handler) create(c *gin.Context) {
-	var in upsertTreeReq
+
+	var in UpsertCategoryTreeInput
+
 	if err := c.ShouldBindJSON(&in); err != nil {
-		c.Error(apperr.New(apperr.BadRequest, "bad json"))
+		c.Error(apperr.New(apperr.BadRequest, "invalid json body"))
 		return
 	}
 
-	if len(in.SubCategories) < 1 {
-		c.Error(apperr.New(apperr.BadRequest, "sub_categories must have at least 1 item"))
+	missing := []string{}
+
+	if strings.TrimSpace(in.Main.Name) == "" {
+		missing = append(missing, "main_category.name")
+	}
+
+	if len(in.Subs) == 0 {
+		missing = append(missing, "sub_categories (must have at least 1 item)")
+	} else {
+		for i, sc := range in.Subs {
+			if strings.TrimSpace(sc.Name) == "" {
+				missing = append(missing, fmt.Sprintf("sub_categories[%d].name", i))
+			}
+		}
+	}
+
+	if len(missing) > 0 {
+		c.Error(apperr.WithFields(
+			apperr.New(apperr.BadRequest, "missing required fields"),
+			map[string]any{
+				"required": missing,
+			},
+		))
 		return
 	}
 
-	// map -> service input (คุณจะต้องสร้าง input ใหม่ฝั่ง service)
-	subs := make([]UpsertNodeInput, 0, len(in.SubCategories))
-	for _, s := range in.SubCategories {
-		subs = append(subs, UpsertNodeInput{
-			ID:        s.ID,
-			Name:      s.Name,
-			Slug:      s.Slug,
-			SortOrder: s.SortOrder,
-			IsActive:  s.IsActive,
-		})
-	}
-
-	main, outSubs, err := h.svc.UpsertCategoryTree(c.Request.Context(), UpsertCategoryTreeInput{
-		Main: UpsertNodeInput{
-			ID:        in.MainCategory.ID,
-			Name:      in.MainCategory.Name,
-			Slug:      in.MainCategory.Slug,
-			SortOrder: in.MainCategory.SortOrder,
-			IsActive:  in.MainCategory.IsActive,
-		},
-		Subs: subs,
-	})
+	// call service
+	main, subs, err := h.svc.UpsertCategoryTree(c.Request.Context(), in)
 	if err != nil {
 		c.Error(err)
 		return
@@ -188,7 +192,7 @@ func (h *Handler) create(c *gin.Context) {
 
 	respond.Created(c, apperr.Created, gin.H{
 		"main_category":  main,
-		"sub_categories": outSubs,
+		"sub_categories": subs,
 	})
 }
 

@@ -418,7 +418,6 @@ func (s *service) DeleteCategory(ctx context.Context, id int64, moveToSubID int6
 		return err
 	}
 
-	// main
 	if cur.ParentID == nil {
 		cnt, err := s.repo.CountSubcategories(ctx, id)
 		if err != nil {
@@ -430,10 +429,17 @@ func (s *service) DeleteCategory(ctx context.Context, id int64, moveToSubID int6
 		return s.repo.DeleteCategoryHard(ctx, id)
 	}
 
-	// sub
 	if moveToSubID <= 0 {
+		cntP, err := s.repo.CountProductsByCategory(ctx, id)
+		if err != nil {
+			return err
+		}
+		if cntP == 0 {
+			return s.repo.DeleteCategoryHard(ctx, id)
+		}
 		return apperr.New(apperr.BadRequest, "move_to_sub_category_id is required")
 	}
+
 	if moveToSubID == id {
 		return apperr.New(apperr.BadRequest, "move_to_sub_category_id cannot be same as source")
 	}
@@ -449,9 +455,6 @@ func (s *service) DeleteCategory(ctx context.Context, id int64, moveToSubID int6
 		return apperr.New(apperr.BadRequest, "move_to_sub_category_id must be active (YES)")
 	}
 
-	if cur.ParentID == nil || target.ParentID == nil {
-		return apperr.New(apperr.BadRequest, "move_to_sub_category_id must be a sub category")
-	}
 	if *cur.ParentID != *target.ParentID {
 		return apperr.New(apperr.BadRequest, "move_to_sub_category_id must be in the same main category")
 	}
