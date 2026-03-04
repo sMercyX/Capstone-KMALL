@@ -13,6 +13,7 @@ type CreateInput struct {
 	ParentID  *int    `json:"parent_id,omitempty"`
 	SortOrder *int    `json:"sort_order,omitempty"`
 	IsActive  string  `json:"is_active,omitempty"`
+	IconURL   *string `json:"icon_url,omitempty"`
 }
 
 type CreateWithSubsInput struct {
@@ -30,6 +31,7 @@ type UpdateInput struct {
 	ParentID  *int    `json:"parent_id,omitempty"`
 	SortOrder *int    `json:"sort_order,omitempty"`
 	IsActive  *string `json:"is_active,omitempty"` // YES/NO
+	IconURL   *string `json:"icon_url,omitempty"`
 }
 
 type UpsertNodeInput struct {
@@ -38,6 +40,7 @@ type UpsertNodeInput struct {
 	Slug      *string `json:"slug,omitempty"`
 	SortOrder *int    `json:"sort_order,omitempty"`
 	IsActive  string  `json:"is_active,omitempty"`
+	IconURL   *string `json:"icon_url,omitempty"`
 }
 
 type UpsertCategoryTreeInput struct {
@@ -219,6 +222,7 @@ func (s *service) Create(ctx context.Context, in CreateInput) (Category, error) 
 		ParentID:  in.ParentID,
 		SortOrder: sortOrder,
 		IsActive:  in.IsActive,
+		IconURL:   in.IconURL,
 	}
 	return s.repo.Create(ctx, params)
 }
@@ -363,6 +367,7 @@ func (s *service) UpsertCategoryTree(ctx context.Context, in UpsertCategoryTreeI
 		SortOrder: in.Main.SortOrder,
 		IsActive:  in.Main.IsActive,
 		ParentID:  nil, // main ต้องเป็น NULL เสมอ
+		IconURL:   in.Main.IconURL,
 	}
 	if err := validateCreate(&mainCreate); err != nil {
 		return Category{}, nil, err
@@ -398,6 +403,7 @@ func (s *service) UpsertCategoryTree(ctx context.Context, in UpsertCategoryTreeI
 		Slug:      *mainCreate.Slug,
 		SortOrder: derefInt(mainCreate.SortOrder, 0),
 		IsActive:  mainCreate.IsActive,
+		IconURL:   in.Main.IconURL,
 	}
 
 	// 5) call repo tx

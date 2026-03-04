@@ -46,6 +46,7 @@ type CreateParams struct {
 	ParentID  *int
 	SortOrder int
 	IsActive  string // "YES" / "NO"
+	IconURL   *string
 }
 
 type UpdateParams struct {
@@ -54,6 +55,7 @@ type UpdateParams struct {
 	ParentID  *int
 	SortOrder *int
 	IsActive  *string
+	IconURL   *string
 }
 
 type UpsertMainParams struct {
@@ -62,6 +64,7 @@ type UpsertMainParams struct {
 	Slug      string
 	SortOrder int
 	IsActive  string
+	IconURL   *string
 }
 
 type UpsertNodeParams struct {
@@ -81,14 +84,13 @@ func (r *repo) Create(ctx context.Context, in CreateParams) (Category, error) {
 
 	var c Category
 	err := r.db.QueryRow(ctx, `
-		INSERT INTO categories (name, slug, parent_id, sort_order, is_active)
-		VALUES ($1, $2, $3, $4, $5)
-		RETURNING category_id, name, slug, parent_id, sort_order, is_active,
-		          created_at, updated_at
+		INSERT INTO categories (name, slug, parent_id, sort_order, is_active, icon_url)
+	VALUES ($1,$2,$3,$4,$5,$6)
+	RETURNING category_id, name, slug, parent_id, sort_order, is_active, icon_url, created_at, updated_at
 	`,
-		in.Name, in.Slug, in.ParentID, in.SortOrder, in.IsActive,
+		in.Name, in.Slug, in.ParentID, in.SortOrder, in.IsActive, in.IconURL,
 	).Scan(
-		&c.ID, &c.Name, &c.Slug, &c.ParentID, &c.SortOrder, &c.IsActive,
+		&c.ID, &c.Name, &c.Slug, &c.ParentID, &c.SortOrder, &c.IsActive, &c.IconURL,
 		&c.CreatedAt, &c.UpdatedAt,
 	)
 	if err != nil {
@@ -101,13 +103,13 @@ func (r *repo) Create(ctx context.Context, in CreateParams) (Category, error) {
 func (r *repo) Get(ctx context.Context, id int64) (Category, error) {
 	var c Category
 	err := r.db.QueryRow(ctx, `
-		SELECT category_id, name, slug, parent_id, sort_order, is_active,
-		       created_at, updated_at
-		FROM categories
-		WHERE category_id = $1
-	`, id).Scan(
+	SELECT category_id, name, slug, parent_id, sort_order, is_active,
+	       icon_url, created_at, updated_at
+	FROM categories
+	WHERE category_id = $1
+`, id).Scan(
 		&c.ID, &c.Name, &c.Slug, &c.ParentID, &c.SortOrder, &c.IsActive,
-		&c.CreatedAt, &c.UpdatedAt,
+		&c.IconURL, &c.CreatedAt, &c.UpdatedAt,
 	)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -158,7 +160,7 @@ func (r *repo) List(ctx context.Context, q string, parentID *int64, activeOnly b
 
 	sql := `
 		SELECT category_id, name, slug, parent_id, sort_order, is_active,
-		       created_at, updated_at
+	       	icon_url, created_at, updated_at
 		FROM categories
 		WHERE ` + strings.Join(where, " AND ") + `
 		ORDER BY sort_order ASC, name ASC
@@ -175,7 +177,7 @@ func (r *repo) List(ctx context.Context, q string, parentID *int64, activeOnly b
 		var c Category
 		if err := rows.Scan(
 			&c.ID, &c.Name, &c.Slug, &c.ParentID, &c.SortOrder, &c.IsActive,
-			&c.CreatedAt, &c.UpdatedAt,
+			&c.IconURL, &c.CreatedAt, &c.UpdatedAt,
 		); err != nil {
 			return nil, apperr.Wrap(apperr.Internal, err, "scan category failed")
 		}
@@ -193,19 +195,20 @@ func (r *repo) Update(ctx context.Context, id int64, in UpdateParams) (Category,
 	err := r.db.QueryRow(ctx, `
 		UPDATE categories
 		SET name       = COALESCE($2, name),
-		    slug       = COALESCE($3, slug),
-		    parent_id  = COALESCE($4, parent_id),
-		    sort_order = COALESCE($5, sort_order),
-		    is_active  = COALESCE($6, is_active),
-		    updated_at = NOW()
+	    	slug       = COALESCE($3, slug),
+	    	parent_id  = COALESCE($4, parent_id),
+	    	sort_order = COALESCE($5, sort_order),
+	    	is_active  = COALESCE($6, is_active),
+	    	icon_url   = COALESCE($7, icon_url),
+	    	updated_at = NOW()
 		WHERE category_id = $1
 		RETURNING category_id, name, slug, parent_id, sort_order, is_active,
-		          created_at, updated_at
+	          icon_url, created_at, updated_at
 	`,
-		id, in.Name, in.Slug, in.ParentID, in.SortOrder, in.IsActive,
+		id, in.Name, in.Slug, in.ParentID, in.SortOrder, in.IsActive, in.IconURL,
 	).Scan(
 		&c.ID, &c.Name, &c.Slug, &c.ParentID, &c.SortOrder, &c.IsActive,
-		&c.CreatedAt, &c.UpdatedAt,
+		&c.IconURL, &c.CreatedAt, &c.UpdatedAt,
 	)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -238,11 +241,14 @@ func (r *repo) CreateMainWithSubs(ctx context.Context, main CreateParams, subs [
 	// 1) insert main (parent_id = NULL)
 	var createdMain Category
 	err = tx.QueryRow(ctx, `
-		INSERT INTO categories (name, slug, parent_id, sort_order, is_active)
-		VALUES ($1, $2, NULL, $3, $4)
-		RETURNING category_id, name, slug, parent_id, sort_order, is_active, created_at, updated_at
-	`, strings.TrimSpace(main.Name), strings.TrimSpace(main.Slug), main.SortOrder, main.IsActive).
-		Scan(&createdMain.ID, &createdMain.Name, &createdMain.Slug, &createdMain.ParentID, &createdMain.SortOrder, &createdMain.IsActive, &createdMain.CreatedAt, &createdMain.UpdatedAt)
+  	INSERT INTO categories (name, slug, parent_id, sort_order, is_active, icon_url)
+  	VALUES ($1, $2, NULL, $3, $4, $5)
+  	RETURNING category_id, name, slug, parent_id, sort_order, is_active,
+            	icon_url, created_at, updated_at
+	`, strings.TrimSpace(main.Name), strings.TrimSpace(main.Slug), main.SortOrder, main.IsActive, main.IconURL).
+		Scan(&createdMain.ID, &createdMain.Name, &createdMain.Slug, &createdMain.ParentID,
+			&createdMain.SortOrder, &createdMain.IsActive, &createdMain.IconURL,
+			&createdMain.CreatedAt, &createdMain.UpdatedAt)
 	if err != nil {
 		return Category{}, nil, apperr.Wrap(apperr.Internal, err, "insert main category failed")
 	}
@@ -252,11 +258,13 @@ func (r *repo) CreateMainWithSubs(ctx context.Context, main CreateParams, subs [
 	for _, sc := range subs {
 		var c Category
 		err = tx.QueryRow(ctx, `
-			INSERT INTO categories (name, slug, parent_id, sort_order, is_active)
-			VALUES ($1, $2, $3, $4, $5)
-			RETURNING category_id, name, slug, parent_id, sort_order, is_active, created_at, updated_at
-		`, strings.TrimSpace(sc.Name), strings.TrimSpace(sc.Slug), createdMain.ID, sc.SortOrder, sc.IsActive).
-			Scan(&c.ID, &c.Name, &c.Slug, &c.ParentID, &c.SortOrder, &c.IsActive, &c.CreatedAt, &c.UpdatedAt)
+  INSERT INTO categories (name, slug, parent_id, sort_order, is_active, icon_url)
+  VALUES ($1, $2, $3, $4, $5, NULL)
+  RETURNING category_id, name, slug, parent_id, sort_order, is_active,
+            icon_url, created_at, updated_at
+`, strings.TrimSpace(sc.Name), strings.TrimSpace(sc.Slug), createdMain.ID, sc.SortOrder, sc.IsActive).
+			Scan(&c.ID, &c.Name, &c.Slug, &c.ParentID, &c.SortOrder, &c.IsActive,
+				&c.IconURL, &c.CreatedAt, &c.UpdatedAt)
 		if err != nil {
 			return Category{}, nil, apperr.Wrap(apperr.Internal, err, "insert subcategory failed")
 		}
@@ -311,12 +319,12 @@ func (r *repo) ListAdmin(ctx context.Context, q string, parentID *int64, isActiv
 	args = append(args, limit, offset)
 
 	sql := `
-		SELECT category_id, name, slug, parent_id, sort_order, is_active,
-		       created_at, updated_at
-		FROM categories
-		WHERE ` + strings.Join(where, " AND ") + `
-		ORDER BY sort_order ASC, name ASC
-		LIMIT $` + strconv.Itoa(argPos) + ` OFFSET $` + strconv.Itoa(argPos+1)
+	SELECT category_id, name, slug, parent_id, sort_order, is_active,
+	       icon_url, created_at, updated_at
+	FROM categories
+	WHERE ` + strings.Join(where, " AND ") + `
+	ORDER BY sort_order ASC, name ASC
+	LIMIT $` + strconv.Itoa(argPos) + ` OFFSET $` + strconv.Itoa(argPos+1)
 
 	rows, err := r.db.Query(ctx, sql, args...)
 	if err != nil {
@@ -329,7 +337,7 @@ func (r *repo) ListAdmin(ctx context.Context, q string, parentID *int64, isActiv
 		var c Category
 		if err := rows.Scan(
 			&c.ID, &c.Name, &c.Slug, &c.ParentID, &c.SortOrder, &c.IsActive,
-			&c.CreatedAt, &c.UpdatedAt,
+			&c.IconURL, &c.CreatedAt, &c.UpdatedAt,
 		); err != nil {
 			return nil, apperr.Wrap(apperr.Internal, err, "scan category failed")
 		}
@@ -380,24 +388,28 @@ func (r *repo) UpsertMainAndLinkSubs(
 
 		// update main
 		err = tx.QueryRow(ctx, `
-			UPDATE categories
-			SET name = $2,
-			    slug = $3,
-			    sort_order = $4,
-			    is_active = $5,
-			    parent_id = NULL,
-			    updated_at = NOW()
-			WHERE category_id = $1
-			RETURNING category_id, name, slug, parent_id, sort_order, is_active, created_at, updated_at
+  		UPDATE categories
+  		SET name = $2,
+      		slug = $3,
+      		sort_order = $4,
+      		is_active = $5,
+      		icon_url = COALESCE($6, icon_url),
+      		parent_id = NULL,
+      		updated_at = NOW()
+  		WHERE category_id = $1
+  		RETURNING category_id, name, slug, parent_id, sort_order, is_active,
+            icon_url, created_at, updated_at
 		`,
 			*main.ID,
 			strings.TrimSpace(main.Name),
 			strings.TrimSpace(main.Slug),
 			main.SortOrder,
 			main.IsActive,
+			main.IconURL,
 		).Scan(
 			&createdMain.ID, &createdMain.Name, &createdMain.Slug, &createdMain.ParentID,
-			&createdMain.SortOrder, &createdMain.IsActive, &createdMain.CreatedAt, &createdMain.UpdatedAt,
+			&createdMain.SortOrder, &createdMain.IsActive, &createdMain.IconURL,
+			&createdMain.CreatedAt, &createdMain.UpdatedAt,
 		)
 		if err != nil {
 			return Category{}, nil, mapCategoryPgErr(err, "update main category failed")
@@ -405,17 +417,20 @@ func (r *repo) UpsertMainAndLinkSubs(
 	} else {
 		// insert main
 		err = tx.QueryRow(ctx, `
-			INSERT INTO categories (name, slug, parent_id, sort_order, is_active)
-			VALUES ($1, $2, NULL, $3, $4)
-			RETURNING category_id, name, slug, parent_id, sort_order, is_active, created_at, updated_at
+  		INSERT INTO categories (name, slug, parent_id, sort_order, is_active, icon_url)
+ 		VALUES ($1, $2, NULL, $3, $4, $5)
+  		RETURNING category_id, name, slug, parent_id, sort_order, is_active,
+            icon_url, created_at, updated_at
 		`,
 			strings.TrimSpace(main.Name),
 			strings.TrimSpace(main.Slug),
 			main.SortOrder,
 			main.IsActive,
+			main.IconURL,
 		).Scan(
 			&createdMain.ID, &createdMain.Name, &createdMain.Slug, &createdMain.ParentID,
-			&createdMain.SortOrder, &createdMain.IsActive, &createdMain.CreatedAt, &createdMain.UpdatedAt,
+			&createdMain.SortOrder, &createdMain.IsActive, &createdMain.IconURL,
+			&createdMain.CreatedAt, &createdMain.UpdatedAt,
 		)
 		if err != nil {
 			return Category{}, nil, mapCategoryPgErr(err, "insert main category failed")
@@ -463,9 +478,10 @@ func (r *repo) UpsertMainAndLinkSubs(
 				    parent_id = $4,
 				    sort_order = $5,
 				    is_active = $6,
+					icon_url = NULL,
 				    updated_at = NOW()
 				WHERE category_id = $1
-				RETURNING category_id, name, slug, parent_id, sort_order, is_active, created_at, updated_at
+				RETURNING category_id, name, slug, parent_id, sort_order, is_active,icon_url, created_at, updated_at
 			`,
 				*sc.ID,
 				strings.TrimSpace(sc.Name),
@@ -474,7 +490,8 @@ func (r *repo) UpsertMainAndLinkSubs(
 				sc.SortOrder,
 				sc.IsActive,
 			).Scan(
-				&c.ID, &c.Name, &c.Slug, &c.ParentID, &c.SortOrder, &c.IsActive, &c.CreatedAt, &c.UpdatedAt,
+				&c.ID, &c.Name, &c.Slug, &c.ParentID, &c.SortOrder, &c.IsActive,
+				&c.IconURL, &c.CreatedAt, &c.UpdatedAt,
 			)
 			if err != nil {
 				return Category{}, nil, mapCategoryPgErr(err, "update subcategory failed")
@@ -482,9 +499,9 @@ func (r *repo) UpsertMainAndLinkSubs(
 		} else {
 			// insert sub
 			err = tx.QueryRow(ctx, `
-				INSERT INTO categories (name, slug, parent_id, sort_order, is_active)
-				VALUES ($1, $2, $3, $4, $5)
-				RETURNING category_id, name, slug, parent_id, sort_order, is_active, created_at, updated_at
+				INSERT INTO categories (name, slug, parent_id, sort_order, is_active, icon_url)
+				VALUES ($1, $2, $3, $4, $5, NULL)
+				RETURNING category_id, name, slug, parent_id, sort_order, is_active, icon_url, created_at, updated_at
 			`,
 				strings.TrimSpace(sc.Name),
 				strings.TrimSpace(sc.Slug),
@@ -492,7 +509,8 @@ func (r *repo) UpsertMainAndLinkSubs(
 				sc.SortOrder,
 				sc.IsActive,
 			).Scan(
-				&c.ID, &c.Name, &c.Slug, &c.ParentID, &c.SortOrder, &c.IsActive, &c.CreatedAt, &c.UpdatedAt,
+				&c.ID, &c.Name, &c.Slug, &c.ParentID, &c.SortOrder, &c.IsActive,
+				&c.IconURL, &c.CreatedAt, &c.UpdatedAt,
 			)
 			if err != nil {
 				return Category{}, nil, mapCategoryPgErr(err, "insert subcategory failed")
@@ -554,9 +572,10 @@ func (r *repo) SetCategoryActive(ctx context.Context, id int64, isActive string)
 		SET is_active = $2,
 		    updated_at = NOW()
 		WHERE category_id = $1
-		RETURNING category_id, name, slug, parent_id, sort_order, is_active, created_at, updated_at
+		RETURNING category_id, name, slug, parent_id, sort_order, is_active,
+          icon_url, created_at, updated_at
 	`, id, strings.ToUpper(strings.TrimSpace(isActive))).
-		Scan(&c.ID, &c.Name, &c.Slug, &c.ParentID, &c.SortOrder, &c.IsActive, &c.CreatedAt, &c.UpdatedAt)
+		Scan(&c.ID, &c.Name, &c.Slug, &c.ParentID, &c.SortOrder, &c.IsActive, &c.IconURL, &c.CreatedAt, &c.UpdatedAt)
 
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -629,8 +648,9 @@ func (r *repo) DeactivateSubAndMoveProducts(ctx context.Context, subID, moveToSu
 		UPDATE categories
 		SET is_active = 'NO', updated_at = NOW()
 		WHERE category_id = $1
-		RETURNING category_id, name, slug, parent_id, sort_order, is_active, created_at, updated_at
-	`, subID).Scan(&sub.ID, &sub.Name, &sub.Slug, &sub.ParentID, &sub.SortOrder, &sub.IsActive, &sub.CreatedAt, &sub.UpdatedAt)
+		RETURNING category_id, name, slug, parent_id, sort_order, is_active,
+          icon_url, created_at, updated_at
+	`, subID).Scan(&sub.ID, &sub.Name, &sub.Slug, &sub.ParentID, &sub.SortOrder, &sub.IsActive, &sub.IconURL, &sub.CreatedAt, &sub.UpdatedAt)
 	if err != nil {
 		return Category{}, 0, apperr.Wrap(apperr.Internal, err, "deactivate category failed")
 	}

@@ -8,6 +8,7 @@ import (
 	"github.com/gin-gonic/gin"
 
 	apperr "github.com/Perpasit/Capstone-KMALL/internal/apperr"
+	"github.com/Perpasit/Capstone-KMALL/internal/filestore"
 	"github.com/Perpasit/Capstone-KMALL/internal/middleware"
 	"github.com/Perpasit/Capstone-KMALL/internal/respond"
 )
@@ -17,10 +18,11 @@ import (
 type Handler struct {
 	svc     Service
 	roleSvc middleware.RoleNameLister
+	fs      filestore.Store
 }
 
-func NewHandler(s Service, rl middleware.RoleNameLister) *Handler {
-	return &Handler{svc: s, roleSvc: rl}
+func NewHandler(s Service, rl middleware.RoleNameLister, fs filestore.Store) *Handler {
+	return &Handler{svc: s, roleSvc: rl, fs: fs}
 }
 
 func (h *Handler) Register(r *gin.RouterGroup) {
@@ -33,6 +35,7 @@ func (h *Handler) Register(r *gin.RouterGroup) {
 	admin := r.Group("/admin/categories", middleware.RequireRolesAny(h.roleSvc, "Admin"))
 	admin.GET("", h.listAdmin)
 	admin.POST("", h.create)
+	admin.POST("/upload-icon", h.uploadIcon)
 	admin.GET("/:id", h.get)
 	admin.PUT("/:id", h.update)
 	admin.DELETE("/:id", h.delete)
@@ -61,6 +64,7 @@ type updateReq struct {
 	ParentID  *int    `json:"parent_id"`
 	SortOrder *int    `json:"sort_order"`
 	IsActive  *string `json:"is_active"`
+	IconURL   *string `json:"icon_url"`
 }
 
 type upsertTreeReq struct {
@@ -210,7 +214,6 @@ func (h *Handler) get(c *gin.Context) {
 	respond.OK(c, apperr.OK, cat)
 }
 
-// PUT /api/categories/:id (Admin)
 func (h *Handler) update(c *gin.Context) {
 	id, ok := parseID(c)
 	if !ok {
@@ -223,11 +226,21 @@ func (h *Handler) update(c *gin.Context) {
 		return
 	}
 
-	cat, err := h.svc.Update(c.Request.Context(), id, UpdateInput(in))
+	input := UpdateInput{
+		Name:      in.Name,
+		Slug:      in.Slug,
+		ParentID:  in.ParentID,
+		SortOrder: in.SortOrder,
+		IsActive:  in.IsActive,
+		IconURL:   in.IconURL, // ถ้ามี field นี้ใน updateReq/UpdateInput
+	}
+
+	cat, err := h.svc.Update(c.Request.Context(), id, input)
 	if err != nil {
 		c.Error(err)
 		return
 	}
+
 	respond.Updated(c, apperr.Updated, cat)
 }
 
@@ -374,4 +387,22 @@ func (h *Handler) deactivate(c *gin.Context) {
 	}
 
 	respond.Updated(c, apperr.Updated, cat)
+}
+
+func (h *Handler) uploadIcon(c *gin.Context) {
+	fh, err := c.FormFile("file")
+	if err != nil {
+		c.Error(apperr.New(apperr.BadRequest, "file is required"))
+		return
+	}
+
+	up, err := h.fs.Save(c.Request.Context(), "category-icons", fh)
+	if err != nil {
+		c.Error(err)
+		return
+	}
+
+	respond.Created(c, apperr.Created, gin.H{
+		"icon_url": up.URL,
+	})
 }
