@@ -45,6 +45,7 @@ func (h *Handler) Register(r *gin.RouterGroup) {
 		admin := g.Group("", middleware.RequireRolesAny(h.roleSvc, "admin"))
 		{
 			admin.GET("", h.listReports)
+			admin.GET("/counts-by-status", h.countReportsByStatus)
 			admin.GET("/:report_id", h.getReportDetail)
 			admin.POST("/:report_id/action", h.adminTakeAction)
 		}
@@ -646,4 +647,28 @@ func (h *Handler) getUserBlacklist(c *gin.Context) {
 func (h *Handler) healthAdmin(c *gin.Context) {
 	respond.OK(c, apperr.OK, gin.H{"status": "ok"})
 	c.Status(http.StatusOK)
+}
+
+// GET /api/reports/counts-by-status?reported_party_type=BUYER|SELLER
+func (h *Handler) countReportsByStatus(c *gin.Context) {
+	// admin guard อยู่ที่ router แล้ว
+
+	var rpt *string
+	if v := strings.ToUpper(strings.TrimSpace(c.Query("reported_party_type"))); v != "" {
+		if v != "BUYER" && v != "SELLER" {
+			c.Error(apperr.New(apperr.BadRequest, "reported_party_type must be BUYER or SELLER"))
+			return
+		}
+		rpt = &v
+	}
+
+	out, err := h.svc.CountReportsByStatus(c.Request.Context(), CountReportsByStatusInput{
+		ReportedPartyType: rpt,
+	})
+	if err != nil {
+		c.Error(err)
+		return
+	}
+
+	respond.OK(c, apperr.OK, out)
 }

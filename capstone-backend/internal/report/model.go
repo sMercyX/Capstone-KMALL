@@ -231,3 +231,14 @@ type ListUserBlacklistsParams struct {
 	FromDate *time.Time
 	ToDate   *time.Time
 }
+
+type CountReportsByStatusInput struct {
+	ReportedPartyType *string
+}
+
+type ReportStatusCounts struct {
+	Pending  int64 `json:"pending"`
+	Resolved int64 `json:"resolved"`
+	Closed   int64 `json:"closed"`
+	Total    int64 `json:"total"`
+}

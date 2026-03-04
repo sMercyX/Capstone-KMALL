@@ -38,6 +38,8 @@ type Repo interface {
 
 	ListUserBlacklists(ctx context.Context, in ListUserBlacklistsParams) ([]UserBlacklist, int64, error)
 	GetUserBlacklist(ctx context.Context, blacklistID int64) (UserBlacklist, error)
+
+	CountReportsByStatus(ctx context.Context, reportedPartyType *string) (ReportStatusCounts, error)
 }
 
 type repo struct{ db *pgxpool.Pool }
@@ -979,6 +981,32 @@ WHERE ub.blacklist_id = $1
 		return UserBlacklist{}, apperr.Wrap(apperr.Internal, err, "get user_blacklist failed")
 	}
 	return b, nil
+}
+
+func (r *repo) CountReportsByStatus(ctx context.Context, reportedPartyType *string) (ReportStatusCounts, error) {
+	base := `
+SELECT
+	COUNT(*) FILTER (WHERE r.status = 'PENDING')  AS pending,
+	COUNT(*) FILTER (WHERE r.status = 'RESOLVED') AS resolved,
+	COUNT(*) FILTER (WHERE r.status = 'CLOSED')   AS closed,
+	COUNT(*) FILTER (WHERE r.status IN ('PENDING','RESOLVED','CLOSED')) AS total
+FROM reports r
+WHERE 1=1
+`
+	args := []any{}
+	i := 1
+
+	if reportedPartyType != nil {
+		base += ` AND r.reported_party_type = $` + itoa(i)
+		args = append(args, strings.ToUpper(strings.TrimSpace(*reportedPartyType)))
+		i++
+	}
+
+	var out ReportStatusCounts
+	if err := r.db.QueryRow(ctx, base, args...).Scan(&out.Pending, &out.Resolved, &out.Closed, &out.Total); err != nil {
+		return ReportStatusCounts{}, apperr.Wrap(apperr.Internal, err, "count reports by status failed")
+	}
+	return out, nil
 }
 
 var _ = time.Now
