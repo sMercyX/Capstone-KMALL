@@ -496,9 +496,52 @@ FROM report_admin_actions WHERE report_id = $1 ORDER BY created_at ASC`, reportI
 		if err := scanAdminAction(rows, &a); err != nil {
 			return nil, apperr.Wrap(apperr.Internal, err, "scan admin action failed")
 		}
+
+		// ดึง blacklist ที่ผูกกับ report + target_user นี้
+		if a.TargetUserID != nil {
+			bl, err := r.getBlacklistByReportAndUser(ctx, reportID, *a.TargetUserID)
+			if err == nil && bl != nil {
+				a.Blacklist = bl
+			}
+		}
+
 		out = append(out, a)
 	}
 	return out, rows.Err()
+}
+
+func (r *repo) getBlacklistByReportAndUser(ctx context.Context, reportID int64, userID string) (*UserBlacklist, error) {
+	var b UserBlacklist
+	err := scanUserBlacklist(r.db.QueryRow(ctx, `
+SELECT
+  ub.blacklist_id, ub.user_id, ub.user_role, ub.report_id,
+  r.order_id,
+  ub.reason, ub.ban_type, ub.banned_from, ub.banned_until,
+  ub.is_active, ub.created_by, ub.created_at,
+  u.display_name,
+  st.store_id,
+  st.store_name
+FROM user_blacklists ub
+LEFT JOIN reports r ON r.report_id = ub.report_id
+JOIN users u ON u.user_id = ub.user_id
+LEFT JOIN LATERAL (
+  SELECT s.store_id, s.store_name
+  FROM stores s
+  WHERE s.user_id = ub.user_id
+  ORDER BY s.store_id ASC
+  LIMIT 1
+) st ON TRUE
+WHERE ub.report_id = $1 AND ub.user_id = $2
+ORDER BY ub.created_at DESC
+LIMIT 1
+`, reportID, userID), &b)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return &b, nil
 }
 
 func (r *repo) ExpireBansByRole(ctx context.Context, userID, userRole string) error {

@@ -75,16 +75,17 @@ type ReportChatSnapshot struct {
 }
 
 type ReportAdminAction struct {
-	ID            int64     `json:"action_id"`
-	ReportID      int64     `json:"report_id"`
-	AdminID       string    `json:"admin_id"`
-	ActionType    string    `json:"action_type"` // NO_ACTION / RESOLVED / CLOSED / WARN_USER / SUSPEND_USER / BAN_USER / HIDE_STORE / SUSPEND_STORE / DELETE_STORE
-	Note          *string   `json:"note,omitempty"`
-	TargetUserID  *string   `json:"target_user_id,omitempty"`
-	TargetStoreID *int      `json:"target_store_id,omitempty"`
-	SuspendDays   *int      `json:"suspend_days,omitempty"`
-	IsPermanent   bool      `json:"is_permanent"`
-	CreatedAt     time.Time `json:"created_at"`
+	ID            int64          `json:"action_id"`
+	ReportID      int64          `json:"report_id"`
+	AdminID       string         `json:"admin_id"`
+	ActionType    string         `json:"action_type"` // NO_ACTION / RESOLVED / CLOSED / WARN_USER / SUSPEND_USER / BAN_USER / HIDE_STORE / SUSPEND_STORE / DELETE_STORE
+	Note          *string        `json:"note,omitempty"`
+	TargetUserID  *string        `json:"target_user_id,omitempty"`
+	TargetStoreID *int           `json:"target_store_id,omitempty"`
+	SuspendDays   *int           `json:"suspend_days,omitempty"`
+	IsPermanent   bool           `json:"is_permanent"`
+	CreatedAt     time.Time      `json:"created_at"`
+	Blacklist     *UserBlacklist `json:"blacklist,omitempty"`
 }
 
 // ============================================================================
