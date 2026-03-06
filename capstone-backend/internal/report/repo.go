@@ -939,6 +939,7 @@ WHERE report_id = $1
 	}
 	return nil
 }
+
 func (r *repo) ListUserBlacklists(ctx context.Context, in ListUserBlacklistsParams) ([]UserBlacklist, int64, error) {
 	if in.Limit <= 0 || in.Limit > 100 {
 		in.Limit = 20
@@ -993,13 +994,15 @@ WHERE 1=1`
 	}
 	if q := strings.TrimSpace(in.Q); q != "" {
 		base += ` AND (
-		ub.user_id::text ILIKE $` + itoa(i) + `
-		OR ub.blacklist_id::text ILIKE $` + itoa(i) + `
-		OR ub.report_id::text ILIKE $` + itoa(i) + `
-		OR o.order_id::text ILIKE $` + itoa(i) + `
-		OR ub.reason ILIKE $` + itoa(i) + `
-	)`
-		args = append(args, q+"%")
+        ub.user_id::text ILIKE $` + itoa(i) + `
+        OR ub.blacklist_id::text ILIKE $` + itoa(i) + `
+        OR ub.report_id::text ILIKE $` + itoa(i) + `
+        OR o.order_id::text ILIKE $` + itoa(i) + `
+        OR ub.reason ILIKE $` + itoa(i) + `
+        OR u.display_name ILIKE $` + itoa(i) + `
+        OR st.store_name ILIKE $` + itoa(i) + `
+    )`
+		args = append(args, "%"+q+"%")
 		i++
 	}
 
