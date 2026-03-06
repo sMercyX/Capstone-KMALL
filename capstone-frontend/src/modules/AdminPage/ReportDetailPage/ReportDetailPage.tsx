@@ -20,7 +20,6 @@ const formatChatDate = (dateString: string) => {
   }
 }
 import { resolveImageUrl } from "../../../utils/resolve"
-import ConfirmationModal from "../../../components/Modal/ConfirmationModal"
 import ResolveReportModal, { type ResolveActionData } from "../../../components/Admin/ResolveReportModal"
 
 export default function ReportDetailPage() {
@@ -36,6 +35,7 @@ export default function ReportDetailPage() {
   const [isRejectModalOpen, setIsRejectModalOpen] = useState(false)
   const [isResolveModalOpen, setIsResolveModalOpen] = useState(false)
   const [submittingAction, setSubmittingAction] = useState(false)
+  const [rejectNote, setRejectNote] = useState("")
 
   const [selectedImage, setSelectedImage] = useState<string | null>(null)
 
@@ -121,10 +121,12 @@ export default function ReportDetailPage() {
   }, [reportId])
 
   const handleReject = async () => {
-    if (!reportId) return
+    if (!reportId || !rejectNote.trim()) return
     setSubmittingAction(true)
     try {
-      await actionReport(reportId, { action_type: "NO_ACTION" })
+      await actionReport(reportId, { action_type: "NO_ACTION", note: rejectNote.trim() })
+      setIsRejectModalOpen(false)
+      setRejectNote("")
       fetchReport() // Refresh data after reject
     } catch (err) {
       console.error(err)
@@ -143,7 +145,8 @@ export default function ReportDetailPage() {
         target_user_id: reportData.report.reported_user_id,
         user_role: reportData.report.reported_party_type,
         suspend_days: actionData.suspend_days,
-        is_permanent: actionData.is_permanent
+        is_permanent: actionData.is_permanent,
+        note: actionData.note
       })
       fetchReport() // Refresh data
     } catch (err) {
@@ -432,17 +435,60 @@ export default function ReportDetailPage() {
         
       </div>
 
-      <ConfirmationModal
-        isOpen={isRejectModalOpen}
-        onClose={() => setIsRejectModalOpen(false)}
-        onConfirm={handleReject}
-        title="Reject Report"
-        message="Are you sure you want to reject this report? No penalizing actions will be taken against the reported user."
-        confirmText={submittingAction ? "Rejecting..." : "Yes, Reject"}
-        cancelText="Cancel"
-        variant="warning"
-        confirmDisabled={submittingAction}
-      />
+      {/* Reject Report Modal */}
+      {isRejectModalOpen && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 backdrop-blur-sm px-4 animate-in fade-in duration-200">
+          <div className="w-full max-w-[600px] transform overflow-hidden rounded-2xl bg-white p-8 text-left shadow-xl transition-all animate-in zoom-in-95 duration-200 scale-100">
+            {/* Header */}
+            <div className="flex items-center justify-between mb-2">
+              <h3 className="text-xl font-bold text-gray-900">
+                Reject Report <span className="text-[#ff5a36]">[ #RPT-{report.report_id.toString().padStart(4, '0')} ]</span>
+              </h3>
+              <button
+                onClick={() => { setIsRejectModalOpen(false); setRejectNote(""); }}
+                className="rounded-full p-1 hover:bg-gray-100 transition-colors"
+              >
+                <X className="w-6 h-6 text-gray-500" />
+              </button>
+            </div>
+            <p className="text-sm text-gray-500 mb-6">
+              Please provide the reason for rejecting this report. This information will be recorded and shared with the reporter.
+            </p>
+
+            <hr className="border-gray-200 mb-5" />
+
+            {/* Note textarea */}
+            <div>
+              <label className="text-sm font-semibold text-gray-800">
+                note<span className="text-red-500">*</span>
+              </label>
+              <textarea
+                value={rejectNote}
+                onChange={(e) => setRejectNote(e.target.value)}
+                rows={4}
+                placeholder="หลักฐานที่แนบมาไม่ละเอียดและไม่ตรงกัน"
+                className="mt-1 w-full rounded-lg border border-gray-300 p-3 text-sm text-gray-700 focus:border-[#ff5a36] focus:outline-none focus:ring-1 focus:ring-[#ff5a36] resize-none"
+              />
+            </div>
+
+            {/* Button */}
+            <div className="mt-6 flex justify-end">
+              <button
+                type="button"
+                disabled={!rejectNote.trim() || submittingAction}
+                className={`px-8 py-2.5 rounded-lg text-sm font-semibold text-white shadow-sm transition-colors ${
+                  rejectNote.trim() && !submittingAction
+                    ? "bg-red-500 hover:bg-red-600" 
+                    : "bg-gray-300 cursor-not-allowed"
+                }`}
+                onClick={handleReject}
+              >
+                {submittingAction ? "Rejecting..." : "Rejected"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <ResolveReportModal
         isOpen={isResolveModalOpen}
@@ -450,6 +496,7 @@ export default function ReportDetailPage() {
         onConfirm={handleResolve}
         targetUserName={report.reported_display_name}
         targetUserRole={report.reported_party_type}
+        reportId={report.report_id}
       />
 
       {/* Fullscreen Image Viewer Modal */}

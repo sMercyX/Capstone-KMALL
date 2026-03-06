@@ -163,6 +163,7 @@ export function useReportApi() {
       user_role?: "SELLER" | "BUYER"
       suspend_days?: number
       is_permanent?: boolean
+      note?: string
     }
   ): Promise<{ code: number; data: any; status: string }> {
     return http.postItem(`/reports/${reportId}/action`, data)
