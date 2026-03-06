@@ -19,6 +19,7 @@ export default function Navbar() {
   const location = useLocation()
   const isStoreActive = location.pathname.startsWith("/store")
   const isCartActive = location.pathname.startsWith("/orders")
+  const isReportActive = location.pathname.startsWith("/reports")
 
   const { roles } = useUserStore()
   const hasSellerRole = roles?.some((r) => r.toLowerCase() === "seller")
@@ -100,6 +101,7 @@ export default function Navbar() {
             storeLink={storeLink}
             isStoreActive={isStoreActive}
             isCartActive={isCartActive}
+            isReportActive={isReportActive}
           />
         </div>
       </nav>

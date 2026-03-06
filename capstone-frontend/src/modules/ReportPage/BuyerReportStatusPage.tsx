@@ -11,9 +11,9 @@ type TabKey = "ALL" | "PENDING" | "RESOLVED" | "CLOSED"
 
 const tabs: SwitchTabItem[] = [
   { label: "All", key: "ALL" },
-  { label: "In progress", key: "PENDING" },
-  { label: "The problem has been solved", key: "RESOLVED" },
-  { label: "Evidence", key: "CLOSED" }
+  { label: "In Progress", key: "PENDING" },
+  { label: "Resolved", key: "RESOLVED" },
+  { label: "Rejected", key: "CLOSED" }
 ]
 
 export default function BuyerReportStatusPage() {
@@ -86,7 +86,7 @@ export default function BuyerReportStatusPage() {
         return (
           <div className="inline-flex items-center justify-center gap-2 px-5 py-2 rounded-full text-white text-xs font-medium bg-[#f05252] w-[120px] whitespace-nowrap">
             <FaTimes size={12} />
-            Evidence
+            Rejected
           </div>
         )
       default:
