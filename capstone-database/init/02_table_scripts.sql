@@ -59,23 +59,27 @@ CREATE TABLE IF NOT EXISTS stores (
   CONSTRAINT uq_stores_store_name UNIQUE (store_name)
 );
 
-
-
 -- ========= CATEGORIES =========
 CREATE TABLE IF NOT EXISTS categories (
   category_id SERIAL PRIMARY KEY,
-  name VARCHAR(45) NOT NULL,
-  slug VARCHAR(100) NOT NULL,
-  parent_id INT NULL,
-  sort_order INT NOT NULL,
-  is_active VARCHAR(3) NOT NULL CHECK (is_active IN ('YES', 'NO')),
-  created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  name        VARCHAR(45)  NOT NULL,
+  slug        VARCHAR(100) NOT NULL,
+  parent_id   INT          NULL,
+  sort_order  INT          NOT NULL,
+  is_active   VARCHAR(3)   NOT NULL CHECK (is_active IN ('YES', 'NO')),
+  icon_url    TEXT         NULL,
+  created_at  TIMESTAMPTZ  NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at  TIMESTAMPTZ  NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
   CONSTRAINT uq_categories_slug UNIQUE (slug),
+
   CONSTRAINT fk_categories_parent FOREIGN KEY (parent_id)
     REFERENCES categories (category_id)
     ON DELETE SET NULL
-    ON UPDATE CASCADE
+    ON UPDATE CASCADE,
+
+  CONSTRAINT chk_sub_icon_url_null
+    CHECK (parent_id IS NULL OR icon_url IS NULL)
 );
 
 -- ========= PRODUCTS =========

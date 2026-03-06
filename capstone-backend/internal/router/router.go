@@ -237,7 +237,7 @@ func Attach(r *gin.Engine, db *pgxpool.Pool, cfg config.Config) {
 	sHdl.Register(v1)
 
 	// categories
-	cHdl := category.NewHandler(cSvc, rSvc)
+	cHdl := category.NewHandler(cSvc, rSvc, fs)
 	cHdl.Register(v1)
 
 	// products

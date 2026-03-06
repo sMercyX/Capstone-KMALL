@@ -38,6 +38,8 @@ type Repo interface {
 
 	ListUserBlacklists(ctx context.Context, in ListUserBlacklistsParams) ([]UserBlacklist, int64, error)
 	GetUserBlacklist(ctx context.Context, blacklistID int64) (UserBlacklist, error)
+
+	CountReportsByStatus(ctx context.Context, reportedPartyType *string) (ReportStatusCounts, error)
 }
 
 type repo struct{ db *pgxpool.Pool }
@@ -67,14 +69,26 @@ func scanAdminAction(row pgx.Row, a *ReportAdminAction) error {
 		&a.TargetUserID, &a.TargetStoreID, &a.SuspendDays, &a.IsPermanent, &a.CreatedAt)
 }
 func scanUserBlacklist(row pgx.Row, b *UserBlacklist) error {
-	return row.Scan(&b.ID, &b.UserID, &b.UserRole, &b.ReportID, &b.OrderID, &b.Reason,
-		&b.BanType, &b.BannedFrom, &b.BannedUntil, &b.IsActive, &b.CreatedBy, &b.CreatedAt)
+	return row.Scan(
+		&b.ID, &b.UserID, &b.UserRole, &b.ReportID, &b.OrderID, &b.Reason,
+		&b.BanType, &b.BannedFrom, &b.BannedUntil, &b.IsActive, &b.CreatedBy, &b.CreatedAt,
+		&b.DisplayName, &b.StoreID, &b.StoreName,
+	)
+}
+func scanUserBlacklistBase(row pgx.Row, b *UserBlacklist) error {
+	return row.Scan(
+		&b.ID, &b.UserID, &b.UserRole, &b.ReportID, &b.OrderID, &b.Reason,
+		&b.BanType, &b.BannedFrom, &b.BannedUntil, &b.IsActive, &b.CreatedBy, &b.CreatedAt,
+	)
 }
 
 // pgErr extracts *pgconn.PgError using errors.As (works correctly with pgx/v5)
 func pgErr(err error) (*pgconn.PgError, bool) {
 	var e *pgconn.PgError
-	return e, errors.As(err, &e)
+	if errors.As(err, &e) {
+		return e, true
+	}
+	return nil, false
 }
 
 // ── Report ───────────────────────────────────────────────────────────────────
@@ -515,108 +529,115 @@ WHERE user_id = $1
 }
 
 func (r *repo) CreateUserBan(ctx context.Context, in CreateUserBanInput) (UserBlacklist, error) {
-	in.UserID = strings.TrimSpace(in.UserID)
-	in.UserRole = strings.ToUpper(strings.TrimSpace(in.UserRole))
-	if in.UserRole != "BUYER" && in.UserRole != "SELLER" {
-		return UserBlacklist{}, apperr.New(apperr.BadRequest, "invalid user_role")
+	if strings.TrimSpace(in.UserID) == "" {
+		return UserBlacklist{}, apperr.New(apperr.BadRequest, "user_id is required")
 	}
-	in.CreatedBy = strings.TrimSpace(in.CreatedBy)
-	in.Reason = strings.TrimSpace(in.Reason)
-	in.BanType = strings.ToUpper(strings.TrimSpace(in.BanType))
-	if in.UserID == "" || in.CreatedBy == "" || in.Reason == "" || in.BanType == "" {
-		return UserBlacklist{}, apperr.New(apperr.BadRequest, "user_id, reason, ban_type, and created_by are required")
+	if strings.TrimSpace(in.UserRole) == "" {
+		return UserBlacklist{}, apperr.New(apperr.BadRequest, "user_role is required")
+	}
+	if strings.TrimSpace(in.Reason) == "" {
+		return UserBlacklist{}, apperr.New(apperr.BadRequest, "reason is required")
+	}
+	if strings.TrimSpace(in.BanType) == "" {
+		return UserBlacklist{}, apperr.New(apperr.BadRequest, "ban_type is required")
 	}
 
+	in.UserRole = strings.ToUpper(strings.TrimSpace(in.UserRole))
+	in.BanType = strings.ToUpper(strings.TrimSpace(in.BanType))
+
+	if in.UserRole != "BUYER" && in.UserRole != "SELLER" {
+		return UserBlacklist{}, apperr.New(apperr.BadRequest, "user_role must be BUYER or SELLER")
+	}
+
+	if in.BanType != "WARNING" && in.BanType != "TEMPORARY" && in.BanType != "PERMANENT" {
+		return UserBlacklist{}, apperr.New(apperr.BadRequest, "ban_type must be WARNING, TEMPORARY, or PERMANENT")
+	}
+
+	// expire ban role เดิมก่อน
 	if err := r.ExpireBansByRole(ctx, in.UserID, in.UserRole); err != nil {
 		return UserBlacklist{}, err
 	}
 
-	if in.BanType == "WARNING" {
-		t := time.Now().Add(7 * 24 * time.Hour)
-		in.BannedUntil = &t
-	}
-
-	if in.BanType == "TEMPORARY" && in.BannedUntil == nil {
-		return UserBlacklist{}, apperr.New(apperr.BadRequest, "banned_until is required for TEMPORARY")
-	}
-
-	if in.BanType == "PERMANENT" {
-		in.BannedUntil = nil
-	}
-
-	var existsID int64
+	// check active ban
+	var exists bool
 	err := r.db.QueryRow(ctx, `
-    SELECT blacklist_id
-    FROM user_blacklists
-    WHERE user_id = $1
-      AND user_role = $2
-      AND is_active = TRUE
-      AND (
-        ban_type = 'PERMANENT'
-        OR (ban_type IN ('TEMPORARY','WARNING') AND banned_until > NOW())
-      )
-    ORDER BY created_at DESC
-    LIMIT 1;
-`, in.UserID, in.UserRole).Scan(&existsID)
-
-	if err == nil {
-		return UserBlacklist{}, apperr.New(apperr.Conflict, "user already has an active ban")
-	} else if !errors.Is(err, pgx.ErrNoRows) {
-		return UserBlacklist{}, apperr.Wrap(apperr.Internal, err, "check active ban failed")
-	}
-
-	var b UserBlacklist
-	err = scanUserBlacklist(r.db.QueryRow(ctx, `
-INSERT INTO user_blacklists (user_id, user_role, report_id, reason, ban_type, banned_until, created_by)
-VALUES ($1,$2,$3,$4,$5,$6,$7)
-RETURNING
-  blacklist_id, user_id, user_role, report_id,
-  (SELECT r.order_id FROM reports r WHERE r.report_id = user_blacklists.report_id) AS order_id,
-  reason, ban_type, banned_from, banned_until, is_active, created_by, created_at
-`, in.UserID, in.UserRole, in.ReportID, in.Reason, in.BanType, in.BannedUntil, in.CreatedBy), &b)
+SELECT EXISTS (
+	SELECT 1
+	FROM user_blacklists
+	WHERE user_id = $1
+	  AND user_role = $2
+	  AND is_active = TRUE
+)
+`, in.UserID, in.UserRole).Scan(&exists)
 
 	if err != nil {
-		if pe, ok := pgErr(err); ok {
-			switch pe.Code {
-			case "23505":
-				return UserBlacklist{}, apperr.New(apperr.Conflict, "user already has an active ban for this role")
-			case "23514":
-				return UserBlacklist{}, apperr.WithFields(
-					apperr.Wrap(apperr.BadRequest, err, "constraint violation: check ban_type and banned_until"),
-					map[string]any{"constraint": pe.ConstraintName},
-				)
-			}
-			return UserBlacklist{}, apperr.WithFields(
-				apperr.Wrap(apperr.Internal, err, "insert user ban failed"),
-				map[string]any{"pg_code": pe.Code},
-			)
-		}
-		return UserBlacklist{}, apperr.Wrap(apperr.Internal, err, "insert user ban failed")
+		return UserBlacklist{}, apperr.Wrap(apperr.Internal, err, "check existing ban failed")
 	}
-	return b, nil
+
+	if exists {
+		return UserBlacklist{}, apperr.New(apperr.Conflict, "user already has active ban")
+	}
+
+	// insert ban
+	var blacklistID int64
+	err = r.db.QueryRow(ctx, `
+INSERT INTO user_blacklists (
+	user_id,
+	user_role,
+	report_id,
+	reason,
+	ban_type,
+	banned_until,
+	created_by
+)
+VALUES ($1,$2,$3,$4,$5,$6,$7)
+RETURNING blacklist_id
+`,
+		in.UserID,
+		in.UserRole,
+		in.ReportID,
+		in.Reason,
+		in.BanType,
+		in.BannedUntil,
+		in.CreatedBy,
+	).Scan(&blacklistID)
+
+	if err != nil {
+		var pgErr *pgconn.PgError
+		if errors.As(err, &pgErr) {
+			if pgErr.Code == "23503" {
+				return UserBlacklist{}, apperr.New(apperr.BadRequest, "invalid user_id or report_id")
+			}
+			if pgErr.Code == "23514" {
+				return UserBlacklist{}, apperr.New(apperr.BadRequest, "invalid ban_type or user_role")
+			}
+		}
+		return UserBlacklist{}, apperr.Wrap(apperr.Internal, err, "create user ban failed")
+	}
+
+	return r.GetUserBlacklist(ctx, blacklistID)
 }
 
 func (r *repo) RevokeUserBan(ctx context.Context, blacklistID int64) (UserBlacklist, error) {
 	if blacklistID <= 0 {
 		return UserBlacklist{}, apperr.New(apperr.BadRequest, "invalid blacklist_id")
 	}
-	var b UserBlacklist
-	err := scanUserBlacklist(r.db.QueryRow(ctx, `
+
+	var id int64
+	err := r.db.QueryRow(ctx, `
 UPDATE user_blacklists
 SET is_active = FALSE
 WHERE blacklist_id = $1
-RETURNING
-  blacklist_id, user_id, user_role, report_id,
-  (SELECT r.order_id FROM reports r WHERE r.report_id = user_blacklists.report_id) AS order_id,
-  reason, ban_type, banned_from, banned_until, is_active, created_by, created_at
-`, blacklistID), &b)
+RETURNING blacklist_id
+`, blacklistID).Scan(&id)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return UserBlacklist{}, apperr.New(apperr.NotFound, "ban record not found")
 		}
 		return UserBlacklist{}, apperr.Wrap(apperr.Internal, err, "revoke ban failed")
 	}
-	return b, nil
+
+	return r.GetUserBlacklist(ctx, id)
 }
 
 func (r *repo) GetActiveBan(ctx context.Context, userID string) (*UserBlacklist, error) {
@@ -625,7 +646,7 @@ func (r *repo) GetActiveBan(ctx context.Context, userID string) (*UserBlacklist,
 		return nil, apperr.New(apperr.BadRequest, "invalid user_id")
 	}
 	var b UserBlacklist
-	err := scanUserBlacklist(r.db.QueryRow(ctx, `
+	err := scanUserBlacklistBase(r.db.QueryRow(ctx, `
 SELECT
   ub.blacklist_id, ub.user_id, ub.user_role, ub.report_id,
   r.order_id,
@@ -664,9 +685,20 @@ SELECT
   ub.blacklist_id, ub.user_id, ub.user_role, ub.report_id,
   r.order_id,
   ub.reason, ub.ban_type, ub.banned_from, ub.banned_until,
-  ub.is_active, ub.created_by, ub.created_at
+  ub.is_active, ub.created_by, ub.created_at,
+  u.display_name,
+  st.store_id,
+  st.store_name
 FROM user_blacklists ub
 LEFT JOIN reports r ON r.report_id = ub.report_id
+JOIN users u ON u.user_id = ub.user_id
+LEFT JOIN LATERAL (
+  SELECT s.store_id, s.store_name
+  FROM stores s
+  WHERE s.user_id = ub.user_id
+  ORDER BY s.store_id ASC
+  LIMIT 1
+) st ON TRUE
 WHERE ub.user_id = $1
 ORDER BY ub.created_at DESC
 LIMIT $2 OFFSET $3
@@ -707,25 +739,22 @@ func (r *repo) GetMyReport(ctx context.Context, reportID int64, reporterID strin
 		return Report{}, apperr.New(apperr.BadRequest, "invalid report_id")
 	}
 	var rep Report
-	err := r.db.QueryRow(ctx, `
+	err := scanReport(r.db.QueryRow(ctx, `
 SELECT r.report_id, r.order_id, r.reporter_id, r.reported_user_id,
        r.reported_party_type, r.reason_code, r.description, r.status,
        r.created_at, r.updated_at,
        u1.display_name AS reporter_display_name,
        u2.display_name AS reported_display_name,
-       s.store_name
+       s.store_name,
+       o.store_id
 FROM reports r
 JOIN users u1 ON u1.user_id = r.reporter_id
 JOIN users u2 ON u2.user_id = r.reported_user_id
 JOIN orders o ON o.order_id = r.order_id
 JOIN stores s ON s.store_id = o.store_id
-WHERE r.report_id = $1 AND r.reporter_id = $2`, reportID, reporterID).Scan(
-		&rep.ID, &rep.OrderID, &rep.ReporterID, &rep.ReportedUserID,
-		&rep.ReportedPartyType, &rep.ReasonCode, &rep.Description, &rep.Status,
-		&rep.CreatedAt, &rep.UpdatedAt,
-		&rep.ReporterDisplayName, &rep.ReportedDisplayName,
-		&rep.StoreName,
-	)
+WHERE r.report_id = $1 AND r.reporter_id = $2
+`, reportID, reporterID), &rep)
+
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return Report{}, apperr.New(apperr.NotFound, "report not found")
@@ -756,7 +785,7 @@ WHERE r.reporter_id = $1`
 
 	if in.Q != "" {
 		base += ` AND (r.report_id::text LIKE $` + itoa(i) + ` OR r.order_id::text LIKE $` + itoa(i) + `)`
-		args = append(args, in.Q)
+		args = append(args, "%"+in.Q+"%")
 		i++
 	}
 
@@ -778,12 +807,18 @@ WHERE r.reporter_id = $1`
 	}
 
 	// data
-	selectQuery := `SELECT r.report_id, r.order_id, r.reporter_id, r.reported_user_id, r.reported_party_type,
-       r.reason_code, r.description, r.status, r.created_at, r.updated_at,
-       u1.display_name AS reporter_display_name,
-       u2.display_name AS reported_display_name,
-       s.store_name ` + base +
-		` ORDER BY r.created_at DESC LIMIT $` + itoa(i) + ` OFFSET $` + itoa(i+1)
+	selectQuery := `
+SELECT 
+r.report_id, r.order_id, r.reporter_id, r.reported_user_id,
+r.reported_party_type, r.reason_code, r.description, r.status,
+r.created_at, r.updated_at,
+u1.display_name AS reporter_display_name,
+u2.display_name AS reported_display_name,
+s.store_name,
+s.store_id
+` + base + `
+ORDER BY r.created_at DESC
+LIMIT $` + itoa(i) + ` OFFSET $` + itoa(i+1)
 	args = append(args, in.Limit, offset)
 
 	rows, err := r.db.Query(ctx, selectQuery, args...)
@@ -834,7 +869,7 @@ ORDER BY ub.created_at DESC
 	out := []UserBlacklist{}
 	for rows.Next() {
 		var b UserBlacklist
-		if err := scanUserBlacklist(rows, &b); err != nil {
+		if err := scanUserBlacklistBase(rows, &b); err != nil {
 			return nil, apperr.Wrap(apperr.Internal, err, "scan active ban failed")
 		}
 		out = append(out, b)
@@ -874,6 +909,14 @@ func (r *repo) ListUserBlacklists(ctx context.Context, in ListUserBlacklistsPara
 FROM user_blacklists ub
 LEFT JOIN reports r ON r.report_id = ub.report_id
 LEFT JOIN orders  o ON o.order_id = r.order_id
+JOIN users u ON u.user_id = ub.user_id
+LEFT JOIN LATERAL (
+  SELECT s.store_id, s.store_name
+  FROM stores s
+  WHERE s.user_id = ub.user_id
+  ORDER BY s.store_id ASC
+  LIMIT 1
+) st ON TRUE
 WHERE 1=1`
 	args := []any{}
 	i := 1
@@ -926,7 +969,10 @@ WHERE 1=1`
   		ub.blacklist_id, ub.user_id, ub.user_role, ub.report_id,
   		o.order_id,
   		ub.reason, ub.ban_type, ub.banned_from, ub.banned_until,
-  		ub.is_active, ub.created_by, ub.created_at
+  		ub.is_active, ub.created_by, ub.created_at,
+  		u.display_name,
+  		st.store_id,
+  		st.store_name
 		` + base + `
 		ORDER BY ub.created_at DESC
 		LIMIT $` + itoa(i) + ` OFFSET $` + itoa(i+1)
@@ -964,9 +1010,20 @@ SELECT
   ub.blacklist_id, ub.user_id, ub.user_role, ub.report_id,
   r.order_id,
   ub.reason, ub.ban_type, ub.banned_from, ub.banned_until,
-  ub.is_active, ub.created_by, ub.created_at
+  ub.is_active, ub.created_by, ub.created_at,
+  u.display_name,
+  st.store_id,
+  st.store_name
 FROM user_blacklists ub
 LEFT JOIN reports r ON r.report_id = ub.report_id
+JOIN users u ON u.user_id = ub.user_id
+LEFT JOIN LATERAL (
+  SELECT s.store_id, s.store_name
+  FROM stores s
+  WHERE s.user_id = ub.user_id
+  ORDER BY s.store_id ASC
+  LIMIT 1
+) st ON TRUE
 WHERE ub.blacklist_id = $1
 `, blacklistID), &b)
 	if err != nil {
@@ -976,6 +1033,32 @@ WHERE ub.blacklist_id = $1
 		return UserBlacklist{}, apperr.Wrap(apperr.Internal, err, "get user_blacklist failed")
 	}
 	return b, nil
+}
+
+func (r *repo) CountReportsByStatus(ctx context.Context, reportedPartyType *string) (ReportStatusCounts, error) {
+	base := `
+SELECT
+	COUNT(*) FILTER (WHERE r.status = 'PENDING')  AS pending,
+	COUNT(*) FILTER (WHERE r.status = 'RESOLVED') AS resolved,
+	COUNT(*) FILTER (WHERE r.status = 'CLOSED')   AS closed,
+	COUNT(*) FILTER (WHERE r.status IN ('PENDING','RESOLVED','CLOSED')) AS total
+FROM reports r
+WHERE 1=1
+`
+	args := []any{}
+	i := 1
+
+	if reportedPartyType != nil {
+		base += ` AND r.reported_party_type = $` + itoa(i)
+		args = append(args, strings.ToUpper(strings.TrimSpace(*reportedPartyType)))
+		i++
+	}
+
+	var out ReportStatusCounts
+	if err := r.db.QueryRow(ctx, base, args...).Scan(&out.Pending, &out.Resolved, &out.Closed, &out.Total); err != nil {
+		return ReportStatusCounts{}, apperr.Wrap(apperr.Internal, err, "count reports by status failed")
+	}
+	return out, nil
 }
 
 var _ = time.Now

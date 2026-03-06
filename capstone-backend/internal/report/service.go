@@ -94,6 +94,8 @@ type Service interface {
 
 	GetUserBlacklist(ctx context.Context, blacklistID int64) (UserBlacklist, error)
 	ListUserBlacklists(ctx context.Context, in ListUserBlacklistsParams) (UserBlacklistListResponse, error)
+
+	CountReportsByStatus(ctx context.Context, in CountReportsByStatusInput) (ReportStatusCounts, error)
 }
 
 type service struct {
@@ -683,4 +685,8 @@ func (s *service) GetUserBlacklist(ctx context.Context, blacklistID int64) (User
 		return UserBlacklist{}, apperr.New(apperr.BadRequest, "invalid blacklist_id")
 	}
 	return s.repo.GetUserBlacklist(ctx, blacklistID)
+}
+
+func (s *service) CountReportsByStatus(ctx context.Context, in CountReportsByStatusInput) (ReportStatusCounts, error) {
+	return s.repo.CountReportsByStatus(ctx, in.ReportedPartyType)
 }

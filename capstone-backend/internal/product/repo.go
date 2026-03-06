@@ -16,7 +16,7 @@ import (
 type Repo interface {
 	Create(ctx context.Context, in CreateParams) (Product, error)
 	Get(ctx context.Context, id int64) (Product, error)
-	ListByStoreID(ctx context.Context, storeID int64, limit, page int) ([]Product, int64, error)
+	ListByStoreID(ctx context.Context, storeID int64, q string, limit, page int) ([]Product, int64, error)
 	Update(ctx context.Context, id int64, in UpdateParams) (Product, error)
 	Delete(ctx context.Context, id int64) error
 
@@ -112,16 +112,17 @@ func vectorLiteral(v []float64) (string, error) {
 }
 
 func (r *repo) Create(ctx context.Context, in CreateParams) (Product, error) {
+	// normalize
+	in.Name = strings.TrimSpace(in.Name)
 	in.IsActive = strings.ToUpper(strings.TrimSpace(in.IsActive))
 	if in.IsActive == "" {
 		in.IsActive = "YES"
 	}
 
+	// unique name check
 	var exists bool
 	if err := r.db.QueryRow(ctx, `
-		SELECT EXISTS(
-			SELECT 1 FROM products WHERE name = $1
-		);
+		SELECT EXISTS (SELECT 1 FROM products WHERE name = $1)
 	`, in.Name).Scan(&exists); err != nil {
 		return Product{}, apperr.Wrap(apperr.Internal, err, "check product name failed")
 	}
@@ -141,6 +142,47 @@ func (r *repo) Create(ctx context.Context, in CreateParams) (Product, error) {
 	embCat, err := toVecArg(in.EmbCategory)
 	if err != nil {
 		return Product{}, apperr.Wrap(apperr.Internal, err, "format embedding_category failed")
+	}
+
+	// ===== category must be ACTIVE sub category =====
+	var parentID *int
+	var subActive string
+
+	err = r.db.QueryRow(ctx, `
+		SELECT parent_id, is_active
+		FROM categories
+		WHERE category_id = $1
+	`, in.CategoryID).Scan(&parentID, &subActive)
+
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return Product{}, apperr.New(apperr.BadRequest, "invalid category_id")
+		}
+		return Product{}, apperr.Wrap(apperr.Internal, err, "check category failed")
+	}
+	if parentID == nil {
+		return Product{}, apperr.New(apperr.BadRequest, "product category must be a sub category")
+	}
+	if strings.ToUpper(strings.TrimSpace(subActive)) != "YES" {
+		return Product{}, apperr.New(apperr.BadRequest, "category is inactive")
+	}
+
+	// (optional but recommended) main must be active too
+	var mainActive string
+	err = r.db.QueryRow(ctx, `
+		SELECT is_active
+		FROM categories
+		WHERE category_id = $1
+	`, *parentID).Scan(&mainActive)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			// shouldn't happen if FK is correct, but safe
+			return Product{}, apperr.New(apperr.BadRequest, "invalid main category")
+		}
+		return Product{}, apperr.Wrap(apperr.Internal, err, "check main category failed")
+	}
+	if strings.ToUpper(strings.TrimSpace(mainActive)) != "YES" {
+		return Product{}, apperr.New(apperr.BadRequest, "main category is inactive")
 	}
 
 	// ----- INSERT -----
@@ -204,11 +246,7 @@ func (r *repo) Get(ctx context.Context, id int64) (Product, error) {
 	return p, nil
 }
 
-func (r *repo) ListByStoreID(
-	ctx context.Context,
-	storeID int64,
-	limit, page int,
-) ([]Product, int64, error) {
+func (r *repo) ListByStoreID(ctx context.Context, storeID int64, q string, limit, page int) ([]Product, int64, error) {
 	if limit <= 0 {
 		limit = 20
 	}
@@ -217,41 +255,66 @@ func (r *repo) ListByStoreID(
 	}
 	offset := (page - 1) * limit
 
-	// ===== ดึง total count ก่อน =====
+	q = strings.TrimSpace(q)
+
+	base := `
+FROM products p
+JOIN stores s ON s.store_id = p.store_id
+JOIN categories c ON c.category_id = p.category_id
+WHERE p.store_id = $1
+`
+	args := []any{storeID}
+	idx := 2
+
+	if q != "" {
+		base += " AND p.name ILIKE $" + strconv.Itoa(idx)
+		args = append(args, q+"%")
+		idx++
+	}
+
+	// count
 	var total int64
-	if err := r.db.QueryRow(ctx, `
-        SELECT COUNT(*)
-        FROM products
-        WHERE store_id = $1
-    `, storeID).Scan(&total); err != nil {
+	if err := r.db.QueryRow(ctx, `SELECT COUNT(*) `+base, args...).Scan(&total); err != nil {
 		return nil, 0, apperr.Wrap(apperr.Internal, err, "count products by store failed")
 	}
 
-	// ===== ดึงรายการตาม page =====
-	rows, err := r.db.Query(ctx, `
-        SELECT product_id, name, product_desc, price, image_url,
-               created_at, updated_at, is_active, store_id, category_id
-        FROM products
-        WHERE store_id = $1
-        ORDER BY created_at DESC
-        LIMIT $2 OFFSET $3;
-    `, storeID, limit, offset)
+	// list
+	limitIdx := idx
+	offsetIdx := idx + 1
 
+	query := `
+SELECT
+  p.product_id, p.name, p.product_desc, p.price, p.image_url,
+  p.created_at, p.updated_at, p.is_active, p.store_id, p.category_id,
+  s.store_name AS store_name,
+  c.name       AS category_name,
+  0            AS sold_count
+` + base + `
+ORDER BY p.created_at DESC
+LIMIT $` + strconv.Itoa(limitIdx) + ` OFFSET $` + strconv.Itoa(offsetIdx)
+
+	args = append(args, limit, offset)
+
+	rows, err := r.db.Query(ctx, query, args...)
 	if err != nil {
 		return nil, 0, apperr.Wrap(apperr.Internal, err, "list products by store failed")
 	}
 	defer rows.Close()
 
-	var out []Product
+	out := make([]Product, 0)
 	for rows.Next() {
 		var p Product
 		if err := rows.Scan(
 			&p.ID, &p.Name, &p.Description, &p.Price, &p.ImageURL,
 			&p.CreatedAt, &p.UpdatedAt, &p.IsActive, &p.StoreID, &p.CategoryID,
+			&p.StoreName, &p.CategoryName, &p.SoldCount,
 		); err != nil {
 			return nil, 0, apperr.Wrap(apperr.Internal, err, "scan product failed")
 		}
 		out = append(out, p)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, 0, apperr.Wrap(apperr.Internal, err, "rows error")
 	}
 
 	return out, total, nil

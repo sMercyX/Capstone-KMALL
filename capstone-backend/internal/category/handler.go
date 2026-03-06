@@ -1,12 +1,14 @@
 package category
 
 import (
+	"fmt"
 	"strconv"
 	"strings"
 
 	"github.com/gin-gonic/gin"
 
 	apperr "github.com/Perpasit/Capstone-KMALL/internal/apperr"
+	"github.com/Perpasit/Capstone-KMALL/internal/filestore"
 	"github.com/Perpasit/Capstone-KMALL/internal/middleware"
 	"github.com/Perpasit/Capstone-KMALL/internal/respond"
 )
@@ -16,37 +18,44 @@ import (
 type Handler struct {
 	svc     Service
 	roleSvc middleware.RoleNameLister
+	fs      filestore.Store
 }
 
-func NewHandler(s Service, rl middleware.RoleNameLister) *Handler {
-	return &Handler{svc: s, roleSvc: rl}
+func NewHandler(s Service, rl middleware.RoleNameLister, fs filestore.Store) *Handler {
+	return &Handler{svc: s, roleSvc: rl, fs: fs}
 }
 
 func (h *Handler) Register(r *gin.RouterGroup) {
-	g := r.Group("/categories")
+	// public
+	pub := r.Group("/categories")
+	pub.GET("", h.listPublic)
+	pub.GET("/:id/public", h.getPublic)
 
-	// ----- Public -----
-	g.GET("", h.listPublic)           // ?q=&parent_id=&page=&limit=
-	g.GET("/:id/public", h.getPublic) // เฉพาะ is_active = YES
-
-	// ----- Admin-only -----
-	admin := g.Group("", middleware.RequireRolesAny(h.roleSvc, "Admin"))
-	{
-		admin.POST("", h.create)
-		admin.GET("/:id", h.get)
-		admin.PUT("/:id", h.update)
-		admin.DELETE("/:id", h.delete)
-	}
+	// admin
+	admin := r.Group("/admin/categories", middleware.RequireRolesAny(h.roleSvc, "Admin"))
+	admin.GET("", h.listAdmin)
+	admin.POST("", h.create)
+	admin.POST("/upload-icon", h.uploadIcon)
+	admin.GET("/:id", h.get)
+	admin.PUT("/:id", h.update)
+	admin.DELETE("/:id", h.delete)
+	admin.PATCH("/:id/deactivate", h.deactivate)
 }
 
 // ===== Request DTOs =====
-
 type createReq struct {
-	Name      string  `json:"name"       binding:"required"`
-	Slug      *string `json:"slug"`                // optional, ไม่ส่ง -> gen จาก name
-	ParentID  *int    `json:"parent_id"`           // optional
-	SortOrder *int    `json:"sort_order"`          // optional, default 0
-	IsActive  string  `json:"is_active,omitempty"` // YES/NO, ว่าง -> YES
+	Name      string  `json:"name" binding:"required"`
+	Slug      *string `json:"slug"`
+	ParentID  *int    `json:"parent_id"`
+	SortOrder *int    `json:"sort_order"`
+	IsActive  string  `json:"is_active,omitempty"`
+
+	Subcategories []struct {
+		Name      string  `json:"name" binding:"required"`
+		Slug      *string `json:"slug"`
+		SortOrder *int    `json:"sort_order"`
+		IsActive  string  `json:"is_active,omitempty"`
+	} `json:"subcategories,omitempty"`
 }
 
 type updateReq struct {
@@ -55,6 +64,29 @@ type updateReq struct {
 	ParentID  *int    `json:"parent_id"`
 	SortOrder *int    `json:"sort_order"`
 	IsActive  *string `json:"is_active"`
+	IconURL   *string `json:"icon_url"`
+}
+
+type upsertTreeReq struct {
+	MainCategory struct {
+		ID        *int    `json:"id,omitempty"`
+		Name      string  `json:"name" binding:"required"`
+		Slug      *string `json:"slug,omitempty"`
+		SortOrder *int    `json:"sort_order,omitempty"`
+		IsActive  string  `json:"is_active,omitempty"`
+	} `json:"main_category" binding:"required"`
+
+	SubCategories []struct {
+		ID        *int    `json:"id,omitempty"`
+		Name      string  `json:"name" binding:"required"`
+		Slug      *string `json:"slug,omitempty"`
+		SortOrder *int    `json:"sort_order,omitempty"`
+		IsActive  string  `json:"is_active,omitempty"`
+	} `json:"sub_categories" binding:"required"`
+}
+
+type moveReq struct {
+	MoveToSubCategoryID int64 `json:"move_to_sub_category_id"`
 }
 
 // ===== Helpers =====
@@ -121,18 +153,51 @@ func parseParentIDQuery(c *gin.Context) *int64 {
 
 // POST /api/categories (Admin)
 func (h *Handler) create(c *gin.Context) {
-	var in createReq
+
+	var in UpsertCategoryTreeInput
+
 	if err := c.ShouldBindJSON(&in); err != nil {
-		c.Error(apperr.New(apperr.BadRequest, "bad json"))
+		c.Error(apperr.New(apperr.BadRequest, "invalid json body"))
 		return
 	}
 
-	cat, err := h.svc.Create(c.Request.Context(), CreateInput(in))
+	missing := []string{}
+
+	if strings.TrimSpace(in.Main.Name) == "" {
+		missing = append(missing, "main_category.name")
+	}
+
+	if len(in.Subs) == 0 {
+		missing = append(missing, "sub_categories (must have at least 1 item)")
+	} else {
+		for i, sc := range in.Subs {
+			if strings.TrimSpace(sc.Name) == "" {
+				missing = append(missing, fmt.Sprintf("sub_categories[%d].name", i))
+			}
+		}
+	}
+
+	if len(missing) > 0 {
+		c.Error(apperr.WithFields(
+			apperr.New(apperr.BadRequest, "missing required fields"),
+			map[string]any{
+				"required": missing,
+			},
+		))
+		return
+	}
+
+	// call service
+	main, subs, err := h.svc.UpsertCategoryTree(c.Request.Context(), in)
 	if err != nil {
 		c.Error(err)
 		return
 	}
-	respond.Created(c, apperr.Created, cat)
+
+	respond.Created(c, apperr.Created, gin.H{
+		"main_category":  main,
+		"sub_categories": subs,
+	})
 }
 
 // GET /api/categories/:id (Admin)
@@ -149,7 +214,6 @@ func (h *Handler) get(c *gin.Context) {
 	respond.OK(c, apperr.OK, cat)
 }
 
-// PUT /api/categories/:id (Admin)
 func (h *Handler) update(c *gin.Context) {
 	id, ok := parseID(c)
 	if !ok {
@@ -162,11 +226,21 @@ func (h *Handler) update(c *gin.Context) {
 		return
 	}
 
-	cat, err := h.svc.Update(c.Request.Context(), id, UpdateInput(in))
+	input := UpdateInput{
+		Name:      in.Name,
+		Slug:      in.Slug,
+		ParentID:  in.ParentID,
+		SortOrder: in.SortOrder,
+		IsActive:  in.IsActive,
+		IconURL:   in.IconURL, // ถ้ามี field นี้ใน updateReq/UpdateInput
+	}
+
+	cat, err := h.svc.Update(c.Request.Context(), id, input)
 	if err != nil {
 		c.Error(err)
 		return
 	}
+
 	respond.Updated(c, apperr.Updated, cat)
 }
 
@@ -177,10 +251,23 @@ func (h *Handler) delete(c *gin.Context) {
 		return
 	}
 
-	if err := h.svc.Delete(c.Request.Context(), id); err != nil {
+	moveToStr := strings.TrimSpace(c.Query("move_to_sub_category_id"))
+	var moveTo int64
+	if moveToStr != "" {
+		v, err := strconv.ParseInt(moveToStr, 10, 64)
+		if err != nil || v <= 0 {
+			c.Error(apperr.New(apperr.BadRequest, "invalid move_to_sub_category_id"))
+			return
+		}
+		moveTo = v
+	}
+
+	// ส่ง moveTo ไป service ให้ service enforce rule เอง
+	if err := h.svc.DeleteCategory(c.Request.Context(), id, moveTo); err != nil {
 		c.Error(err)
 		return
 	}
+
 	respond.Deleted(c, apperr.Deleted, gin.H{"deleted": true})
 }
 
@@ -241,4 +328,81 @@ func (h *Handler) getPublic(c *gin.Context) {
 		return
 	}
 	respond.OK(c, apperr.OK, cat)
+}
+
+// GET /api/categories (Admin)
+// ?q=&parent_id=&is_active=&page=&limit=
+func (h *Handler) listAdmin(c *gin.Context) {
+	q := strings.TrimSpace(c.Query("q"))
+	parentID := parseParentIDQuery(c)
+
+	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "50"))
+	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
+
+	// is_active: YES/NO/"" (ว่าง = ไม่ filter)
+	isActive := strings.TrimSpace(c.Query("is_active"))
+	var isActivePtr *string
+	if isActive != "" {
+		up := strings.ToUpper(isActive)
+		if up != "YES" && up != "NO" {
+			c.Error(apperr.New(apperr.BadRequest, "is_active must be YES or NO"))
+			return
+		}
+		isActivePtr = &up
+	}
+
+	cats, err := h.svc.ListAdmin(c.Request.Context(), q, parentID, isActivePtr, limit, page)
+	if err != nil {
+		c.Error(err)
+		return
+	}
+	if cats == nil {
+		cats = []Category{}
+	}
+	respond.OK(c, apperr.OK, cats)
+}
+
+func (h *Handler) deactivate(c *gin.Context) {
+	id, ok := parseID(c)
+	if !ok {
+		return
+	}
+
+	var body moveReq
+	if err := c.ShouldBindJSON(&body); err != nil {
+		// ยอมให้ body ว่างได้
+		// (บาง gin จะเป็น EOF)
+		// ถ้าอยาก strict กว่านี้ เช็คว่า err เป็น EOF ค่อยยอม
+		body.MoveToSubCategoryID = 0
+	}
+
+	cat, err := h.svc.DeactivateCategory(
+		c.Request.Context(),
+		id,
+		body.MoveToSubCategoryID, // 0 ได้
+	)
+	if err != nil {
+		c.Error(err)
+		return
+	}
+
+	respond.Updated(c, apperr.Updated, cat)
+}
+
+func (h *Handler) uploadIcon(c *gin.Context) {
+	fh, err := c.FormFile("file")
+	if err != nil {
+		c.Error(apperr.New(apperr.BadRequest, "file is required"))
+		return
+	}
+
+	up, err := h.fs.Save(c.Request.Context(), "category-icons", fh)
+	if err != nil {
+		c.Error(err)
+		return
+	}
+
+	respond.Created(c, apperr.Created, gin.H{
+		"icon_url": up.URL,
+	})
 }

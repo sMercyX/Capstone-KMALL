@@ -104,6 +104,10 @@ type UserBlacklist struct {
 	IsActive    bool       `json:"is_active"`
 	CreatedBy   string     `json:"created_by"`
 	CreatedAt   time.Time  `json:"created_at"`
+
+	DisplayName string  `json:"display_name"`
+	StoreID     *int64  `json:"store_id,omitempty"`
+	StoreName   *string `json:"store_name,omitempty"`
 }
 
 type StoreRestriction struct {
@@ -230,4 +234,15 @@ type ListUserBlacklistsParams struct {
 	Q        string
 	FromDate *time.Time
 	ToDate   *time.Time
+}
+
+type CountReportsByStatusInput struct {
+	ReportedPartyType *string
+}
+
+type ReportStatusCounts struct {
+	Pending  int64 `json:"pending"`
+	Resolved int64 `json:"resolved"`
+	Closed   int64 `json:"closed"`
+	Total    int64 `json:"total"`
 }

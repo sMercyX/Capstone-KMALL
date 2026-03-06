@@ -9,6 +9,7 @@ type Category struct {
 	ParentID  *int      `db:"parent_id"   json:"parent_id,omitempty"`
 	SortOrder int       `db:"sort_order"  json:"sort_order"`
 	IsActive  string    `db:"is_active"   json:"is_active"`
+	IconURL   *string   `db:"icon_url"    json:"icon_url,omitempty"`
 	CreatedAt time.Time `db:"created_at"  json:"created_at"`
 	UpdatedAt time.Time `db:"updated_at"  json:"updated_at"`
 }
