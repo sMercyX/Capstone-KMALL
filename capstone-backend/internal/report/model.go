@@ -193,6 +193,8 @@ type MyReportView struct {
 	ReportedPartyType   string    `json:"reported_party_type"`
 	ReasonCode          string    `json:"reason_code"`
 	Status              string    `json:"status"`
+
+	AdminActions []ReportAdminAction `json:"admin_actions,omitempty"`
 }
 
 type ListMyReportsParams struct {
