@@ -91,6 +91,12 @@ func pgErr(err error) (*pgconn.PgError, bool) {
 	return nil, false
 }
 
+var banSeverity = map[string]int{
+	"WARNING":   1,
+	"TEMPORARY": 2,
+	"PERMANENT": 3,
+}
+
 // ── Report ───────────────────────────────────────────────────────────────────
 
 func (r *repo) CreateReport(ctx context.Context, in CreateReportInput) (Report, error) {
@@ -602,23 +608,35 @@ func (r *repo) CreateUserBan(ctx context.Context, in CreateUserBanInput) (UserBl
 	}
 
 	// check active ban
-	var exists bool
+	var existingID int64
+	var existingBanType string
 	err := r.db.QueryRow(ctx, `
-SELECT EXISTS (
-	SELECT 1
-	FROM user_blacklists
-	WHERE user_id = $1
-	  AND user_role = $2
-	  AND is_active = TRUE
-)
-`, in.UserID, in.UserRole).Scan(&exists)
+SELECT blacklist_id, ban_type
+FROM user_blacklists
+WHERE user_id   = $1
+  AND user_role = $2
+  AND is_active = TRUE
+LIMIT 1
+`, in.UserID, in.UserRole).Scan(&existingID, &existingBanType)
 
-	if err != nil {
+	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
 		return UserBlacklist{}, apperr.Wrap(apperr.Internal, err, "check existing ban failed")
 	}
 
-	if exists {
-		return UserBlacklist{}, apperr.New(apperr.Conflict, "user already has active ban")
+	if err == nil {
+		// มี active ban อยู่แล้ว → เปรียบ severity
+		newSev := banSeverity[in.BanType]
+		oldSev := banSeverity[existingBanType]
+
+		if newSev < oldSev {
+			// ของเก่าหนักกว่า → คงของเก่าไว้ คืน record เก่า
+			return r.GetUserBlacklist(ctx, existingID)
+		}
+
+		// newSev >= oldSev → revoke ของเก่าก่อน แล้ว insert ใหม่
+		if _, err := r.RevokeUserBan(ctx, existingID); err != nil {
+			return UserBlacklist{}, err
+		}
 	}
 
 	// insert ban
