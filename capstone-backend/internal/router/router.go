@@ -455,24 +455,14 @@ func (a orderCancellerAdapter) CancelOrdersByStore(
 	actorUserID string,
 	storeID int64,
 	reason string,
-) (int64, error) {
-
-	ids, err := a.svc.CancelOrdersByStore(ctx, actorUserID, storeID, reason)
-	if err != nil {
-		return 0, err
-	}
-	return int64(len(ids)), nil
+) ([]int64, error) {
+	return a.svc.CancelOrdersByStore(ctx, actorUserID, storeID, reason)
 }
 
 func (a orderCancellerAdapter) CancelOrdersByUserRole(
 	ctx context.Context,
 	actorUserID string,
 	userID, role, reason string,
-) (int64, error) {
-
-	ids, err := a.svc.CancelOrdersByUserRole(ctx, actorUserID, userID, role, reason)
-	if err != nil {
-		return 0, err
-	}
-	return int64(len(ids)), nil
+) ([]int64, error) {
+	return a.svc.CancelOrdersByUserRole(ctx, actorUserID, userID, role, reason)
 }

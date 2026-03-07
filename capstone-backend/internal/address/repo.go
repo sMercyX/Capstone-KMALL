@@ -97,64 +97,105 @@ WHERE address_id = $1;
 }
 
 func (r *repo) Create(ctx context.Context, userID string, in CreateAddressInput) (Address, error) {
-	isDefault := false
-	if in.IsDefault != nil {
-		isDefault = *in.IsDefault
+	isDefault := in.IsDefault != nil && *in.IsDefault
+
+	tx, err := r.db.Begin(ctx)
+	if err != nil {
+		return Address{}, apperr.Wrap(apperr.Internal, err, "begin tx failed")
+	}
+	defer tx.Rollback(ctx)
+
+	if isDefault {
+		_, err := tx.Exec(ctx, `
+			UPDATE user_addresses
+			SET is_default = FALSE, updated_at = NOW()
+			WHERE user_id = $1 AND is_active = TRUE AND is_default = TRUE;
+		`, userID)
+		if err != nil {
+			return Address{}, apperr.Wrap(apperr.Internal, err, "unset old default failed")
+		}
 	}
 
 	var a Address
-	err := scan(r.db.QueryRow(ctx, `
-INSERT INTO user_addresses (
-  user_id, label,
-  address_line1, address_line2,
-  district, province, postal_code, phone,
-  latitude, longitude,
-  is_default
-)
-VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
-RETURNING
-  address_id, user_id, label,
-  address_line1, address_line2,
-  district, province, postal_code, phone,
-  latitude, longitude,
-  is_default, is_active,
-  created_at, updated_at;
-`, userID, in.Label, in.AddressLine1, in.AddressLine2,
+	err = scan(tx.QueryRow(ctx, `
+		INSERT INTO user_addresses (
+		  user_id, label,
+		  address_line1, address_line2,
+		  district, province, postal_code, phone,
+		  latitude, longitude,
+		  is_default
+		)
+		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
+		RETURNING
+		  address_id, user_id, label,
+		  address_line1, address_line2,
+		  district, province, postal_code, phone,
+		  latitude, longitude,
+		  is_default, is_active,
+		  created_at, updated_at;
+	`, userID, in.Label, in.AddressLine1, in.AddressLine2,
 		in.District, in.Province, in.PostalCode, in.Phone,
 		in.Latitude, in.Longitude, isDefault), &a)
-
 	if err != nil {
 		return Address{}, apperr.Wrap(apperr.Internal, err, "create address failed")
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return Address{}, apperr.Wrap(apperr.Internal, err, "commit tx failed")
 	}
 	return a, nil
 }
 
 func (r *repo) Update(ctx context.Context, id int64, in UpdateAddressInput) (Address, error) {
+	tx, err := r.db.Begin(ctx)
+	if err != nil {
+		return Address{}, apperr.Wrap(apperr.Internal, err, "begin tx failed")
+	}
+	defer tx.Rollback(ctx)
+
+	// ถ้าตั้ง default เป็น true -> unset อื่น ๆ ของ user เดียวกันก่อน
+	if in.IsDefault != nil && *in.IsDefault {
+		var userID string
+		err := tx.QueryRow(ctx, `SELECT user_id FROM user_addresses WHERE address_id=$1;`, id).Scan(&userID)
+		if err != nil {
+			return Address{}, apperr.Wrap(apperr.Internal, err, "get address user_id failed")
+		}
+
+		_, err = tx.Exec(ctx, `
+			UPDATE user_addresses
+			SET is_default = FALSE, updated_at = NOW()
+			WHERE user_id = $1 AND is_active = TRUE AND is_default = TRUE AND address_id <> $2;
+		`, userID, id)
+		if err != nil {
+			return Address{}, apperr.Wrap(apperr.Internal, err, "unset old default failed")
+		}
+	}
+
 	var a Address
-	err := scan(r.db.QueryRow(ctx, `
-UPDATE user_addresses
-SET
-  label = COALESCE($2, label),
-  address_line1 = COALESCE($3, address_line1),
-  address_line2 = COALESCE($4, address_line2),
-  district = COALESCE($5, district),
-  province = COALESCE($6, province),
-  postal_code = COALESCE($7, postal_code),
-  phone = COALESCE($8, phone),
-  latitude = COALESCE($9, latitude),
-  longitude = COALESCE($10, longitude),
-  is_default = COALESCE($11, is_default),
-  is_active = COALESCE($12, is_active),
-  updated_at = NOW()
-WHERE address_id = $1
-RETURNING
-  address_id, user_id, label,
-  address_line1, address_line2,
-  district, province, postal_code, phone,
-  latitude, longitude,
-  is_default, is_active,
-  created_at, updated_at;
-`, id,
+	err = scan(tx.QueryRow(ctx, `
+		UPDATE user_addresses
+		SET
+		  label = COALESCE($2, label),
+		  address_line1 = COALESCE($3, address_line1),
+		  address_line2 = COALESCE($4, address_line2),
+		  district = COALESCE($5, district),
+		  province = COALESCE($6, province),
+		  postal_code = COALESCE($7, postal_code),
+		  phone = COALESCE($8, phone),
+		  latitude = COALESCE($9, latitude),
+		  longitude = COALESCE($10, longitude),
+		  is_default = COALESCE($11, is_default),
+		  is_active = COALESCE($12, is_active),
+		  updated_at = NOW()
+		WHERE address_id = $1
+		RETURNING
+		  address_id, user_id, label,
+		  address_line1, address_line2,
+		  district, province, postal_code, phone,
+		  latitude, longitude,
+		  is_default, is_active,
+		  created_at, updated_at;
+	`, id,
 		in.Label, in.AddressLine1, in.AddressLine2,
 		in.District, in.Province, in.PostalCode, in.Phone,
 		in.Latitude, in.Longitude,
@@ -162,6 +203,10 @@ RETURNING
 
 	if err != nil {
 		return Address{}, apperr.Wrap(apperr.Internal, err, "update address failed")
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return Address{}, apperr.Wrap(apperr.Internal, err, "commit tx failed")
 	}
 	return a, nil
 }

@@ -41,6 +41,7 @@ INSERT INTO stores (
   store_desc,
   profile_url,
   delivery_round_university_enabled,
+  round_uni_base_fee,
   campus_enabled,
   is_active,
   user_id
@@ -50,6 +51,7 @@ SELECT
   'Demo store for snacks/desserts and beverages under Food subcategories.',
   NULL,
   TRUE,   -- delivery_round_university_enabled
+  10.00,
   TRUE,   -- campus_enabled
   'YES',
   u.user_id
@@ -89,6 +91,7 @@ INSERT INTO stores (
   store_desc,
   profile_url,
   delivery_round_university_enabled,
+  round_uni_base_fee,
   campus_enabled,
   is_active,
   user_id
@@ -98,6 +101,7 @@ SELECT
   'Demo handmade store for keychains and textile/knitting items.',
   NULL,
   TRUE,   -- delivery_round_university_enabled
+  15.00,
   FALSE,  -- campus_enabled
   'YES',
   u.user_id

@@ -7,12 +7,14 @@ import (
 )
 
 type Store struct {
-	ID          int       `db:"store_id" json:"id"`
-	Name        string    `db:"store_name" json:"name"`
-	Description *string   `db:"store_desc" json:"description,omitempty"`
-	ProfileURL  *string   `db:"profile_url" json:"profile_url,omitempty"`
-	IsActive    string    `db:"is_active" json:"is_active"`
-	CreatedAt   time.Time `db:"created_at" json:"created_at"`
-	UpdatedAt   time.Time `db:"updated_at" json:"updated_at"`
-	UserID      uuid.UUID `db:"user_id" json:"user_id"`
+	ID                             int       `db:"store_id" json:"id"`
+	Name                           string    `db:"store_name" json:"name"`
+	Description                    *string   `db:"store_desc" json:"description,omitempty"`
+	ProfileURL                     *string   `db:"profile_url" json:"profile_url,omitempty"`
+	IsActive                       string    `db:"is_active" json:"is_active"`
+	DeliveryRoundUniversityEnabled bool      `db:"delivery_round_university_enabled" json:"delivery_round_university_enabled"`
+	RoundUniBaseFee                *float64  `db:"round_uni_base_fee" json:"round_uni_base_fee,omitempty"`
+	CreatedAt                      time.Time `db:"created_at" json:"created_at"`
+	UpdatedAt                      time.Time `db:"updated_at" json:"updated_at"`
+	UserID                         uuid.UUID `db:"user_id" json:"user_id"`
 }

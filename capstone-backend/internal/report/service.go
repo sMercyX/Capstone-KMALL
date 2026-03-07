@@ -67,8 +67,18 @@ type BanUserInput struct {
 }
 
 type OrderCanceller interface {
-	CancelOrdersByStore(ctx context.Context, actorUserID string, storeID int64, reason string) (int64, error)
-	CancelOrdersByUserRole(ctx context.Context, actorUserID string, userID, role, reason string) (int64, error)
+	CancelOrdersByStore(
+		ctx context.Context,
+		actorUserID string,
+		storeID int64,
+		reason string,
+	) ([]int64, error)
+
+	CancelOrdersByUserRole(
+		ctx context.Context,
+		actorUserID string,
+		userID, role, reason string,
+	) ([]int64, error)
 }
 
 // ============================================================================
@@ -566,6 +576,11 @@ func (s *service) GetMyReport(ctx context.Context, reportID int64, reporterID st
 		return MyReportView{}, err
 	}
 
+	actions, err := s.repo.ListAdminActionsByReportID(ctx, reportID)
+	if err != nil {
+		return MyReportView{}, err
+	}
+
 	return MyReportView{
 		ReportID:            rep.ID,
 		CreatedAt:           rep.CreatedAt,
@@ -573,8 +588,10 @@ func (s *service) GetMyReport(ctx context.Context, reportID int64, reporterID st
 		StoreName:           rep.StoreName,
 		ReportedUserID:      rep.ReportedUserID,
 		ReportedDisplayName: rep.ReportedDisplayName,
+		ReportedPartyType:   rep.ReportedPartyType,
 		ReasonCode:          rep.ReasonCode,
 		Status:              rep.Status,
+		AdminActions:        actions,
 	}, nil
 }
 

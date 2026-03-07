@@ -47,10 +47,11 @@ func NewRepo(db *pgxpool.Pool) Repo {
 // ============================================================================
 
 type OrderCreateParams struct {
-	Status     string
-	TotalPrice float64
-	UserID     string
-	StoreID    int
+	Status      string
+	DeliveryFee float64
+	TotalPrice  float64
+	UserID      string
+	StoreID     int
 
 	DeliveryMethod    string
 	DeliveryAddressID *int64
@@ -84,6 +85,7 @@ func scanOrder(row pgx.Row, o *Order) error {
 		&o.ID,
 		&o.Status,
 		&o.TotalPrice,
+		&o.DeliveryFee,
 		&o.OrderDate,
 		&o.UpdatedAt,
 		&o.CancelledAt,
@@ -158,13 +160,13 @@ func (r *repo) CreateOrderWithItems(
 	var ord Order
 	err = scanOrder(tx.QueryRow(ctx, `
 	INSERT INTO orders (
-  status, total_price, user_id, store_id,
+  status, total_price, delivery_fee, user_id, store_id,
   delivery_method, delivery_address_id,
   campus_location_id, campus_detail_note
 )
-VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
+VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
 	RETURNING
-  order_id, status, total_price, order_date, updated_at,
+  order_id, status, total_price, delivery_fee, order_date, updated_at,
   cancelled_at, cancelled_by, cancelled_reason,
   user_id, store_id,
   delivery_method, delivery_address_id, campus_location_id, campus_detail_note,
@@ -172,6 +174,7 @@ VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
 `,
 		in.Status,
 		in.TotalPrice,
+		in.DeliveryFee,
 		in.UserID,
 		in.StoreID,
 		in.DeliveryMethod,
@@ -266,7 +269,7 @@ func (r *repo) GetOrder(ctx context.Context, id int64) (Order, error) {
 	var ord Order
 	err := scanOrder(r.db.QueryRow(ctx, `
   SELECT
-  order_id, status, total_price, order_date, updated_at,
+  order_id, status, total_price, delivery_fee, order_date, updated_at,
   cancelled_at, cancelled_by, cancelled_reason,
   user_id, store_id,
   delivery_method, delivery_address_id, campus_location_id, campus_detail_note,
@@ -336,7 +339,7 @@ func (r *repo) UpdateOrderStatus(ctx context.Context, id int64, status string) (
       updated_at = NOW()
   WHERE order_id = $1
   RETURNING
-  order_id, status, total_price, order_date, updated_at,
+  order_id, status, total_price, delivery_fee, order_date, updated_at,
   cancelled_at, cancelled_by, cancelled_reason,
   user_id, store_id,
   delivery_method, delivery_address_id, campus_location_id, campus_detail_note,
@@ -370,12 +373,11 @@ func (r *repo) CancelOrder(
 			updated_at = NOW()
 		WHERE order_id = $1
 		RETURNING
-			order_id, status, total_price, order_date, updated_at,
-			cancelled_at, cancelled_by, cancelled_reason,
-			user_id, store_id,
-			delivery_method, delivery_address_id,
-			campus_location_id, campus_detail_note,
-			proposed_at, meeting_location_id, meeting_note
+  order_id, status, total_price, delivery_fee, order_date, updated_at,
+  cancelled_at, cancelled_by, cancelled_reason,
+  user_id, store_id,
+  delivery_method, delivery_address_id, campus_location_id, campus_detail_note,
+  proposed_at, meeting_location_id, meeting_note
 	`, id, cancelledBy, reason), &ord)
 
 	if err != nil {
@@ -434,7 +436,7 @@ WHERE o.user_id = $1
 
 	query := `
 SELECT
-  o.order_id, o.status, o.total_price, o.order_date, o.updated_at,
+  o.order_id, o.status, o.total_price, o.delivery_fee, o.order_date, o.updated_at,
   o.cancelled_at, o.cancelled_by, o.cancelled_reason,
   o.user_id, o.store_id,
   o.delivery_method, o.delivery_address_id, o.campus_location_id, o.campus_detail_note,
@@ -509,7 +511,7 @@ WHERE o.store_id = $1
 
 	query := `
 SELECT
-  o.order_id, o.status, o.total_price, o.order_date, o.updated_at,
+  o.order_id, o.status, o.total_price, o.delivery_fee, o.order_date, o.updated_at,
   o.cancelled_at, o.cancelled_by, o.cancelled_reason,
   o.user_id, o.store_id,
   o.delivery_method, o.delivery_address_id, o.campus_location_id, o.campus_detail_note,
@@ -550,7 +552,7 @@ func (r *repo) Propose(ctx context.Context, id int64, proposedAt time.Time, meet
     WHERE order_id = $1
       AND status IN ('Pending','Proposed')
     RETURNING
-      order_id, status, total_price, order_date, updated_at,
+      order_id, status, total_price, delivery_fee, order_date, updated_at,
       cancelled_at, cancelled_by, cancelled_reason,
       user_id, store_id,
       delivery_method, delivery_address_id, campus_location_id, campus_detail_note,
@@ -581,7 +583,7 @@ func (r *repo) RespondProposal(ctx context.Context, id int64, accept bool) (Orde
 		WHERE order_id = $1
 		  AND status = 'Proposed'
 		RETURNING
-		  order_id, status, total_price, order_date, updated_at,
+		  order_id, status, total_price, delivery_fee, order_date, updated_at,
 		  cancelled_at, cancelled_by, cancelled_reason,
 		  user_id, store_id,
 		  delivery_method, delivery_address_id, campus_location_id, campus_detail_note,

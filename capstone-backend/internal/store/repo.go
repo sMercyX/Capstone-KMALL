@@ -44,9 +44,13 @@ func (r *repo) Create(ctx context.Context, userID string, in CreateParams) (Stor
 		return Store{}, apperr.New(apperr.BadRequest, "store name is required")
 	}
 
+	// check: user already owns a store
 	var existsID int
 	err := r.db.QueryRow(ctx, `
-		SELECT store_id FROM stores WHERE user_id = $1 LIMIT 1;
+		SELECT store_id
+		FROM stores
+		WHERE user_id = $1::uuid
+		LIMIT 1;
 	`, userID).Scan(&existsID)
 
 	if err == nil {
@@ -55,6 +59,7 @@ func (r *repo) Create(ctx context.Context, userID string, in CreateParams) (Stor
 		return Store{}, apperr.Wrap(apperr.Internal, err, "check existing store failed")
 	}
 
+	// check: duplicate store name
 	var dupID int64
 	err = r.db.QueryRow(ctx, `
 		SELECT store_id
@@ -69,15 +74,22 @@ func (r *repo) Create(ctx context.Context, userID string, in CreateParams) (Stor
 		return Store{}, apperr.Wrap(apperr.Internal, err, "check duplicate store name failed")
 	}
 
+	// insert (no delivery fields here; DB default will apply)
 	var s Store
 	err = r.db.QueryRow(ctx, `
-		INSERT INTO stores (store_name, store_desc, profile_url, is_active, user_id)
+		INSERT INTO stores (
+			store_name, store_desc, profile_url, is_active, user_id
+		)
 		VALUES ($1, $2, $3, $4, $5)
-		RETURNING store_id, store_name, store_desc, profile_url, is_active,
-		          created_at, updated_at, user_id;
-	`, in.Name, in.Description, in.ProfileURL, in.IsActive, userID).
-		Scan(&s.ID, &s.Name, &s.Description, &s.ProfileURL, &s.IsActive,
-			&s.CreatedAt, &s.UpdatedAt, &s.UserID)
+		RETURNING
+			store_id, store_name, store_desc, profile_url, is_active,
+			delivery_round_university_enabled, round_uni_base_fee,
+			created_at, updated_at, user_id;
+	`, in.Name, in.Description, in.ProfileURL, in.IsActive, userID).Scan(
+		&s.ID, &s.Name, &s.Description, &s.ProfileURL, &s.IsActive,
+		&s.DeliveryRoundUniversityEnabled, &s.RoundUniBaseFee,
+		&s.CreatedAt, &s.UpdatedAt, &s.UserID,
+	)
 
 	if err != nil {
 		if pgErr, ok := err.(*pgconn.PgError); ok && pgErr.Code == "23505" {
@@ -85,6 +97,7 @@ func (r *repo) Create(ctx context.Context, userID string, in CreateParams) (Stor
 		}
 		return Store{}, apperr.Wrap(apperr.Internal, err, "insert store failed")
 	}
+
 	return s, nil
 }
 
@@ -92,11 +105,16 @@ func (r *repo) Create(ctx context.Context, userID string, in CreateParams) (Stor
 func (r *repo) Get(ctx context.Context, id int64) (Store, error) {
 	var s Store
 	err := r.db.QueryRow(ctx, `
-		SELECT store_id, store_name, store_desc, profile_url, is_active,
-		       created_at, updated_at, user_id
-		FROM stores WHERE store_id = $1;
-	`, id).Scan(&s.ID, &s.Name, &s.Description, &s.ProfileURL,
-		&s.IsActive, &s.CreatedAt, &s.UpdatedAt, &s.UserID)
+	SELECT store_id, store_name, store_desc, profile_url, is_active,
+	       delivery_round_university_enabled, round_uni_base_fee,
+	       created_at, updated_at, user_id
+	FROM stores
+	WHERE store_id = $1;
+`, id).Scan(
+		&s.ID, &s.Name, &s.Description, &s.ProfileURL, &s.IsActive,
+		&s.DeliveryRoundUniversityEnabled, &s.RoundUniBaseFee,
+		&s.CreatedAt, &s.UpdatedAt, &s.UserID,
+	)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return Store{}, apperr.New(apperr.NotFound, "store not found")
@@ -110,13 +128,17 @@ func (r *repo) Get(ctx context.Context, id int64) (Store, error) {
 func (r *repo) GetByUserID(ctx context.Context, userID string) (Store, error) {
 	var s Store
 	err := r.db.QueryRow(ctx, `
-		SELECT store_id, store_name, store_desc, profile_url, is_active,
-		       created_at, updated_at, user_id
-		FROM stores
-		WHERE user_id = $1
-		LIMIT 1;
-	`, userID).Scan(&s.ID, &s.Name, &s.Description, &s.ProfileURL,
-		&s.IsActive, &s.CreatedAt, &s.UpdatedAt, &s.UserID)
+	SELECT store_id, store_name, store_desc, profile_url, is_active,
+	       delivery_round_university_enabled, round_uni_base_fee,
+	       created_at, updated_at, user_id
+	FROM stores
+	WHERE user_id = $1::uuid
+	LIMIT 1;
+`, userID).Scan(
+		&s.ID, &s.Name, &s.Description, &s.ProfileURL, &s.IsActive,
+		&s.DeliveryRoundUniversityEnabled, &s.RoundUniBaseFee,
+		&s.CreatedAt, &s.UpdatedAt, &s.UserID,
+	)
 
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -142,21 +164,23 @@ func (r *repo) List(ctx context.Context, q string, limit, page int) ([]Store, er
 	var err error
 	if q != "" {
 		rows, err = r.db.Query(ctx, `
-			SELECT store_id, store_name, store_desc, profile_url, is_active,
-			       created_at, updated_at, user_id
-			FROM stores
-			WHERE LOWER(store_name) LIKE LOWER('%' || $1 || '%')
-			ORDER BY created_at DESC
-			LIMIT $2 OFFSET $3;
-		`, q, limit, offset)
+	SELECT store_id, store_name, store_desc, profile_url, is_active,
+	       delivery_round_university_enabled, round_uni_base_fee,
+	       created_at, updated_at, user_id
+	FROM stores
+	WHERE LOWER(store_name) LIKE LOWER('%' || $1 || '%')
+	ORDER BY created_at DESC
+	LIMIT $2 OFFSET $3;
+`, q, limit, offset)
 	} else {
 		rows, err = r.db.Query(ctx, `
-			SELECT store_id, store_name, store_desc, profile_url, is_active,
-			       created_at, updated_at, user_id
-			FROM stores
-			ORDER BY created_at DESC
-			LIMIT $1 OFFSET $2;
-		`, limit, offset)
+	SELECT store_id, store_name, store_desc, profile_url, is_active,
+	       delivery_round_university_enabled, round_uni_base_fee,
+	       created_at, updated_at, user_id
+	FROM stores
+	ORDER BY created_at DESC
+	LIMIT $1 OFFSET $2;
+`, limit, offset)
 	}
 	if err != nil {
 		return nil, apperr.Wrap(apperr.Internal, err, "list stores failed")
@@ -166,8 +190,11 @@ func (r *repo) List(ctx context.Context, q string, limit, page int) ([]Store, er
 	var out []Store
 	for rows.Next() {
 		var s Store
-		if err := rows.Scan(&s.ID, &s.Name, &s.Description, &s.ProfileURL,
-			&s.IsActive, &s.CreatedAt, &s.UpdatedAt, &s.UserID); err != nil {
+		if err := rows.Scan(
+			&s.ID, &s.Name, &s.Description, &s.ProfileURL, &s.IsActive,
+			&s.DeliveryRoundUniversityEnabled, &s.RoundUniBaseFee,
+			&s.CreatedAt, &s.UpdatedAt, &s.UserID,
+		); err != nil {
 			return nil, apperr.Wrap(apperr.Internal, err, "scan store failed")
 		}
 		out = append(out, s)
@@ -184,6 +211,9 @@ type UpdateParams struct {
 	Description *string
 	ProfileURL  *string
 	IsActive    *string
+
+	DeliveryRoundUniversityEnabled *bool
+	RoundUniBaseFee                *float64
 }
 
 func (r *repo) Update(ctx context.Context, id int64, in UpdateParams) (Store, error) {
@@ -198,7 +228,7 @@ func (r *repo) Update(ctx context.Context, id int64, in UpdateParams) (Store, er
 			SELECT store_id
 			FROM stores
 			WHERE LOWER(store_name) = LOWER($1)
-			  AND store_id <> $2   -- ไม่รวมร้านตัวเอง
+			  AND store_id <> $2
 			LIMIT 1;
 		`, name, id).Scan(&dupID)
 
@@ -218,13 +248,22 @@ func (r *repo) Update(ctx context.Context, id int64, in UpdateParams) (Store, er
 		    store_desc = COALESCE($3, store_desc),
 		    profile_url = COALESCE($4, profile_url),
 		    is_active = COALESCE($5, is_active),
+		    delivery_round_university_enabled = COALESCE($6, delivery_round_university_enabled),
+		    round_uni_base_fee = COALESCE($7, round_uni_base_fee),
 		    updated_at = NOW()
 		WHERE store_id = $1
 		RETURNING store_id, store_name, store_desc, profile_url, is_active,
+		          delivery_round_university_enabled, round_uni_base_fee,
 		          created_at, updated_at, user_id;
-	`, id, in.Name, in.Description, in.ProfileURL, in.IsActive).
-		Scan(&s.ID, &s.Name, &s.Description, &s.ProfileURL,
-			&s.IsActive, &s.CreatedAt, &s.UpdatedAt, &s.UserID)
+	`,
+		id,
+		in.Name, in.Description, in.ProfileURL, in.IsActive,
+		in.DeliveryRoundUniversityEnabled, in.RoundUniBaseFee,
+	).Scan(
+		&s.ID, &s.Name, &s.Description, &s.ProfileURL, &s.IsActive,
+		&s.DeliveryRoundUniversityEnabled, &s.RoundUniBaseFee,
+		&s.CreatedAt, &s.UpdatedAt, &s.UserID,
+	)
 
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -235,6 +274,7 @@ func (r *repo) Update(ctx context.Context, id int64, in UpdateParams) (Store, er
 		}
 		return Store{}, apperr.Wrap(apperr.Internal, err, "update store failed")
 	}
+
 	return s, nil
 }
 
