@@ -5,8 +5,8 @@ import { Loader2 } from "lucide-react"
 import SwitchTabs, { type SwitchTabItem } from "../../components/SwitchTabs/SwitchTabs"
 import { format } from "date-fns"
 import BackButton from "../../components/Buttons/BackButton"
-import { useReportApi, type ReportResponse } from "../../api/reportApi"
-import ReportResultModal, { type AdminAction } from "../../components/Modal/ReportResultModal"
+import { useReportApi, type ReportResponse, type MyReportAdminAction } from "../../api/reportApi"
+import ReportResultModal from "../../components/Modal/ReportResultModal"
 
 type TabKey = "ALL" | "PENDING" | "RESOLVED" | "CLOSED"
 
@@ -18,7 +18,7 @@ const tabs: SwitchTabItem[] = [
 ]
 
 export default function BuyerReportStatusPage() {
-  const { getReportsMe, getReportDetail } = useReportApi()
+  const { getReportsMe, getMyReportDetail } = useReportApi()
   const [activeTab, setActiveTab] = useState<TabKey>("PENDING")
   const [reports, setReports] = useState<ReportResponse[]>([])
   const [loading, setLoading] = useState(true)
@@ -32,7 +32,7 @@ export default function BuyerReportStatusPage() {
   const [modalOpen, setModalOpen] = useState(false)
   const [modalLoading, setModalLoading] = useState(false)
   const [selectedReport, setSelectedReport] = useState<ReportResponse | null>(null)
-  const [adminActions, setAdminActions] = useState<AdminAction[]>([])
+  const [adminActions, setAdminActions] = useState<MyReportAdminAction[]>([])
 
   const fetchReports = async () => {
     try {
@@ -74,7 +74,7 @@ export default function BuyerReportStatusPage() {
     setAdminActions([])
 
     try {
-      const res = await getReportDetail(report.report_id)
+      const res = await getMyReportDetail(report.report_id)
       if (res.code === 200 && res.data?.admin_actions) {
         setAdminActions(res.data.admin_actions)
       }

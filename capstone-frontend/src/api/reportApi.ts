@@ -21,6 +21,46 @@ export interface PaginatedReports {
   items: ReportResponse[]
 }
 
+export interface MyReportAdminAction {
+  action_id: number
+  report_id: number
+  admin_id: string
+  action_type: string
+  note?: string | null
+  target_user_id?: string | null
+  suspend_days?: number | null
+  is_permanent?: boolean
+  created_at: string
+  blacklist?: {
+    blacklist_id: number
+    user_id: string
+    user_role: string
+    report_id: number
+    order_id: number
+    reason: string
+    ban_type: string
+    banned_from: string
+    banned_until: string
+    is_active: boolean
+    created_by: string
+    created_at: string
+    display_name: string
+  } | null
+}
+
+export interface MyReportDetailResponse {
+  report_id: number
+  created_at: string
+  order_id: number
+  store_name: string
+  reported_user_id: string
+  reported_display_name: string
+  reported_party_type: "SELLER" | "BUYER"
+  reason_code: string
+  status: string
+  admin_actions: MyReportAdminAction[] | null
+}
+
 export interface ReportDetailResponse {
   report: ReportDetail
   order_snapshot: OrderSnapshot
@@ -171,5 +211,9 @@ export function useReportApi() {
     return http.postItem(`/reports/${reportId}/action`, data)
   }
 
-  return { createOrderReport, getReports, getReportsMe, getReportDetail, actionReport }
+  async function getMyReportDetail(reportId: string | number): Promise<{ code: number; data: MyReportDetailResponse; status: string }> {
+    return http.getItems(`/reports/me/${reportId}`)
+  }
+
+  return { createOrderReport, getReports, getReportsMe, getReportDetail, getMyReportDetail, actionReport }
 }

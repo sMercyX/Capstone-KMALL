@@ -1,11 +1,10 @@
 import { useState, useEffect } from "react"
 import { FiSearch } from "react-icons/fi"
 import { FaCheck, FaTimes } from "react-icons/fa"
-import { useNavigate } from "react-router-dom"
-import { useReportApi, type ReportResponse } from "../../api/reportApi"
+import { useReportApi, type ReportResponse, type MyReportAdminAction } from "../../api/reportApi"
 import { format } from "date-fns"
 import { Loader2 } from "lucide-react"
-import ReportResultModal, { type AdminAction } from "../../components/Modal/ReportResultModal"
+import ReportResultModal from "../../components/Modal/ReportResultModal"
 
 type TabKey = "ALL" | "PENDING" | "RESOLVED" | "CLOSED"
 
@@ -17,8 +16,7 @@ const tabs: { label: string; key: TabKey }[] = [
 ]
 
 export default function StoreReportStatusPage() {
-  const navigate = useNavigate()
-  const { getReportsMe, getReportDetail } = useReportApi()
+  const { getReportsMe, getMyReportDetail } = useReportApi()
   const [activeTab, setActiveTab] = useState<TabKey>("ALL")
   const [reports, setReports] = useState<ReportResponse[]>([])
   const [loading, setLoading] = useState(true)
@@ -32,7 +30,7 @@ export default function StoreReportStatusPage() {
   const [modalOpen, setModalOpen] = useState(false)
   const [modalLoading, setModalLoading] = useState(false)
   const [selectedReport, setSelectedReport] = useState<ReportResponse | null>(null)
-  const [adminActions, setAdminActions] = useState<AdminAction[]>([])
+  const [adminActions, setAdminActions] = useState<MyReportAdminAction[]>([])
 
   const fetchReports = async () => {
     try {
@@ -66,28 +64,23 @@ export default function StoreReportStatusPage() {
   }
 
   const handleRowClick = async (report: ReportResponse) => {
-    // If resolved or closed, show the result modal
-    if (report.status === "RESOLVED" || report.status === "CLOSED") {
-      setSelectedReport(report)
-      setModalOpen(true)
-      setModalLoading(true)
-      setAdminActions([])
+    if (report.status !== "RESOLVED" && report.status !== "CLOSED") return
 
-      try {
-        const res = await getReportDetail(report.report_id)
-        if (res.code === 200 && res.data?.admin_actions) {
-          setAdminActions(res.data.admin_actions)
-        }
-      } catch (err) {
-        console.error("Failed to load report detail:", err)
-      } finally {
-        setModalLoading(false)
+    setSelectedReport(report)
+    setModalOpen(true)
+    setModalLoading(true)
+    setAdminActions([])
+
+    try {
+      const res = await getMyReportDetail(report.report_id)
+      if (res.code === 200 && res.data?.admin_actions) {
+        setAdminActions(res.data.admin_actions)
       }
-      return
+    } catch (err) {
+      console.error("Failed to load report detail:", err)
+    } finally {
+      setModalLoading(false)
     }
-
-    // For pending, navigate to order
-    navigate(`/store/orders/${report.order_id}`)
   }
 
   const formatDate = (isoString: string) => {
@@ -203,11 +196,17 @@ export default function StoreReportStatusPage() {
                     No reports found.
                   </div>
                 ) : (
-                  reports.map((r) => (
+                  reports.map((r) => {
+                    const isClickable = r.status === "RESOLVED" || r.status === "CLOSED"
+                    return (
                     <div
                       key={r.report_id}
-                      className="grid grid-cols-12 gap-4 items-center bg-white border border-gray-200 rounded-lg px-6 py-4 shadow-[0_1px_2px_rgba(0,0,0,0.02)] transition-colors hover:border-[#ff5a36] cursor-pointer"
-                      onClick={() => handleRowClick(r)}
+                      className={`grid grid-cols-12 gap-4 items-center bg-white border border-gray-200 rounded-lg px-6 py-4 shadow-[0_1px_2px_rgba(0,0,0,0.02)] transition-colors ${
+                        isClickable
+                          ? "hover:border-[#ff5a36] cursor-pointer"
+                          : ""
+                      }`}
+                      onClick={() => isClickable && handleRowClick(r)}
                     >
                       <div className="col-span-2 text-gray-800 text-sm font-medium">
                         #RPT-{r.report_id.toString().padStart(4, "0")}
@@ -221,7 +220,8 @@ export default function StoreReportStatusPage() {
                         {renderStatus(r.status)}
                       </div>
                     </div>
-                  ))
+                    )
+                  })
                 )}
               </div>
             </div>
