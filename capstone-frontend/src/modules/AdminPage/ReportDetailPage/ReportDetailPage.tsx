@@ -20,6 +20,8 @@ const formatChatDate = (dateString: string) => {
   }
 }
 import { resolveImageUrl } from "../../../utils/resolve"
+// import BackButton from "../../../components/Buttons/BackButton"
+import { toast } from "react-toastify"
 import ResolveReportModal, { type ResolveActionData } from "../../../components/Admin/ResolveReportModal"
 
 export default function ReportDetailPage() {
@@ -127,10 +129,11 @@ export default function ReportDetailPage() {
       await actionReport(reportId, { action_type: "NO_ACTION", note: rejectNote.trim() })
       setIsRejectModalOpen(false)
       setRejectNote("")
+      toast.success("Report rejected successfully.")
       fetchReport() // Refresh data after reject
-    } catch (err) {
+    } catch (err: any) {
       console.error(err)
-      alert("Failed to reject report")
+      toast.error(err?.response?.data?.message || "Failed to reject report.")
     } finally {
       setSubmittingAction(false)
     }
@@ -140,18 +143,26 @@ export default function ReportDetailPage() {
     if (!reportId || !reportData) return
     setSubmittingAction(true)
     try {
-      await actionReport(reportId, {
+      const payload: any = {
         action_type: actionData.action_type,
         target_user_id: reportData.report.reported_user_id,
         user_role: reportData.report.reported_party_type,
         suspend_days: actionData.suspend_days,
         is_permanent: actionData.is_permanent,
         note: actionData.note
-      })
+      }
+      
+      // If resolving against a SELLER, pass the target_store_id
+      if (reportData.report.reported_party_type === "SELLER") {
+        payload.target_store_id = reportData.report.store_id
+      }
+
+      await actionReport(reportId, payload)
+      toast.success("Report resolved successfully.")
       fetchReport() // Refresh data
-    } catch (err) {
+    } catch (err: any) {
       console.error(err)
-      alert("Failed to resolve report")
+      toast.error(err?.response?.data?.message || "Failed to resolve report.")
     } finally {
       setSubmittingAction(false)
     }

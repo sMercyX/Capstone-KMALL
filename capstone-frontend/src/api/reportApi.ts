@@ -32,6 +32,7 @@ export interface ReportDetailResponse {
 export interface ReportDetail {
   report_id: number
   order_id: number
+  store_id: number
   store_name: string
   reporter_id: string
   reporter_display_name: string
@@ -160,6 +161,7 @@ export function useReportApi() {
     data: {
       action_type: "NO_ACTION" | "WARN_USER" | "SUSPEND_USER" | "BAN_USER"
       target_user_id?: string
+      target_store_id?: number
       user_role?: "SELLER" | "BUYER"
       suspend_days?: number
       is_permanent?: boolean

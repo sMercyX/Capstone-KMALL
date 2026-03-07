@@ -4,6 +4,7 @@ import MainLayout from "../components/Layout/MainLayout"
 import LoadingSpinner from "../components/LoaingSpinner/LoadingSpinner"
 import ProductPage from "../modules/ProductPage/ProductPage"
 import ProtectedRoute from "../components/ProtectedRoute/ProtectedRoute"
+import ProtectedRoleRoute from "../components/ProtectedRoute/ProtectedRoleRoute"
 // import AllowedCategoryRoute from "../modules/CategoryPage/AllowedCategoryRoute"
 
 // function NotFound() {
@@ -221,9 +222,9 @@ export default function AppRoutes() {
         <Route
           path="/admin"
           element={
-            <ProtectedRoute>
+            <ProtectedRoleRoute allowedRoles={["ADMIN"]}>
               <BackendLayout title="Admin Panel" menuItems={adminMenuItems} />
-            </ProtectedRoute>
+            </ProtectedRoleRoute>
           }
         >
           {/* Admin Sub-routes */}
@@ -237,9 +238,9 @@ export default function AppRoutes() {
         {/* --- GLOBAL SELLER ROUTES (Store Layout) --- */}
         <Route
           element={
-            <ProtectedRoute>
+            <ProtectedRoleRoute allowedRoles={["SELLER"]}>
               <BackendLayout menuItems={sellerMenuItems} />
-            </ProtectedRoute>
+            </ProtectedRoleRoute>
           }
         >
           {/* Seller Sub-routes */}

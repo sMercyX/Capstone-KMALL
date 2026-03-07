@@ -6,6 +6,7 @@ import SwitchTabs, { type SwitchTabItem } from "../../components/SwitchTabs/Swit
 import { format } from "date-fns"
 import BackButton from "../../components/Buttons/BackButton"
 import { useReportApi, type ReportResponse } from "../../api/reportApi"
+import ReportResultModal, { type AdminAction } from "../../components/Modal/ReportResultModal"
 
 type TabKey = "ALL" | "PENDING" | "RESOLVED" | "CLOSED"
 
@@ -17,7 +18,7 @@ const tabs: SwitchTabItem[] = [
 ]
 
 export default function BuyerReportStatusPage() {
-  const { getReportsMe } = useReportApi()
+  const { getReportsMe, getReportDetail } = useReportApi()
   const [activeTab, setActiveTab] = useState<TabKey>("PENDING")
   const [reports, setReports] = useState<ReportResponse[]>([])
   const [loading, setLoading] = useState(true)
@@ -26,6 +27,12 @@ export default function BuyerReportStatusPage() {
   const [page, setPage] = useState(1)
   const [totalPages, setTotalPages] = useState(1)
   const limit = 10
+
+  // Modal state
+  const [modalOpen, setModalOpen] = useState(false)
+  const [modalLoading, setModalLoading] = useState(false)
+  const [selectedReport, setSelectedReport] = useState<ReportResponse | null>(null)
+  const [adminActions, setAdminActions] = useState<AdminAction[]>([])
 
   const fetchReports = async () => {
     try {
@@ -55,6 +62,26 @@ export default function BuyerReportStatusPage() {
     if (e.key === "Enter") {
       setPage(1)
       fetchReports()
+    }
+  }
+
+  const handleRowClick = async (report: ReportResponse) => {
+    if (report.status !== "RESOLVED" && report.status !== "CLOSED") return
+
+    setSelectedReport(report)
+    setModalOpen(true)
+    setModalLoading(true)
+    setAdminActions([])
+
+    try {
+      const res = await getReportDetail(report.report_id)
+      if (res.code === 200 && res.data?.admin_actions) {
+        setAdminActions(res.data.admin_actions)
+      }
+    } catch (err) {
+      console.error("Failed to load report detail:", err)
+    } finally {
+      setModalLoading(false)
     }
   }
 
@@ -122,7 +149,7 @@ export default function BuyerReportStatusPage() {
       {/* Main Container */}
       <div className="text-left mb-6">
         <h2 className="text-lg md:text-xl font-bold text-gray-800">
-          Click to view order details
+          Click to view report details
         </h2>
       </div>
 
@@ -168,28 +195,36 @@ export default function BuyerReportStatusPage() {
                   No reports found.
                 </div>
               ) : (
-                reports.map((r) => (
-                  <div
-                    key={r.report_id}
-                    className="flex items-center justify-between text-sm py-4 px-6 border border-gray-100 bg-white rounded-2xl shadow-[0_1px_2px_rgba(0,0,0,0.02)] transition-colors hover:border-[#ff5a36] hover:bg-white"
-                  >
-                    <div className="w-[15%] text-gray-800 font-medium">
-                      #RPT-{r.report_id.toString().padStart(4, "0")}
+                reports.map((r) => {
+                  const isClickable = r.status === "RESOLVED" || r.status === "CLOSED"
+                  return (
+                    <div
+                      key={r.report_id}
+                      className={`flex items-center justify-between text-sm py-4 px-6 border border-gray-100 bg-white rounded-2xl shadow-[0_1px_2px_rgba(0,0,0,0.02)] transition-colors ${
+                        isClickable
+                          ? "hover:border-[#ff5a36] hover:bg-white cursor-pointer"
+                          : ""
+                      }`}
+                      onClick={() => isClickable && handleRowClick(r)}
+                    >
+                      <div className="w-[15%] text-gray-800 font-medium">
+                        #RPT-{r.report_id.toString().padStart(4, "0")}
+                      </div>
+                      <div className="w-[20%] text-gray-800 text-xs">
+                        {formatDate(r.created_at)}
+                      </div>
+                      <div className="w-[15%] text-gray-800 text-xs truncate">
+                        ORDER : #{r.order_id}
+                      </div>
+                      <div className="w-[30%] text-gray-500 text-xs truncate pr-4" title={r.reason_code}>
+                        {r.reason_code}
+                      </div>
+                      <div className="w-[20%] flex justify-center">
+                        {renderStatus(r.status)}
+                      </div>
                     </div>
-                    <div className="w-[20%] text-gray-800 text-xs">
-                      {formatDate(r.created_at)}
-                    </div>
-                    <div className="w-[15%] text-gray-800 text-xs truncate">
-                      ORDER : #{r.order_id}
-                    </div>
-                    <div className="w-[30%] text-gray-500 text-xs truncate pr-4" title={r.reason_code}>
-                      {r.reason_code}
-                    </div>
-                    <div className="w-[20%] flex justify-center">
-                      {renderStatus(r.status)}
-                    </div>
-                  </div>
-                ))
+                  )
+                })
               )}
             </div>
           </div>
@@ -219,6 +254,18 @@ export default function BuyerReportStatusPage() {
           </div>
         )}
       </div>
+
+      {/* Report Result Modal */}
+      {selectedReport && (
+        <ReportResultModal
+          isOpen={modalOpen}
+          onClose={() => { setModalOpen(false); setSelectedReport(null) }}
+          reportId={selectedReport.report_id}
+          status={selectedReport.status as "RESOLVED" | "CLOSED"}
+          adminActions={adminActions}
+          loading={modalLoading}
+        />
+      )}
     </div>
   )
 }

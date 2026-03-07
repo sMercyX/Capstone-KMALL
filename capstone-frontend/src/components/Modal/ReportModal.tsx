@@ -318,7 +318,7 @@ export default function ReportModal({
               {/* Media Upload */}
               <div>
                 <label className="block text-sm font-semibold text-gray-800 mb-2">
-                  Media Upload<span className="text-red-500">*</span>
+                  Media Upload
                 </label>
                 <div className="rounded-xl bg-gray-50 p-4">
                   <div
@@ -433,9 +433,9 @@ export default function ReportModal({
             <div className="flex justify-end px-6 py-4 border-t border-gray-100">
               <button
                 onClick={handleSubmit}
-                disabled={details.length < 10 || submitting}
+                disabled={details.length < 10 || submitting || processingFiles}
                 className={`px-8 py-2.5 rounded-xl text-sm font-semibold text-white transition-colors ${
-                  details.length >= 10 && !submitting
+                  details.length >= 10 && !submitting && !processingFiles
                     ? "bg-orange-500 hover:bg-orange-600 cursor-pointer"
                     : "bg-gray-300 cursor-not-allowed"
                 }`}

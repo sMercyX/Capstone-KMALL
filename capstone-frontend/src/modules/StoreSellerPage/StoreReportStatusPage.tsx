@@ -5,19 +5,20 @@ import { useNavigate } from "react-router-dom"
 import { useReportApi, type ReportResponse } from "../../api/reportApi"
 import { format } from "date-fns"
 import { Loader2 } from "lucide-react"
+import ReportResultModal, { type AdminAction } from "../../components/Modal/ReportResultModal"
 
 type TabKey = "ALL" | "PENDING" | "RESOLVED" | "CLOSED"
 
 const tabs: { label: string; key: TabKey }[] = [
   { label: "All", key: "ALL" },
-  { label: "In progress", key: "PENDING" },
-  { label: "The problem has been solved", key: "RESOLVED" },
-  { label: "Evidence", key: "CLOSED" }
+  { label: "In Progress", key: "PENDING" },
+  { label: "Resolved", key: "RESOLVED" },
+  { label: "Rejected", key: "CLOSED" }
 ]
 
 export default function StoreReportStatusPage() {
   const navigate = useNavigate()
-  const { getReportsMe } = useReportApi()
+  const { getReportsMe, getReportDetail } = useReportApi()
   const [activeTab, setActiveTab] = useState<TabKey>("ALL")
   const [reports, setReports] = useState<ReportResponse[]>([])
   const [loading, setLoading] = useState(true)
@@ -26,6 +27,12 @@ export default function StoreReportStatusPage() {
   const [page, setPage] = useState(1)
   const [totalPages, setTotalPages] = useState(1)
   const limit = 10
+
+  // Modal state
+  const [modalOpen, setModalOpen] = useState(false)
+  const [modalLoading, setModalLoading] = useState(false)
+  const [selectedReport, setSelectedReport] = useState<ReportResponse | null>(null)
+  const [adminActions, setAdminActions] = useState<AdminAction[]>([])
 
   const fetchReports = async () => {
     try {
@@ -58,6 +65,31 @@ export default function StoreReportStatusPage() {
     }
   }
 
+  const handleRowClick = async (report: ReportResponse) => {
+    // If resolved or closed, show the result modal
+    if (report.status === "RESOLVED" || report.status === "CLOSED") {
+      setSelectedReport(report)
+      setModalOpen(true)
+      setModalLoading(true)
+      setAdminActions([])
+
+      try {
+        const res = await getReportDetail(report.report_id)
+        if (res.code === 200 && res.data?.admin_actions) {
+          setAdminActions(res.data.admin_actions)
+        }
+      } catch (err) {
+        console.error("Failed to load report detail:", err)
+      } finally {
+        setModalLoading(false)
+      }
+      return
+    }
+
+    // For pending, navigate to order
+    navigate(`/store/orders/${report.order_id}`)
+  }
+
   const formatDate = (isoString: string) => {
     try {
       return format(new Date(isoString), "MMMM d, yyyy")
@@ -86,7 +118,7 @@ export default function StoreReportStatusPage() {
         return (
           <div className="inline-flex items-center justify-center gap-2 px-5 py-2 rounded-full text-white text-sm font-medium bg-[#f05252] w-full max-w-[130px] whitespace-nowrap">
             <FaTimes size={12} />
-            Evidence
+            Rejected
           </div>
         )
       default:
@@ -175,7 +207,7 @@ export default function StoreReportStatusPage() {
                     <div
                       key={r.report_id}
                       className="grid grid-cols-12 gap-4 items-center bg-white border border-gray-200 rounded-lg px-6 py-4 shadow-[0_1px_2px_rgba(0,0,0,0.02)] transition-colors hover:border-[#ff5a36] cursor-pointer"
-                      onClick={() => navigate(`/store/orders/${r.order_id}`)}
+                      onClick={() => handleRowClick(r)}
                     >
                       <div className="col-span-2 text-gray-800 text-sm font-medium">
                         #RPT-{r.report_id.toString().padStart(4, "0")}
@@ -220,6 +252,18 @@ export default function StoreReportStatusPage() {
           )}
         </div>
       </div>
+
+      {/* Report Result Modal */}
+      {selectedReport && (
+        <ReportResultModal
+          isOpen={modalOpen}
+          onClose={() => { setModalOpen(false); setSelectedReport(null) }}
+          reportId={selectedReport.report_id}
+          status={selectedReport.status as "RESOLVED" | "CLOSED"}
+          adminActions={adminActions}
+          loading={modalLoading}
+        />
+      )}
     </div>
   )
 }
