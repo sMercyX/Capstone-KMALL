@@ -101,7 +101,7 @@ export default function ReportResultModal({
                     Action Token<span className="text-red-500">*</span>
                   </label>
                   <p className="text-sm text-gray-700 font-medium">
-                    Action Taken : {getActionLabel(latestAction.action_type)}
+                    Action : {getActionLabel(latestAction.action_type)}
                   </p>
                   {latestAction.blacklist?.banned_from && latestAction.blacklist?.banned_until && (
                     <p className="text-sm text-gray-500 mt-1">
@@ -119,7 +119,7 @@ export default function ReportResultModal({
                   <label className="text-sm font-semibold text-gray-800 mb-2 block">
                     note<span className="text-red-500">*</span>
                   </label>
-                  <div className="rounded-xl border border-gray-200 bg-gray-50 p-4 text-sm text-gray-700 leading-relaxed whitespace-pre-wrap min-h-[60px]">
+                  <div className="rounded-xl p-4 text-sm text-gray-700 leading-relaxed whitespace-pre-wrap min-h-[60px]">
                     {latestAction.note}
                   </div>
                 </div>

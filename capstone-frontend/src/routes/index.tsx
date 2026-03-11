@@ -53,7 +53,8 @@ const AdminCategoryPage = lazy(() => import("../modules/AdminPage/CategoryPage/C
 const AdminSellerReportPage = lazy(() => import("../modules/AdminPage/SellerReportPage/SellerReportPage"))
 const AdminBuyerReportPage = lazy(() => import("../modules/AdminPage/BuyerReportPage/BuyerReportPage"))
 const AdminReportDetailPage = lazy(() => import("../modules/AdminPage/ReportDetailPage/ReportDetailPage"))
-const AdminBlacklistPage = lazy(() => import("../modules/AdminPage/BlacklistPage/BlacklistPage"))
+const BlacklistedStoresPage = lazy(() => import("../modules/AdminPage/BlacklistPage/BlacklistedStoresPage"))
+const BlacklistedBuyersPage = lazy(() => import("../modules/AdminPage/BlacklistPage/BlacklistedBuyersPage"))
 
 const adminMenuItems = [
   {
@@ -72,7 +73,10 @@ const adminMenuItems = [
   {
     label: "Blacklist",
     icon: <FaUserLock />,
-    path: "/admin/blacklist"
+    subItems: [
+      { label: "Blacklisted Stores", path: "/admin/blacklist/stores" },
+      { label: "Blacklisted Buyers", path: "/admin/blacklist/buyers" }
+    ]
   }
 ]
 
@@ -232,7 +236,8 @@ export default function AppRoutes() {
           <Route path="report/seller" element={<AdminSellerReportPage />} />
           <Route path="report/buyer" element={<AdminBuyerReportPage />} />
           <Route path="report/:type/:reportId" element={<AdminReportDetailPage />} />
-          <Route path="blacklist" element={<AdminBlacklistPage />} />
+          <Route path="blacklist/stores" element={<BlacklistedStoresPage />} />
+          <Route path="blacklist/buyers" element={<BlacklistedBuyersPage />} />
         </Route>
 
         {/* --- GLOBAL SELLER ROUTES (Store Layout) --- */}
