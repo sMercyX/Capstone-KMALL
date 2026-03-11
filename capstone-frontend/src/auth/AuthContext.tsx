@@ -210,15 +210,17 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   }
 
+  const storeRoles = useUserStore((s) => s.roles)
+
   const hasRole = (...roles: string[]) => {
     if (!user) return false
-    const lower = user.roles.map((r) => r.toLowerCase())
+    const lower = storeRoles.map((r) => r.toLowerCase())
     return roles.some((r) => lower.includes(r.toLowerCase()))
   }
 
   const value = useMemo(
     () => ({ user, ready, error, login, logout, hasRole }),
-    [user, ready, error]
+    [user, ready, error, storeRoles]
   )
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
