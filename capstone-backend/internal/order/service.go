@@ -17,6 +17,7 @@ import (
 // ============================================================================
 // DTO / Input Types
 // ============================================================================
+
 type OrderStatusUpdateInput struct {
 	Status string `json:"status"`
 }
@@ -28,40 +29,28 @@ type OrderStatusUpdateInput struct {
 type Service interface {
 	CreateFromCart(ctx context.Context, userID string, in CheckoutConfirmInput) (OrderWithItems, error)
 	GetOrderWithItems(ctx context.Context, id int64) (OrderWithItems, error)
-	UpdateStatus(
-		ctx context.Context,
-		actorUserID string,
-		id int64,
-		in OrderStatusUpdateInput,
-	) (Order, error)
-	Propose(
-		ctx context.Context,
-		actorUserID string,
-		id int64,
-		in ProposeSuggestInput,
-	) (Order, error)
-	AcceptProposed(
-		ctx context.Context,
-		actorUserID string,
-		id int64,
-		in AcceptProposedInput,
-	) (Order, error)
-	Cancel(ctx context.Context,
-		actorUserID string,
-		id int64,
-		reason string,
-	) (Order, error)
+	UpdateStatus(ctx context.Context, actorUserID string, id int64, in OrderStatusUpdateInput) (Order, error)
+	Propose(ctx context.Context, actorUserID string, id int64, in ProposeSuggestInput) (Order, error)
+	AcceptProposed(ctx context.Context, actorUserID string, id int64, in AcceptProposedInput) (Order, error)
+	Cancel(ctx context.Context, actorUserID string, id int64, reason string) (Order, error)
 	ListBuyerOrders(ctx context.Context, userID string, statusGroup string, q string, limit, page int) ([]Order, int64, error)
 	ListStoreOrders(ctx context.Context, storeID int64, statusGroup string, q string, limit, page int) ([]Order, int64, error)
 	CancelOrdersByUserRole(ctx context.Context, actorUserID, userID, role, reason string) ([]int64, error)
 	CancelOrdersByStore(ctx context.Context, actorUserID string, storeID int64, reason string) ([]int64, error)
 }
 
-// Notifier is an interface for sending notifications
+// ============================================================================
+// Notifier
+// ============================================================================
+
 type Notifier interface {
 	BroadcastToRoom(roomID string, message interface{})
 	IsUserInRoom(roomID string, userID string) bool
 }
+
+// ============================================================================
+// service struct
+// ============================================================================
 
 type service struct {
 	repo       Repo
@@ -97,30 +86,26 @@ func NewService(
 ) Service {
 	return &service{
 		repo: r, cartSvc: c, productSvc: p, storeSvc: st,
-		notifier: n,
-		noti:     noti,
-		banSvc:   ban,
+		notifier: n, noti: noti, banSvc: ban,
 	}
 }
+
+// ============================================================================
+// Helpers
+// ============================================================================
 
 func (s *service) shouldSkipNotiForOrderRoom(orderID int64, recipientUserID string) bool {
 	if s.notifier == nil {
 		return false
 	}
 	roomID := "order_" + strconv.FormatInt(orderID, 10)
-
 	if lg, ok := s.notifier.(interface{ LogRoomUsers(string) }); ok {
 		lg.LogRoomUsers(roomID)
 	}
 	inRoom := s.notifier.IsUserInRoom(roomID, recipientUserID)
 	log.Printf("[NOTI] check order room: room=%s recipient=%s inRoom=%v", roomID, recipientUserID, inRoom)
-
 	return inRoom
 }
-
-// ============================================================================
-// Validators
-// ============================================================================
 
 var allowedStatuses = map[string]struct{}{
 	"Pending":          {},
@@ -134,11 +119,7 @@ var allowedStatuses = map[string]struct{}{
 
 var statusGroups = map[string][]string{
 	"active": {
-		"Pending",
-		"Proposed",
-		"Accepted",
-		"Out For Delivery",
-		"Arrived",
+		"Pending", "Proposed", "Accepted", "Out For Delivery", "Arrived",
 	},
 	"completed": {"Completed"},
 	"cancelled": {"Cancelled"},
@@ -169,9 +150,8 @@ func validateCheckoutInput(in *CheckoutConfirmInput) error {
 func mapStatusGroup(group string) ([]string, error) {
 	g := strings.ToLower(strings.TrimSpace(group))
 	if g == "" || g == "all" {
-		return nil, nil // คือไม่ filter ตาม group
+		return nil, nil
 	}
-
 	statuses, ok := statusGroups[g]
 	if !ok {
 		return nil, apperr.New(apperr.BadRequest, "invalid status_group")
@@ -186,7 +166,6 @@ func validateDelivery(in *CheckoutConfirmInput) error {
 	}
 
 	switch in.DeliveryMethod {
-
 	case "CAMPUS":
 		in.DeliveryAddressID = nil
 		in.CampusLocationID = nil
@@ -194,21 +173,14 @@ func validateDelivery(in *CheckoutConfirmInput) error {
 
 	case "ROUND_UNIVERSITY":
 		if in.DeliveryAddressID == nil || *in.DeliveryAddressID <= 0 {
-			return apperr.New(
-				apperr.BadRequest,
-				"delivery_address_id is required for ROUND_UNIVERSITY",
-			)
+			return apperr.New(apperr.BadRequest, "delivery_address_id is required for ROUND_UNIVERSITY")
 		}
 		in.CampusLocationID = nil
 		in.CampusDetailNote = nil
 
 	default:
-		return apperr.New(
-			apperr.BadRequest,
-			"delivery_method must be CAMPUS or ROUND_UNIVERSITY",
-		)
+		return apperr.New(apperr.BadRequest, "delivery_method must be CAMPUS or ROUND_UNIVERSITY")
 	}
-
 	return nil
 }
 
@@ -242,24 +214,15 @@ func strPtr(s string) *string {
 	return &v
 }
 
-// notifyUpdate broadcasts the latest order state to the room
 func (s *service) notifyUpdate(ctx context.Context, orderID int64) {
-	// Re-fetch the full order with items to send the latest state
-	// We use a background context or the existing context, but simpler to use existing
-	// If context is cancelled (e.g. request timeout), we might fail to fetch.
-	// But usually notification is best-effort.
-
-	// We need a way to get *full* order details similar to GetOrderWithItems or GetOrderDetail
-	// reusing GetOrderWithItems logic:
 	items, err := s.repo.ListItemsByOrderID(ctx, orderID)
 	if err != nil {
-		return // log error?
+		return
 	}
 	ord, err := s.repo.GetOrder(ctx, orderID)
 	if err != nil {
 		return
 	}
-
 	payload := map[string]interface{}{
 		"type": "ORDER_UPDATE",
 		"data": map[string]interface{}{
@@ -267,8 +230,6 @@ func (s *service) notifyUpdate(ctx context.Context, orderID int64) {
 			"items": items,
 		},
 	}
-
-	// Room ID: order_{id}
 	roomID := "order_" + strconv.FormatInt(orderID, 10)
 	s.notifier.BroadcastToRoom(roomID, payload)
 }
@@ -277,7 +238,6 @@ func (s *service) getBlockingBanByRole(ctx context.Context, userID, role string)
 	if s.banSvc == nil {
 		return nil, nil
 	}
-
 	bans, err := s.banSvc.ListActiveBans(ctx, userID)
 	if err != nil {
 		if apperr.Is(err, apperr.NotFound) {
@@ -285,7 +245,6 @@ func (s *service) getBlockingBanByRole(ctx context.Context, userID, role string)
 		}
 		return nil, err
 	}
-
 	for i := range bans {
 		b := bans[i]
 		if !b.IsActive {
@@ -294,11 +253,9 @@ func (s *service) getBlockingBanByRole(ctx context.Context, userID, role string)
 		if !strings.EqualFold(strings.TrimSpace(b.UserRole), strings.TrimSpace(role)) {
 			continue
 		}
-		// WARNING ใช้งานได้
 		if strings.EqualFold(b.BanType, "WARNING") {
 			continue
 		}
-		// TEMPORARY / PERMANENT บล็อกจริง
 		if strings.EqualFold(b.BanType, "TEMPORARY") || strings.EqualFold(b.BanType, "PERMANENT") {
 			return &b, nil
 		}
@@ -307,18 +264,50 @@ func (s *service) getBlockingBanByRole(ctx context.Context, userID, role string)
 }
 
 func banCancelReason(b *UserBlacklist) string {
-	// ใส่ลง cancelled_reason
 	return "AUTO_CANCELLED_DUE_TO_" +
 		strings.ToUpper(strings.TrimSpace(b.BanType)) + "_" +
 		strings.ToUpper(strings.TrimSpace(b.Reason)) + "_" +
 		strings.ToUpper(strings.TrimSpace(b.UserRole))
 }
 
+func allowedSellerTransition(from, to string) bool {
+	switch from {
+	case "Pending":
+		return to == "Proposed"
+	case "Accepted":
+		return to == "Out For Delivery"
+	case "Out For Delivery":
+		return to == "Arrived"
+	case "Arrived":
+		return to == "Completed"
+	default:
+		return false
+	}
+}
+
+func allowedBuyerTransition(from, to string) bool {
+	switch from {
+	case "Proposed":
+		return to == "Accepted"
+	default:
+		return false
+	}
+}
+
+func isAutoCancelDueToBan(ord Order, to string) bool {
+	if to != "Cancelled" {
+		return false
+	}
+	if ord.CancelledReason == nil {
+		return false
+	}
+	return strings.HasPrefix(strings.ToUpper(strings.TrimSpace(*ord.CancelledReason)), "AUTO_CANCELLED_DUE_TO_")
+}
+
 // ============================================================================
-// Service Methods
+// CreateFromCart
 // ============================================================================
 
-// CreateFromCart แปลง cart ของ user → order + order_items
 func (s *service) CreateFromCart(ctx context.Context, userID string, in CheckoutConfirmInput) (OrderWithItems, error) {
 	if strings.TrimSpace(userID) == "" {
 		return OrderWithItems{}, apperr.New(apperr.BadRequest, "invalid user_id")
@@ -376,7 +365,6 @@ func (s *service) CreateFromCart(ctx context.Context, userID string, in Checkout
 				return OrderWithItems{}, apperr.New(apperr.BadRequest, "store is not active, cannot place order")
 			}
 
-			// Delivery fee for ROUND_UNIVERSITY
 			if strings.EqualFold(strings.TrimSpace(in.DeliveryMethod), "ROUND_UNIVERSITY") {
 				if !st.DeliveryRoundUniversityEnabled {
 					return OrderWithItems{}, apperr.New(apperr.BadRequest, "store does not support ROUND_UNIVERSITY delivery")
@@ -393,8 +381,9 @@ func (s *service) CreateFromCart(ctx context.Context, userID string, in Checkout
 			return OrderWithItems{}, apperr.New(apperr.BadRequest, "cart contains items from multiple stores")
 		}
 
-		// Item price calc
-		unit := p.Price
+		// ===== unit price = base price + price_delta (จาก CartItemView) =====
+		// CartItemView.ProductPrice คือ base + delta แล้ว (คำนวณใน ListItemViewsByCartID)
+		unit := ci.ProductPrice
 		sub := unit * float64(ci.Quantity)
 		itemsTotal += sub
 
@@ -406,6 +395,7 @@ func (s *service) CreateFromCart(ctx context.Context, userID string, in Checkout
 			DepositAmount:    in.DepositAmount,
 			PromisedShipDate: time.Time{},
 			ProductID:        ci.ProductID,
+			VariantID:        ci.VariantID, // nil = PREORDER, not nil = STOCK (repo จะ deduct stock)
 		})
 	}
 
@@ -413,11 +403,10 @@ func (s *service) CreateFromCart(ctx context.Context, userID string, in Checkout
 
 	params := OrderCreateParams{
 		Status:      "Pending",
-		TotalPrice:  grandTotal,  // ✅ itemsTotal + deliveryFee
-		DeliveryFee: deliveryFee, // ✅ แยกเก็บใน column delivery_fee
-
-		UserID:  userID,
-		StoreID: storeID,
+		TotalPrice:  grandTotal,
+		DeliveryFee: deliveryFee,
+		UserID:      userID,
+		StoreID:     storeID,
 
 		DeliveryMethod:    in.DeliveryMethod,
 		DeliveryAddressID: in.DeliveryAddressID,
@@ -432,43 +421,42 @@ func (s *service) CreateFromCart(ctx context.Context, userID string, in Checkout
 
 	s.createOrderStatusNotiBestEffort(ctx, ow.Order, userID, "", "Pending")
 
-	// Clear cart best-effort (คุณทำแบบ strict ก็โอเค)
-	for _, ci := range cw.Items {
-		if err := s.cartSvc.DeleteItem(ctx, userID, int64(ci.ID)); err != nil {
-			return ow, apperr.Wrap(apperr.Internal, err, "order created but failed to clear cart")
-		}
+	// Clear cart
+	if err := s.cartSvc.ClearCart(ctx, userID); err != nil {
+		return ow, apperr.Wrap(apperr.Internal, err, "order created but failed to clear cart")
 	}
 
 	return ow, nil
 }
 
+// ============================================================================
+// GetOrderWithItems
+// ============================================================================
+
 func (s *service) GetOrderWithItems(ctx context.Context, id int64) (OrderWithItems, error) {
 	if id <= 0 {
 		return OrderWithItems{}, apperr.New(apperr.BadRequest, "invalid order_id")
 	}
-
 	ord, err := s.repo.GetOrder(ctx, id)
 	if err != nil {
 		return OrderWithItems{}, err
 	}
-
 	items, err := s.repo.ListItemsByOrderID(ctx, id)
 	if err != nil {
 		return OrderWithItems{}, err
 	}
-
-	return OrderWithItems{
-		Order: ord,
-		Items: items,
-	}, nil
+	return OrderWithItems{Order: ord, Items: items}, nil
 }
+
+// ============================================================================
+// UpdateStatus
+// ============================================================================
 
 func (s *service) UpdateStatus(ctx context.Context, actorUserID string, id int64, in OrderStatusUpdateInput) (Order, error) {
 	actorUserID = strings.TrimSpace(actorUserID)
 	if actorUserID == "" {
 		return Order{}, apperr.New(apperr.BadRequest, "invalid actor_user_id")
 	}
-
 	if id <= 0 {
 		return Order{}, apperr.New(apperr.BadRequest, "invalid order_id")
 	}
@@ -486,7 +474,6 @@ func (s *service) UpdateStatus(ctx context.Context, actorUserID string, id int64
 	if err != nil {
 		return Order{}, err
 	}
-
 	if !isBuyer && !isSeller {
 		return Order{}, apperr.New(apperr.Forbidden, "not allowed")
 	}
@@ -508,12 +495,11 @@ func (s *service) UpdateStatus(ctx context.Context, actorUserID string, id int64
 			s.notifyUpdate(ctx, id)
 			return Order{}, apperr.New(apperr.Forbidden, "seller is banned, cannot update order")
 		}
-		// allow Pending->Accepted สำหรับ ROUND_UNIVERSITY
+
 		if from == "Pending" && strings.ToUpper(strings.TrimSpace(ord.DeliveryMethod)) == "ROUND_UNIVERSITY" {
 			if to != "Accepted" {
 				return Order{}, apperr.New(apperr.BadRequest, "ROUND_UNIVERSITY seller can only move Pending -> Accepted")
 			}
-
 			ord, err = s.repo.UpdateOrderStatus(ctx, id, to)
 			if err == nil {
 				s.notifyUpdate(ctx, id)
@@ -550,29 +536,9 @@ func (s *service) UpdateStatus(ctx context.Context, actorUserID string, id int64
 	return ord, err
 }
 
-func allowedSellerTransition(from, to string) bool {
-	switch from {
-	case "Pending":
-		return to == "Proposed"
-	case "Accepted":
-		return to == "Out For Delivery"
-	case "Out For Delivery":
-		return to == "Arrived"
-	case "Arrived":
-		return to == "Completed"
-	default:
-		return false
-	}
-}
-
-func allowedBuyerTransition(from, to string) bool {
-	switch from {
-	case "Proposed":
-		return to == "Accepted"
-	default:
-		return false
-	}
-}
+// ============================================================================
+// Cancel
+// ============================================================================
 
 func (s *service) Cancel(ctx context.Context, actorUserID string, id int64, reason string) (Order, error) {
 	actorUserID = strings.TrimSpace(actorUserID)
@@ -617,9 +583,7 @@ func (s *service) Cancel(ctx context.Context, actorUserID string, id int64, reas
 		default:
 			return Order{}, apperr.New(apperr.BadRequest, "cannot cancel in current status (campus)")
 		}
-
 	case "ROUND_UNIVERSITY":
-
 	default:
 		return Order{}, apperr.New(apperr.BadRequest, "invalid delivery_method")
 	}
@@ -639,6 +603,10 @@ func (s *service) Cancel(ctx context.Context, actorUserID string, id int64, reas
 	}
 	return ord, err
 }
+
+// ============================================================================
+// Propose / AcceptProposed
+// ============================================================================
 
 func (s *service) Propose(ctx context.Context, actorUserID string, id int64, in ProposeSuggestInput) (Order, error) {
 	actorUserID = strings.TrimSpace(actorUserID)
@@ -686,7 +654,6 @@ func (s *service) Propose(ctx context.Context, actorUserID string, id int64, in 
 	}
 
 	from := ord.Status
-
 	ord, err = s.repo.Propose(ctx, id, in.ProposedAt, in.MeetingLocationID, in.MeetingNote)
 	if err == nil {
 		s.notifyUpdate(ctx, id)
@@ -695,13 +662,7 @@ func (s *service) Propose(ctx context.Context, actorUserID string, id int64, in 
 	return ord, err
 }
 
-func (s *service) AcceptProposed(
-	ctx context.Context,
-	actorUserID string,
-	id int64,
-	in AcceptProposedInput,
-) (Order, error) {
-
+func (s *service) AcceptProposed(ctx context.Context, actorUserID string, id int64, in AcceptProposedInput) (Order, error) {
 	actorUserID = strings.TrimSpace(actorUserID)
 	if actorUserID == "" {
 		return Order{}, apperr.New(apperr.BadRequest, "invalid actor_user_id")
@@ -716,22 +677,15 @@ func (s *service) AcceptProposed(
 	}
 
 	if strings.ToUpper(strings.TrimSpace(ord.DeliveryMethod)) != "CAMPUS" {
-		return Order{}, apperr.New(apperr.BadRequest,
-			"accept proposal is only available for CAMPUS orders")
+		return Order{}, apperr.New(apperr.BadRequest, "accept proposal is only available for CAMPUS orders")
 	}
 
-	isBuyer := s.isBuyer(ord, actorUserID)
-	if !isBuyer {
-		return Order{}, apperr.New(apperr.Forbidden,
-			"only buyer can accept/reject proposal")
+	if !s.isBuyer(ord, actorUserID) {
+		return Order{}, apperr.New(apperr.Forbidden, "only buyer can accept/reject proposal")
 	}
-
 	if ord.Status != "Proposed" {
-		return Order{}, apperr.New(apperr.BadRequest,
-			"can accept/reject only when status is Proposed")
+		return Order{}, apperr.New(apperr.BadRequest, "can accept/reject only when status is Proposed")
 	}
-
-	from := ord.Status
 
 	if b, err := s.getBlockingBanByRole(ctx, actorUserID, "BUYER"); err != nil {
 		return Order{}, err
@@ -742,186 +696,20 @@ func (s *service) AcceptProposed(
 		return Order{}, apperr.New(apperr.Forbidden, "buyer is banned, cannot accept proposal")
 	}
 
+	from := ord.Status
 	ord, err = s.repo.RespondProposal(ctx, id, in.Accept)
 	if err != nil {
 		return Order{}, err
 	}
 
 	s.notifyUpdate(ctx, id)
-
-	newStatus := ord.Status
-	s.updateOrderStatusNotiBestEffort(
-		ctx,
-		ord,
-		actorUserID,
-		from,
-		newStatus,
-	)
-
+	s.updateOrderStatusNotiBestEffort(ctx, ord, actorUserID, from, ord.Status)
 	return ord, nil
 }
 
-func (s *service) createOrderStatusNotiBestEffort(
-	ctx context.Context,
-	ord Order,
-	actorUserID, from, to string,
-) {
-	if s.noti == nil {
-		return
-	}
-
-	actorUserID = strings.TrimSpace(actorUserID)
-	if actorUserID == "" {
-		return
-	}
-
-	recipient := ord.UserID
-
-	if strings.EqualFold(actorUserID, ord.UserID) {
-		st, err := s.storeSvc.Get(ctx, int64(ord.StoreID))
-		if err != nil {
-			return
-		}
-		recipient = st.UserID.String()
-	}
-
-	if strings.EqualFold(recipient, actorUserID) {
-		return
-	}
-
-	if s.shouldSkipNotiForOrderRoom(int64(ord.ID), recipient) {
-		return
-	}
-
-	ordID := int64(ord.ID)
-	title, body := notification.BuildOrderStatusMessage(from, to)
-
-	newData := map[string]any{
-		"old_status": from,
-		"new_status": to,
-	}
-
-	existing, err := s.noti.List(ctx, notification.ListInput{
-		UserID:  recipient,
-		OrderID: &ordID,
-		Types:   []string{"ORDER_STATUS_CHANGED"},
-		Limit:   1,
-	})
-	if err != nil {
-		if apperr.Is(err, apperr.NotFound) {
-			existing = nil
-		} else {
-			return
-		}
-	}
-
-	if len(existing) > 0 {
-		isUnread := false
-		_, _ = s.noti.UpdateNotification(ctx, notification.UpdateNotificationInput{
-			NotificationID: existing[0].ID,
-			Title:          strPtr(title),
-			Body:           strPtr(body),
-			IsRead:         &isUnread,
-			Data:           newData,
-		})
-		return
-	}
-
-	_, _ = s.noti.CreateOrderStatus(ctx, notification.CreateOrderStatusNotificationInput{
-		RecipientUserID: recipient,
-		ActorUserID:     actorUserID,
-		OrderID:         ordID,
-		StoreID:         int64(ord.StoreID),
-		OldStatus:       from,
-		NewStatus:       to,
-	})
-}
-
-func (s *service) updateOrderStatusNotiBestEffort(
-	ctx context.Context,
-	ord Order,
-	actorUserID, from, to string,
-) error {
-	if s.noti == nil {
-		return nil
-	}
-
-	actorUserID = strings.TrimSpace(actorUserID)
-	if actorUserID == "" {
-		return apperr.New(apperr.BadRequest, "invalid actor_user_id")
-	}
-
-	recipient := ord.UserID
-
-	if strings.EqualFold(actorUserID, ord.UserID) {
-		st, err := s.storeSvc.Get(ctx, int64(ord.StoreID))
-		if err != nil {
-			return apperr.Wrap(apperr.Internal, err, "failed to fetch store for notification")
-		}
-		recipient = st.UserID.String()
-	}
-
-	if strings.EqualFold(recipient, actorUserID) {
-		return nil
-	}
-
-	if !isAutoCancelDueToBan(ord, to) {
-		if s.shouldSkipNotiForOrderRoom(int64(ord.ID), recipient) {
-			return nil
-		}
-	}
-
-	ordID := int64(ord.ID)
-	title, body := notification.BuildOrderStatusMessage(from, to)
-
-	newData := map[string]any{
-		"old_status": from,
-		"new_status": to,
-	}
-	if to == "Cancelled" && ord.CancelledReason != nil {
-		newData["cancel_reason"] = strings.TrimSpace(*ord.CancelledReason)
-	}
-
-	existing, err := s.noti.List(ctx, notification.ListInput{
-		UserID:  recipient,
-		OrderID: &ordID,
-		Types:   []string{"ORDER_STATUS_CHANGED"},
-		Limit:   1,
-	})
-	if err != nil {
-		if apperr.Is(err, apperr.NotFound) {
-			existing = nil
-		} else {
-			log.Printf("[NOTI] list failed: recipient=%s order=%d err=%v", recipient, ordID, err)
-			return nil
-		}
-	}
-
-	if len(existing) > 0 {
-		isUnread := false
-		_, _ = s.noti.UpdateNotification(ctx, notification.UpdateNotificationInput{
-			NotificationID: existing[0].ID,
-			Title:          strPtr(title),
-			Body:           strPtr(body),
-			IsRead:         &isUnread,
-			Data:           newData,
-		})
-		log.Printf("[NOTI] update failed: recipient=%s order=%d err=%v", recipient, ordID, err)
-		return nil
-	}
-
-	_, _ = s.noti.CreateOrderStatus(ctx, notification.CreateOrderStatusNotificationInput{
-		RecipientUserID: recipient,
-		ActorUserID:     actorUserID,
-		OrderID:         ordID,
-		StoreID:         int64(ord.StoreID),
-		OldStatus:       from,
-		NewStatus:       to,
-	})
-	log.Printf("[NOTI] create failed: recipient=%s order=%d err=%v", recipient, ordID, err)
-
-	return nil
-}
+// ============================================================================
+// List
+// ============================================================================
 
 func (s *service) ListBuyerOrders(ctx context.Context, userID, statusGroup, q string, limit, page int) ([]Order, int64, error) {
 	if strings.TrimSpace(userID) == "" {
@@ -945,6 +733,10 @@ func (s *service) ListStoreOrders(ctx context.Context, storeID int64, statusGrou
 	return s.repo.ListByStoreID(ctx, storeID, statuses, q, limit, page)
 }
 
+// ============================================================================
+// Bulk Cancel
+// ============================================================================
+
 func (s *service) CancelOrdersByUserRole(ctx context.Context, actorUserID, userID, role, reason string) ([]int64, error) {
 	actorUserID = strings.TrimSpace(actorUserID)
 	role = strings.ToUpper(strings.TrimSpace(role))
@@ -967,18 +759,14 @@ func (s *service) CancelOrdersByUserRole(ctx context.Context, actorUserID, userI
 		if err != nil {
 			return nil, err
 		}
-
 		ids := make([]int64, 0, len(cancelled))
 		for _, c := range cancelled {
 			ids = append(ids, c.OrderID)
-
 			ord, e := s.repo.GetOrder(ctx, c.OrderID)
 			if e != nil {
 				continue
 			}
-
 			s.notifyUpdate(ctx, c.OrderID)
-
 			_ = s.updateOrderStatusNotiBestEffort(ctx, ord, actorUserID, c.OldStatus, "Cancelled")
 			if !strings.EqualFold(actorUserID, ord.UserID) {
 				_ = s.updateOrderStatusNotiBestEffort(ctx, ord, ord.UserID, c.OldStatus, "Cancelled")
@@ -1017,26 +805,151 @@ func (s *service) CancelOrdersByStore(ctx context.Context, actorUserID string, s
 	ids := make([]int64, 0, len(cancelled))
 	for _, c := range cancelled {
 		ids = append(ids, c.OrderID)
-
 		ord, e := s.repo.GetOrder(ctx, c.OrderID)
 		if e != nil {
 			continue
 		}
-
 		s.notifyUpdate(ctx, c.OrderID)
-
 		_ = s.updateOrderStatusNotiBestEffort(ctx, ord, actorUserID, c.OldStatus, "Cancelled")
 	}
-
 	return ids, nil
 }
 
-func isAutoCancelDueToBan(ord Order, to string) bool {
-	if to != "Cancelled" {
-		return false
+// ============================================================================
+// Notification helpers
+// ============================================================================
+
+func (s *service) createOrderStatusNotiBestEffort(ctx context.Context, ord Order, actorUserID, from, to string) {
+	if s.noti == nil {
+		return
 	}
-	if ord.CancelledReason == nil {
-		return false
+	actorUserID = strings.TrimSpace(actorUserID)
+	if actorUserID == "" {
+		return
 	}
-	return strings.HasPrefix(strings.ToUpper(strings.TrimSpace(*ord.CancelledReason)), "AUTO_CANCELLED_DUE_TO_")
+
+	recipient := ord.UserID
+	if strings.EqualFold(actorUserID, ord.UserID) {
+		st, err := s.storeSvc.Get(ctx, int64(ord.StoreID))
+		if err != nil {
+			return
+		}
+		recipient = st.UserID.String()
+	}
+	if strings.EqualFold(recipient, actorUserID) {
+		return
+	}
+	if s.shouldSkipNotiForOrderRoom(int64(ord.ID), recipient) {
+		return
+	}
+
+	ordID := int64(ord.ID)
+	title, body := notification.BuildOrderStatusMessage(from, to)
+	newData := map[string]any{"old_status": from, "new_status": to}
+
+	existing, err := s.noti.List(ctx, notification.ListInput{
+		UserID:  recipient,
+		OrderID: &ordID,
+		Types:   []string{"ORDER_STATUS_CHANGED"},
+		Limit:   1,
+	})
+	if err != nil {
+		if apperr.Is(err, apperr.NotFound) {
+			existing = nil
+		} else {
+			return
+		}
+	}
+
+	if len(existing) > 0 {
+		isUnread := false
+		_, _ = s.noti.UpdateNotification(ctx, notification.UpdateNotificationInput{
+			NotificationID: existing[0].ID,
+			Title:          strPtr(title),
+			Body:           strPtr(body),
+			IsRead:         &isUnread,
+			Data:           newData,
+		})
+		return
+	}
+
+	_, _ = s.noti.CreateOrderStatus(ctx, notification.CreateOrderStatusNotificationInput{
+		RecipientUserID: recipient,
+		ActorUserID:     actorUserID,
+		OrderID:         ordID,
+		StoreID:         int64(ord.StoreID),
+		OldStatus:       from,
+		NewStatus:       to,
+	})
+}
+
+func (s *service) updateOrderStatusNotiBestEffort(ctx context.Context, ord Order, actorUserID, from, to string) error {
+	if s.noti == nil {
+		return nil
+	}
+	actorUserID = strings.TrimSpace(actorUserID)
+	if actorUserID == "" {
+		return apperr.New(apperr.BadRequest, "invalid actor_user_id")
+	}
+
+	recipient := ord.UserID
+	if strings.EqualFold(actorUserID, ord.UserID) {
+		st, err := s.storeSvc.Get(ctx, int64(ord.StoreID))
+		if err != nil {
+			return apperr.Wrap(apperr.Internal, err, "failed to fetch store for notification")
+		}
+		recipient = st.UserID.String()
+	}
+	if strings.EqualFold(recipient, actorUserID) {
+		return nil
+	}
+	if !isAutoCancelDueToBan(ord, to) {
+		if s.shouldSkipNotiForOrderRoom(int64(ord.ID), recipient) {
+			return nil
+		}
+	}
+
+	ordID := int64(ord.ID)
+	title, body := notification.BuildOrderStatusMessage(from, to)
+	newData := map[string]any{"old_status": from, "new_status": to}
+	if to == "Cancelled" && ord.CancelledReason != nil {
+		newData["cancel_reason"] = strings.TrimSpace(*ord.CancelledReason)
+	}
+
+	existing, err := s.noti.List(ctx, notification.ListInput{
+		UserID:  recipient,
+		OrderID: &ordID,
+		Types:   []string{"ORDER_STATUS_CHANGED"},
+		Limit:   1,
+	})
+	if err != nil {
+		if apperr.Is(err, apperr.NotFound) {
+			existing = nil
+		} else {
+			log.Printf("[NOTI] list failed: recipient=%s order=%d err=%v", recipient, ordID, err)
+			return nil
+		}
+	}
+
+	if len(existing) > 0 {
+		isUnread := false
+		_, _ = s.noti.UpdateNotification(ctx, notification.UpdateNotificationInput{
+			NotificationID: existing[0].ID,
+			Title:          strPtr(title),
+			Body:           strPtr(body),
+			IsRead:         &isUnread,
+			Data:           newData,
+		})
+		return nil
+	}
+
+	_, _ = s.noti.CreateOrderStatus(ctx, notification.CreateOrderStatusNotificationInput{
+		RecipientUserID: recipient,
+		ActorUserID:     actorUserID,
+		OrderID:         ordID,
+		StoreID:         int64(ord.StoreID),
+		OldStatus:       from,
+		NewStatus:       to,
+	})
+	return nil
 }

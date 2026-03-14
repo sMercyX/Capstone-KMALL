@@ -2,6 +2,10 @@ package order
 
 import "time"
 
+// ============================================================================
+// Core Types
+// ============================================================================
+
 type Order struct {
 	ID          int     `json:"id"`
 	Status      string  `json:"status"`
@@ -38,6 +42,7 @@ type OrderItem struct {
 	PromisedShipDate time.Time `json:"promised_ship_date"`
 	OrderID          int       `json:"order_id"`
 	ProductID        int       `json:"product_id"`
+	VariantID        *int      `json:"variant_id,omitempty"` // NULL = PREORDER, NOT NULL = STOCK
 }
 
 type OrderItemWithProduct struct {
@@ -45,6 +50,7 @@ type OrderItemWithProduct struct {
 	ProductName     string  `json:"product_name"`
 	ProductImageURL *string `json:"product_image_url,omitempty"`
 	StoreProfileURL *string `json:"store_profile_url,omitempty"`
+	VariantLabel    string  `json:"variant_label,omitempty"` // เช่น "สี: แดง / ขนาด: M"
 }
 
 type OrderWithItems struct {
@@ -53,8 +59,13 @@ type OrderWithItems struct {
 	StoreProfileURL *string                `json:"store_profile_url,omitempty"`
 }
 
+// ============================================================================
+// Input Types
+// ============================================================================
+
 type CreateOrderItemInput struct {
 	ProductID       int      `json:"product_id"`
+	VariantID       *int     `json:"variant_id,omitempty"` // required ถ้า STOCK
 	Quantity        int      `json:"quantity"`
 	FulfillmentType string   `json:"fulfillment_type"` // STANDARD / EXPRESS
 	DepositAmount   *float64 `json:"deposit_amount,omitempty"`
@@ -83,6 +94,10 @@ type CheckoutConfirmInput struct {
 	CampusLocationID *int    `json:"campus_location_id,omitempty"`
 	CampusDetailNote *string `json:"campus_detail_note,omitempty"`
 }
+
+// ============================================================================
+// Response Types
+// ============================================================================
 
 type BuyerOrderListResponse struct {
 	PageSize  int             `json:"page_size"`

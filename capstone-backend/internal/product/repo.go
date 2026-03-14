@@ -5,6 +5,7 @@ import (
 	"errors"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/jackc/pgconn"
 	"github.com/jackc/pgx/v5"
@@ -20,15 +21,14 @@ type Repo interface {
 	Update(ctx context.Context, id int64, in UpdateParams) (Product, error)
 	Delete(ctx context.Context, id int64) error
 
-	// UPDATED: add fulfillment + return maxPriceInResult
 	ListPublic(ctx context.Context,
 		q string,
 		categoryIDs []int64,
 		parentCategoryID *int64,
 		storeID *int64,
 		limit, page int,
-		sortBy string, // NEW: "latest" | "sold" | | "price_asc" | "price_desc" | ""
-		fulfillment string, // "ROUND_UNIVERSITY" | "CAMPUS" | ""
+		sortBy string,
+		fulfillment string,
 		minPrice *float64,
 		maxPrice *float64,
 	) ([]Product, int64, float64, error)
@@ -36,11 +36,26 @@ type Repo interface {
 	GetPublic(ctx context.Context, id int64) (Product, error)
 	SuggestSplit(ctx context.Context, userID string, q string, limit int) (SuggestSplitResult, error)
 	GetCategoryName(ctx context.Context, categoryID int) (string, error)
+
+	// ===== Option Keys =====
+	CreateOptionKey(ctx context.Context, productID int64, keyName string, sortOrder int) (OptionKey, error)
+	ListOptionKeys(ctx context.Context, productID int64) ([]OptionKey, error)
+	DeleteOptionKey(ctx context.Context, keyID int64) error
+
+	// ===== Option Values =====
+	CreateOptionValue(ctx context.Context, keyID int64, valueLabel string, sortOrder int) (OptionValue, error)
+	DeleteOptionValue(ctx context.Context, valueID int64) error
+
+	// ===== Variants =====
+	CreateVariant(ctx context.Context, in CreateVariantParams) (Variant, error)
+	ListVariants(ctx context.Context, productID int64) ([]Variant, error)
+	UpdateVariantStock(ctx context.Context, variantID int64, stockQty int) (Variant, error)
+	SetVariantActive(ctx context.Context, variantID int64, isActive bool) error
+	DeleteVariant(ctx context.Context, variantID int64) error
+	DeductStock(ctx context.Context, variantID int64, qty int) error
 }
 
-type repo struct{ db *pgxpool.Pool }
-
-func NewRepo(db *pgxpool.Pool) Repo { return &repo{db: db} }
+// ===== Params =====
 
 type CreateParams struct {
 	Name        string
@@ -48,9 +63,9 @@ type CreateParams struct {
 	Price       float64
 	ImageURL    *string
 	IsActive    string
+	ProductType string // "STOCK" | "PREORDER"
 	StoreID     int
 	CategoryID  int
-	// Embedding   []float64
 
 	EmbName     []float64
 	EmbDesc     []float64
@@ -64,11 +79,18 @@ type UpdateParams struct {
 	ImageURL    *string
 	IsActive    *string
 	CategoryID  *int
-	// Embedding   *[]float64
 
 	EmbName     *[]float64
 	EmbDesc     *[]float64
 	EmbCategory *[]float64
+}
+
+type CreateVariantParams struct {
+	ProductID    int64
+	SKU          *string
+	PriceDelta   float64
+	StockQty     int
+	OptionValues []int64 // option_value_ids
 }
 
 type SuggestSplitResult struct {
@@ -76,11 +98,18 @@ type SuggestSplitResult struct {
 	Suggest []string `json:"suggest"`
 }
 
+// ===== repo =====
+
+type repo struct{ db *pgxpool.Pool }
+
+func NewRepo(db *pgxpool.Pool) Repo { return &repo{db: db} }
+
+// ===== Vector helpers =====
+
 func toVecArg(v []float64) (any, error) {
 	if len(v) == 0 {
 		return nil, nil
 	}
-
 	vl, err := vectorLiteral(v)
 	if err != nil {
 		return nil, err
@@ -95,10 +124,8 @@ func vectorLiteral(v []float64) (string, error) {
 	if len(v) == 0 {
 		return "", nil
 	}
-
 	var b strings.Builder
 	b.Grow(len(v) * 8)
-
 	b.WriteByte('[')
 	for i, f := range v {
 		if i > 0 {
@@ -107,19 +134,22 @@ func vectorLiteral(v []float64) (string, error) {
 		b.WriteString(strconv.FormatFloat(f, 'f', -1, 64))
 	}
 	b.WriteByte(']')
-
 	return b.String(), nil
 }
 
+// ===== Create =====
+
 func (r *repo) Create(ctx context.Context, in CreateParams) (Product, error) {
-	// normalize
 	in.Name = strings.TrimSpace(in.Name)
 	in.IsActive = strings.ToUpper(strings.TrimSpace(in.IsActive))
 	if in.IsActive == "" {
 		in.IsActive = "YES"
 	}
+	in.ProductType = strings.ToUpper(strings.TrimSpace(in.ProductType))
+	if in.ProductType == "" {
+		in.ProductType = "PREORDER"
+	}
 
-	// unique name check
 	var exists bool
 	if err := r.db.QueryRow(ctx, `
 		SELECT EXISTS (SELECT 1 FROM products WHERE name = $1)
@@ -130,7 +160,6 @@ func (r *repo) Create(ctx context.Context, in CreateParams) (Product, error) {
 		return Product{}, apperr.New(apperr.BadRequest, "product name already exists")
 	}
 
-	// ===== embeddings (optional) =====
 	embName, err := toVecArg(in.EmbName)
 	if err != nil {
 		return Product{}, apperr.Wrap(apperr.Internal, err, "format embedding_name failed")
@@ -144,16 +173,14 @@ func (r *repo) Create(ctx context.Context, in CreateParams) (Product, error) {
 		return Product{}, apperr.Wrap(apperr.Internal, err, "format embedding_category failed")
 	}
 
-	// ===== category must be ACTIVE sub category =====
+	// category must be ACTIVE sub category
 	var parentID *int
 	var subActive string
-
 	err = r.db.QueryRow(ctx, `
 		SELECT parent_id, is_active
 		FROM categories
 		WHERE category_id = $1
 	`, in.CategoryID).Scan(&parentID, &subActive)
-
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return Product{}, apperr.New(apperr.BadRequest, "invalid category_id")
@@ -167,16 +194,12 @@ func (r *repo) Create(ctx context.Context, in CreateParams) (Product, error) {
 		return Product{}, apperr.New(apperr.BadRequest, "category is inactive")
 	}
 
-	// (optional but recommended) main must be active too
 	var mainActive string
 	err = r.db.QueryRow(ctx, `
-		SELECT is_active
-		FROM categories
-		WHERE category_id = $1
+		SELECT is_active FROM categories WHERE category_id = $1
 	`, *parentID).Scan(&mainActive)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			// shouldn't happen if FK is correct, but safe
 			return Product{}, apperr.New(apperr.BadRequest, "invalid main category")
 		}
 		return Product{}, apperr.Wrap(apperr.Internal, err, "check main category failed")
@@ -185,33 +208,31 @@ func (r *repo) Create(ctx context.Context, in CreateParams) (Product, error) {
 		return Product{}, apperr.New(apperr.BadRequest, "main category is inactive")
 	}
 
-	// ----- INSERT -----
 	var p Product
 	err = r.db.QueryRow(ctx, `
 		INSERT INTO products (
 			name, product_desc, price, image_url,
-			is_active, store_id, category_id,
+			is_active, product_type, store_id, category_id,
 			embedding_name, embedding_desc, embedding_category
 		)
 		VALUES (
 			$1, $2, $3, $4,
-			$5, $6, $7,
-			COALESCE($8::vector, NULL),
-			COALESCE($9::vector, NULL),
-			COALESCE($10::vector, NULL)
+			$5, $6, $7, $8,
+			COALESCE($9::vector,  NULL),
+			COALESCE($10::vector, NULL),
+			COALESCE($11::vector, NULL)
 		)
 		RETURNING
 			product_id, name, product_desc, price, image_url,
-			created_at, updated_at, is_active, store_id, category_id;
+			product_type, created_at, updated_at, is_active, store_id, category_id;
 	`,
 		in.Name, in.Description, in.Price, in.ImageURL,
-		in.IsActive, in.StoreID, in.CategoryID,
+		in.IsActive, in.ProductType, in.StoreID, in.CategoryID,
 		embName, embDesc, embCat,
 	).Scan(
 		&p.ID, &p.Name, &p.Description, &p.Price, &p.ImageURL,
-		&p.CreatedAt, &p.UpdatedAt, &p.IsActive, &p.StoreID, &p.CategoryID,
+		&p.ProductType, &p.CreatedAt, &p.UpdatedAt, &p.IsActive, &p.StoreID, &p.CategoryID,
 	)
-
 	if err != nil {
 		var pgErr *pgconn.PgError
 		if errors.As(err, &pgErr) && pgErr.Code == "23503" {
@@ -219,32 +240,32 @@ func (r *repo) Create(ctx context.Context, in CreateParams) (Product, error) {
 		}
 		return Product{}, apperr.Wrap(apperr.Internal, err, "insert product failed")
 	}
-
 	return p, nil
 }
 
+// ===== Get =====
+
 func (r *repo) Get(ctx context.Context, id int64) (Product, error) {
 	var p Product
-
 	err := r.db.QueryRow(ctx, `
 		SELECT product_id, name, product_desc, price, image_url,
-		       created_at, updated_at, is_active, store_id, category_id
+		       product_type, created_at, updated_at, is_active, store_id, category_id
 		FROM products
 		WHERE product_id = $1;
 	`, id).Scan(
 		&p.ID, &p.Name, &p.Description, &p.Price, &p.ImageURL,
-		&p.CreatedAt, &p.UpdatedAt, &p.IsActive, &p.StoreID, &p.CategoryID,
+		&p.ProductType, &p.CreatedAt, &p.UpdatedAt, &p.IsActive, &p.StoreID, &p.CategoryID,
 	)
-
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return Product{}, apperr.New(apperr.NotFound, "product not found")
 		}
 		return Product{}, apperr.Wrap(apperr.Internal, err, "get product failed")
 	}
-
 	return p, nil
 }
+
+// ===== ListByStoreID =====
 
 func (r *repo) ListByStoreID(ctx context.Context, storeID int64, q string, limit, page int) ([]Product, int64, error) {
 	if limit <= 0 {
@@ -254,7 +275,6 @@ func (r *repo) ListByStoreID(ctx context.Context, storeID int64, q string, limit
 		page = 1
 	}
 	offset := (page - 1) * limit
-
 	q = strings.TrimSpace(q)
 
 	base := `
@@ -272,20 +292,18 @@ WHERE p.store_id = $1
 		idx++
 	}
 
-	// count
 	var total int64
 	if err := r.db.QueryRow(ctx, `SELECT COUNT(*) `+base, args...).Scan(&total); err != nil {
 		return nil, 0, apperr.Wrap(apperr.Internal, err, "count products by store failed")
 	}
 
-	// list
 	limitIdx := idx
 	offsetIdx := idx + 1
 
 	query := `
 SELECT
   p.product_id, p.name, p.product_desc, p.price, p.image_url,
-  p.created_at, p.updated_at, p.is_active, p.store_id, p.category_id,
+  p.product_type, p.created_at, p.updated_at, p.is_active, p.store_id, p.category_id,
   s.store_name AS store_name,
   c.name       AS category_name,
   0            AS sold_count
@@ -306,7 +324,7 @@ LIMIT $` + strconv.Itoa(limitIdx) + ` OFFSET $` + strconv.Itoa(offsetIdx)
 		var p Product
 		if err := rows.Scan(
 			&p.ID, &p.Name, &p.Description, &p.Price, &p.ImageURL,
-			&p.CreatedAt, &p.UpdatedAt, &p.IsActive, &p.StoreID, &p.CategoryID,
+			&p.ProductType, &p.CreatedAt, &p.UpdatedAt, &p.IsActive, &p.StoreID, &p.CategoryID,
 			&p.StoreName, &p.CategoryName, &p.SoldCount,
 		); err != nil {
 			return nil, 0, apperr.Wrap(apperr.Internal, err, "scan product failed")
@@ -316,20 +334,17 @@ LIMIT $` + strconv.Itoa(limitIdx) + ` OFFSET $` + strconv.Itoa(offsetIdx)
 	if err := rows.Err(); err != nil {
 		return nil, 0, apperr.Wrap(apperr.Internal, err, "rows error")
 	}
-
 	return out, total, nil
 }
 
+// ===== Update =====
+
 func (r *repo) Update(ctx context.Context, id int64, in UpdateParams) (Product, error) {
-	// ----- ถ้ามีส่ง name มา ให้เช็คชื่อซ้ำก่อน -----
 	if in.Name != nil {
 		var exists bool
 		if err := r.db.QueryRow(ctx, `
 			SELECT EXISTS(
-				SELECT 1
-				FROM products
-				WHERE name = $1
-				  AND product_id <> $2
+				SELECT 1 FROM products WHERE name = $1 AND product_id <> $2
 			);
 		`, *in.Name, id).Scan(&exists); err != nil {
 			return Product{}, apperr.Wrap(apperr.Internal, err, "check product name failed")
@@ -339,11 +354,9 @@ func (r *repo) Update(ctx context.Context, id int64, in UpdateParams) (Product, 
 		}
 	}
 
-	// ===== embeddings (optional) =====
-	// nil => COALESCE($X::vector, old) keeps old
-	var embNameArg any = nil
-	var embDescArg any = nil
-	var embCatArg any = nil
+	var embNameArg any
+	var embDescArg any
+	var embCatArg any
 
 	if in.EmbName != nil {
 		v, err := toVecArg(*in.EmbName)
@@ -367,16 +380,15 @@ func (r *repo) Update(ctx context.Context, id int64, in UpdateParams) (Product, 
 		embCatArg = v
 	}
 
-	// ----- UPDATE -----
 	var p Product
 	err := r.db.QueryRow(ctx, `
 		UPDATE products
-		SET name = COALESCE($2, name),
-		    product_desc = COALESCE($3, product_desc),
-		    price = COALESCE($4, price),
-		    image_url = COALESCE($5, image_url),
-		    is_active = COALESCE($6, is_active),
-		    category_id = COALESCE($7, category_id),
+		SET name        = COALESCE($2,  name),
+		    product_desc = COALESCE($3,  product_desc),
+		    price        = COALESCE($4,  price),
+		    image_url    = COALESCE($5,  image_url),
+		    is_active    = COALESCE($6,  is_active),
+		    category_id  = COALESCE($7,  category_id),
 
 		    embedding_name     = COALESCE($8::vector,  embedding_name),
 		    embedding_desc     = COALESCE($9::vector,  embedding_desc),
@@ -386,42 +398,35 @@ func (r *repo) Update(ctx context.Context, id int64, in UpdateParams) (Product, 
 		WHERE product_id = $1
 		RETURNING
 			product_id, name, product_desc, price, image_url,
-			created_at, updated_at, is_active, store_id, category_id;
+			product_type, created_at, updated_at, is_active, store_id, category_id;
 	`,
 		id,
-		in.Name,
-		in.Description,
-		in.Price,
-		in.ImageURL,
-		in.IsActive,
-		in.CategoryID,
+		in.Name, in.Description, in.Price, in.ImageURL, in.IsActive, in.CategoryID,
 		embNameArg, embDescArg, embCatArg,
 	).Scan(
 		&p.ID, &p.Name, &p.Description, &p.Price, &p.ImageURL,
-		&p.CreatedAt, &p.UpdatedAt, &p.IsActive, &p.StoreID, &p.CategoryID,
+		&p.ProductType, &p.CreatedAt, &p.UpdatedAt, &p.IsActive, &p.StoreID, &p.CategoryID,
 	)
-
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return Product{}, apperr.New(apperr.NotFound, "product not found")
 		}
 		return Product{}, apperr.Wrap(apperr.Internal, err, "update product failed")
 	}
-
 	return p, nil
 }
 
-func (r *repo) Delete(ctx context.Context, id int64) error {
-	_, err := r.db.Exec(ctx, `
-		DELETE FROM products
-		WHERE product_id = $1;
-	`, id)
+// ===== Delete =====
 
+func (r *repo) Delete(ctx context.Context, id int64) error {
+	_, err := r.db.Exec(ctx, `DELETE FROM products WHERE product_id = $1;`, id)
 	if err != nil {
 		return apperr.Wrap(apperr.Internal, err, "delete product failed")
 	}
 	return nil
 }
+
+// ===== ListPublic =====
 
 func (r *repo) ListPublic(
 	ctx context.Context,
@@ -430,7 +435,7 @@ func (r *repo) ListPublic(
 	parentCategoryID *int64,
 	storeID *int64,
 	limit, page int,
-	sortBy string, // "latest" | "sold" | "price_asc" | "price_desc" | ""
+	sortBy string,
 	fulfillment string,
 	minPrice *float64,
 	maxPrice *float64,
@@ -451,7 +456,6 @@ func (r *repo) ListPublic(
 	fulfillment = strings.ToUpper(strings.TrimSpace(fulfillment))
 	sortBy = strings.ToLower(strings.TrimSpace(sortBy))
 
-	// price range validation
 	if minPrice != nil && *minPrice < 0 {
 		return nil, 0, 0, apperr.New(apperr.BadRequest, "min_price must be >= 0")
 	}
@@ -479,6 +483,7 @@ func (r *repo) ListPublic(
             p.product_desc,
             p.price,
             p.image_url,
+            p.product_type,
             p.created_at,
             p.updated_at,
             p.is_active,
@@ -492,9 +497,8 @@ func (r *repo) ListPublic(
 	maxQuery := `SELECT COALESCE(MAX(p.price), 0) ` + base
 
 	args := []any{}
-	var qPos int // position of qLower in args (1-based placeholder index)
+	var qPos int
 
-	// ===== Filters =====
 	if len(categoryIDs) > 0 {
 		ph := make([]string, len(categoryIDs))
 		for i := range categoryIDs {
@@ -512,8 +516,7 @@ func (r *repo) ListPublic(
 	if parentCategoryID != nil {
 		cond := `
             AND p.category_id IN (
-                SELECT c.category_id
-                FROM categories c
+                SELECT c.category_id FROM categories c
                 WHERE c.parent_id = $` + strconv.Itoa(len(args)+1) + `
             )
         `
@@ -531,7 +534,6 @@ func (r *repo) ListPublic(
 		args = append(args, *storeID)
 	}
 
-	// fulfillment filter
 	if fulfillment != "" {
 		var cond string
 		switch fulfillment {
@@ -547,7 +549,6 @@ func (r *repo) ListPublic(
 		maxQuery += cond
 	}
 
-	// price range filter
 	if minPrice != nil {
 		cond := " AND p.price >= $" + strconv.Itoa(len(args)+1)
 		selectQuery += cond
@@ -563,7 +564,6 @@ func (r *repo) ListPublic(
 		args = append(args, *maxPrice)
 	}
 
-	// ===== Search =====
 	if qLower != "" {
 		args = append(args, qLower)
 		qPos = len(args)
@@ -594,7 +594,6 @@ func (r *repo) ListPublic(
                 OR s.store_name % ` + likeQ + `
                 OR coalesce(p.product_desc,'') % ` + likeQ + `
         `
-
 		if len(termParts) > 0 {
 			cond += " OR (" + strings.Join(termParts, " OR ") + ") "
 		}
@@ -605,24 +604,14 @@ func (r *repo) ListPublic(
 		maxQuery += cond
 	}
 
-	// ===== GROUP BY =====
 	groupBy := `
         GROUP BY
-            p.product_id,
-            p.name,
-            p.product_desc,
-            p.price,
-            p.image_url,
-            p.created_at,
-            p.updated_at,
-            p.is_active,
-            p.store_id,
-            p.category_id,
-            s.store_name
+            p.product_id, p.name, p.product_desc, p.price, p.image_url,
+            p.product_type, p.created_at, p.updated_at, p.is_active,
+            p.store_id, p.category_id, s.store_name
     `
 	selectQuery += " " + groupBy
 
-	// ===== ORDER BY =====
 	defaultLatest := "p.created_at DESC, p.product_id ASC"
 	relevanceOrder := ""
 
@@ -637,7 +626,6 @@ func (r *repo) ListPublic(
                 ) THEN 1 ELSE 0 END
             `
 		}
-
 		simMax := `
             GREATEST(
                 similarity(p.name, $` + strconv.Itoa(qPos) + `),
@@ -645,81 +633,63 @@ func (r *repo) ListPublic(
                 similarity(coalesce(p.product_desc,''), $` + strconv.Itoa(qPos) + `)
             )
         `
-
 		relevanceOrder = `
             (lower(p.name) = $` + strconv.Itoa(qPos) + `) DESC,
             (lower(s.store_name) = $` + strconv.Itoa(qPos) + `) DESC,
-
             (lower(p.name) LIKE $` + strconv.Itoa(qPos) + ` || '%') DESC,
             (lower(s.store_name) LIKE $` + strconv.Itoa(qPos) + ` || '%') DESC,
-
             (lower(p.name) LIKE '%' || $` + strconv.Itoa(qPos) + ` || '%') DESC,
             (lower(s.store_name) LIKE '%' || $` + strconv.Itoa(qPos) + ` || '%') DESC,
             (lower(coalesce(p.product_desc,'')) LIKE '%' || $` + strconv.Itoa(qPos) + ` || '%') DESC,
-
             (` + matchCountExpr + `) DESC,
             (` + simMax + `) DESC
         `
 	}
 
 	orderBy := defaultLatest
-
 	switch sortBy {
 	case "", "latest":
-		// มี q => relevance ก่อน แล้วค่อย latest เป็นตัวกัน tie
 		if qLower != "" && relevanceOrder != "" {
 			orderBy = relevanceOrder + ", " + defaultLatest
-		} else {
-			orderBy = defaultLatest
 		}
-
 	case "sold":
-		// sold เป็นหลัก (แต่ถ้ามี q ให้ relevance ช่วยดันของที่เกี่ยวข้องก่อน)
 		if qLower != "" && relevanceOrder != "" {
 			orderBy = relevanceOrder + ", sold_count DESC, " + defaultLatest
 		} else {
 			orderBy = "sold_count DESC, " + defaultLatest
 		}
-
 	case "price_asc":
-		// ราคาเป็นหลักเสมอ
 		if qLower != "" && relevanceOrder != "" {
 			orderBy = "p.price ASC, " + relevanceOrder + ", p.product_id ASC"
 		} else {
 			orderBy = "p.price ASC, p.product_id ASC"
 		}
-
 	case "price_desc":
 		if qLower != "" && relevanceOrder != "" {
 			orderBy = "p.price DESC, " + relevanceOrder + ", p.product_id ASC"
 		} else {
 			orderBy = "p.price DESC, p.product_id ASC"
 		}
-
 	default:
 		return nil, 0, 0, apperr.New(apperr.BadRequest, "invalid sort_by (use latest, sold, price_asc, price_desc)")
 	}
 
-	// ===== Paging =====
 	selectQuery += " ORDER BY " + orderBy +
 		" LIMIT $" + strconv.Itoa(len(args)+1) +
 		" OFFSET $" + strconv.Itoa(len(args)+2)
 
 	argsWithPage := append(append([]any{}, args...), limit, offset)
 
-	// ===== Count =====
 	var total int64
 	if err := r.db.QueryRow(ctx, countQuery, args...).Scan(&total); err != nil {
 		return nil, 0, 0, apperr.Wrap(apperr.Internal, err, "count public products failed")
 	}
 
-	// ===== Max price (after ALL filters) =====
 	var maxPriceResult float64
 	if err := r.db.QueryRow(ctx, maxQuery, args...).Scan(&maxPriceResult); err != nil {
 		return nil, 0, 0, apperr.Wrap(apperr.Internal, err, "max price public products failed")
 	}
 
-	// ===== Query =====
 	rows, err := r.db.Query(ctx, selectQuery, argsWithPage...)
 	if err != nil {
 		return nil, 0, 0, apperr.Wrap(apperr.Internal, err, "public list failed")
@@ -730,98 +700,62 @@ func (r *repo) ListPublic(
 	for rows.Next() {
 		var p Product
 		if err := rows.Scan(
-			&p.ID,
-			&p.Name,
-			&p.Description,
-			&p.Price,
-			&p.ImageURL,
-			&p.CreatedAt,
-			&p.UpdatedAt,
-			&p.IsActive,
-			&p.StoreID,
-			&p.CategoryID,
-			&p.StoreName,
-			&p.SoldCount,
+			&p.ID, &p.Name, &p.Description, &p.Price, &p.ImageURL,
+			&p.ProductType, &p.CreatedAt, &p.UpdatedAt, &p.IsActive,
+			&p.StoreID, &p.CategoryID, &p.StoreName, &p.SoldCount,
 		); err != nil {
 			return nil, 0, 0, apperr.Wrap(apperr.Internal, err, "scan product failed")
 		}
 		out = append(out, p)
 	}
-
 	if out == nil {
 		out = []Product{}
 	}
-
 	return out, total, maxPriceResult, nil
 }
 
+// ===== GetPublic =====
+
 func (r *repo) GetPublic(ctx context.Context, id int64) (Product, error) {
 	var p Product
-
 	err := r.db.QueryRow(ctx, `
-    SELECT
-        p.product_id,
-        p.name,
-        p.product_desc,
-        p.price,
-        p.image_url,
-        p.created_at,
-        p.updated_at,
-        p.is_active,
-        p.store_id,
-        p.category_id,
-        s.store_name,
-        c.name AS category_name,
-        COALESCE(SUM(CASE WHEN o.order_id IS NOT NULL THEN oi.quantity ELSE 0 END), 0) AS sold_count
-    FROM products p
-    JOIN stores s ON p.store_id = s.store_id
-    JOIN categories c ON c.category_id = p.category_id
+		SELECT
+		    p.product_id, p.name, p.product_desc, p.price, p.image_url,
+		    p.product_type, p.created_at, p.updated_at, p.is_active,
+		    p.store_id, p.category_id,
+		    s.store_name,
+		    c.name AS category_name,
+		    COALESCE(SUM(CASE WHEN o.order_id IS NOT NULL THEN oi.quantity ELSE 0 END), 0) AS sold_count
+		FROM products p
+		JOIN stores s     ON p.store_id    = s.store_id
+		JOIN categories c ON c.category_id = p.category_id
 
-    LEFT JOIN order_items oi ON oi.product_id = p.product_id
-    LEFT JOIN orders o ON o.order_id = oi.order_id AND o.status = 'Completed'
+		LEFT JOIN order_items oi ON oi.product_id = p.product_id
+		LEFT JOIN orders o       ON o.order_id    = oi.order_id AND o.status = 'Completed'
 
-    WHERE p.product_id = $1
-      AND p.is_active = 'YES'
-      AND s.is_active = 'YES'
-      AND c.is_active = 'YES'
-    GROUP BY
-        p.product_id,
-        p.name,
-        p.product_desc,
-        p.price,
-        p.image_url,
-        p.created_at,
-        p.updated_at,
-        p.is_active,
-        p.store_id,
-        p.category_id,
-        s.store_name,
-        c.name;
-`, id).Scan(
-		&p.ID,
-		&p.Name,
-		&p.Description,
-		&p.Price,
-		&p.ImageURL,
-		&p.CreatedAt,
-		&p.UpdatedAt,
-		&p.IsActive,
-		&p.StoreID,
-		&p.CategoryID,
-		&p.StoreName,
-		&p.CategoryName,
-		&p.SoldCount,
+		WHERE p.product_id = $1
+		  AND p.is_active  = 'YES'
+		  AND s.is_active  = 'YES'
+		  AND c.is_active  = 'YES'
+		GROUP BY
+		    p.product_id, p.name, p.product_desc, p.price, p.image_url,
+		    p.product_type, p.created_at, p.updated_at, p.is_active,
+		    p.store_id, p.category_id, s.store_name, c.name;
+	`, id).Scan(
+		&p.ID, &p.Name, &p.Description, &p.Price, &p.ImageURL,
+		&p.ProductType, &p.CreatedAt, &p.UpdatedAt, &p.IsActive,
+		&p.StoreID, &p.CategoryID, &p.StoreName, &p.CategoryName, &p.SoldCount,
 	)
-
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return Product{}, apperr.New(apperr.NotFound, "product not found")
 		}
 		return Product{}, apperr.Wrap(apperr.Internal, err, "public get failed")
 	}
-
 	return p, nil
 }
+
+// ===== SuggestSplit =====
 
 func (r *repo) SuggestSplit(ctx context.Context, userID string, q string, limit int) (SuggestSplitResult, error) {
 	q = strings.TrimSpace(q)
@@ -837,7 +771,6 @@ func (r *repo) SuggestSplit(ctx context.Context, userID string, q string, limit 
 		limit = 20
 	}
 
-	// q ว่าง => history ล้วน
 	if q == "" {
 		rows, err := r.db.Query(ctx, `
 			SELECT query_text
@@ -867,7 +800,6 @@ func (r *repo) SuggestSplit(ctx context.Context, userID string, q string, limit 
 
 	rows, err := r.db.Query(ctx, `
 		WITH combined AS (
-			-- 0) history match ก่อน
 			SELECT sh.query_text AS v, 0 AS prio, sh.searched_at AS ts
 			FROM search_history sh
 			WHERE sh.user_id = $2
@@ -875,7 +807,6 @@ func (r *repo) SuggestSplit(ctx context.Context, userID string, q string, limit 
 
 			UNION ALL
 
-			-- 1) product name
 			SELECT p.name AS v, 1 AS prio, NULL::timestamptz AS ts
 			FROM products p
 			JOIN stores s ON s.store_id = p.store_id
@@ -884,7 +815,6 @@ func (r *repo) SuggestSplit(ctx context.Context, userID string, q string, limit 
 
 			UNION ALL
 
-			-- 2) store name
 			SELECT s.store_name AS v, 2 AS prio, NULL::timestamptz AS ts
 			FROM stores s
 			WHERE s.is_active='YES'
@@ -913,7 +843,6 @@ func (r *repo) SuggestSplit(ctx context.Context, userID string, q string, limit 
 		History: make([]string, 0, limit),
 		Suggest: make([]string, 0, limit),
 	}
-
 	for rows.Next() {
 		var v string
 		var prio int
@@ -926,28 +855,310 @@ func (r *repo) SuggestSplit(ctx context.Context, userID string, q string, limit 
 			out.Suggest = append(out.Suggest, v)
 		}
 	}
-
 	return out, nil
 }
+
+// ===== GetCategoryName =====
 
 func (r *repo) GetCategoryName(ctx context.Context, categoryID int) (string, error) {
 	if categoryID <= 0 {
 		return "", apperr.New(apperr.BadRequest, "invalid category_id")
 	}
-
 	var name string
 	err := r.db.QueryRow(ctx, `
-    SELECT name
-    FROM categories
-    WHERE category_id = $1 AND is_active = 'YES';
-  `, categoryID).Scan(&name)
-
+		SELECT name FROM categories WHERE category_id = $1 AND is_active = 'YES';
+	`, categoryID).Scan(&name)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return "", apperr.New(apperr.BadRequest, "category not found or inactive")
 		}
 		return "", apperr.Wrap(apperr.Internal, err, "get category name failed")
 	}
-
 	return name, nil
+}
+
+// ===== Option Keys =====
+
+func (r *repo) CreateOptionKey(ctx context.Context, productID int64, keyName string, sortOrder int) (OptionKey, error) {
+	var k OptionKey
+	err := r.db.QueryRow(ctx, `
+		INSERT INTO product_option_keys (product_id, key_name, sort_order)
+		VALUES ($1, $2, $3)
+		RETURNING option_key_id, product_id, key_name, sort_order
+	`, productID, strings.TrimSpace(keyName), sortOrder).Scan(
+		&k.ID, &k.ProductID, &k.KeyName, &k.SortOrder,
+	)
+	if err != nil {
+		var pgErr *pgconn.PgError
+		if errors.As(err, &pgErr) && pgErr.Code == "23505" {
+			return OptionKey{}, apperr.New(apperr.BadRequest, "option key already exists")
+		}
+		return OptionKey{}, apperr.Wrap(apperr.Internal, err, "create option key failed")
+	}
+	k.Values = []OptionValue{}
+	return k, nil
+}
+
+func (r *repo) ListOptionKeys(ctx context.Context, productID int64) ([]OptionKey, error) {
+	rows, err := r.db.Query(ctx, `
+		SELECT option_key_id, product_id, key_name, sort_order
+		FROM product_option_keys
+		WHERE product_id = $1
+		ORDER BY sort_order, option_key_id
+	`, productID)
+	if err != nil {
+		return nil, apperr.Wrap(apperr.Internal, err, "list option keys failed")
+	}
+	defer rows.Close()
+
+	keys := make([]OptionKey, 0)
+	for rows.Next() {
+		var k OptionKey
+		if err := rows.Scan(&k.ID, &k.ProductID, &k.KeyName, &k.SortOrder); err != nil {
+			return nil, apperr.Wrap(apperr.Internal, err, "scan option key failed")
+		}
+		keys = append(keys, k)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, apperr.Wrap(apperr.Internal, err, "rows error")
+	}
+
+	for i, k := range keys {
+		vals, err := r.listOptionValues(ctx, int64(k.ID))
+		if err != nil {
+			return nil, err
+		}
+		keys[i].Values = vals
+	}
+	return keys, nil
+}
+
+func (r *repo) listOptionValues(ctx context.Context, keyID int64) ([]OptionValue, error) {
+	rows, err := r.db.Query(ctx, `
+		SELECT option_value_id, option_key_id, value_label, sort_order
+		FROM product_option_values
+		WHERE option_key_id = $1
+		ORDER BY sort_order, option_value_id
+	`, keyID)
+	if err != nil {
+		return nil, apperr.Wrap(apperr.Internal, err, "list option values failed")
+	}
+	defer rows.Close()
+
+	vals := make([]OptionValue, 0)
+	for rows.Next() {
+		var v OptionValue
+		if err := rows.Scan(&v.ID, &v.OptionKeyID, &v.ValueLabel, &v.SortOrder); err != nil {
+			return nil, apperr.Wrap(apperr.Internal, err, "scan option value failed")
+		}
+		vals = append(vals, v)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, apperr.Wrap(apperr.Internal, err, "rows error")
+	}
+	return vals, nil
+}
+
+func (r *repo) DeleteOptionKey(ctx context.Context, keyID int64) error {
+	_, err := r.db.Exec(ctx, `DELETE FROM product_option_keys WHERE option_key_id = $1`, keyID)
+	if err != nil {
+		return apperr.Wrap(apperr.Internal, err, "delete option key failed")
+	}
+	return nil
+}
+
+// ===== Option Values =====
+
+func (r *repo) CreateOptionValue(ctx context.Context, keyID int64, valueLabel string, sortOrder int) (OptionValue, error) {
+	var v OptionValue
+	err := r.db.QueryRow(ctx, `
+		INSERT INTO product_option_values (option_key_id, value_label, sort_order)
+		VALUES ($1, $2, $3)
+		RETURNING option_value_id, option_key_id, value_label, sort_order
+	`, keyID, strings.TrimSpace(valueLabel), sortOrder).Scan(
+		&v.ID, &v.OptionKeyID, &v.ValueLabel, &v.SortOrder,
+	)
+	if err != nil {
+		var pgErr *pgconn.PgError
+		if errors.As(err, &pgErr) && pgErr.Code == "23505" {
+			return OptionValue{}, apperr.New(apperr.BadRequest, "option value already exists")
+		}
+		return OptionValue{}, apperr.Wrap(apperr.Internal, err, "create option value failed")
+	}
+	return v, nil
+}
+
+func (r *repo) DeleteOptionValue(ctx context.Context, valueID int64) error {
+	_, err := r.db.Exec(ctx, `DELETE FROM product_option_values WHERE option_value_id = $1`, valueID)
+	if err != nil {
+		return apperr.Wrap(apperr.Internal, err, "delete option value failed")
+	}
+	return nil
+}
+
+// ===== Variants =====
+
+func (r *repo) CreateVariant(ctx context.Context, in CreateVariantParams) (Variant, error) {
+	tx, err := r.db.Begin(ctx)
+	if err != nil {
+		return Variant{}, apperr.Wrap(apperr.Internal, err, "begin tx failed")
+	}
+	defer tx.Rollback(ctx)
+
+	var v Variant
+	err = tx.QueryRow(ctx, `
+		INSERT INTO product_variants (product_id, sku, price_delta, stock_qty)
+		VALUES ($1, $2, $3, $4)
+		RETURNING variant_id, product_id, sku, price_delta, stock_qty, is_active, created_at, updated_at
+	`, in.ProductID, in.SKU, in.PriceDelta, in.StockQty).Scan(
+		&v.ID, &v.ProductID, &v.SKU, &v.PriceDelta, &v.StockQty, &v.IsActive, &v.CreatedAt, &v.UpdatedAt,
+	)
+	if err != nil {
+		var pgErr *pgconn.PgError
+		if errors.As(err, &pgErr) && pgErr.Code == "23505" {
+			return Variant{}, apperr.New(apperr.BadRequest, "variant sku already exists")
+		}
+		return Variant{}, apperr.Wrap(apperr.Internal, err, "create variant failed")
+	}
+
+	for _, valueID := range in.OptionValues {
+		if _, err := tx.Exec(ctx, `
+			INSERT INTO variant_option_selections (variant_id, option_value_id)
+			VALUES ($1, $2)
+		`, v.ID, valueID); err != nil {
+			return Variant{}, apperr.Wrap(apperr.Internal, err, "insert variant selection failed")
+		}
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return Variant{}, apperr.Wrap(apperr.Internal, err, "commit tx failed")
+	}
+
+	v.Selections = []VariantSelection{}
+	return v, nil
+}
+
+func (r *repo) ListVariants(ctx context.Context, productID int64) ([]Variant, error) {
+	rows, err := r.db.Query(ctx, `
+		SELECT
+		    v.variant_id, v.product_id, v.sku, v.price_delta,
+		    v.stock_qty,  v.is_active,  v.created_at, v.updated_at,
+		    ok.key_name,  ov.value_label
+		FROM product_variants v
+		JOIN variant_option_selections vos ON vos.variant_id     = v.variant_id
+		JOIN product_option_values     ov  ON ov.option_value_id = vos.option_value_id
+		JOIN product_option_keys       ok  ON ok.option_key_id   = ov.option_key_id
+		WHERE v.product_id = $1
+		ORDER BY v.variant_id, ok.sort_order
+	`, productID)
+	if err != nil {
+		return nil, apperr.Wrap(apperr.Internal, err, "list variants failed")
+	}
+	defer rows.Close()
+
+	variantMap := make(map[int]*Variant)
+	variantOrder := make([]int, 0)
+
+	for rows.Next() {
+		var (
+			vID        int
+			pID        int
+			sku        *string
+			priceDelta float64
+			stockQty   int
+			isActive   bool
+			createdAt  time.Time
+			updatedAt  time.Time
+			keyName    string
+			valueLabel string
+		)
+		if err := rows.Scan(
+			&vID, &pID, &sku, &priceDelta, &stockQty, &isActive,
+			&createdAt, &updatedAt, &keyName, &valueLabel,
+		); err != nil {
+			return nil, apperr.Wrap(apperr.Internal, err, "scan variant row failed")
+		}
+		if _, ok := variantMap[vID]; !ok {
+			v := &Variant{
+				ID:         vID,
+				ProductID:  pID,
+				SKU:        sku,
+				PriceDelta: priceDelta,
+				StockQty:   stockQty,
+				IsActive:   isActive,
+				CreatedAt:  createdAt,
+				UpdatedAt:  updatedAt,
+				Selections: make([]VariantSelection, 0),
+			}
+			variantMap[vID] = v
+			variantOrder = append(variantOrder, vID)
+		}
+		variantMap[vID].Selections = append(variantMap[vID].Selections, VariantSelection{
+			KeyName: keyName, ValueLabel: valueLabel,
+		})
+	}
+	if err := rows.Err(); err != nil {
+		return nil, apperr.Wrap(apperr.Internal, err, "rows error")
+	}
+
+	out := make([]Variant, 0, len(variantOrder))
+	for _, id := range variantOrder {
+		out = append(out, *variantMap[id])
+	}
+	return out, nil
+}
+
+func (r *repo) UpdateVariantStock(ctx context.Context, variantID int64, stockQty int) (Variant, error) {
+	var v Variant
+	err := r.db.QueryRow(ctx, `
+		UPDATE product_variants
+		SET stock_qty = $2, updated_at = NOW()
+		WHERE variant_id = $1
+		RETURNING variant_id, product_id, sku, price_delta, stock_qty, is_active, created_at, updated_at
+	`, variantID, stockQty).Scan(
+		&v.ID, &v.ProductID, &v.SKU, &v.PriceDelta, &v.StockQty, &v.IsActive, &v.CreatedAt, &v.UpdatedAt,
+	)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return Variant{}, apperr.New(apperr.NotFound, "variant not found")
+		}
+		return Variant{}, apperr.Wrap(apperr.Internal, err, "update variant stock failed")
+	}
+	v.Selections = []VariantSelection{}
+	return v, nil
+}
+
+func (r *repo) SetVariantActive(ctx context.Context, variantID int64, isActive bool) error {
+	_, err := r.db.Exec(ctx, `
+		UPDATE product_variants SET is_active = $2, updated_at = NOW()
+		WHERE variant_id = $1
+	`, variantID, isActive)
+	if err != nil {
+		return apperr.Wrap(apperr.Internal, err, "set variant active failed")
+	}
+	return nil
+}
+
+func (r *repo) DeleteVariant(ctx context.Context, variantID int64) error {
+	_, err := r.db.Exec(ctx, `DELETE FROM product_variants WHERE variant_id = $1`, variantID)
+	if err != nil {
+		return apperr.Wrap(apperr.Internal, err, "delete variant failed")
+	}
+	return nil
+}
+
+func (r *repo) DeductStock(ctx context.Context, variantID int64, qty int) error {
+	tag, err := r.db.Exec(ctx, `
+		UPDATE product_variants
+		SET stock_qty = stock_qty - $2, updated_at = NOW()
+		WHERE variant_id = $1
+		  AND stock_qty  >= $2
+	`, variantID, qty)
+	if err != nil {
+		return apperr.Wrap(apperr.Internal, err, "deduct stock failed")
+	}
+	if tag.RowsAffected() == 0 {
+		return apperr.New(apperr.BadRequest, "insufficient stock")
+	}
+	return nil
 }

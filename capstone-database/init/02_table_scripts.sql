@@ -93,30 +93,30 @@ CREATE TABLE IF NOT EXISTS categories (
 CREATE TABLE IF NOT EXISTS products (
   product_id SERIAL PRIMARY KEY,
 
-  name VARCHAR(100) NOT NULL,
+  name         VARCHAR(100) NOT NULL,
   product_desc VARCHAR(255) NULL,
 
-  price DECIMAL(10,2) NOT NULL,
-  image_url VARCHAR(255) NULL,
+  price     DECIMAL(10,2) NOT NULL,
+  image_url VARCHAR(255)  NULL,
+
+  -- ===== Product Type =====
+  product_type VARCHAR(10) NOT NULL DEFAULT 'PREORDER'
+    CHECK (product_type IN ('STOCK', 'PREORDER')),
 
   -- สำหรับ search (Full-text)
   search_tsv tsvector,
-
-  -- Semantic Search (legacy / overall)
-  -- embedding vector(768) NULL,
 
   -- Semantic Search (split fields for weighted scoring)
   embedding_name     vector(768) NULL,
   embedding_desc     vector(768) NULL,
   embedding_category vector(768) NULL,
-  -- embedding_price    vector(768) NULL,
 
   created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
   is_active VARCHAR(3) NOT NULL CHECK (is_active IN ('YES', 'NO')),
 
-  store_id INT NOT NULL,
+  store_id    INT NOT NULL,
   category_id INT NOT NULL,
 
   CONSTRAINT fk_products_stores1 FOREIGN KEY (store_id)
@@ -130,6 +130,83 @@ CREATE TABLE IF NOT EXISTS products (
     ON UPDATE NO ACTION,
 
   CONSTRAINT uq_products_name UNIQUE (name)
+);
+
+-- ========= PRODUCT OPTION KEYS =========
+-- ใช้เฉพาะ product_type = 'STOCK'
+-- เช่น "สี", "ขนาด", "วัสดุ"
+CREATE TABLE IF NOT EXISTS product_option_keys (
+  option_key_id SERIAL      PRIMARY KEY,
+  product_id    INT         NOT NULL,
+  key_name      VARCHAR(50) NOT NULL,
+  sort_order    INT         NOT NULL DEFAULT 1,
+
+  CONSTRAINT fk_option_keys_product FOREIGN KEY (product_id)
+    REFERENCES products (product_id)
+    ON DELETE CASCADE
+    ON UPDATE CASCADE,
+
+  CONSTRAINT uq_option_key_per_product UNIQUE (product_id, key_name)
+);
+
+-- ========= PRODUCT OPTION VALUES =========
+-- ค่าที่เป็นไปได้ของแต่ละ key
+-- เช่น "สี" → "แดง", "น้ำเงิน", "ดำ"
+CREATE TABLE IF NOT EXISTS product_option_values (
+  option_value_id SERIAL       PRIMARY KEY,
+  option_key_id   INT          NOT NULL,
+  value_label     VARCHAR(100) NOT NULL,
+  sort_order      INT          NOT NULL DEFAULT 1,
+
+  CONSTRAINT fk_option_values_key FOREIGN KEY (option_key_id)
+    REFERENCES product_option_keys (option_key_id)
+    ON DELETE CASCADE
+    ON UPDATE CASCADE,
+
+  CONSTRAINT uq_option_value_per_key UNIQUE (option_key_id, value_label)
+);
+
+-- ========= PRODUCT VARIANTS =========
+-- 1 variant = 1 combination ของ option values
+-- เช่น { สี: แดง, ขนาด: M } = 1 row
+-- ใช้เฉพาะ product_type = 'STOCK'
+CREATE TABLE IF NOT EXISTS product_variants (
+  variant_id  SERIAL        PRIMARY KEY,
+  product_id  INT           NOT NULL,
+
+  sku         VARCHAR(100)  NULL,
+  price_delta DECIMAL(10,2) NOT NULL DEFAULT 0,
+  stock_qty   INT           NOT NULL DEFAULT 0 CHECK (stock_qty >= 0),
+  is_active   BOOLEAN       NOT NULL DEFAULT TRUE,
+
+  created_at  TIMESTAMPTZ   NOT NULL DEFAULT NOW(),
+  updated_at  TIMESTAMPTZ   NOT NULL DEFAULT NOW(),
+
+  CONSTRAINT fk_variants_product FOREIGN KEY (product_id)
+    REFERENCES products (product_id)
+    ON DELETE CASCADE
+    ON UPDATE CASCADE,
+
+  CONSTRAINT uq_variant_sku_per_product UNIQUE (product_id, sku)
+);
+
+-- ========= VARIANT OPTION SELECTIONS =========
+-- บอกว่า variant นี้ประกอบจาก option values อะไรบ้าง
+CREATE TABLE IF NOT EXISTS variant_option_selections (
+  variant_id      INT NOT NULL,
+  option_value_id INT NOT NULL,
+
+  PRIMARY KEY (variant_id, option_value_id),
+
+  CONSTRAINT fk_selections_variant FOREIGN KEY (variant_id)
+    REFERENCES product_variants (variant_id)
+    ON DELETE CASCADE
+    ON UPDATE CASCADE,
+
+  CONSTRAINT fk_selections_option_value FOREIGN KEY (option_value_id)
+    REFERENCES product_option_values (option_value_id)
+    ON DELETE CASCADE
+    ON UPDATE CASCADE
 );
 
 -- ========= CAMPUS LOCATIONS =========
@@ -285,6 +362,8 @@ CREATE TABLE IF NOT EXISTS order_items (
   order_id INT NOT NULL,
   product_id INT NOT NULL,
 
+  variant_id INT NULL,
+
   CONSTRAINT fk_order_items_orders1 FOREIGN KEY (order_id)
     REFERENCES orders (order_id)
     ON DELETE NO ACTION
@@ -293,7 +372,12 @@ CREATE TABLE IF NOT EXISTS order_items (
   CONSTRAINT fk_order_items_products1 FOREIGN KEY (product_id)
     REFERENCES products (product_id)
     ON DELETE NO ACTION
-    ON UPDATE NO ACTION
+    ON UPDATE NO ACTION,
+
+  CONSTRAINT fk_order_items_variant FOREIGN KEY (variant_id)
+    REFERENCES product_variants (variant_id)
+    ON DELETE RESTRICT
+    ON UPDATE CASCADE
 );
 
 
@@ -315,15 +399,26 @@ CREATE TABLE IF NOT EXISTS cart_items (
   quantity INT NULL,
   cart_id INT NOT NULL,
   product_id INT NOT NULL,
+
+  -- NULL = PREORDER, NOT NULL = STOCK
+  variant_id INT NULL,
+
   CONSTRAINT fk_cart_items_carts1 FOREIGN KEY (cart_id)
     REFERENCES carts (cart_id)
     ON DELETE NO ACTION
     ON UPDATE NO ACTION,
+
   CONSTRAINT fk_cart_items_products1 FOREIGN KEY (product_id)
     REFERENCES products (product_id)
     ON DELETE NO ACTION
     ON UPDATE NO ACTION,
-    CONSTRAINT uq_cart_items_cart_product UNIQUE (cart_id, product_id)
+
+  CONSTRAINT fk_cart_items_variant FOREIGN KEY (variant_id)
+    REFERENCES product_variants (variant_id)
+    ON DELETE SET NULL
+    ON UPDATE CASCADE,
+
+  CONSTRAINT uq_cart_items_cart_product_variant UNIQUE (cart_id, product_id, variant_id)
 );
 
 -- ========= STORE_IMAGES =========

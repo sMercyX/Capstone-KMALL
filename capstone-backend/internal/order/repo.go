@@ -67,6 +67,7 @@ type OrderItemCreateParams struct {
 	DepositAmount    *float64
 	PromisedShipDate time.Time
 	ProductID        int
+	VariantID        *int // nil = PREORDER, not nil = STOCK (ต้อง deduct stock)
 }
 
 type BulkCancelledOrder struct {
@@ -77,7 +78,7 @@ type BulkCancelledOrder struct {
 }
 
 // ============================================================================
-// Helpers
+// Scan Helpers
 // ============================================================================
 
 func scanOrder(row pgx.Row, o *Order) error {
@@ -89,18 +90,14 @@ func scanOrder(row pgx.Row, o *Order) error {
 		&o.OrderDate,
 		&o.UpdatedAt,
 		&o.CancelledAt,
-
 		&o.CancelledBy,
 		&o.CancelledReason,
-
 		&o.UserID,
 		&o.StoreID,
-
 		&o.DeliveryMethod,
 		&o.DeliveryAddressID,
 		&o.CampusLocationID,
 		&o.CampusDetailNote,
-
 		&o.ProposedAt,
 		&o.MeetingLocationID,
 		&o.MeetingNote,
@@ -118,6 +115,7 @@ func scanOrderItem(row pgx.Row, it *OrderItem) error {
 		&it.PromisedShipDate,
 		&it.OrderID,
 		&it.ProductID,
+		&it.VariantID,
 	)
 }
 
@@ -132,57 +130,50 @@ func scanOrderItemWithProduct(row pgx.Row, it *OrderItemWithProduct) error {
 		&it.PromisedShipDate,
 		&it.OrderID,
 		&it.ProductID,
+		&it.VariantID,
 		&it.ProductName,
 		&it.ProductImageURL,
 		&it.StoreProfileURL,
+		&it.VariantLabel,
 	)
 }
 
 // ============================================================================
 // Create Order + Items (Tx)
+// — deduct stock สำหรับ STOCK items แบบ atomic ภายใน tx เดียวกัน
 // ============================================================================
+
 func (r *repo) CreateOrderWithItems(
 	ctx context.Context,
 	in OrderCreateParams,
 	items []OrderItemCreateParams,
 ) (OrderWithItems, error) {
+
 	tx, err := r.db.BeginTx(ctx, pgx.TxOptions{})
 	if err != nil {
 		return OrderWithItems{}, apperr.Wrap(apperr.Internal, err, "begin tx failed")
 	}
+	defer tx.Rollback(ctx)
 
-	defer func() {
-		if tx != nil {
-			_ = tx.Rollback(ctx)
-		}
-	}()
-
+	// ===== INSERT order =====
 	var ord Order
 	err = scanOrder(tx.QueryRow(ctx, `
-	INSERT INTO orders (
-  status, total_price, delivery_fee, user_id, store_id,
-  delivery_method, delivery_address_id,
-  campus_location_id, campus_detail_note
-)
-VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
-	RETURNING
-  order_id, status, total_price, delivery_fee, order_date, updated_at,
-  cancelled_at, cancelled_by, cancelled_reason,
-  user_id, store_id,
-  delivery_method, delivery_address_id, campus_location_id, campus_detail_note,
-  proposed_at, meeting_location_id, meeting_note
-`,
-		in.Status,
-		in.TotalPrice,
-		in.DeliveryFee,
-		in.UserID,
-		in.StoreID,
-		in.DeliveryMethod,
-		in.DeliveryAddressID,
-		in.CampusLocationID,
-		in.CampusDetailNote,
+		INSERT INTO orders (
+			status, total_price, delivery_fee, user_id, store_id,
+			delivery_method, delivery_address_id,
+			campus_location_id, campus_detail_note
+		)
+		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
+		RETURNING
+			order_id, status, total_price, delivery_fee, order_date, updated_at,
+			cancelled_at, cancelled_by, cancelled_reason,
+			user_id, store_id,
+			delivery_method, delivery_address_id, campus_location_id, campus_detail_note,
+			proposed_at, meeting_location_id, meeting_note
+	`,
+		in.Status, in.TotalPrice, in.DeliveryFee, in.UserID, in.StoreID,
+		in.DeliveryMethod, in.DeliveryAddressID, in.CampusLocationID, in.CampusDetailNote,
 	), &ord)
-
 	if err != nil {
 		if pgErr, ok := err.(*pgconn.PgError); ok {
 			if pgErr.Code == "23503" {
@@ -199,40 +190,39 @@ VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
 		return OrderWithItems{}, apperr.Wrap(apperr.Internal, err, "insert order failed")
 	}
 
+	// ===== INSERT order_items + deduct stock =====
 	for _, it := range items {
 		var promised any
-		if it.PromisedShipDate.IsZero() {
-			promised = nil
-		} else {
+		if !it.PromisedShipDate.IsZero() {
 			promised = it.PromisedShipDate
 		}
 
 		var oi OrderItem
 		err = scanOrderItem(tx.QueryRow(ctx, `
-  INSERT INTO order_items
-    (quantity, unit_price, fulfillment_type, subtotal,
-     deposit_amount, promised_ship_date, order_id, product_id)
-  VALUES ($1,$2,$3,$4,$5, COALESCE($6::timestamptz, CURRENT_TIMESTAMP), $7,$8)
-  RETURNING
-    order_item_id, quantity, unit_price, fulfillment_type,
-    subtotal, deposit_amount, promised_ship_date,
-    order_id, product_id;
-`,
-			it.Quantity,
-			it.UnitPrice,
-			it.FulfillmentType,
-			it.Subtotal,
-			it.DepositAmount,
-			promised,
-			ord.ID,
-			it.ProductID,
+			INSERT INTO order_items (
+				quantity, unit_price, fulfillment_type, subtotal,
+				deposit_amount, promised_ship_date,
+				order_id, product_id, variant_id
+			)
+			VALUES (
+				$1, $2, $3, $4,
+				$5, COALESCE($6::timestamptz, CURRENT_TIMESTAMP),
+				$7, $8, $9
+			)
+			RETURNING
+				order_item_id, quantity, unit_price, fulfillment_type,
+				subtotal, deposit_amount, promised_ship_date,
+				order_id, product_id, variant_id;
+		`,
+			it.Quantity, it.UnitPrice, it.FulfillmentType, it.Subtotal,
+			it.DepositAmount, promised,
+			ord.ID, it.ProductID, it.VariantID,
 		), &oi)
-
 		if err != nil {
 			if pgErr, ok := err.(*pgconn.PgError); ok {
 				if pgErr.Code == "23503" {
 					return OrderWithItems{}, apperr.WithFields(
-						apperr.Wrap(apperr.BadRequest, err, "invalid order_id or product_id"),
+						apperr.Wrap(apperr.BadRequest, err, "invalid product_id or variant_id"),
 						map[string]any{"pg_code": pgErr.Code, "constraint": pgErr.ConstraintName},
 					)
 				}
@@ -243,22 +233,35 @@ VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
 			}
 			return OrderWithItems{}, apperr.Wrap(apperr.Internal, err, "insert order_item failed")
 		}
+
+		// ===== deduct stock สำหรับ STOCK product (atomic) =====
+		if it.VariantID != nil {
+			tag, err := tx.Exec(ctx, `
+				UPDATE product_variants
+				SET stock_qty  = stock_qty - $2,
+				    updated_at = NOW()
+				WHERE variant_id = $1
+				  AND stock_qty  >= $2
+			`, *it.VariantID, it.Quantity)
+			if err != nil {
+				return OrderWithItems{}, apperr.Wrap(apperr.Internal, err, "deduct stock failed")
+			}
+			if tag.RowsAffected() == 0 {
+				return OrderWithItems{}, apperr.New(apperr.BadRequest, "insufficient stock for variant")
+			}
+		}
 	}
 
 	if err = tx.Commit(ctx); err != nil {
 		return OrderWithItems{}, apperr.Wrap(apperr.Internal, err, "commit tx failed")
 	}
-	tx = nil
 
 	itemsWithProduct, err := r.ListItemsByOrderID(ctx, int64(ord.ID))
 	if err != nil {
 		return OrderWithItems{}, err
 	}
 
-	return OrderWithItems{
-		Order: ord,
-		Items: itemsWithProduct,
-	}, nil
+	return OrderWithItems{Order: ord, Items: itemsWithProduct}, nil
 }
 
 // ============================================================================
@@ -268,16 +271,15 @@ VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
 func (r *repo) GetOrder(ctx context.Context, id int64) (Order, error) {
 	var ord Order
 	err := scanOrder(r.db.QueryRow(ctx, `
-  SELECT
-  order_id, status, total_price, delivery_fee, order_date, updated_at,
-  cancelled_at, cancelled_by, cancelled_reason,
-  user_id, store_id,
-  delivery_method, delivery_address_id, campus_location_id, campus_detail_note,
-  proposed_at, meeting_location_id, meeting_note
-FROM orders
-WHERE order_id = $1;
-`, id), &ord)
-
+		SELECT
+			order_id, status, total_price, delivery_fee, order_date, updated_at,
+			cancelled_at, cancelled_by, cancelled_reason,
+			user_id, store_id,
+			delivery_method, delivery_address_id, campus_location_id, campus_detail_note,
+			proposed_at, meeting_location_id, meeting_note
+		FROM orders
+		WHERE order_id = $1;
+	`, id), &ord)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return Order{}, apperr.New(apperr.NotFound, "order not found")
@@ -289,25 +291,48 @@ WHERE order_id = $1;
 
 func (r *repo) ListItemsByOrderID(ctx context.Context, orderID int64) ([]OrderItemWithProduct, error) {
 	rows, err := r.db.Query(ctx, `
-	SELECT 
-    	oi.order_item_id,
-    	oi.quantity,
-    	oi.unit_price,
-    	oi.fulfillment_type,
-    	oi.subtotal,
-    	oi.deposit_amount,
-    	oi.promised_ship_date,
-    	oi.order_id,
-    	oi.product_id,
-    	p.name AS product_name,
-    	p.image_url AS product_image_url,
-    	s.profile_url AS store_profile_url  -- เพิ่ม store_profile_url ของร้านค้า
-	FROM order_items oi
-	JOIN products p ON p.product_id = oi.product_id  -- ใช้ JOIN กับ products
-	JOIN stores s ON s.store_id = p.store_id  -- เข้าร่วมกับ stores ผ่าน product.store_id
-	WHERE oi.order_id = $1
-	ORDER BY oi.order_item_id ASC;
-`, orderID)
+		SELECT
+			oi.order_item_id,
+			oi.quantity,
+			oi.unit_price,
+			oi.fulfillment_type,
+			oi.subtotal,
+			oi.deposit_amount,
+			oi.promised_ship_date,
+			oi.order_id,
+			oi.product_id,
+			oi.variant_id,
+			p.name                AS product_name,
+			p.image_url           AS product_image_url,
+			s.profile_url         AS store_profile_url,
+
+			-- รวม selections เป็น label "สี: แดง / ขนาด: M"
+			COALESCE(
+				string_agg(
+					ok.key_name || ': ' || ov.value_label,
+					' / '
+					ORDER BY ok.sort_order
+				),
+				''
+			) AS variant_label
+
+		FROM order_items oi
+		JOIN products p  ON p.product_id = oi.product_id
+		JOIN stores   s  ON s.store_id   = p.store_id
+
+		LEFT JOIN product_variants          pv  ON pv.variant_id      = oi.variant_id
+		LEFT JOIN variant_option_selections vos ON vos.variant_id     = oi.variant_id
+		LEFT JOIN product_option_values     ov  ON ov.option_value_id = vos.option_value_id
+		LEFT JOIN product_option_keys       ok  ON ok.option_key_id   = ov.option_key_id
+
+		WHERE oi.order_id = $1
+		GROUP BY
+			oi.order_item_id, oi.quantity, oi.unit_price, oi.fulfillment_type,
+			oi.subtotal, oi.deposit_amount, oi.promised_ship_date,
+			oi.order_id, oi.product_id, oi.variant_id,
+			p.name, p.image_url, s.profile_url
+		ORDER BY oi.order_item_id ASC;
+	`, orderID)
 	if err != nil {
 		return nil, apperr.Wrap(apperr.Internal, err, "list order_items failed")
 	}
@@ -334,18 +359,17 @@ func (r *repo) ListItemsByOrderID(ctx context.Context, orderID int64) ([]OrderIt
 func (r *repo) UpdateOrderStatus(ctx context.Context, id int64, status string) (Order, error) {
 	var ord Order
 	err := scanOrder(r.db.QueryRow(ctx, `
-  UPDATE orders
-  SET status = $2,
-      updated_at = NOW()
-  WHERE order_id = $1
-  RETURNING
-  order_id, status, total_price, delivery_fee, order_date, updated_at,
-  cancelled_at, cancelled_by, cancelled_reason,
-  user_id, store_id,
-  delivery_method, delivery_address_id, campus_location_id, campus_detail_note,
-  proposed_at, meeting_location_id, meeting_note
-`, id, status), &ord)
-
+		UPDATE orders
+		SET status     = $2,
+		    updated_at = NOW()
+		WHERE order_id = $1
+		RETURNING
+			order_id, status, total_price, delivery_fee, order_date, updated_at,
+			cancelled_at, cancelled_by, cancelled_reason,
+			user_id, store_id,
+			delivery_method, delivery_address_id, campus_location_id, campus_detail_note,
+			proposed_at, meeting_location_id, meeting_note
+	`, id, status), &ord)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return Order{}, apperr.New(apperr.NotFound, "order not found")
@@ -355,40 +379,36 @@ func (r *repo) UpdateOrderStatus(ctx context.Context, id int64, status string) (
 	return ord, nil
 }
 
-func (r *repo) CancelOrder(
-	ctx context.Context,
-	id int64,
-	cancelledBy string,
-	reason string,
-) (Order, error) {
-
+func (r *repo) CancelOrder(ctx context.Context, id int64, cancelledBy string, reason string) (Order, error) {
 	var ord Order
 	err := scanOrder(r.db.QueryRow(ctx, `
 		UPDATE orders
 		SET
-			status = 'Cancelled',
-			cancelled_at = NOW(),
-			cancelled_by = $2,
+			status           = 'Cancelled',
+			cancelled_at     = NOW(),
+			cancelled_by     = $2,
 			cancelled_reason = $3,
-			updated_at = NOW()
+			updated_at       = NOW()
 		WHERE order_id = $1
 		RETURNING
-  order_id, status, total_price, delivery_fee, order_date, updated_at,
-  cancelled_at, cancelled_by, cancelled_reason,
-  user_id, store_id,
-  delivery_method, delivery_address_id, campus_location_id, campus_detail_note,
-  proposed_at, meeting_location_id, meeting_note
+			order_id, status, total_price, delivery_fee, order_date, updated_at,
+			cancelled_at, cancelled_by, cancelled_reason,
+			user_id, store_id,
+			delivery_method, delivery_address_id, campus_location_id, campus_detail_note,
+			proposed_at, meeting_location_id, meeting_note
 	`, id, cancelledBy, reason), &ord)
-
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return Order{}, apperr.New(apperr.NotFound, "order not found")
 		}
 		return Order{}, apperr.Wrap(apperr.Internal, err, "cancel order failed")
 	}
-
 	return ord, nil
 }
+
+// ============================================================================
+// List Orders
+// ============================================================================
 
 func (r *repo) ListByUserID(ctx context.Context, userID string, statuses []string, q string, limit, page int) ([]Order, int64, error) {
 	if limit <= 0 {
@@ -398,14 +418,13 @@ func (r *repo) ListByUserID(ctx context.Context, userID string, statuses []strin
 		page = 1
 	}
 	offset := (page - 1) * limit
-
 	q = strings.TrimSpace(q)
 
 	base := `
-FROM orders o
-JOIN stores s ON s.store_id = o.store_id
-WHERE o.user_id = $1
-`
+		FROM orders o
+		JOIN stores s ON s.store_id = o.store_id
+		WHERE o.user_id = $1
+	`
 	args := []any{userID}
 	argIdx := 2
 
@@ -414,14 +433,9 @@ WHERE o.user_id = $1
 		args = append(args, statuses)
 		argIdx++
 	}
-
 	if q != "" {
-		base += `
- AND (
-   CAST(o.order_id AS TEXT) ILIKE $` + strconv.Itoa(argIdx) + `
-   OR s.store_name ILIKE $` + strconv.Itoa(argIdx) + `
- )
-`
+		base += ` AND (CAST(o.order_id AS TEXT) ILIKE $` + strconv.Itoa(argIdx) +
+			` OR s.store_name ILIKE $` + strconv.Itoa(argIdx) + `)`
 		args = append(args, q+"%")
 		argIdx++
 	}
@@ -431,19 +445,16 @@ WHERE o.user_id = $1
 		return nil, 0, apperr.Wrap(apperr.Internal, err, "count orders by user_id failed")
 	}
 
-	limitIdx := argIdx
-	offsetIdx := argIdx + 1
-
 	query := `
-SELECT
-  o.order_id, o.status, o.total_price, o.delivery_fee, o.order_date, o.updated_at,
-  o.cancelled_at, o.cancelled_by, o.cancelled_reason,
-  o.user_id, o.store_id,
-  o.delivery_method, o.delivery_address_id, o.campus_location_id, o.campus_detail_note,
-  o.proposed_at, o.meeting_location_id, o.meeting_note
-` + base + `
-ORDER BY o.order_date DESC
-LIMIT $` + strconv.Itoa(limitIdx) + ` OFFSET $` + strconv.Itoa(offsetIdx)
+		SELECT
+			o.order_id, o.status, o.total_price, o.delivery_fee, o.order_date, o.updated_at,
+			o.cancelled_at, o.cancelled_by, o.cancelled_reason,
+			o.user_id, o.store_id,
+			o.delivery_method, o.delivery_address_id, o.campus_location_id, o.campus_detail_note,
+			o.proposed_at, o.meeting_location_id, o.meeting_note
+	` + base + `
+		ORDER BY o.order_date DESC
+		LIMIT $` + strconv.Itoa(argIdx) + ` OFFSET $` + strconv.Itoa(argIdx+1)
 
 	args = append(args, limit, offset)
 
@@ -472,14 +483,13 @@ func (r *repo) ListByStoreID(ctx context.Context, storeID int64, statuses []stri
 		page = 1
 	}
 	offset := (page - 1) * limit
-
 	q = strings.TrimSpace(q)
 
 	base := `
-FROM orders o
-JOIN users u ON u.user_id = o.user_id
-WHERE o.store_id = $1
-`
+		FROM orders o
+		JOIN users u ON u.user_id = o.user_id
+		WHERE o.store_id = $1
+	`
 	args := []any{storeID}
 	argIdx := 2
 
@@ -488,15 +498,10 @@ WHERE o.store_id = $1
 		args = append(args, statuses)
 		argIdx++
 	}
-
 	if q != "" {
-		base += `
- AND (
-   CAST(o.order_id AS TEXT) ILIKE $` + strconv.Itoa(argIdx) + `
-   OR u.display_name ILIKE $` + strconv.Itoa(argIdx) + `
-   OR u.email ILIKE $` + strconv.Itoa(argIdx) + `
- )
-`
+		base += ` AND (CAST(o.order_id AS TEXT) ILIKE $` + strconv.Itoa(argIdx) +
+			` OR u.display_name ILIKE $` + strconv.Itoa(argIdx) +
+			` OR u.email ILIKE $` + strconv.Itoa(argIdx) + `)`
 		args = append(args, q+"%")
 		argIdx++
 	}
@@ -506,19 +511,16 @@ WHERE o.store_id = $1
 		return nil, 0, apperr.Wrap(apperr.Internal, err, "count orders by store_id failed")
 	}
 
-	limitIdx := argIdx
-	offsetIdx := argIdx + 1
-
 	query := `
-SELECT
-  o.order_id, o.status, o.total_price, o.delivery_fee, o.order_date, o.updated_at,
-  o.cancelled_at, o.cancelled_by, o.cancelled_reason,
-  o.user_id, o.store_id,
-  o.delivery_method, o.delivery_address_id, o.campus_location_id, o.campus_detail_note,
-  o.proposed_at, o.meeting_location_id, o.meeting_note
-` + base + `
-ORDER BY o.order_date DESC
-LIMIT $` + strconv.Itoa(limitIdx) + ` OFFSET $` + strconv.Itoa(offsetIdx)
+		SELECT
+			o.order_id, o.status, o.total_price, o.delivery_fee, o.order_date, o.updated_at,
+			o.cancelled_at, o.cancelled_by, o.cancelled_reason,
+			o.user_id, o.store_id,
+			o.delivery_method, o.delivery_address_id, o.campus_location_id, o.campus_detail_note,
+			o.proposed_at, o.meeting_location_id, o.meeting_note
+	` + base + `
+		ORDER BY o.order_date DESC
+		LIMIT $` + strconv.Itoa(argIdx) + ` OFFSET $` + strconv.Itoa(argIdx+1)
 
 	args = append(args, limit, offset)
 
@@ -539,30 +541,31 @@ LIMIT $` + strconv.Itoa(limitIdx) + ` OFFSET $` + strconv.Itoa(offsetIdx)
 	return out, total, rows.Err()
 }
 
+// ============================================================================
+// Propose / RespondProposal
+// ============================================================================
+
 func (r *repo) Propose(ctx context.Context, id int64, proposedAt time.Time, meetingLocationID *int, meetingNote *string) (Order, error) {
 	var ord Order
 	err := scanOrder(r.db.QueryRow(ctx, `
-    UPDATE orders
-    SET
-      status = 'Proposed',
-      proposed_at = $2,
-      meeting_location_id = $3,
-      meeting_note = $4,
-      updated_at = NOW()
-    WHERE order_id = $1
-      AND status IN ('Pending','Proposed')
-    RETURNING
-      order_id, status, total_price, delivery_fee, order_date, updated_at,
-      cancelled_at, cancelled_by, cancelled_reason,
-      user_id, store_id,
-      delivery_method, delivery_address_id, campus_location_id, campus_detail_note,
-      proposed_at, meeting_location_id, meeting_note
-  `, id, proposedAt, meetingLocationID, meetingNote), &ord)
-
+		UPDATE orders
+		SET
+			status              = 'Proposed',
+			proposed_at         = $2,
+			meeting_location_id = $3,
+			meeting_note        = $4,
+			updated_at          = NOW()
+		WHERE order_id = $1
+		  AND status IN ('Pending','Proposed')
+		RETURNING
+			order_id, status, total_price, delivery_fee, order_date, updated_at,
+			cancelled_at, cancelled_by, cancelled_reason,
+			user_id, store_id,
+			delivery_method, delivery_address_id, campus_location_id, campus_detail_note,
+			proposed_at, meeting_location_id, meeting_note
+	`, id, proposedAt, meetingLocationID, meetingNote), &ord)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			// ตรงนี้จะเกิดได้ทั้ง "ไม่เจอ order" หรือ "status ไม่อนุญาต (เช่น Accepted)"
-			// ถ้าอยากแยกให้ชัด ต้อง query สถานะอีกรอบหรือใช้ RETURNING status เดิมแบบอื่น
 			return Order{}, apperr.New(apperr.Conflict, "cannot propose in current status or order not found")
 		}
 		return Order{}, apperr.Wrap(apperr.Internal, err, "propose order failed")
@@ -575,21 +578,20 @@ func (r *repo) RespondProposal(ctx context.Context, id int64, accept bool) (Orde
 	err := scanOrder(r.db.QueryRow(ctx, `
 		UPDATE orders
 		SET
-			status = CASE WHEN $2 THEN 'Accepted' ELSE 'Pending' END,
-			proposed_at = CASE WHEN $2 THEN proposed_at ELSE NULL END,
+			status              = CASE WHEN $2 THEN 'Accepted' ELSE 'Pending' END,
+			proposed_at         = CASE WHEN $2 THEN proposed_at         ELSE NULL END,
 			meeting_location_id = CASE WHEN $2 THEN meeting_location_id ELSE NULL END,
-			meeting_note = CASE WHEN $2 THEN meeting_note ELSE NULL END,
-			updated_at = NOW()
+			meeting_note        = CASE WHEN $2 THEN meeting_note        ELSE NULL END,
+			updated_at          = NOW()
 		WHERE order_id = $1
-		  AND status = 'Proposed'
+		  AND status   = 'Proposed'
 		RETURNING
-		  order_id, status, total_price, delivery_fee, order_date, updated_at,
-		  cancelled_at, cancelled_by, cancelled_reason,
-		  user_id, store_id,
-		  delivery_method, delivery_address_id, campus_location_id, campus_detail_note,
-		  proposed_at, meeting_location_id, meeting_note
+			order_id, status, total_price, delivery_fee, order_date, updated_at,
+			cancelled_at, cancelled_by, cancelled_reason,
+			user_id, store_id,
+			delivery_method, delivery_address_id, campus_location_id, campus_detail_note,
+			proposed_at, meeting_location_id, meeting_note
 	`, id, accept), &ord)
-
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return Order{}, apperr.New(apperr.Conflict, "can respond only when status is Proposed")
@@ -598,12 +600,12 @@ func (r *repo) RespondProposal(ctx context.Context, id int64, accept bool) (Orde
 	}
 	return ord, nil
 }
-func (r *repo) BulkCancelActiveOrdersByBuyer(
-	ctx context.Context,
-	buyerUserID string,
-	reason string,
-) ([]BulkCancelledOrder, error) {
 
+// ============================================================================
+// Bulk Cancel
+// ============================================================================
+
+func (r *repo) BulkCancelActiveOrdersByBuyer(ctx context.Context, buyerUserID string, reason string) ([]BulkCancelledOrder, error) {
 	rows, err := r.db.Query(ctx, `
 		WITH to_cancel AS (
 			SELECT order_id, status AS old_status, user_id, store_id
@@ -615,11 +617,11 @@ func (r *repo) BulkCancelActiveOrdersByBuyer(
 		upd AS (
 			UPDATE orders o
 			SET
-				status = 'Cancelled',
-				cancelled_at = NOW(),
-				cancelled_by = 'SYSTEM',
+				status           = 'Cancelled',
+				cancelled_at     = NOW(),
+				cancelled_by     = 'SYSTEM',
 				cancelled_reason = $2,
-				updated_at = NOW()
+				updated_at       = NOW()
 			FROM to_cancel tc
 			WHERE o.order_id = tc.order_id
 			RETURNING o.order_id
@@ -645,16 +647,10 @@ func (r *repo) BulkCancelActiveOrdersByBuyer(
 	if err := rows.Err(); err != nil {
 		return nil, apperr.Wrap(apperr.Internal, err, "rows error")
 	}
-
 	return out, nil
 }
 
-func (r *repo) BulkCancelActiveOrdersByStoreID(
-	ctx context.Context,
-	storeID int64,
-	reason string,
-) ([]BulkCancelledOrder, error) {
-
+func (r *repo) BulkCancelActiveOrdersByStoreID(ctx context.Context, storeID int64, reason string) ([]BulkCancelledOrder, error) {
 	rows, err := r.db.Query(ctx, `
 		WITH to_cancel AS (
 			SELECT order_id, status AS old_status, user_id, store_id
@@ -666,11 +662,11 @@ func (r *repo) BulkCancelActiveOrdersByStoreID(
 		upd AS (
 			UPDATE orders o
 			SET
-				status = 'Cancelled',
-				cancelled_at = NOW(),
-				cancelled_by = 'SYSTEM',
+				status           = 'Cancelled',
+				cancelled_at     = NOW(),
+				cancelled_by     = 'SYSTEM',
 				cancelled_reason = $2,
-				updated_at = NOW()
+				updated_at       = NOW()
 			FROM to_cancel tc
 			WHERE o.order_id = tc.order_id
 			RETURNING o.order_id
@@ -696,6 +692,5 @@ func (r *repo) BulkCancelActiveOrdersByStoreID(
 	if err := rows.Err(); err != nil {
 		return nil, apperr.Wrap(apperr.Internal, err, "rows error")
 	}
-
 	return out, nil
 }

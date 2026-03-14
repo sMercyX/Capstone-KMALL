@@ -13,12 +13,15 @@ import (
 	"github.com/Perpasit/Capstone-KMALL/internal/embedding"
 )
 
+// ===== Inputs =====
+
 type CreateInput struct {
 	Name        string  `json:"name"`
 	Description *string `json:"description,omitempty"`
 	Price       float64 `json:"price"`
 	ImageURL    *string `json:"image_url,omitempty"`
 	IsActive    string  `json:"is_active,omitempty"`
+	ProductType string  `json:"product_type,omitempty"` // "STOCK" | "PREORDER"
 	StoreID     int     `json:"store_id"`
 	CategoryID  int     `json:"category_id"`
 }
@@ -31,6 +34,20 @@ type UpdateInput struct {
 	IsActive    *string  `json:"is_active,omitempty"`
 	CategoryID  *int     `json:"category_id,omitempty"`
 }
+
+type CreateVariantInput struct {
+	PriceDelta   float64 `json:"price_delta"`
+	StockQty     int     `json:"stock_qty"`
+	OptionValues []int64 `json:"option_value_ids"` // ต้องครบทุก key
+}
+
+type CreateOptionKeyWithValuesInput struct {
+	KeyName   string
+	SortOrder int
+	Values    []string // value_labels
+}
+
+// ===== Service interface =====
 
 type Service interface {
 	Create(ctx context.Context, in CreateInput) (Product, error)
@@ -45,7 +62,7 @@ type Service interface {
 		parentCategoryID *int64,
 		storeID *int64,
 		limit, page int,
-		sortBy string, // "", "latest", "sold", "price_asc", "price_desc"
+		sortBy string,
 		fulfillment string,
 		minPrice *float64,
 		maxPrice *float64,
@@ -53,7 +70,27 @@ type Service interface {
 
 	GetPublic(ctx context.Context, id int64) (Product, error)
 	SuggestSplit(ctx context.Context, userID string, q string, limit int) (SuggestSplitResult, error)
+
+	// ===== Option Keys =====
+	CreateOptionKey(ctx context.Context, productID int64, userID string, keyName string, sortOrder int) (OptionKey, error)
+	ListOptionKeys(ctx context.Context, productID int64) ([]OptionKey, error)
+	DeleteOptionKey(ctx context.Context, keyID int64, productID int64, userID string) error
+
+	// ===== Option Values =====
+	CreateOptionValue(ctx context.Context, keyID int64, productID int64, userID string, valueLabel string, sortOrder int) (OptionValue, error)
+	DeleteOptionValue(ctx context.Context, valueID int64, productID int64, userID string) error
+
+	// ===== Variants =====
+	CreateVariant(ctx context.Context, productID int64, userID string, in CreateVariantInput) (Variant, error)
+	ListVariants(ctx context.Context, productID int64) ([]Variant, error)
+	UpdateVariantStock(ctx context.Context, variantID int64, productID int64, userID string, stockQty int) (Variant, error)
+	DeleteVariant(ctx context.Context, variantID int64, productID int64, userID string) error
+
+	CreateWithOptions(ctx context.Context, in CreateInput, opts []CreateOptionKeyWithValuesInput) (Product, error)
+	CreateVariantsBulk(ctx context.Context, productID int64, userID string, items []CreateVariantInput) ([]Variant, error)
 }
+
+// ===== service struct =====
 
 type service struct {
 	repo Repo
@@ -69,11 +106,7 @@ type EmbWeights struct {
 }
 
 func NewService(r Repo, emb embedding.Client) Service {
-	return &service{
-		repo: r,
-		emb:  emb,
-		w:    loadEmbWeights(),
-	}
+	return &service{repo: r, emb: emb, w: loadEmbWeights()}
 }
 
 // ===== Helpers =====
@@ -82,6 +115,14 @@ func normalizeYesNo(s, def string) string {
 	s = strings.TrimSpace(strings.ToUpper(s))
 	if s != "YES" && s != "NO" {
 		return def
+	}
+	return s
+}
+
+func normalizeProductType(s string) string {
+	s = strings.TrimSpace(strings.ToUpper(s))
+	if s != "STOCK" && s != "PREORDER" {
+		return "PREORDER"
 	}
 	return s
 }
@@ -137,6 +178,7 @@ func validateCreate(in *CreateInput) error {
 	}
 
 	in.IsActive = normalizeYesNo(in.IsActive, "YES")
+	in.ProductType = normalizeProductType(in.ProductType)
 	return nil
 }
 
@@ -160,10 +202,8 @@ func validateUpdate(in *UpdateInput) error {
 		*in.Description = d
 	}
 
-	if in.Price != nil {
-		if *in.Price <= 0 {
-			return apperr.New(apperr.BadRequest, "price must be greater than 0")
-		}
+	if in.Price != nil && *in.Price <= 0 {
+		return apperr.New(apperr.BadRequest, "price must be greater than 0")
 	}
 
 	if in.ImageURL != nil {
@@ -232,8 +272,6 @@ func loadEmbWeights() EmbWeights {
 		Desc:     readFloatEnv("REC_W_DESC", 0.35),
 		Category: readFloatEnv("REC_W_CATEGORY", 0.15),
 	}
-
-	// normalize ให้รวม = 1 (กันพลาด)
 	sum := w.Name + w.Desc + w.Category
 	if sum <= 0 {
 		return EmbWeights{Name: 1, Desc: 0, Category: 0}
@@ -258,20 +296,19 @@ func buildCategoryText(categoryName string) string {
 	return fmt.Sprintf("Category: %s", strings.TrimSpace(categoryName))
 }
 
+// ===== Create =====
+
 func (s *service) Create(ctx context.Context, in CreateInput) (Product, error) {
 	if err := validateCreate(&in); err != nil {
 		return Product{}, err
 	}
 
 	var vName, vDesc, vCat []float64
-
 	if s.emb != nil {
 		catName, err := s.repo.GetCategoryName(ctx, in.CategoryID)
 		if err != nil {
 			return Product{}, err
 		}
-
-		// embed แยก field
 		rawName, err := s.emb.Embed(ctx, buildNameText(in.Name))
 		if err != nil {
 			return Product{}, apperr.Wrap(apperr.Internal, err, "embed name failed")
@@ -284,29 +321,27 @@ func (s *service) Create(ctx context.Context, in CreateInput) (Product, error) {
 		if err != nil {
 			return Product{}, apperr.Wrap(apperr.Internal, err, "embed category failed")
 		}
-
-		// apply weight (จาก env ที่คุณโหลดไว้ใน s.w)
 		vName = rawName
 		vDesc = rawDesc
 		vCat = rawCat
 	}
 
-	params := CreateParams{
+	return s.repo.Create(ctx, CreateParams{
 		Name:        in.Name,
 		Description: in.Description,
 		Price:       in.Price,
 		ImageURL:    in.ImageURL,
 		IsActive:    in.IsActive,
+		ProductType: in.ProductType,
 		StoreID:     in.StoreID,
 		CategoryID:  in.CategoryID,
-
 		EmbName:     vName,
 		EmbDesc:     vDesc,
 		EmbCategory: vCat,
-	}
-
-	return s.repo.Create(ctx, params)
+	})
 }
+
+// ===== Get =====
 
 func (s *service) Get(ctx context.Context, id int64) (Product, error) {
 	if id <= 0 {
@@ -314,6 +349,8 @@ func (s *service) Get(ctx context.Context, id int64) (Product, error) {
 	}
 	return s.repo.Get(ctx, id)
 }
+
+// ===== ListByStoreID =====
 
 func (s *service) ListByStoreID(ctx context.Context, storeID int64, q string, limit, page int) ([]Product, int64, error) {
 	if storeID <= 0 {
@@ -325,10 +362,10 @@ func (s *service) ListByStoreID(ctx context.Context, storeID int64, q string, li
 	if page <= 0 {
 		page = 1
 	}
-
-	q = strings.TrimSpace(q)
-	return s.repo.ListByStoreID(ctx, storeID, q, limit, page)
+	return s.repo.ListByStoreID(ctx, storeID, strings.TrimSpace(q), limit, page)
 }
+
+// ===== Update =====
 
 func (s *service) Update(ctx context.Context, id int64, in UpdateInput) (Product, error) {
 	if id <= 0 {
@@ -343,50 +380,62 @@ func (s *service) Update(ctx context.Context, id int64, in UpdateInput) (Product
 		return Product{}, err
 	}
 
+	// ===== STOCK: ต้องมี active variant ก่อน set is_active = YES =====
+	if in.IsActive != nil && strings.ToUpper(*in.IsActive) == "YES" && old.ProductType == "STOCK" {
+		variants, err := s.repo.ListVariants(ctx, id)
+		if err != nil {
+			return Product{}, err
+		}
+		hasActive := false
+		for _, v := range variants {
+			if v.IsActive {
+				hasActive = true
+				break
+			}
+		}
+		if !hasActive {
+			return Product{}, apperr.New(apperr.BadRequest, "STOCK product must have at least 1 active variant before activation")
+		}
+	}
+
+	// ===== embedding =====
 	newName := old.Name
 	if in.Name != nil {
 		newName = strings.TrimSpace(*in.Name)
 	}
-
 	newDesc := old.Description
 	if in.Description != nil {
 		newDesc = in.Description
 	}
-
 	newCatID := old.CategoryID
 	if in.CategoryID != nil {
 		newCatID = *in.CategoryID
 	}
 
 	needEmbed := false
-
 	if in.Name != nil && strings.TrimSpace(old.Name) != strings.TrimSpace(*in.Name) {
 		needEmbed = true
 	}
-
 	if in.Description != nil {
 		oldD := ""
 		if old.Description != nil {
 			oldD = strings.TrimSpace(*old.Description)
 		}
-		newD := strings.TrimSpace(*in.Description)
-		if newD != oldD {
+		if strings.TrimSpace(*in.Description) != oldD {
 			needEmbed = true
 		}
 	}
-
 	if in.CategoryID != nil && *in.CategoryID != old.CategoryID {
 		needEmbed = true
 	}
 
-	var embNamePtr, embDescPtr, embCatPtr *[]float64 = nil, nil, nil
+	var embNamePtr, embDescPtr, embCatPtr *[]float64
 
 	if needEmbed && s.emb != nil {
 		catName, err := s.repo.GetCategoryName(ctx, newCatID)
 		if err != nil {
 			return Product{}, err
 		}
-
 		rawName, err := s.emb.Embed(ctx, buildNameText(newName))
 		if err != nil {
 			return Product{}, apperr.Wrap(apperr.Internal, err, "embed name failed")
@@ -399,31 +448,25 @@ func (s *service) Update(ctx context.Context, id int64, in UpdateInput) (Product
 		if err != nil {
 			return Product{}, apperr.Wrap(apperr.Internal, err, "embed category failed")
 		}
-
-		vName := rawName
-		vDesc := rawDesc
-		vCat := rawCat
-
-		embNamePtr = &vName
-		embDescPtr = &vDesc
-		embCatPtr = &vCat
+		embNamePtr = &rawName
+		embDescPtr = &rawDesc
+		embCatPtr = &rawCat
 	}
 
-	params := UpdateParams{
+	return s.repo.Update(ctx, id, UpdateParams{
 		Name:        in.Name,
 		Description: in.Description,
 		Price:       in.Price,
 		ImageURL:    in.ImageURL,
 		IsActive:    in.IsActive,
 		CategoryID:  in.CategoryID,
-
 		EmbName:     embNamePtr,
 		EmbDesc:     embDescPtr,
 		EmbCategory: embCatPtr,
-	}
-
-	return s.repo.Update(ctx, id, params)
+	})
 }
+
+// ===== Delete =====
 
 func (s *service) Delete(ctx context.Context, id int64) error {
 	if id <= 0 {
@@ -431,6 +474,9 @@ func (s *service) Delete(ctx context.Context, id int64) error {
 	}
 	return s.repo.Delete(ctx, id)
 }
+
+// ===== ListPublic =====
+
 func (s *service) ListPublic(
 	ctx context.Context,
 	q string,
@@ -459,8 +505,6 @@ func (s *service) ListPublic(
 	}
 	fulfillment = normalizeFulfillment(fulfillment)
 
-	// ===== normalize price range =====
-	// goal: UI slider length should start at 0 always
 	if minPrice != nil {
 		if math.IsNaN(*minPrice) || math.IsInf(*minPrice, 0) {
 			return nil, 0, 0, apperr.New(apperr.BadRequest, "min_price is invalid")
@@ -475,12 +519,9 @@ func (s *service) ListPublic(
 			return nil, 0, 0, apperr.New(apperr.BadRequest, "max_price is invalid")
 		}
 		if *maxPrice < 0 {
-			// ignore invalid negative max
 			maxPrice = nil
 		}
 	}
-
-	// if both provided and min > max -> swap (friendly)
 	if minPrice != nil && maxPrice != nil && *minPrice > *maxPrice {
 		a, b := *maxPrice, *minPrice
 		if a < 0 {
@@ -490,20 +531,10 @@ func (s *service) ListPublic(
 		maxPrice = &b
 	}
 
-	return s.repo.ListPublic(
-		ctx,
-		q,
-		categoryIDs,
-		parentCategoryID,
-		storeID,
-		limit,
-		page,
-		sortBy,
-		fulfillment,
-		minPrice,
-		maxPrice,
-	)
+	return s.repo.ListPublic(ctx, q, categoryIDs, parentCategoryID, storeID, limit, page, sortBy, fulfillment, minPrice, maxPrice)
 }
+
+// ===== GetPublic =====
 
 func (s *service) GetPublic(ctx context.Context, id int64) (Product, error) {
 	if id <= 0 {
@@ -512,20 +543,254 @@ func (s *service) GetPublic(ctx context.Context, id int64) (Product, error) {
 	return s.repo.GetPublic(ctx, id)
 }
 
-func (s *service) SuggestSplit(ctx context.Context, userID string, q string, limit int) (SuggestSplitResult, error) {
-	q = strings.TrimSpace(q)
-	userID = strings.TrimSpace(userID)
+// ===== SuggestSplit =====
 
+func (s *service) SuggestSplit(ctx context.Context, userID string, q string, limit int) (SuggestSplitResult, error) {
+	userID = strings.TrimSpace(userID)
 	if userID == "" {
 		return SuggestSplitResult{}, apperr.New(apperr.BadRequest, "user_id is required")
 	}
-
 	if limit <= 0 {
 		limit = 10
 	}
 	if limit > 20 {
 		limit = 20
 	}
+	return s.repo.SuggestSplit(ctx, userID, strings.TrimSpace(q), limit)
+}
 
-	return s.repo.SuggestSplit(ctx, userID, q, limit)
+// ===== Option Keys =====
+
+func (s *service) CreateOptionKey(ctx context.Context, productID int64, userID string, keyName string, sortOrder int) (OptionKey, error) {
+	p, err := s.repo.Get(ctx, productID)
+	if err != nil {
+		return OptionKey{}, err
+	}
+	if p.ProductType != "STOCK" {
+		return OptionKey{}, apperr.New(apperr.BadRequest, "option keys are only available for STOCK products")
+	}
+
+	keyName = strings.TrimSpace(keyName)
+	if keyName == "" {
+		return OptionKey{}, apperr.New(apperr.BadRequest, "key_name is required")
+	}
+	if len(keyName) > 50 {
+		return OptionKey{}, apperr.New(apperr.BadRequest, "key_name must be at most 50 characters")
+	}
+
+	keys, err := s.repo.ListOptionKeys(ctx, productID)
+	if err != nil {
+		return OptionKey{}, err
+	}
+	if len(keys) >= 3 {
+		return OptionKey{}, apperr.New(apperr.BadRequest, "maximum 3 option keys per product")
+	}
+
+	return s.repo.CreateOptionKey(ctx, productID, keyName, sortOrder)
+}
+
+func (s *service) ListOptionKeys(ctx context.Context, productID int64) ([]OptionKey, error) {
+	if productID <= 0 {
+		return nil, apperr.New(apperr.BadRequest, "invalid product_id")
+	}
+	return s.repo.ListOptionKeys(ctx, productID)
+}
+
+func (s *service) DeleteOptionKey(ctx context.Context, keyID int64, productID int64, userID string) error {
+	if keyID <= 0 {
+		return apperr.New(apperr.BadRequest, "invalid key_id")
+	}
+	// ถ้ามี variant อยู่แล้ว ห้ามลบ key เพราะจะทำให้ selections orphan
+	variants, err := s.repo.ListVariants(ctx, productID)
+	if err != nil {
+		return err
+	}
+	if len(variants) > 0 {
+		return apperr.New(apperr.BadRequest, "cannot delete option key while variants exist, delete all variants first")
+	}
+	return s.repo.DeleteOptionKey(ctx, keyID)
+}
+
+// ===== Option Values =====
+
+func (s *service) CreateOptionValue(ctx context.Context, keyID int64, productID int64, userID string, valueLabel string, sortOrder int) (OptionValue, error) {
+	if keyID <= 0 {
+		return OptionValue{}, apperr.New(apperr.BadRequest, "invalid key_id")
+	}
+
+	valueLabel = strings.TrimSpace(valueLabel)
+	if valueLabel == "" {
+		return OptionValue{}, apperr.New(apperr.BadRequest, "value_label is required")
+	}
+	if len(valueLabel) > 100 {
+		return OptionValue{}, apperr.New(apperr.BadRequest, "value_label must be at most 100 characters")
+	}
+
+	// ถ้ามี variant อยู่แล้ว ห้ามเพิ่ม value เพราะต้องสร้าง variant combination ใหม่
+	variants, err := s.repo.ListVariants(ctx, productID)
+	if err != nil {
+		return OptionValue{}, err
+	}
+	if len(variants) > 0 {
+		return OptionValue{}, apperr.New(apperr.BadRequest, "cannot add option value while variants exist, delete all variants first")
+	}
+
+	return s.repo.CreateOptionValue(ctx, keyID, valueLabel, sortOrder)
+}
+
+func (s *service) DeleteOptionValue(ctx context.Context, valueID int64, productID int64, userID string) error {
+	if valueID <= 0 {
+		return apperr.New(apperr.BadRequest, "invalid value_id")
+	}
+	variants, err := s.repo.ListVariants(ctx, productID)
+	if err != nil {
+		return err
+	}
+	if len(variants) > 0 {
+		return apperr.New(apperr.BadRequest, "cannot delete option value while variants exist, delete all variants first")
+	}
+	return s.repo.DeleteOptionValue(ctx, valueID)
+}
+
+// ===== Variants =====
+
+func (s *service) CreateVariant(ctx context.Context, productID int64, userID string, in CreateVariantInput) (Variant, error) {
+	p, err := s.repo.Get(ctx, productID)
+	if err != nil {
+		return Variant{}, err
+	}
+	if p.ProductType != "STOCK" {
+		return Variant{}, apperr.New(apperr.BadRequest, "variants are only available for STOCK products")
+	}
+	if in.StockQty < 0 {
+		return Variant{}, apperr.New(apperr.BadRequest, "stock_qty must be >= 0")
+	}
+
+	keys, err := s.repo.ListOptionKeys(ctx, productID)
+	if err != nil {
+		return Variant{}, err
+	}
+	if len(keys) == 0 {
+		return Variant{}, apperr.New(apperr.BadRequest, "add at least 1 option key before creating variants")
+	}
+	if len(in.OptionValues) != len(keys) {
+		return Variant{}, apperr.New(apperr.BadRequest,
+			fmt.Sprintf("expected %d option_value_ids (one per key), got %d", len(keys), len(in.OptionValues)))
+	}
+
+	// validate แต่ละ value_id ว่า belong to key ของ product นี้จริง
+	// สร้าง map: option_key_id -> true จาก keys ของ product
+	keyIDSet := make(map[int]bool, len(keys))
+	for _, k := range keys {
+		keyIDSet[k.ID] = true
+	}
+
+	// validate แต่ละ value ต้อง belong to key ที่ต่างกัน (1 value ต่อ 1 key)
+	usedKeyIDs := make(map[int]bool, len(in.OptionValues))
+	for _, vid := range in.OptionValues {
+		// หา key ของ value นี้ผ่าน ListOptionKeys (values ถูก load แล้ว)
+		foundKeyID := 0
+		for _, k := range keys {
+			for _, v := range k.Values {
+				if int64(v.ID) == vid {
+					foundKeyID = k.ID
+					break
+				}
+			}
+			if foundKeyID != 0 {
+				break
+			}
+		}
+		if foundKeyID == 0 {
+			return Variant{}, apperr.New(apperr.BadRequest,
+				fmt.Sprintf("option_value_id %d does not belong to this product", vid))
+		}
+		if usedKeyIDs[foundKeyID] {
+			return Variant{}, apperr.New(apperr.BadRequest,
+				fmt.Sprintf("duplicate option key in selections (key_id %d used more than once)", foundKeyID))
+		}
+		usedKeyIDs[foundKeyID] = true
+	}
+
+	return s.repo.CreateVariant(ctx, CreateVariantParams{
+		ProductID:    productID,
+		PriceDelta:   in.PriceDelta,
+		StockQty:     in.StockQty,
+		OptionValues: in.OptionValues,
+	})
+}
+
+func (s *service) ListVariants(ctx context.Context, productID int64) ([]Variant, error) {
+	if productID <= 0 {
+		return nil, apperr.New(apperr.BadRequest, "invalid product_id")
+	}
+	return s.repo.ListVariants(ctx, productID)
+}
+
+func (s *service) UpdateVariantStock(ctx context.Context, variantID int64, productID int64, userID string, stockQty int) (Variant, error) {
+	if variantID <= 0 {
+		return Variant{}, apperr.New(apperr.BadRequest, "invalid variant_id")
+	}
+	if stockQty < 0 {
+		return Variant{}, apperr.New(apperr.BadRequest, "stock_qty must be >= 0")
+	}
+	return s.repo.UpdateVariantStock(ctx, variantID, stockQty)
+}
+
+func (s *service) DeleteVariant(ctx context.Context, variantID int64, productID int64, userID string) error {
+	if variantID <= 0 {
+		return apperr.New(apperr.BadRequest, "invalid variant_id")
+	}
+	return s.repo.DeleteVariant(ctx, variantID)
+}
+
+func (s *service) CreateWithOptions(ctx context.Context, in CreateInput, opts []CreateOptionKeyWithValuesInput) (Product, error) {
+	// สร้าง product ก่อน
+	p, err := s.Create(ctx, in)
+	if err != nil {
+		return Product{}, err
+	}
+
+	// ถ้าไม่มี options ส่งมา หรือไม่ใช่ STOCK ก็จบ
+	if p.ProductType != "STOCK" || len(opts) == 0 {
+		return p, nil
+	}
+
+	// สร้าง option keys + values
+	for _, opt := range opts {
+		key, err := s.CreateOptionKey(ctx, int64(p.ID), "", opt.KeyName, opt.SortOrder)
+		if err != nil {
+			return p, err
+		}
+		for i, label := range opt.Values {
+			_, err := s.CreateOptionValue(ctx, int64(key.ID), int64(p.ID), "", label, i+1)
+			if err != nil {
+				return p, err
+			}
+		}
+	}
+
+	// โหลด options กลับมาใส่ใน response
+	keys, err := s.repo.ListOptionKeys(ctx, int64(p.ID))
+	if err != nil {
+		return p, nil // product สร้างสำเร็จแล้ว ไม่ต้อง fail
+	}
+	p.Options = keys
+	return p, nil
+}
+
+func (s *service) CreateVariantsBulk(ctx context.Context, productID int64, userID string, items []CreateVariantInput) ([]Variant, error) {
+	if len(items) == 0 {
+		return nil, apperr.New(apperr.BadRequest, "variants must not be empty")
+	}
+
+	out := make([]Variant, 0, len(items))
+	for _, item := range items {
+		v, err := s.CreateVariant(ctx, productID, userID, item)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, v)
+	}
+	return out, nil
 }
