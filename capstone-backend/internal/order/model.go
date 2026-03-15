@@ -43,6 +43,7 @@ type OrderItem struct {
 	OrderID          int       `json:"order_id"`
 	ProductID        int       `json:"product_id"`
 	VariantID        *int      `json:"variant_id,omitempty"` // NULL = PREORDER, NOT NULL = STOCK
+	Note             *string   `json:"note,omitempty"`
 }
 
 type OrderItemWithProduct struct {

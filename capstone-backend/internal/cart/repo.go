@@ -151,16 +151,17 @@ func (r *repo) GetItem(ctx context.Context, id int64) (CartItem, error) {
 
 func (r *repo) CreateItem(ctx context.Context, in CartItemCreateParams) (CartItem, error) {
 	var item CartItem
+	// CreateItem — เพิ่ม note
 	err := r.db.QueryRow(ctx, `
-		INSERT INTO cart_items (cart_id, product_id, variant_id, quantity)
-		VALUES ($1, $2, $3, $4)
-		ON CONFLICT (cart_id, product_id, variant_id)
-		DO UPDATE SET
-			quantity = cart_items.quantity + EXCLUDED.quantity
-		RETURNING cart_item_id, cart_id, product_id, variant_id, quantity;
-	`,
-		in.CartID, in.ProductID, in.VariantID, in.Quantity,
-	).Scan(&item.ID, &item.CartID, &item.ProductID, &item.VariantID, &item.Quantity)
+    INSERT INTO cart_items (cart_id, product_id, variant_id, quantity, note)
+    VALUES ($1, $2, $3, $4, $5)
+    ON CONFLICT (cart_id, product_id, variant_id)
+    DO UPDATE SET
+        quantity = cart_items.quantity + EXCLUDED.quantity,
+        note     = EXCLUDED.note
+    RETURNING cart_item_id, cart_id, product_id, variant_id, quantity, note;
+`, in.CartID, in.ProductID, in.VariantID, in.Quantity, in.Note,
+	).Scan(&item.ID, &item.CartID, &item.ProductID, &item.VariantID, &item.Quantity, &item.Note)
 	if err != nil {
 		return CartItem{}, apperr.Wrap(apperr.Internal, err, "create or update cart item failed")
 	}
@@ -170,12 +171,13 @@ func (r *repo) CreateItem(ctx context.Context, in CartItemCreateParams) (CartIte
 func (r *repo) UpdateItem(ctx context.Context, id int64, in CartItemUpdateParams) (CartItem, error) {
 	var it CartItem
 	err := r.db.QueryRow(ctx, `
-		UPDATE cart_items
-		SET quantity = COALESCE($2, quantity)
-		WHERE cart_item_id = $1
-		RETURNING cart_item_id, cart_id, product_id, variant_id, quantity;
-	`, id, in.Quantity).Scan(
-		&it.ID, &it.CartID, &it.ProductID, &it.VariantID, &it.Quantity,
+    UPDATE cart_items
+    SET quantity = COALESCE($2, quantity),
+        note     = COALESCE($3, note)
+    WHERE cart_item_id = $1
+    RETURNING cart_item_id, cart_id, product_id, variant_id, quantity, note;
+`, id, in.Quantity, in.Note).Scan(
+		&it.ID, &it.CartID, &it.ProductID, &it.VariantID, &it.Quantity, &it.Note,
 	)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -250,7 +252,8 @@ func (r *repo) ListItemViewsByCartID(ctx context.Context, cartID int64) ([]CartI
 
 			-- stock info
 			COALESCE(pv.stock_qty, 0)                              AS stock_qty,
-			COALESCE(pv.stock_qty, 0) >= ci.quantity               AS is_available
+			COALESCE(pv.stock_qty, 0) >= ci.quantity               AS is_available,
+			ci.note
 
 		FROM cart_items ci
 		JOIN products p  ON ci.product_id = p.product_id
@@ -267,7 +270,7 @@ func (r *repo) ListItemViewsByCartID(ctx context.Context, cartID int64) ([]CartI
 			p.name, p.image_url, p.price,
 			pv.price_delta, pv.stock_qty,
 			s.store_id, s.store_name,
-			ci.quantity
+			ci.quantity, ci.note
 		ORDER BY ci.cart_item_id ASC;
 	`, cartID)
 	if err != nil {
@@ -293,6 +296,7 @@ func (r *repo) ListItemViewsByCartID(ctx context.Context, cartID int64) ([]CartI
 			&v.VariantLabel,
 			&v.StockQty,
 			&v.IsAvailable,
+			&v.Note,
 		); err != nil {
 			return nil, apperr.Wrap(apperr.Internal, err, "scan cart item view failed")
 		}

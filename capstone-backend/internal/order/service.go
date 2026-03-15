@@ -396,6 +396,7 @@ func (s *service) CreateFromCart(ctx context.Context, userID string, in Checkout
 			PromisedShipDate: time.Time{},
 			ProductID:        ci.ProductID,
 			VariantID:        ci.VariantID, // nil = PREORDER, not nil = STOCK (repo จะ deduct stock)
+			Note:             ci.Note,
 		})
 	}
 

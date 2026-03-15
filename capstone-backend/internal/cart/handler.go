@@ -126,9 +126,10 @@ func (h *Handler) getCart(c *gin.Context) {
 // ============================================================================
 
 type addItemReq struct {
-	ProductID int  `json:"product_id" binding:"required"`
-	VariantID *int `json:"variant_id"` // required ถ้า STOCK, ห้ามส่งถ้า PREORDER
-	Quantity  int  `json:"quantity"   binding:"required"`
+	ProductID int     `json:"product_id" binding:"required"`
+	VariantID *int    `json:"variant_id"` // required ถ้า STOCK, ห้ามส่งถ้า PREORDER
+	Quantity  int     `json:"quantity"   binding:"required"`
+	Note      *string `json:"note"`
 }
 
 func (h *Handler) addItem(c *gin.Context) {
@@ -147,6 +148,7 @@ func (h *Handler) addItem(c *gin.Context) {
 		ProductID: in.ProductID,
 		VariantID: in.VariantID,
 		Quantity:  in.Quantity,
+		Note:      in.Note,
 	})
 	if err != nil {
 		c.Error(err)
@@ -161,7 +163,8 @@ func (h *Handler) addItem(c *gin.Context) {
 // ============================================================================
 
 type updateItemReq struct {
-	Quantity int `json:"quantity" binding:"required"`
+	Quantity int     `json:"quantity" binding:"required"`
+	Note     *string `json:"note"`
 }
 
 func (h *Handler) updateItem(c *gin.Context) {
@@ -182,7 +185,7 @@ func (h *Handler) updateItem(c *gin.Context) {
 	}
 
 	updated, err := h.svc.UpdateItem(c.Request.Context(), userID, itemID,
-		CartItemUpdateInput{Quantity: &in.Quantity},
+		CartItemUpdateInput{Quantity: &in.Quantity, Note: in.Note},
 	)
 	if err != nil {
 		c.Error(err)

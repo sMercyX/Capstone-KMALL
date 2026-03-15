@@ -16,13 +16,15 @@ type CartWithItems struct {
 }
 
 type CartItemCreateInput struct {
-	ProductID int  `json:"product_id"`
-	VariantID *int `json:"variant_id,omitempty"` // required ถ้า product_type = STOCK
-	Quantity  int  `json:"quantity"`
+	ProductID int     `json:"product_id"`
+	VariantID *int    `json:"variant_id,omitempty"` // required ถ้า product_type = STOCK
+	Quantity  int     `json:"quantity"`
+	Note      *string `json:"note,omitempty"`
 }
 
 type CartItemUpdateInput struct {
-	Quantity *int `json:"quantity"`
+	Quantity *int    `json:"quantity"`
+	Note     *string `json:"note,omitempty"`
 }
 
 // ============================================================================
@@ -176,6 +178,7 @@ func (s *service) AddItem(ctx context.Context, userID string, in CartItemCreateI
 		ProductID: in.ProductID,
 		VariantID: in.VariantID,
 		Quantity:  in.Quantity,
+		Note:      in.Note,
 	})
 }
 

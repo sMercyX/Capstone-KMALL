@@ -14,11 +14,12 @@ type Cart struct {
 }
 
 type CartItem struct {
-	ID        int  `json:"id"`
-	CartID    int  `json:"cart_id"`
-	ProductID int  `json:"product_id"`
-	VariantID *int `json:"variant_id,omitempty"` // NULL = PREORDER, NOT NULL = STOCK
-	Quantity  int  `json:"quantity"`
+	ID        int     `json:"id"`
+	CartID    int     `json:"cart_id"`
+	ProductID int     `json:"product_id"`
+	VariantID *int    `json:"variant_id,omitempty"` // NULL = PREORDER, NOT NULL = STOCK
+	Quantity  int     `json:"quantity"`
+	Note      *string `json:"note,omitempty"`
 }
 
 type CartItemView struct {
@@ -36,8 +37,9 @@ type CartItemView struct {
 	VariantLabel    string  `json:"variant_label,omitempty"`
 
 	// เพิ่ม
-	StockQty    int  `json:"stock_qty"`    // stock ปัจจุบัน
-	IsAvailable bool `json:"is_available"` // stock >= quantity ณ ตอนนี้
+	StockQty    int     `json:"stock_qty"`    // stock ปัจจุบัน
+	IsAvailable bool    `json:"is_available"` // stock >= quantity ณ ตอนนี้
+	Note        *string `json:"note,omitempty"`
 }
 
 // ===== Params =====
@@ -47,8 +49,10 @@ type CartItemCreateParams struct {
 	ProductID int
 	VariantID *int // nil = PREORDER
 	Quantity  int
+	Note      *string
 }
 
 type CartItemUpdateParams struct {
 	Quantity *int
+	Note     *string
 }

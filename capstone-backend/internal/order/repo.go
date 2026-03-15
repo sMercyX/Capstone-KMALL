@@ -68,6 +68,7 @@ type OrderItemCreateParams struct {
 	PromisedShipDate time.Time
 	ProductID        int
 	VariantID        *int // nil = PREORDER, not nil = STOCK (ต้อง deduct stock)
+	Note             *string
 }
 
 type BulkCancelledOrder struct {
@@ -116,6 +117,7 @@ func scanOrderItem(row pgx.Row, it *OrderItem) error {
 		&it.OrderID,
 		&it.ProductID,
 		&it.VariantID,
+		&it.Note,
 	)
 }
 
@@ -131,6 +133,7 @@ func scanOrderItemWithProduct(row pgx.Row, it *OrderItemWithProduct) error {
 		&it.OrderID,
 		&it.ProductID,
 		&it.VariantID,
+		&it.Note,
 		&it.ProductName,
 		&it.ProductImageURL,
 		&it.StoreProfileURL,
@@ -199,24 +202,20 @@ func (r *repo) CreateOrderWithItems(
 
 		var oi OrderItem
 		err = scanOrderItem(tx.QueryRow(ctx, `
-			INSERT INTO order_items (
-				quantity, unit_price, fulfillment_type, subtotal,
-				deposit_amount, promised_ship_date,
-				order_id, product_id, variant_id
-			)
-			VALUES (
-				$1, $2, $3, $4,
-				$5, COALESCE($6::timestamptz, CURRENT_TIMESTAMP),
-				$7, $8, $9
-			)
-			RETURNING
-				order_item_id, quantity, unit_price, fulfillment_type,
-				subtotal, deposit_amount, promised_ship_date,
-				order_id, product_id, variant_id;
-		`,
+    INSERT INTO order_items (
+        quantity, unit_price, fulfillment_type, subtotal,
+        deposit_amount, promised_ship_date,
+        order_id, product_id, variant_id, note
+    )
+    VALUES ($1,$2,$3,$4,$5,COALESCE($6::timestamptz,CURRENT_TIMESTAMP),$7,$8,$9,$10)
+    RETURNING
+        order_item_id, quantity, unit_price, fulfillment_type,
+        subtotal, deposit_amount, promised_ship_date,
+        order_id, product_id, variant_id, note;
+`,
 			it.Quantity, it.UnitPrice, it.FulfillmentType, it.Subtotal,
 			it.DepositAmount, promised,
-			ord.ID, it.ProductID, it.VariantID,
+			ord.ID, it.ProductID, it.VariantID, it.Note,
 		), &oi)
 		if err != nil {
 			if pgErr, ok := err.(*pgconn.PgError); ok {
@@ -302,6 +301,7 @@ func (r *repo) ListItemsByOrderID(ctx context.Context, orderID int64) ([]OrderIt
 			oi.order_id,
 			oi.product_id,
 			oi.variant_id,
+			oi.note,
 			p.name                AS product_name,
 			p.image_url           AS product_image_url,
 			s.profile_url         AS store_profile_url,
@@ -329,7 +329,7 @@ func (r *repo) ListItemsByOrderID(ctx context.Context, orderID int64) ([]OrderIt
 		GROUP BY
 			oi.order_item_id, oi.quantity, oi.unit_price, oi.fulfillment_type,
 			oi.subtotal, oi.deposit_amount, oi.promised_ship_date,
-			oi.order_id, oi.product_id, oi.variant_id,
+			oi.order_id, oi.product_id, oi.variant_id, oi.note,
 			p.name, p.image_url, s.profile_url
 		ORDER BY oi.order_item_id ASC;
 	`, orderID)

@@ -363,6 +363,7 @@ CREATE TABLE IF NOT EXISTS order_items (
   product_id INT NOT NULL,
 
   variant_id INT NULL,
+  note VARCHAR(255) NULL,
 
   CONSTRAINT fk_order_items_orders1 FOREIGN KEY (order_id)
     REFERENCES orders (order_id)
@@ -402,6 +403,7 @@ CREATE TABLE IF NOT EXISTS cart_items (
 
   -- NULL = PREORDER, NOT NULL = STOCK
   variant_id INT NULL,
+  note VARCHAR(255) NULL,
 
   CONSTRAINT fk_cart_items_carts1 FOREIGN KEY (cart_id)
     REFERENCES carts (cart_id)
