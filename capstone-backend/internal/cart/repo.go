@@ -31,7 +31,7 @@ type Repo interface {
 	GetProductOwnerID(ctx context.Context, productID int) (string, error)
 	GetStoreInfoByProductID(ctx context.Context, productID int) (storeID int, isActive string, err error)
 
-	// ===== เพิ่ม: ดึง product_type + validate variant =====
+	// ดึง product_type + validate variant
 	GetProductType(ctx context.Context, productID int) (string, error)
 	GetVariantInfo(ctx context.Context, variantID int) (productID int, isActive bool, stockQty int, err error)
 }
@@ -150,8 +150,6 @@ func (r *repo) GetItem(ctx context.Context, id int64) (CartItem, error) {
 }
 
 func (r *repo) CreateItem(ctx context.Context, in CartItemCreateParams) (CartItem, error) {
-	// unique constraint คือ (cart_id, product_id, variant_id)
-	// variant_id อาจเป็น NULL → ใช้ IS NOT DISTINCT FROM เพื่อ match NULL ได้ถูกต้อง
 	var item CartItem
 	err := r.db.QueryRow(ctx, `
 		INSERT INTO cart_items (cart_id, product_id, variant_id, quantity)
@@ -163,7 +161,6 @@ func (r *repo) CreateItem(ctx context.Context, in CartItemCreateParams) (CartIte
 	`,
 		in.CartID, in.ProductID, in.VariantID, in.Quantity,
 	).Scan(&item.ID, &item.CartID, &item.ProductID, &item.VariantID, &item.Quantity)
-
 	if err != nil {
 		return CartItem{}, apperr.Wrap(apperr.Internal, err, "create or update cart item failed")
 	}
@@ -227,23 +224,21 @@ func (r *repo) ClearItemsByCartID(ctx context.Context, cartID int64) error {
 // ============================================================================
 
 func (r *repo) ListItemViewsByCartID(ctx context.Context, cartID int64) ([]CartItemView, error) {
-	// ดึง base price + price_delta ของ variant (ถ้ามี)
-	// และรวม selections เป็น label "สี: แดง / ขนาด: M"
 	rows, err := r.db.Query(ctx, `
 		SELECT
 			ci.cart_item_id,
 			ci.cart_id,
 			ci.product_id,
 			ci.variant_id,
-			p.name                                          AS product_name,
-			COALESCE(p.image_url, '')                       AS product_image_url,
-			p.price + COALESCE(pv.price_delta, 0)          AS product_price,
+			p.name                                                 AS product_name,
+			COALESCE(p.image_url, '')                              AS product_image_url,
+			p.price + COALESCE(pv.price_delta, 0)                 AS product_price,
 			s.store_id,
 			s.store_name,
 			ci.quantity,
 			ci.quantity * (p.price + COALESCE(pv.price_delta, 0)) AS subtotal,
 
-			-- รวม "key: value" ของ variant เรียงตาม sort_order
+			-- variant label: "สี: ดำ / ขนาด: M"
 			COALESCE(
 				string_agg(
 					ok.key_name || ': ' || ov.value_label,
@@ -251,7 +246,11 @@ func (r *repo) ListItemViewsByCartID(ctx context.Context, cartID int64) ([]CartI
 					ORDER BY ok.sort_order
 				),
 				''
-			) AS variant_label
+			) AS variant_label,
+
+			-- stock info
+			COALESCE(pv.stock_qty, 0)                              AS stock_qty,
+			COALESCE(pv.stock_qty, 0) >= ci.quantity               AS is_available
 
 		FROM cart_items ci
 		JOIN products p  ON ci.product_id = p.product_id
@@ -266,7 +265,7 @@ func (r *repo) ListItemViewsByCartID(ctx context.Context, cartID int64) ([]CartI
 		GROUP BY
 			ci.cart_item_id, ci.cart_id, ci.product_id, ci.variant_id,
 			p.name, p.image_url, p.price,
-			pv.price_delta,
+			pv.price_delta, pv.stock_qty,
 			s.store_id, s.store_name,
 			ci.quantity
 		ORDER BY ci.cart_item_id ASC;
@@ -292,6 +291,8 @@ func (r *repo) ListItemViewsByCartID(ctx context.Context, cartID int64) ([]CartI
 			&v.Quantity,
 			&v.Subtotal,
 			&v.VariantLabel,
+			&v.StockQty,
+			&v.IsAvailable,
 		); err != nil {
 			return nil, apperr.Wrap(apperr.Internal, err, "scan cart item view failed")
 		}
@@ -359,7 +360,6 @@ func (r *repo) GetStoreInfoByProductID(ctx context.Context, productID int) (stor
 	return storeID, isActive, nil
 }
 
-// GetProductType คืน "STOCK" หรือ "PREORDER"
 func (r *repo) GetProductType(ctx context.Context, productID int) (string, error) {
 	var productType string
 	err := r.db.QueryRow(ctx, `
@@ -374,7 +374,6 @@ func (r *repo) GetProductType(ctx context.Context, productID int) (string, error
 	return strings.ToUpper(strings.TrimSpace(productType)), nil
 }
 
-// GetVariantInfo คืนข้อมูล variant สำหรับ validate ก่อน add to cart
 func (r *repo) GetVariantInfo(ctx context.Context, variantID int) (productID int, isActive bool, stockQty int, err error) {
 	err = r.db.QueryRow(ctx, `
 		SELECT product_id, is_active, stock_qty

@@ -28,14 +28,16 @@ type CartItemView struct {
 	VariantID       *int    `json:"variant_id,omitempty"`
 	ProductName     string  `json:"product_name"`
 	ProductImageURL string  `json:"product_image_url"`
-	ProductPrice    float64 `json:"product_price"` // base price + price_delta (ถ้ามี variant)
+	ProductPrice    float64 `json:"product_price"`
 	StoreID         int     `json:"store_id"`
 	StoreName       string  `json:"store_name"`
 	Quantity        int     `json:"quantity"`
 	Subtotal        float64 `json:"subtotal"`
+	VariantLabel    string  `json:"variant_label,omitempty"`
 
-	// variant info (แสดงให้ user เห็นว่าเลือกอะไร เช่น "สี: แดง, ขนาด: M")
-	VariantLabel string `json:"variant_label,omitempty"` // computed จาก selections
+	// เพิ่ม
+	StockQty    int  `json:"stock_qty"`    // stock ปัจจุบัน
+	IsAvailable bool `json:"is_available"` // stock >= quantity ณ ตอนนี้
 }
 
 // ===== Params =====
