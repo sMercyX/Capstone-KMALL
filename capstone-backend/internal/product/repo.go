@@ -292,6 +292,31 @@ func (r *repo) Get(ctx context.Context, id int64) (Product, error) {
 		}
 		return Product{}, apperr.Wrap(apperr.Internal, err, "get product failed")
 	}
+
+	// เหมือน GetPublic — ถ้าเป็น STOCK ดึง options + variants มาด้วย
+	if p.ProductType == "STOCK" {
+		keys, err := r.ListOptionKeys(ctx, int64(p.ID))
+		if err != nil {
+			return Product{}, err
+		}
+		p.Options = keys
+
+		variants, err := r.ListVariants(ctx, int64(p.ID))
+		if err != nil {
+			return Product{}, err
+		}
+		for i := range variants {
+			variants[i].FinalPrice = p.Price + variants[i].PriceDelta
+		}
+
+		var total int64
+		for _, v := range variants {
+			total += int64(v.StockQty)
+		}
+		p.TotalStock = &total
+		p.Variants = variants
+	}
+
 	return p, nil
 }
 

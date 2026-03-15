@@ -30,6 +30,8 @@ type Product struct {
 	EmbeddingName     []float64 `db:"embedding_name"     json:"-"`
 	EmbeddingDesc     []float64 `db:"embedding_desc"     json:"-"`
 	EmbeddingCategory []float64 `db:"embedding_category" json:"-"`
+
+	TotalStock *int64 `db:"-" json:"total_stock,omitempty"`
 }
 
 // ===== Option Keys & Values =====
