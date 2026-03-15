@@ -174,7 +174,7 @@ export default function ReportManager({ reportedPartyType }: ReportManagerProps)
   }
 
   return (
-    <div className="p-8 max-w-[1280px] mx-auto w-full">
+    <div className="p-8 mx-auto w-full">
       {/* Breadcrumb & Title Area */}
       <div className="mb-8">
         <div className="text-gray-400 text-sm mb-2 font-medium">

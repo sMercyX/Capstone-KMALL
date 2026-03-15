@@ -6,8 +6,10 @@ export interface CatagoriesResponse {
   id: number
   name: string
   slug: string
+  parent_id?: number | null
   sort_order: number
   is_active: "YES" | "NO"
+  icon_url?: string | null
   created_at: string
   updated_at: string
 }
@@ -33,5 +35,19 @@ export function useCatagoriesApi() {
     return http.getItems(`/categories/${id}/public`)
   }
 
-  return { getCatagoriesName, getCatagoriesSubName, getCatagoriesDetail }
+  async function uploadCategoryIcon(file: File): Promise<ApiResponse<{ icon_url: string }>> {
+    const formData = new FormData()
+    formData.append("file", file)
+    return http.postItem("/admin/categories/upload-icon", formData) as Promise<ApiResponse<{ icon_url: string }>>
+  }
+
+  async function addCategory(payload: any): Promise<ApiResponse<any>> {
+    return http.postItem("/admin/categories", payload)
+  }
+
+  async function updateCategory(id: number, payload: { name: string; icon_url: string }): Promise<ApiResponse<any>> {
+    return http.putItem(`/admin/categories/${id}`, payload)
+  }
+
+  return { getCatagoriesName, getCatagoriesSubName, getCatagoriesDetail, uploadCategoryIcon, addCategory, updateCategory }
 }

@@ -50,6 +50,7 @@ import {
 import { PiWarningCircleBold } from "react-icons/pi"
 
 const AdminCategoryPage = lazy(() => import("../modules/AdminPage/CategoryPage/CategoryPage"))
+const AdminAddCategoryPage = lazy(() => import("../modules/AdminPage/CategoryPage/AddEditCategoryPage"))
 const AdminSellerReportPage = lazy(() => import("../modules/AdminPage/SellerReportPage/SellerReportPage"))
 const AdminBuyerReportPage = lazy(() => import("../modules/AdminPage/BuyerReportPage/BuyerReportPage"))
 const AdminReportDetailPage = lazy(() => import("../modules/AdminPage/ReportDetailPage/ReportDetailPage"))
@@ -232,7 +233,9 @@ export default function AppRoutes() {
           }
         >
           {/* Admin Sub-routes */}
+          <Route path="" element={<Navigate to="/admin/category" replace />} />
           <Route path="category" element={<AdminCategoryPage />} />
+          <Route path="category/add" element={<AdminAddCategoryPage />} />
           <Route path="report/seller" element={<AdminSellerReportPage />} />
           <Route path="report/buyer" element={<AdminBuyerReportPage />} />
           <Route path="report/:type/:reportId" element={<AdminReportDetailPage />} />

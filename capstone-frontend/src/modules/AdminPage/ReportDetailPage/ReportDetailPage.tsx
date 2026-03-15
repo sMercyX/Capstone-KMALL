@@ -194,7 +194,7 @@ export default function ReportDetailPage() {
   const { report, order_snapshot, chat_snapshots, evidences } = reportData
 
   return (
-    <div className="p-8 max-w-[1280px] mx-auto w-full h-screen flex flex-col overflow-hidden">
+    <div className="p-8 mx-auto w-full h-screen flex flex-col overflow-hidden">
       {/* Breadcrumb & Title Area */}
       <div className="mb-6 flex-shrink-0 flex justify-between items-end">
         <div>
