@@ -36,8 +36,8 @@ func (h *Handler) Register(r *gin.RouterGroup) {
 	pg.GET("/public", h.listPublic)
 	pg.GET("/suggest", h.suggest)
 	pg.GET("/:id/public", h.getPublic)
-	pg.GET("/:id/options", h.listOptions)   // buyer ดู options + values
-	pg.GET("/:id/variants", h.listVariants) // buyer ดู variants + stock
+	pg.GET("/:id/options", h.listOptions)
+	pg.GET("/:id/variants", h.listVariants)
 
 	// ===== Seller / Admin =====
 	auth := pg.Group("", middleware.RequireRolesAny(h.roleSvc, "Seller", "Admin"))
@@ -57,7 +57,8 @@ func (h *Handler) Register(r *gin.RouterGroup) {
 		auth.DELETE("/:id/options/:keyId/values/:valueId", h.deleteOptionValue)
 
 		// Variants
-		auth.POST("/:id/variants", h.createVariant)
+		auth.POST("/:id/variants", h.createVariants)
+		auth.PUT("/:id/variants-config", h.replaceVariantsConfig)
 		auth.PATCH("/:id/variants/:variantId/stock", h.updateVariantStock)
 		auth.DELETE("/:id/variants/:variantId", h.deleteVariant)
 	}
@@ -83,6 +84,7 @@ type createReq struct {
 	CategoryID  int                     `json:"category_id"  binding:"required"`
 	Options     []createOptionKeyInline `json:"options"`
 }
+
 type updateReq struct {
 	Name        *string  `json:"name"`
 	Description *string  `json:"description"`
@@ -90,6 +92,7 @@ type updateReq struct {
 	ImageURL    *string  `json:"image_url"`
 	IsActive    *string  `json:"is_active"`
 	CategoryID  *int     `json:"category_id"`
+	ProductType *string  `json:"product_type"`
 }
 
 type createOptionKeyReq struct {
@@ -125,6 +128,24 @@ type createOptionKeyInline struct {
 
 type createVariantsReq struct {
 	Variants []createVariantReq `json:"variants" binding:"required"`
+}
+
+// replaceVariantsConfigReq — body สำหรับ PUT /:id/variants-config
+type replaceVariantsConfigReq struct {
+	Options  []replaceOptionKeyReq `json:"options"  binding:"required"`
+	Variants []replaceVariantReq   `json:"variants"`
+}
+
+type replaceOptionKeyReq struct {
+	KeyName   string   `json:"key_name"   binding:"required"`
+	SortOrder int      `json:"sort_order"`
+	Values    []string `json:"values"     binding:"required"`
+}
+
+type replaceVariantReq struct {
+	OptionValueLabels []string `json:"option_value_labels" binding:"required"`
+	PriceDelta        float64  `json:"price_delta"`
+	StockQty          int      `json:"stock_qty"`
 }
 
 // ===== Helpers =====
@@ -240,8 +261,6 @@ func (h *Handler) isStoreOwnerOrAdmin(c *gin.Context, storeID int64, userID stri
 	return strings.EqualFold(st.UserID.String(), userID)
 }
 
-// resolveProductOwner ดึง product แล้วเช็ค ownership ในขั้นตอนเดียว
-// คืน (product, userID, ok)
 func (h *Handler) resolveProductOwner(c *gin.Context) (Product, string, bool) {
 	userID, ok := h.resolveCurrentUserID(c, false)
 	if !ok {
@@ -267,7 +286,6 @@ func (h *Handler) resolveProductOwner(c *gin.Context) (Product, string, bool) {
 
 // ===== Product CRUD =====
 
-// POST /api/products
 func (h *Handler) create(c *gin.Context) {
 	userID, ok := h.resolveCurrentUserID(c, false)
 	if !ok {
@@ -287,7 +305,6 @@ func (h *Handler) create(c *gin.Context) {
 		return
 	}
 
-	// แปลง options inline → service input
 	opts := make([]CreateOptionKeyWithValuesInput, 0, len(in.Options))
 	for _, o := range in.Options {
 		vals := make([]string, 0, len(o.Values))
@@ -318,7 +335,6 @@ func (h *Handler) create(c *gin.Context) {
 	respond.Created(c, apperr.Created, p)
 }
 
-// GET /api/stores/:id/products
 func (h *Handler) listByStore(c *gin.Context) {
 	userID, ok := h.resolveCurrentUserID(c, false)
 	if !ok {
@@ -361,7 +377,6 @@ func (h *Handler) listByStore(c *gin.Context) {
 	})
 }
 
-// GET /api/products/:id
 func (h *Handler) get(c *gin.Context) {
 	p, _, ok := h.resolveProductOwner(c)
 	if !ok {
@@ -370,7 +385,6 @@ func (h *Handler) get(c *gin.Context) {
 	respond.OK(c, apperr.OK, p)
 }
 
-// PUT /api/products/:id
 func (h *Handler) update(c *gin.Context) {
 	p, _, ok := h.resolveProductOwner(c)
 	if !ok {
@@ -383,7 +397,19 @@ func (h *Handler) update(c *gin.Context) {
 		return
 	}
 
-	up, err := h.svc.Update(c.Request.Context(), int64(p.ID), UpdateInput(in))
+	if in.ProductType != nil {
+		c.Error(apperr.New(apperr.BadRequest, "product_type cannot be changed after creation"))
+		return
+	}
+
+	up, err := h.svc.Update(c.Request.Context(), int64(p.ID), UpdateInput{
+		Name:        in.Name,
+		Description: in.Description,
+		Price:       in.Price,
+		ImageURL:    in.ImageURL,
+		IsActive:    in.IsActive,
+		CategoryID:  in.CategoryID,
+	})
 	if err != nil {
 		c.Error(err)
 		return
@@ -391,7 +417,6 @@ func (h *Handler) update(c *gin.Context) {
 	respond.Updated(c, apperr.Updated, up)
 }
 
-// DELETE /api/products/:id
 func (h *Handler) delete(c *gin.Context) {
 	p, _, ok := h.resolveProductOwner(c)
 	if !ok {
@@ -406,7 +431,6 @@ func (h *Handler) delete(c *gin.Context) {
 
 // ===== Public =====
 
-// GET /api/products/public
 func (h *Handler) listPublic(c *gin.Context) {
 	q := strings.TrimSpace(c.Query("q"))
 	categoryIDs := parseInt64ListQuery(c, "category_id")
@@ -455,7 +479,6 @@ func (h *Handler) listPublic(c *gin.Context) {
 	})
 }
 
-// GET /api/products/:id/public
 func (h *Handler) getPublic(c *gin.Context) {
 	id, ok := parseID(c, "id")
 	if !ok {
@@ -469,7 +492,6 @@ func (h *Handler) getPublic(c *gin.Context) {
 	respond.OK(c, apperr.OK, p)
 }
 
-// GET /api/products/suggest
 func (h *Handler) suggest(c *gin.Context) {
 	userID, ok := h.resolveCurrentUserID(c, true)
 	if !ok {
@@ -501,7 +523,6 @@ func (h *Handler) suggest(c *gin.Context) {
 
 // ===== Option Keys =====
 
-// GET /api/products/:id/options
 func (h *Handler) listOptions(c *gin.Context) {
 	id, ok := parseID(c, "id")
 	if !ok {
@@ -518,7 +539,6 @@ func (h *Handler) listOptions(c *gin.Context) {
 	respond.OK(c, apperr.OK, keys)
 }
 
-// POST /api/products/:id/options
 func (h *Handler) createOptionKey(c *gin.Context) {
 	p, userID, ok := h.resolveProductOwner(c)
 	if !ok {
@@ -539,7 +559,6 @@ func (h *Handler) createOptionKey(c *gin.Context) {
 	respond.Created(c, apperr.Created, key)
 }
 
-// DELETE /api/products/:id/options/:keyId
 func (h *Handler) deleteOptionKey(c *gin.Context) {
 	p, userID, ok := h.resolveProductOwner(c)
 	if !ok {
@@ -558,7 +577,6 @@ func (h *Handler) deleteOptionKey(c *gin.Context) {
 
 // ===== Option Values =====
 
-// POST /api/products/:id/options/:keyId/values
 func (h *Handler) createOptionValue(c *gin.Context) {
 	p, userID, ok := h.resolveProductOwner(c)
 	if !ok {
@@ -583,7 +601,6 @@ func (h *Handler) createOptionValue(c *gin.Context) {
 	respond.Created(c, apperr.Created, val)
 }
 
-// DELETE /api/products/:id/options/:keyId/values/:valueId
 func (h *Handler) deleteOptionValue(c *gin.Context) {
 	p, userID, ok := h.resolveProductOwner(c)
 	if !ok {
@@ -602,7 +619,6 @@ func (h *Handler) deleteOptionValue(c *gin.Context) {
 
 // ===== Variants =====
 
-// GET /api/products/:id/variants
 func (h *Handler) listVariants(c *gin.Context) {
 	id, ok := parseID(c, "id")
 	if !ok {
@@ -619,8 +635,8 @@ func (h *Handler) listVariants(c *gin.Context) {
 	respond.OK(c, apperr.OK, variants)
 }
 
-// POST /api/products/:id/variants
-func (h *Handler) createVariant(c *gin.Context) {
+// POST /api/products/:id/variants — สร้าง variants โดยใช้ option_value_ids ที่มีอยู่แล้ว
+func (h *Handler) createVariants(c *gin.Context) {
 	p, userID, ok := h.resolveProductOwner(c)
 	if !ok {
 		return
@@ -636,24 +652,64 @@ func (h *Handler) createVariant(c *gin.Context) {
 		return
 	}
 
-	svcItems := make([]CreateVariantInput, 0, len(in.Variants))
+	out := make([]Variant, 0, len(in.Variants))
 	for _, v := range in.Variants {
-		svcItems = append(svcItems, CreateVariantInput{
+		created, err := h.svc.CreateVariant(c.Request.Context(), int64(p.ID), userID, CreateVariantInput{
 			PriceDelta:   v.PriceDelta,
 			StockQty:     v.StockQty,
 			OptionValues: v.OptionValues,
 		})
+		if err != nil {
+			c.Error(err)
+			return
+		}
+		out = append(out, created)
 	}
 
-	results, err := h.svc.CreateVariantsBulk(c.Request.Context(), int64(p.ID), userID, svcItems)
+	respond.Created(c, apperr.Created, out)
+}
+
+// PUT /api/products/:id/variants-config — replace options + variants ทั้งหมด (Shopee/Lazada style)
+func (h *Handler) replaceVariantsConfig(c *gin.Context) {
+	p, userID, ok := h.resolveProductOwner(c)
+	if !ok {
+		return
+	}
+
+	var in replaceVariantsConfigReq
+	if err := c.ShouldBindJSON(&in); err != nil {
+		c.Error(apperr.New(apperr.BadRequest, "bad json"))
+		return
+	}
+
+	svcIn := ReplaceVariantsConfigInput{
+		Options:  make([]ReplaceOptionKeyInput, 0, len(in.Options)),
+		Variants: make([]ReplaceVariantInput, 0, len(in.Variants)),
+	}
+	for _, o := range in.Options {
+		svcIn.Options = append(svcIn.Options, ReplaceOptionKeyInput{
+			KeyName:   o.KeyName,
+			SortOrder: o.SortOrder,
+			Values:    o.Values,
+		})
+	}
+	for _, v := range in.Variants {
+		svcIn.Variants = append(svcIn.Variants, ReplaceVariantInput{
+			OptionValueLabels: v.OptionValueLabels,
+			PriceDelta:        v.PriceDelta,
+			StockQty:          v.StockQty,
+		})
+	}
+
+	result, err := h.svc.ReplaceVariantsConfig(c.Request.Context(), int64(p.ID), userID, svcIn)
 	if err != nil {
 		c.Error(err)
 		return
 	}
-	respond.Created(c, apperr.Created, results)
+
+	respond.Updated(c, apperr.Updated, result)
 }
 
-// PATCH /api/products/:id/variants/:variantId/stock
 func (h *Handler) updateVariantStock(c *gin.Context) {
 	p, userID, ok := h.resolveProductOwner(c)
 	if !ok {
@@ -678,7 +734,6 @@ func (h *Handler) updateVariantStock(c *gin.Context) {
 	respond.Updated(c, apperr.Updated, v)
 }
 
-// DELETE /api/products/:id/variants/:variantId
 func (h *Handler) deleteVariant(c *gin.Context) {
 	p, userID, ok := h.resolveProductOwner(c)
 	if !ok {

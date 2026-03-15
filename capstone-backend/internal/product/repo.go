@@ -41,6 +41,7 @@ type Repo interface {
 	CreateOptionKey(ctx context.Context, productID int64, keyName string, sortOrder int) (OptionKey, error)
 	ListOptionKeys(ctx context.Context, productID int64) ([]OptionKey, error)
 	DeleteOptionKey(ctx context.Context, keyID int64) error
+	DeleteAllOptionKeysByProductID(ctx context.Context, productID int64) error
 
 	// ===== Option Values =====
 	CreateOptionValue(ctx context.Context, keyID int64, valueLabel string, sortOrder int) (OptionValue, error)
@@ -52,6 +53,7 @@ type Repo interface {
 	UpdateVariantStock(ctx context.Context, variantID int64, stockQty int) (Variant, error)
 	SetVariantActive(ctx context.Context, variantID int64, isActive bool) error
 	DeleteVariant(ctx context.Context, variantID int64) error
+	DeleteAllVariantsByProductID(ctx context.Context, productID int64) error
 	DeductStock(ctx context.Context, variantID int64, qty int) error
 }
 
@@ -210,29 +212,24 @@ func (r *repo) Create(ctx context.Context, in CreateParams) (Product, error) {
 
 	var p Product
 	err = r.db.QueryRow(ctx, `
-		INSERT INTO products (
-			name, product_desc, price, image_url,
-			is_active, product_type, store_id, category_id,
-			embedding_name, embedding_desc, embedding_category
-		)
-		VALUES (
-			$1, $2, $3, $4,
-			$5, $6, $7, $8,
-			COALESCE($9::vector,  NULL),
-			COALESCE($10::vector, NULL),
-			COALESCE($11::vector, NULL)
-		)
-		RETURNING
-			product_id, name, product_desc, price, image_url,
-			product_type, created_at, updated_at, is_active, store_id, category_id;
-	`,
+        INSERT INTO products (
+            name, product_desc, price, image_url,
+            is_active, product_type, store_id, category_id,
+            embedding_name, embedding_desc, embedding_category
+        )
+        VALUES (
+            $1, $2, $3, $4,
+            $5, $6, $7, $8,
+            COALESCE($9::vector,  NULL),
+            COALESCE($10::vector, NULL),
+            COALESCE($11::vector, NULL)
+        )
+        RETURNING product_id
+    `,
 		in.Name, in.Description, in.Price, in.ImageURL,
 		in.IsActive, in.ProductType, in.StoreID, in.CategoryID,
 		embName, embDesc, embCat,
-	).Scan(
-		&p.ID, &p.Name, &p.Description, &p.Price, &p.ImageURL,
-		&p.ProductType, &p.CreatedAt, &p.UpdatedAt, &p.IsActive, &p.StoreID, &p.CategoryID,
-	)
+	).Scan(&p.ID)
 	if err != nil {
 		var pgErr *pgconn.PgError
 		if errors.As(err, &pgErr) && pgErr.Code == "23503" {
@@ -240,6 +237,30 @@ func (r *repo) Create(ctx context.Context, in CreateParams) (Product, error) {
 		}
 		return Product{}, apperr.Wrap(apperr.Internal, err, "insert product failed")
 	}
+
+	// SELECT พร้อม JOIN เพื่อดึง store_name + category_name
+	err = r.db.QueryRow(ctx, `
+        SELECT
+            p.product_id, p.name, p.product_desc, p.price, p.image_url,
+            p.product_type, p.created_at, p.updated_at, p.is_active,
+            p.store_id, p.category_id,
+            s.store_name,
+            c.name AS category_name,
+            0 AS sold_count
+        FROM products p
+        JOIN stores     s ON s.store_id     = p.store_id
+        JOIN categories c ON c.category_id  = p.category_id
+        WHERE p.product_id = $1
+    `, p.ID).Scan(
+		&p.ID, &p.Name, &p.Description, &p.Price, &p.ImageURL,
+		&p.ProductType, &p.CreatedAt, &p.UpdatedAt, &p.IsActive,
+		&p.StoreID, &p.CategoryID,
+		&p.StoreName, &p.CategoryName, &p.SoldCount,
+	)
+	if err != nil {
+		return Product{}, apperr.Wrap(apperr.Internal, err, "fetch product after insert failed")
+	}
+
 	return p, nil
 }
 
@@ -382,37 +403,56 @@ func (r *repo) Update(ctx context.Context, id int64, in UpdateParams) (Product, 
 
 	var p Product
 	err := r.db.QueryRow(ctx, `
-		UPDATE products
-		SET name        = COALESCE($2,  name),
-		    product_desc = COALESCE($3,  product_desc),
-		    price        = COALESCE($4,  price),
-		    image_url    = COALESCE($5,  image_url),
-		    is_active    = COALESCE($6,  is_active),
-		    category_id  = COALESCE($7,  category_id),
+        UPDATE products
+        SET name         = COALESCE($2,  name),
+            product_desc = COALESCE($3,  product_desc),
+            price        = COALESCE($4,  price),
+            image_url    = COALESCE($5,  image_url),
+            is_active    = COALESCE($6,  is_active),
+            category_id  = COALESCE($7,  category_id),
 
-		    embedding_name     = COALESCE($8::vector,  embedding_name),
-		    embedding_desc     = COALESCE($9::vector,  embedding_desc),
-		    embedding_category = COALESCE($10::vector, embedding_category),
+            embedding_name     = COALESCE($8::vector,  embedding_name),
+            embedding_desc     = COALESCE($9::vector,  embedding_desc),
+            embedding_category = COALESCE($10::vector, embedding_category),
 
-		    updated_at = NOW()
-		WHERE product_id = $1
-		RETURNING
-			product_id, name, product_desc, price, image_url,
-			product_type, created_at, updated_at, is_active, store_id, category_id;
-	`,
+            updated_at = NOW()
+        WHERE product_id = $1
+        RETURNING product_id
+    `,
 		id,
 		in.Name, in.Description, in.Price, in.ImageURL, in.IsActive, in.CategoryID,
 		embNameArg, embDescArg, embCatArg,
-	).Scan(
-		&p.ID, &p.Name, &p.Description, &p.Price, &p.ImageURL,
-		&p.ProductType, &p.CreatedAt, &p.UpdatedAt, &p.IsActive, &p.StoreID, &p.CategoryID,
-	)
+	).Scan(&p.ID)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return Product{}, apperr.New(apperr.NotFound, "product not found")
 		}
 		return Product{}, apperr.Wrap(apperr.Internal, err, "update product failed")
 	}
+
+	// SELECT พร้อม JOIN เพื่อดึง store_name + category_name
+	err = r.db.QueryRow(ctx, `
+        SELECT
+            p.product_id, p.name, p.product_desc, p.price, p.image_url,
+            p.product_type, p.created_at, p.updated_at, p.is_active,
+            p.store_id, p.category_id,
+            s.store_name,
+            c.name AS category_name,
+            0 AS sold_count
+        FROM products p
+        JOIN stores     s ON s.store_id    = p.store_id
+        JOIN categories c ON c.category_id = p.category_id
+        WHERE p.product_id = $1
+    `, p.ID).Scan(
+		&p.ID, &p.Name, &p.Description, &p.Price, &p.ImageURL,
+		&p.ProductType, &p.CreatedAt, &p.UpdatedAt, &p.IsActive,
+		&p.StoreID, &p.CategoryID,
+		&p.StoreName, &p.CategoryName, &p.SoldCount,
+	)
+	if err != nil {
+		return Product{}, apperr.Wrap(apperr.Internal, err, "fetch product after update failed")
+	}
+
 	return p, nil
 }
 
@@ -753,7 +793,6 @@ func (r *repo) GetPublic(ctx context.Context, id int64) (Product, error) {
 		return Product{}, apperr.Wrap(apperr.Internal, err, "public get failed")
 	}
 
-	// ===== โหลด options + variants เพิ่มสำหรับ STOCK =====
 	if p.ProductType == "STOCK" {
 		keys, err := r.ListOptionKeys(ctx, int64(p.ID))
 		if err != nil {
@@ -765,7 +804,6 @@ func (r *repo) GetPublic(ctx context.Context, id int64) (Product, error) {
 		if err != nil {
 			return Product{}, err
 		}
-		// คำนวณ final_price = base + delta
 		for i := range variants {
 			variants[i].FinalPrice = p.Price + variants[i].PriceDelta
 		}
@@ -987,6 +1025,17 @@ func (r *repo) DeleteOptionKey(ctx context.Context, keyID int64) error {
 	return nil
 }
 
+// DeleteAllOptionKeysByProductID ลบ option keys ทั้งหมดของ product (cascade ลบ values ด้วย)
+func (r *repo) DeleteAllOptionKeysByProductID(ctx context.Context, productID int64) error {
+	_, err := r.db.Exec(ctx, `
+		DELETE FROM product_option_keys WHERE product_id = $1
+	`, productID)
+	if err != nil {
+		return apperr.Wrap(apperr.Internal, err, "delete all option keys failed")
+	}
+	return nil
+}
+
 // ===== Option Values =====
 
 func (r *repo) CreateOptionValue(ctx context.Context, keyID int64, valueLabel string, sortOrder int) (OptionValue, error) {
@@ -1024,6 +1073,35 @@ func (r *repo) CreateVariant(ctx context.Context, in CreateVariantParams) (Varia
 		return Variant{}, apperr.Wrap(apperr.Internal, err, "begin tx failed")
 	}
 	defer tx.Rollback(ctx)
+
+	if len(in.OptionValues) > 0 {
+		var existingID int
+		err := tx.QueryRow(ctx, `
+            SELECT v.variant_id
+            FROM product_variants v
+            WHERE v.product_id = $1
+              AND v.is_active = true
+              AND (
+                SELECT COUNT(*)
+                FROM variant_option_selections vos
+                WHERE vos.variant_id = v.variant_id
+                  AND vos.option_value_id = ANY($2)
+              ) = $3
+              AND (
+                SELECT COUNT(*)
+                FROM variant_option_selections vos
+                WHERE vos.variant_id = v.variant_id
+              ) = $3
+            LIMIT 1
+        `, in.ProductID, in.OptionValues, len(in.OptionValues)).Scan(&existingID)
+
+		if err == nil {
+			return Variant{}, apperr.New(apperr.Conflict, "variant with same option combination already exists")
+		}
+		if !errors.Is(err, pgx.ErrNoRows) {
+			return Variant{}, apperr.Wrap(apperr.Internal, err, "check duplicate variant failed")
+		}
+	}
 
 	var v Variant
 	err = tx.QueryRow(ctx, `
@@ -1163,6 +1241,15 @@ func (r *repo) DeleteVariant(ctx context.Context, variantID int64) error {
 	_, err := r.db.Exec(ctx, `DELETE FROM product_variants WHERE variant_id = $1`, variantID)
 	if err != nil {
 		return apperr.Wrap(apperr.Internal, err, "delete variant failed")
+	}
+	return nil
+}
+
+// DeleteAllVariantsByProductID ลบ variants ทั้งหมดของ product
+func (r *repo) DeleteAllVariantsByProductID(ctx context.Context, productID int64) error {
+	_, err := r.db.Exec(ctx, `DELETE FROM product_variants WHERE product_id = $1`, productID)
+	if err != nil {
+		return apperr.Wrap(apperr.Internal, err, "delete all variants failed")
 	}
 	return nil
 }

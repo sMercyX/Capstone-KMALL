@@ -47,6 +47,26 @@ type CreateOptionKeyWithValuesInput struct {
 	Values    []string // value_labels
 }
 
+// ReplaceVariantsConfigInput — ใช้กับ PUT /:id/variants-config
+// ส่ง options + variants ใหม่ทั้งหมด backend จะ replace ของเก่าทั้งหมด
+type ReplaceVariantsConfigInput struct {
+	Options  []ReplaceOptionKeyInput `json:"options"`
+	Variants []ReplaceVariantInput   `json:"variants"`
+}
+
+type ReplaceOptionKeyInput struct {
+	KeyName   string   `json:"key_name"`
+	SortOrder int      `json:"sort_order"`
+	Values    []string `json:"values"` // value_labels
+}
+
+type ReplaceVariantInput struct {
+	// ใช้ label ตรงๆ เพื่อ UX ง่าย เช่น ["ดำ", "S", "cotton"]
+	OptionValueLabels []string `json:"option_value_labels"`
+	PriceDelta        float64  `json:"price_delta"`
+	StockQty          int      `json:"stock_qty"`
+}
+
 // ===== Service interface =====
 
 type Service interface {
@@ -86,8 +106,10 @@ type Service interface {
 	UpdateVariantStock(ctx context.Context, variantID int64, productID int64, userID string, stockQty int) (Variant, error)
 	DeleteVariant(ctx context.Context, variantID int64, productID int64, userID string) error
 
+	// ===== Composite =====
 	CreateWithOptions(ctx context.Context, in CreateInput, opts []CreateOptionKeyWithValuesInput) (Product, error)
-	CreateVariantsBulk(ctx context.Context, productID int64, userID string, items []CreateVariantInput) ([]Variant, error)
+	// ReplaceVariantsConfig — แทนที่ options + variants ทั้งหมดในครั้งเดียว (Shopee/Lazada style)
+	ReplaceVariantsConfig(ctx context.Context, productID int64, userID string, in ReplaceVariantsConfigInput) (Product, error)
 }
 
 // ===== service struct =====
@@ -380,7 +402,7 @@ func (s *service) Update(ctx context.Context, id int64, in UpdateInput) (Product
 		return Product{}, err
 	}
 
-	// ===== STOCK: ต้องมี active variant ก่อน set is_active = YES =====
+	// STOCK: ต้องมี active variant ก่อน set is_active = YES
 	if in.IsActive != nil && strings.ToUpper(*in.IsActive) == "YES" && old.ProductType == "STOCK" {
 		variants, err := s.repo.ListVariants(ctx, id)
 		if err != nil {
@@ -398,7 +420,6 @@ func (s *service) Update(ctx context.Context, id int64, in UpdateInput) (Product
 		}
 	}
 
-	// ===== embedding =====
 	newName := old.Name
 	if in.Name != nil {
 		newName = strings.TrimSpace(*in.Name)
@@ -600,13 +621,12 @@ func (s *service) DeleteOptionKey(ctx context.Context, keyID int64, productID in
 	if keyID <= 0 {
 		return apperr.New(apperr.BadRequest, "invalid key_id")
 	}
-	// ถ้ามี variant อยู่แล้ว ห้ามลบ key เพราะจะทำให้ selections orphan
 	variants, err := s.repo.ListVariants(ctx, productID)
 	if err != nil {
 		return err
 	}
 	if len(variants) > 0 {
-		return apperr.New(apperr.BadRequest, "cannot delete option key while variants exist, delete all variants first")
+		return apperr.New(apperr.BadRequest, "cannot delete option key while variants exist, use PUT /:id/variants-config instead")
 	}
 	return s.repo.DeleteOptionKey(ctx, keyID)
 }
@@ -626,13 +646,13 @@ func (s *service) CreateOptionValue(ctx context.Context, keyID int64, productID 
 		return OptionValue{}, apperr.New(apperr.BadRequest, "value_label must be at most 100 characters")
 	}
 
-	// ถ้ามี variant อยู่แล้ว ห้ามเพิ่ม value เพราะต้องสร้าง variant combination ใหม่
+	// ถ้ามี variant อยู่แล้ว แนะนำให้ใช้ ReplaceVariantsConfig แทน
 	variants, err := s.repo.ListVariants(ctx, productID)
 	if err != nil {
 		return OptionValue{}, err
 	}
 	if len(variants) > 0 {
-		return OptionValue{}, apperr.New(apperr.BadRequest, "cannot add option value while variants exist, delete all variants first")
+		return OptionValue{}, apperr.New(apperr.BadRequest, "cannot add option value while variants exist, use PUT /:id/variants-config instead")
 	}
 
 	return s.repo.CreateOptionValue(ctx, keyID, valueLabel, sortOrder)
@@ -647,7 +667,7 @@ func (s *service) DeleteOptionValue(ctx context.Context, valueID int64, productI
 		return err
 	}
 	if len(variants) > 0 {
-		return apperr.New(apperr.BadRequest, "cannot delete option value while variants exist, delete all variants first")
+		return apperr.New(apperr.BadRequest, "cannot delete option value while variants exist, use PUT /:id/variants-config instead")
 	}
 	return s.repo.DeleteOptionValue(ctx, valueID)
 }
@@ -678,17 +698,8 @@ func (s *service) CreateVariant(ctx context.Context, productID int64, userID str
 			fmt.Sprintf("expected %d option_value_ids (one per key), got %d", len(keys), len(in.OptionValues)))
 	}
 
-	// validate แต่ละ value_id ว่า belong to key ของ product นี้จริง
-	// สร้าง map: option_key_id -> true จาก keys ของ product
-	keyIDSet := make(map[int]bool, len(keys))
-	for _, k := range keys {
-		keyIDSet[k.ID] = true
-	}
-
-	// validate แต่ละ value ต้อง belong to key ที่ต่างกัน (1 value ต่อ 1 key)
 	usedKeyIDs := make(map[int]bool, len(in.OptionValues))
 	for _, vid := range in.OptionValues {
-		// หา key ของ value นี้ผ่าน ListOptionKeys (values ถูก load แล้ว)
 		foundKeyID := 0
 		for _, k := range keys {
 			for _, v := range k.Values {
@@ -744,19 +755,18 @@ func (s *service) DeleteVariant(ctx context.Context, variantID int64, productID 
 	return s.repo.DeleteVariant(ctx, variantID)
 }
 
+// ===== CreateWithOptions =====
+
 func (s *service) CreateWithOptions(ctx context.Context, in CreateInput, opts []CreateOptionKeyWithValuesInput) (Product, error) {
-	// สร้าง product ก่อน
 	p, err := s.Create(ctx, in)
 	if err != nil {
 		return Product{}, err
 	}
 
-	// ถ้าไม่มี options ส่งมา หรือไม่ใช่ STOCK ก็จบ
 	if p.ProductType != "STOCK" || len(opts) == 0 {
 		return p, nil
 	}
 
-	// สร้าง option keys + values
 	for _, opt := range opts {
 		key, err := s.CreateOptionKey(ctx, int64(p.ID), "", opt.KeyName, opt.SortOrder)
 		if err != nil {
@@ -770,27 +780,138 @@ func (s *service) CreateWithOptions(ctx context.Context, in CreateInput, opts []
 		}
 	}
 
-	// โหลด options กลับมาใส่ใน response
 	keys, err := s.repo.ListOptionKeys(ctx, int64(p.ID))
 	if err != nil {
-		return p, nil // product สร้างสำเร็จแล้ว ไม่ต้อง fail
+		return p, nil
 	}
 	p.Options = keys
 	return p, nil
 }
 
-func (s *service) CreateVariantsBulk(ctx context.Context, productID int64, userID string, items []CreateVariantInput) ([]Variant, error) {
-	if len(items) == 0 {
-		return nil, apperr.New(apperr.BadRequest, "variants must not be empty")
+// ===== ReplaceVariantsConfig =====
+// แทนที่ options + variants ทั้งหมดในครั้งเดียว (Shopee/Lazada style)
+// user ส่ง state ใหม่ทั้งหมดมา backend จัดการ delete + recreate เอง
+
+func (s *service) ReplaceVariantsConfig(ctx context.Context, productID int64, userID string, in ReplaceVariantsConfigInput) (Product, error) {
+	p, err := s.repo.Get(ctx, productID)
+	if err != nil {
+		return Product{}, err
+	}
+	if p.ProductType != "STOCK" {
+		return Product{}, apperr.New(apperr.BadRequest, "variants config is only available for STOCK products")
+	}
+	if len(in.Options) == 0 {
+		return Product{}, apperr.New(apperr.BadRequest, "options must not be empty")
+	}
+	if len(in.Options) > 3 {
+		return Product{}, apperr.New(apperr.BadRequest, "maximum 3 option keys per product")
 	}
 
-	out := make([]Variant, 0, len(items))
-	for _, item := range items {
-		v, err := s.CreateVariant(ctx, productID, userID, item)
-		if err != nil {
-			return nil, err
+	// validate options
+	for _, opt := range in.Options {
+		if strings.TrimSpace(opt.KeyName) == "" {
+			return Product{}, apperr.New(apperr.BadRequest, "key_name is required")
 		}
-		out = append(out, v)
+		if len(opt.Values) == 0 {
+			return Product{}, apperr.New(apperr.BadRequest, fmt.Sprintf("option '%s' must have at least 1 value", opt.KeyName))
+		}
 	}
-	return out, nil
+
+	// validate variants — ทุก label ต้องอยู่ใน options ที่ส่งมา
+	// สร้าง map: key_name -> set of value_labels
+	optionMap := make(map[string]map[string]bool, len(in.Options))
+	for _, opt := range in.Options {
+		vals := make(map[string]bool, len(opt.Values))
+		for _, v := range opt.Values {
+			vals[strings.TrimSpace(v)] = true
+		}
+		optionMap[strings.TrimSpace(opt.KeyName)] = vals
+	}
+
+	for i, v := range in.Variants {
+		if len(v.OptionValueLabels) != len(in.Options) {
+			return Product{}, apperr.New(apperr.BadRequest,
+				fmt.Sprintf("variant[%d]: expected %d option_value_labels, got %d", i, len(in.Options), len(v.OptionValueLabels)))
+		}
+		for j, label := range v.OptionValueLabels {
+			keyName := strings.TrimSpace(in.Options[j].KeyName)
+			if !optionMap[keyName][strings.TrimSpace(label)] {
+				return Product{}, apperr.New(apperr.BadRequest,
+					fmt.Sprintf("variant[%d]: label '%s' is not in option '%s'", i, label, keyName))
+			}
+		}
+		if v.StockQty < 0 {
+			return Product{}, apperr.New(apperr.BadRequest, fmt.Sprintf("variant[%d]: stock_qty must be >= 0", i))
+		}
+	}
+
+	// ===== Step 1: ลบ variants เก่าทั้งหมด =====
+	if err := s.repo.DeleteAllVariantsByProductID(ctx, productID); err != nil {
+		return Product{}, err
+	}
+
+	// ===== Step 2: ลบ option keys เก่าทั้งหมด (cascade ลบ values ด้วย) =====
+	if err := s.repo.DeleteAllOptionKeysByProductID(ctx, productID); err != nil {
+		return Product{}, err
+	}
+
+	// ===== Step 3: สร้าง option keys + values ใหม่ =====
+	// เก็บ map: key_name -> value_label -> option_value_id
+	valueIDMap := make(map[string]map[string]int64, len(in.Options))
+
+	for i, opt := range in.Options {
+		key, err := s.repo.CreateOptionKey(ctx, productID, strings.TrimSpace(opt.KeyName), opt.SortOrder)
+		if err != nil {
+			return Product{}, err
+		}
+		valueIDMap[strings.TrimSpace(opt.KeyName)] = make(map[string]int64, len(opt.Values))
+		for j, label := range opt.Values {
+			val, err := s.repo.CreateOptionValue(ctx, int64(key.ID), strings.TrimSpace(label), j+1)
+			if err != nil {
+				return Product{}, err
+			}
+			valueIDMap[strings.TrimSpace(opt.KeyName)][strings.TrimSpace(label)] = int64(val.ID)
+			_ = i
+		}
+	}
+
+	// ===== Step 4: สร้าง variants ใหม่ =====
+	for i, v := range in.Variants {
+		optionValueIDs := make([]int64, 0, len(v.OptionValueLabels))
+		for j, label := range v.OptionValueLabels {
+			keyName := strings.TrimSpace(in.Options[j].KeyName)
+			vid, ok := valueIDMap[keyName][strings.TrimSpace(label)]
+			if !ok {
+				return Product{}, apperr.New(apperr.Internal, fmt.Sprintf("variant[%d]: could not resolve value_id for '%s'", i, label))
+			}
+			optionValueIDs = append(optionValueIDs, vid)
+		}
+
+		_, err := s.repo.CreateVariant(ctx, CreateVariantParams{
+			ProductID:    productID,
+			PriceDelta:   v.PriceDelta,
+			StockQty:     v.StockQty,
+			OptionValues: optionValueIDs,
+		})
+		if err != nil {
+			return Product{}, err
+		}
+	}
+
+	// ===== Return product พร้อม options + variants ใหม่ =====
+	keys, err := s.repo.ListOptionKeys(ctx, productID)
+	if err != nil {
+		return Product{}, err
+	}
+	variants, err := s.repo.ListVariants(ctx, productID)
+	if err != nil {
+		return Product{}, err
+	}
+	for i := range variants {
+		variants[i].FinalPrice = p.Price + variants[i].PriceDelta
+	}
+
+	p.Options = keys
+	p.Variants = variants
+	return p, nil
 }
