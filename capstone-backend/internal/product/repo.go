@@ -269,13 +269,22 @@ func (r *repo) Create(ctx context.Context, in CreateParams) (Product, error) {
 func (r *repo) Get(ctx context.Context, id int64) (Product, error) {
 	var p Product
 	err := r.db.QueryRow(ctx, `
-		SELECT product_id, name, product_desc, price, image_url,
-		       product_type, created_at, updated_at, is_active, store_id, category_id
-		FROM products
-		WHERE product_id = $1;
-	`, id).Scan(
+        SELECT
+            p.product_id, p.name, p.product_desc, p.price, p.image_url,
+            p.product_type, p.created_at, p.updated_at, p.is_active,
+            p.store_id, p.category_id,
+            s.store_name,
+            c.name AS category_name,
+            0 AS sold_count
+        FROM products p
+        JOIN stores     s ON s.store_id    = p.store_id
+        JOIN categories c ON c.category_id = p.category_id
+        WHERE p.product_id = $1
+    `, id).Scan(
 		&p.ID, &p.Name, &p.Description, &p.Price, &p.ImageURL,
-		&p.ProductType, &p.CreatedAt, &p.UpdatedAt, &p.IsActive, &p.StoreID, &p.CategoryID,
+		&p.ProductType, &p.CreatedAt, &p.UpdatedAt, &p.IsActive,
+		&p.StoreID, &p.CategoryID,
+		&p.StoreName, &p.CategoryName, &p.SoldCount,
 	)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
