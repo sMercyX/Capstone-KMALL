@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/gin-gonic/gin"
 
@@ -20,26 +21,29 @@ import (
 // ============================================================================
 
 type Handler struct {
-	svc      Service
-	roleSvc  middleware.RoleNameLister
-	userSvc  user.Service
-	storeSvc store.Service
-	notiSvc  notification.Service
+	svc        Service
+	summarySvc SummaryService
+	roleSvc    middleware.RoleNameLister
+	userSvc    user.Service
+	storeSvc   store.Service
+	notiSvc    notification.Service
 }
 
 func NewHandler(
 	s Service,
+	sum SummaryService,
 	rl middleware.RoleNameLister,
 	us user.Service,
 	ss store.Service,
 	noti notification.Service,
 ) *Handler {
 	return &Handler{
-		svc:      s,
-		roleSvc:  rl,
-		userSvc:  us,
-		storeSvc: ss,
-		notiSvc:  noti,
+		svc:        s,
+		summarySvc: sum,
+		roleSvc:    rl,
+		userSvc:    us,
+		storeSvc:   ss,
+		notiSvc:    noti,
 	}
 }
 
@@ -72,6 +76,7 @@ func (h *Handler) Register(r *gin.RouterGroup) {
 	sg := r.Group("/stores/:id", middleware.RequireRolesAny(h.roleSvc, "Seller", "Admin"))
 	{
 		sg.GET("/orders", h.listStoreOrders)
+		sg.GET("/orders/summaries", h.getStoreSummary)
 	}
 
 	// ===== Checkout =====
@@ -527,4 +532,60 @@ func (h *Handler) acceptProposed(c *gin.Context) {
 	}
 
 	respond.Updated(c, apperr.Updated, updated)
+}
+
+func (h *Handler) getStoreSummary(c *gin.Context) {
+	userID, ok := h.resolveCurrentUserID(c)
+	if !ok {
+		return
+	}
+
+	storeID, ok := parsePathID(c, "id")
+	if !ok {
+		return
+	}
+
+	if !h.isStoreOwnerOrAdmin(c, storeID, userID) {
+		if len(c.Errors) == 0 {
+			respond.Error(c, http.StatusForbidden, "FORBIDDEN", "only store owner or admin", nil)
+		}
+		return
+	}
+
+	granularity := strings.ToLower(strings.TrimSpace(c.DefaultQuery("granularity", "monthly")))
+
+	q := SummaryQuery{
+		StoreID:     storeID,
+		Granularity: granularity,
+	}
+
+	// all_time ไม่ต้อง parse from/to
+	if granularity != "all_time" {
+		fromStr := c.DefaultQuery("from", time.Now().AddDate(0, -1, 0).Format("2006-01-02"))
+		toStr := c.DefaultQuery("to", time.Now().Format("2006-01-02"))
+
+		from, err := time.Parse("2006-01-02", fromStr)
+		if err != nil {
+			c.Error(apperr.New(apperr.BadRequest, "invalid from date, use YYYY-MM-DD"))
+			return
+		}
+		to, err := time.Parse("2006-01-02", toStr)
+		if err != nil {
+			c.Error(apperr.New(apperr.BadRequest, "invalid to date, use YYYY-MM-DD"))
+			return
+		}
+		// ให้ to ครอบคลุมถึงสิ้นวัน
+		to = to.Add(23*time.Hour + 59*time.Minute + 59*time.Second)
+
+		q.From = from
+		q.To = to
+	}
+
+	result, err := h.summarySvc.GetStoreSummary(c.Request.Context(), q)
+	if err != nil {
+		c.Error(err)
+		return
+	}
+
+	respond.OK(c, apperr.OK, result)
 }

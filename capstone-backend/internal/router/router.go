@@ -144,6 +144,9 @@ func Attach(r *gin.Engine, db *pgxpool.Pool, cfg config.Config) {
 		orderBanProvider,
 	)
 
+	oSummaryRepo := order.NewSummaryRepo(db)
+	oSummarySvc := order.NewSummaryService(oSummaryRepo)
+
 	ocAdapter := orderCancellerAdapter{svc: oSvc}
 
 	sSvc.SetOrderCanceller(ocAdapter)
@@ -255,7 +258,7 @@ func Attach(r *gin.Engine, db *pgxpool.Pool, cfg config.Config) {
 	cartHdl.Register(v1)
 
 	// orders
-	oHdl := order.NewHandler(oSvc, rSvc, uSvc, sSvc, notiSvc)
+	oHdl := order.NewHandler(oSvc, oSummarySvc, rSvc, uSvc, sSvc, notiSvc)
 	oHdl.Register(v1)
 
 	//search history
