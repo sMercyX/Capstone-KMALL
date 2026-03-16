@@ -113,7 +113,7 @@ func (s *summaryService) GetStoreSummary(ctx context.Context, q SummaryQuery) (S
 // ============================================================================
 
 func resolveAllTimeGranularity(from, to time.Time) string {
-	return "daily"
+	return "monthly"
 }
 
 // ============================================================================
