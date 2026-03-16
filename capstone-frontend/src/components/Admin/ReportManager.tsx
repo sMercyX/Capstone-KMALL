@@ -10,7 +10,7 @@ interface ReportManagerProps {
 }
 
 export default function ReportManager({ reportedPartyType }: ReportManagerProps) {
-  const { getReports } = useReportApi()
+  const { getReports, getReportCountsByStatus } = useReportApi()
   const navigate = useNavigate()
   
   const [pendingReports, setPendingReports] = useState<ReportResponse[]>([])
@@ -20,11 +20,16 @@ export default function ReportManager({ reportedPartyType }: ReportManagerProps)
   // Pagination State
   const [pendingPage, setPendingPage] = useState(1)
   const [pendingTotalPages, setPendingTotalPages] = useState(1)
-  const [pendingTotal, setPendingTotal] = useState(0)
 
   const [secondaryPage, setSecondaryPage] = useState(1)
   const [secondaryTotalPages, setSecondaryTotalPages] = useState(1)
-  const [secondaryTotal, setSecondaryTotal] = useState(0)
+
+  // Status Counts
+  const [counts, setCounts] = useState<{ pending: number; resolved: number; closed: number }>({
+    pending: 0,
+    resolved: 0,
+    closed: 0
+  })
 
   // Search State
   const [pendingSearch, setPendingSearch] = useState("")
@@ -54,12 +59,29 @@ export default function ReportManager({ reportedPartyType }: ReportManagerProps)
   }, [])
 
   useEffect(() => {
+    fetchCounts()
     fetchPending()
   }, [pendingPage, reportedPartyType, pendingSearchDebounced])
 
   useEffect(() => {
+    fetchCounts()
     fetchSecondary()
   }, [activeTab, secondaryPage, reportedPartyType, secondarySearchDebounced])
+
+  async function fetchCounts() {
+    try {
+      const res = await getReportCountsByStatus(reportedPartyType)
+      if (res.code === 200 && res.data) {
+        setCounts({
+          pending: res.data.pending,
+          resolved: res.data.resolved,
+          closed: res.data.closed
+        })
+      }
+    } catch (err) {
+      console.error("Failed to fetch counts:", err)
+    }
+  }
 
   async function fetchPending() {
     try {
@@ -72,7 +94,6 @@ export default function ReportManager({ reportedPartyType }: ReportManagerProps)
       })
       if (res.code === 200 && res.data) {
         setPendingReports(res.data.items || [])
-        setPendingTotal(res.data.total || 0)
         setPendingTotalPages(Math.max(1, Math.ceil((res.data.total || 0) / (res.data.page_size || 4))))
       }
     } catch (err) {
@@ -91,7 +112,6 @@ export default function ReportManager({ reportedPartyType }: ReportManagerProps)
       })
       if (res.code === 200 && res.data) {
         setSecondaryReports(res.data.items || [])
-        setSecondaryTotal(res.data.total || 0)
         setSecondaryTotalPages(Math.max(1, Math.ceil((res.data.total || 0) / (res.data.page_size || 4))))
       }
     } catch (err) {
@@ -191,20 +211,20 @@ export default function ReportManager({ reportedPartyType }: ReportManagerProps)
         <div className="bg-white rounded-xl border border-gray-200 p-5 flex items-center gap-4">
           <div className="w-10 h-10 rounded-lg bg-[#FFF3E0] flex items-center justify-center text-lg">📋</div>
           <div>
-            <div className="text-xl font-bold text-gray-800">{pendingTotal} Pending Reports</div>
+            <div className="text-xl font-bold text-gray-800">{counts.pending} Pending Reports</div>
             <div className="text-xs text-gray-400">(Action Required)</div>
           </div>
         </div>
         <div className="bg-white rounded-xl border border-gray-200 p-5 flex items-center gap-4">
           <div className="w-10 h-10 rounded-lg bg-[#E8F5E9] flex items-center justify-center"><FaCheck className="text-green-500" size={18} /></div>
           <div>
-            <div className="text-xl font-bold text-gray-800">{secondaryTotal} {activeTab === "RESOLVED" ? "Resolved" : "Rejected"}</div>
+            <div className="text-xl font-bold text-gray-800">{counts.resolved} Resolved</div>
           </div>
         </div>
         <div className="bg-white rounded-xl border border-gray-200 p-5 flex items-center gap-4">
           <div className="w-10 h-10 rounded-lg bg-[#FFEBEE] flex items-center justify-center"><FaTimes className="text-red-500" size={18} /></div>
           <div>
-            <div className="text-xl font-bold text-gray-800">{activeTab !== "RESOLVED" ? secondaryTotal : 0} Rejected</div>
+            <div className="text-xl font-bold text-gray-800">{counts.closed} Rejected</div>
           </div>
         </div>
       </div>

@@ -21,6 +21,13 @@ export interface PaginatedReports {
   items: ReportResponse[]
 }
 
+export interface ReportStatusCounts {
+  pending: number
+  resolved: number
+  closed: number
+  total: number
+}
+
 export interface MyReportAdminAction {
   action_id: number
   report_id: number
@@ -215,5 +222,10 @@ export function useReportApi() {
     return http.getItems(`/reports/me/${reportId}`)
   }
 
-  return { createOrderReport, getReports, getReportsMe, getReportDetail, getMyReportDetail, actionReport }
+  async function getReportCountsByStatus(reportedPartyType?: string): Promise<{ code: number; data: ReportStatusCounts; status: string }> {
+    const query = reportedPartyType ? `?reported_party_type=${reportedPartyType}` : ""
+    return http.getItems(`/reports/counts-by-status${query}`)
+  }
+
+  return { createOrderReport, getReports, getReportsMe, getReportDetail, getMyReportDetail, actionReport, getReportCountsByStatus }
 }
