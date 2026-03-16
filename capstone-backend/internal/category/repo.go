@@ -163,7 +163,7 @@ func (r *repo) List(ctx context.Context, q string, parentID *int64, activeOnly b
 	       	icon_url, created_at, updated_at
 		FROM categories
 		WHERE ` + strings.Join(where, " AND ") + `
-		ORDER BY sort_order ASC, name ASC
+		ORDER BY created_at ASC
 		LIMIT $` + strconv.Itoa(argPos) + ` OFFSET $` + strconv.Itoa(argPos+1)
 
 	rows, err := r.db.Query(ctx, sql, args...)
@@ -323,7 +323,7 @@ func (r *repo) ListAdmin(ctx context.Context, q string, parentID *int64, isActiv
 	       icon_url, created_at, updated_at
 	FROM categories
 	WHERE ` + strings.Join(where, " AND ") + `
-	ORDER BY sort_order ASC, name ASC
+	ORDER BY created_at ASC
 	LIMIT $` + strconv.Itoa(argPos) + ` OFFSET $` + strconv.Itoa(argPos+1)
 
 	rows, err := r.db.Query(ctx, sql, args...)

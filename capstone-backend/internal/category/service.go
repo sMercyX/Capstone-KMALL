@@ -212,7 +212,11 @@ func (s *service) Create(ctx context.Context, in CreateInput) (Category, error) 
 	}
 
 	// default sortOrder
-	sortOrder := 0
+	defaultSort := 1 // main
+	if in.ParentID != nil {
+		defaultSort = 2 // sub
+	}
+	sortOrder := defaultSort
 	if in.SortOrder != nil {
 		sortOrder = *in.SortOrder
 	}
@@ -311,7 +315,7 @@ func (s *service) CreateWithSubs(ctx context.Context, in CreateWithSubsInput) (C
 		if err := validateCreate(&tmp); err != nil {
 			return Category{}, nil, err
 		}
-		sortOrder := 0
+		sortOrder := 2 // default สำหรับ sub
 		if tmp.SortOrder != nil {
 			sortOrder = *tmp.SortOrder
 		}
@@ -324,11 +328,11 @@ func (s *service) CreateWithSubs(ctx context.Context, in CreateWithSubsInput) (C
 		})
 	}
 
-	// ✅ call repo tx
+	// call repo tx
 	mainParams := CreateParams{
 		Name: main.Name, Slug: *main.Slug,
 		ParentID:  nil, // main
-		SortOrder: derefInt(main.SortOrder, 0),
+		SortOrder: derefInt(main.SortOrder, 1),
 		IsActive:  main.IsActive,
 	}
 
@@ -391,7 +395,7 @@ func (s *service) UpsertCategoryTree(ctx context.Context, in UpsertCategoryTreeI
 			ID:        sc.ID,
 			Name:      tmp.Name,
 			Slug:      *tmp.Slug,
-			SortOrder: derefInt(tmp.SortOrder, 0),
+			SortOrder: derefInt(tmp.SortOrder, 2),
 			IsActive:  tmp.IsActive,
 		})
 	}
@@ -401,7 +405,7 @@ func (s *service) UpsertCategoryTree(ctx context.Context, in UpsertCategoryTreeI
 		ID:        in.Main.ID,
 		Name:      mainCreate.Name,
 		Slug:      *mainCreate.Slug,
-		SortOrder: derefInt(mainCreate.SortOrder, 0),
+		SortOrder: derefInt(mainCreate.SortOrder, 1),
 		IsActive:  mainCreate.IsActive,
 		IconURL:   in.Main.IconURL,
 	}
