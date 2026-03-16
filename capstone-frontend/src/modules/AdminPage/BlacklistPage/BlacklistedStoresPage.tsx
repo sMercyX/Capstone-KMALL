@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { FiSearch } from "react-icons/fi"
 import { Loader2 } from "lucide-react"
 import { useBlacklistApi, type BlacklistItem } from "../../../api/blacklistApi"
@@ -24,10 +24,13 @@ export default function BlacklistedStoresPage() {
   const [items, setItems] = useState<BlacklistItem[]>([])
   const [loading, setLoading] = useState(true)
   const [searchQuery, setSearchQuery] = useState("")
+  const [searchQueryDebounced, setSearchQueryDebounced] = useState("")
   const [page, setPage] = useState(1)
   const [totalPages, setTotalPages] = useState(1)
   const [confirmOpen, setConfirmOpen] = useState(false)
   const [selectedItem, setSelectedItem] = useState<BlacklistItem | null>(null)
+
+  const debounceRef = useRef<ReturnType<typeof setTimeout>>(undefined)
   const limit = 20
 
   const fetchData = async () => {
@@ -39,7 +42,7 @@ export default function BlacklistedStoresPage() {
         ban_type: activeTab === "ALL" ? undefined : activeTab,
         limit,
         page,
-        q: searchQuery || undefined
+        q: searchQueryDebounced || undefined
       })
       if (res.code === 200) {
         setItems(res.data.items || [])
@@ -54,12 +57,13 @@ export default function BlacklistedStoresPage() {
 
   useEffect(() => {
     fetchData()
-  }, [activeTab, page])
+  }, [activeTab, page, searchQueryDebounced])
 
   const handleSearch = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === "Enter") {
+      if (debounceRef.current) clearTimeout(debounceRef.current)
       setPage(1)
-      fetchData()
+      setSearchQueryDebounced(searchQuery)
     }
   }
 
@@ -141,7 +145,15 @@ export default function BlacklistedStoresPage() {
             placeholder="Search by Name and Report ID"
             className="w-full pl-10 pr-4 py-2 rounded-lg border border-gray-200 text-sm focus:outline-none focus:border-[#ff5a36]"
             value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
+            onChange={(e) => {
+              const val = e.target.value
+              setSearchQuery(val)
+              if (debounceRef.current) clearTimeout(debounceRef.current)
+              debounceRef.current = setTimeout(() => {
+                setSearchQueryDebounced(val)
+                setPage(1)
+              }, 400)
+            }}
             onKeyDown={handleSearch}
           />
         </div>

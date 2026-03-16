@@ -58,6 +58,22 @@ export default function ReportManager({ reportedPartyType }: ReportManagerProps)
     }, 400)
   }, [])
 
+  const handlePendingKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "Enter") {
+      if (pendingDebounceRef.current) clearTimeout(pendingDebounceRef.current)
+      setPendingSearchDebounced(pendingSearch)
+      setPendingPage(1)
+    }
+  }
+
+  const handleSecondaryKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "Enter") {
+      if (secondaryDebounceRef.current) clearTimeout(secondaryDebounceRef.current)
+      setSecondarySearchDebounced(secondarySearch)
+      setSecondaryPage(1)
+    }
+  }
+
   useEffect(() => {
     fetchCounts()
     fetchPending()
@@ -239,6 +255,7 @@ export default function ReportManager({ reportedPartyType }: ReportManagerProps)
             type="text"
             value={pendingSearch}
             onChange={(e) => handlePendingSearch(e.target.value)}
+            onKeyDown={handlePendingKeyDown}
             placeholder="Search by Report ID or Order ID"
             className="pl-10 pr-4 py-2 border border-gray-200 rounded-lg w-80 focus:outline-none focus:ring-1 focus:ring-primary shadow-sm text-sm bg-white"
           />
@@ -289,6 +306,7 @@ export default function ReportManager({ reportedPartyType }: ReportManagerProps)
             type="text"
             value={secondarySearch}
             onChange={(e) => handleSecondarySearch(e.target.value)}
+            onKeyDown={handleSecondaryKeyDown}
             placeholder="Search by Report ID or Order ID"
             className="pl-10 pr-4 py-2 border border-gray-200 rounded-lg w-80 focus:outline-none focus:ring-1 focus:ring-primary shadow-sm text-sm bg-white"
           />
