@@ -4,6 +4,7 @@ import { Loader2 } from "lucide-react"
 import { useBlacklistApi, type BlacklistItem } from "../../../api/blacklistApi"
 import { format } from "date-fns"
 import { MdBlockFlipped } from "react-icons/md"
+import { useNavigate } from "react-router-dom"
 import { toast } from "react-toastify"
 import ConfirmationModal from "../../../components/Modal/ConfirmationModal"
 
@@ -17,6 +18,7 @@ const tabs: { label: string; key: TabKey }[] = [
 ]
 
 export default function BlacklistedStoresPage() {
+  const navigate = useNavigate()
   const { getBlacklist, revokeBlacklist } = useBlacklistApi()
   const [activeTab, setActiveTab] = useState<TabKey>("ALL")
   const [items, setItems] = useState<BlacklistItem[]>([])
@@ -212,7 +214,8 @@ export default function BlacklistedStoresPage() {
                 items.map((item) => (
                   <div
                     key={item.blacklist_id}
-                    className="grid grid-cols-12 gap-4 items-center bg-white border border-gray-200 rounded-lg px-6 py-4 shadow-[0_1px_2px_rgba(0,0,0,0.02)] transition-colors hover:border-[#ff5a36]"
+                    onClick={() => navigate(`/admin/report/buyer/${item.report_id}`)}
+                    className="cursor-pointer grid grid-cols-12 gap-4 items-center bg-white border border-gray-200 rounded-lg px-6 py-4 shadow-[0_1px_2px_rgba(0,0,0,0.02)] transition-colors hover:border-[#ff5a36]"
                   >
                     <div className="col-span-2 text-sm text-gray-800 font-medium">
                       #RPT-{item.report_id.toString().padStart(4, "0")}
@@ -231,7 +234,7 @@ export default function BlacklistedStoresPage() {
                     </div>
                     <div className="col-span-3 flex justify-end">
                       <button
-                        onClick={() => { setSelectedItem(item); setConfirmOpen(true) }}
+                        onClick={(e) => { e.stopPropagation(); setSelectedItem(item); setConfirmOpen(true) }}
                         className="inline-flex items-center gap-1.5 text-sm text-[#ff5a36] hover:text-[#e04e2d] font-medium transition-colors cursor-pointer"
                       >
                         <MdBlockFlipped className="w-4 h-4" />
