@@ -3,7 +3,10 @@ import { useState, useRef, useEffect } from "react"
 import ProductList from "../../../components/ProductList/ProductList"
 import { useReportApi, type ReportDetailResponse } from "../../../api/reportApi"
 import { Loader2, X, Maximize2, User } from "lucide-react"
-import { format } from "date-fns"
+import { format, addDays } from "date-fns"
+import { resolveImageUrl } from "../../../utils/resolve"
+import { toast } from "react-toastify"
+import ResolveReportModal, { type ResolveActionData } from "../../../components/Admin/ResolveReportModal"
 
 const formatChatDate = (dateString: string) => {
   const date = new Date(dateString)
@@ -19,10 +22,6 @@ const formatChatDate = (dateString: string) => {
     return format(date, "d MMM yyyy")
   }
 }
-import { resolveImageUrl } from "../../../utils/resolve"
-// import BackButton from "../../../components/Buttons/BackButton"
-import { toast } from "react-toastify"
-import ResolveReportModal, { type ResolveActionData } from "../../../components/Admin/ResolveReportModal"
 
 export default function ReportDetailPage() {
   const { type, reportId } = useParams()
@@ -61,18 +60,17 @@ export default function ReportDetailPage() {
       isScrolling.current = false
     }, 800)
   }
-
   const fetchReport = () => {
-    if (!reportId) return
+    const id = reportId
+    if (!id) return () => {}
     let isMounted = true
     setLoading(true)
     setError(null)
-    
-    getReportDetail(reportId)
-      .then(res => {
-        if (isMounted) {
-          setReportData(res.data)
-        }
+
+    getReportDetail(id)
+      .then(async (res) => {
+        if (!isMounted) return
+        setReportData(res.data)
       })
       .catch(err => {
         if (isMounted) {
@@ -262,6 +260,48 @@ export default function ReportDetailPage() {
       {/* Continous Content Sections */}
       <div ref={contentRef} className="flex-1 overflow-y-auto space-y-6 pb-8 pr-2 scroll-smooth">
         
+        {/* Penalty Information - Yellow Box */}
+        {report.status !== "PENDING" && reportData?.admin_actions && reportData.admin_actions.length > 0 && (
+          <div className="bg-[#fff9e6] border border-[#ffeb99] rounded-xl p-8 shadow-sm">
+            <div className="space-y-4">
+              {reportData.admin_actions.map((action, idx) => {
+                const actionDate = new Date(action.created_at)
+                let penaltyText = ""
+                let penaltyPeriod = ""
+
+                if (action.action_type === "WARN_USER") {
+                  penaltyText = "Warning"
+                } else if (action.action_type === "SUSPEND_USER") {
+                  penaltyText = `Suspend (${action.suspend_days} days)`
+                  if (action.suspend_days) {
+                    const endDate = addDays(actionDate, action.suspend_days)
+                    penaltyPeriod = `${format(actionDate, "MMM d")} - ${format(endDate, "MMM d")}`
+                  }
+                } else if (action.action_type === "BAN_USER") {
+                  penaltyText = "Permanent Ban"
+                } else if (action.action_type === "NO_ACTION") {
+                  penaltyText = "Rejected (No Action)"
+                }
+
+                return (
+                  <div key={idx} className="grid grid-cols-[140px_1fr] gap-4">
+                    <div className="space-y-4 font-semibold text-gray-800">
+                      <div>Penalty :</div>
+                      {penaltyPeriod && <div>Penalty Period :</div>}
+                      <div>note :</div>
+                    </div>
+                    <div className="space-y-4">
+                      <div className="text-[#ff5a36] font-bold text-xl">{penaltyText}</div>
+                      {penaltyPeriod && <div className="text-gray-700 font-medium">{penaltyPeriod}</div>}
+                      <div className="text-gray-600">{action.note || "-"}</div>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+        )}
+
         {/* Report Information */}
         <div id="Report Information" className="bg-white rounded-lg shadow-sm border border-gray-200 p-8 pt-10">
           <h2 className="text-2xl font-bold text-gray-900 mb-6">Report Information</h2>

@@ -66,7 +66,7 @@ export interface ReportDetailResponse {
   order_snapshot: OrderSnapshot
   chat_snapshots: ChatSnapshot[]
   evidences: Evidence[]
-  admin_actions: any | null // adjust type later if needed
+  admin_actions: MyReportAdminAction[] | null
 }
 
 export interface ReportDetail {
