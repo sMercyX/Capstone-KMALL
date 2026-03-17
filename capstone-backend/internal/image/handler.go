@@ -71,6 +71,7 @@ func (h *Handler) Register(r *gin.RouterGroup) {
 	pg := r.Group("/products")
 	{
 		pg.GET("/:id/images", h.listProductImages)
+		pg.GET("/:id/options/:keyId/values/images", h.listOptionValueImages)
 
 		productOwner := pg.Group("", middleware.RequireRolesAny(h.roleSvc, "Seller", "Admin"))
 		{
@@ -827,4 +828,31 @@ func (h *Handler) uploadOptionValueImage(c *gin.Context) {
 	}
 
 	respond.Updated(c, apperr.Updated, val)
+}
+
+// GET /api/products/:id/options/:keyId/values/images
+func (h *Handler) listOptionValueImages(c *gin.Context) {
+	productID, ok := parsePathID(c, "id")
+	if !ok {
+		return
+	}
+	keyID, ok := parsePathID(c, "keyId")
+	if !ok {
+		return
+	}
+
+	keys, err := h.productSvc.ListOptionKeys(c.Request.Context(), productID)
+	if err != nil {
+		c.Error(err)
+		return
+	}
+
+	for _, k := range keys {
+		if int64(k.ID) == keyID {
+			respond.OK(c, apperr.OK, k.Values)
+			return
+		}
+	}
+
+	respond.Error(c, http.StatusNotFound, "NOT_FOUND", "option key not found", nil)
 }

@@ -137,6 +137,7 @@ type createOptionKeyInline struct {
 
 type createVariantsReq struct {
 	Variants []createVariantReq `json:"variants" binding:"required"`
+	IsActive *string            `json:"is_active"`
 }
 
 // replaceVariantsConfigReq — body สำหรับ PUT /:id/variants-config
@@ -722,6 +723,17 @@ func (h *Handler) createVariants(c *gin.Context) {
 			return
 		}
 		out = append(out, created)
+	}
+
+	// ===== เพิ่ม: set is_active ถ้าส่งมา =====
+	if in.IsActive != nil {
+		_, err := h.svc.Update(c.Request.Context(), int64(p.ID), UpdateInput{
+			IsActive: in.IsActive,
+		})
+		if err != nil {
+			c.Error(err)
+			return
+		}
 	}
 
 	respond.Created(c, apperr.Created, out)
