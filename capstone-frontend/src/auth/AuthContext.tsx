@@ -8,10 +8,11 @@ import {
 } from "react"
 import type { ReactNode } from "react"
 
-import { useUserApi, type User } from "../api/userApi"
+import { useUserApi, type User, type UserBan } from "../api/userApi"
 import { useUserStore } from "../stores/userStore"
 import { msalInstance } from "../auth/msalConfig"
 import { setAccessToken } from "../auth/tokenStore"
+import BanNoticeModal from "../components/Modal/BanNoticeModal"
 
 type AuthContextType = {
   user: User | null
@@ -28,6 +29,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<User | null>(null)
   const [ready, setReady] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [banToShow, setBanToShow] = useState<UserBan | null>(null)
 
   const { getMe } = useUserApi()
 
@@ -59,6 +61,16 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
               createdAt: new Date().toISOString(),
               updatedAt: new Date().toISOString(),
               lastLogin: new Date().toISOString(),
+              bans: [
+                {
+                  ban_type: "TEMPORARY",
+                  banned_from: "2026-03-06T18:38:02.807019Z",
+                  banned_until: "2026-03-23T18:38:02.805523Z",
+                  is_active: true,
+                  reason: "พักบัญชีชั่วคราวเนื่องจากผิดซ้ำ",
+                  user_role: "BUYER",
+                }
+              ],
             },
             seller: {
               id: "00000000-0000-0000-0000-000000000002",
@@ -69,6 +81,16 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
               createdAt: new Date().toISOString(),
               updatedAt: new Date().toISOString(),
               lastLogin: new Date().toISOString(),
+              bans: [
+                {
+                  ban_type: "WARNING",
+                  banned_from: "2026-03-06T18:39:14.120112Z",
+                  banned_until: "2026-03-13T18:39:14.117622Z",
+                  is_active: true,
+                  reason: "เตือนเรื่องการใช้คำพูดไม่เหมาะสม",
+                  user_role: "SELLER",
+                }
+              ],
             },
             admin: {
               id: "dev-admin-1",
@@ -79,16 +101,36 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
               createdAt: new Date().toISOString(),
               updatedAt: new Date().toISOString(),
               lastLogin: new Date().toISOString(),
+              bans: [
+                {
+                  ban_type: "PERMANENT",
+                  banned_from: "2026-03-06T17:31:25.302607Z",
+                  banned_until: null,
+                  is_active: true,
+                  reason: "ปิดบัญชีถาวรเนื่องจากผิดร้ายแรง",
+                  user_role: "SELLER",
+                }
+              ],
             },
           }
 
           const mockUser = mockUsers[devMode] || mockUsers.seller
           
           setUser(mockUser)
+
+          // ⭐ Dev trigger modal
+          if (mockUser.bans && mockUser.bans.length > 0) {
+            const activeBan = mockUser.bans.find(b => b.is_active)
+            if (activeBan) {
+              setBanToShow(activeBan)
+            }
+          }
+
           setUserStore({
             id: mockUser.id,
             name: mockUser.name,
             email: mockUser.email,
+            bans: mockUser.bans ?? [],
           })
           setRolesStore(mockUser.roles)
           setAccessToken("dev-mock-token")
@@ -150,10 +192,19 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
         setUser(u)
 
+        // Check for active bans
+        if (u.bans && u.bans.length > 0) {
+          const activeBan = u.bans.find(b => b.is_active)
+          if (activeBan) {
+            setBanToShow(activeBan)
+          }
+        }
+
         setUserStore({
           id: u.id,
           name: u.name,
           email: u.email,
+          bans: u.bans ?? [],
         })
         setRolesStore(u.roles ?? [])
       } catch (err: any) {
@@ -223,7 +274,17 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     [user, ready, error, storeRoles]
   )
 
-  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
+  return (
+    <AuthContext.Provider value={value}>
+      {children}
+      {banToShow && (
+        <BanNoticeModal 
+          ban={banToShow} 
+          onClose={() => setBanToShow(null)} 
+        />
+      )}
+    </AuthContext.Provider>
+  )
 }
 
 export function useAuth() {
