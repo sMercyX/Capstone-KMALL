@@ -43,6 +43,8 @@ func (h *Handler) Register(rg *gin.RouterGroup) {
 	)
 	{
 		admin.POST("/announcements", h.createAnnouncement)
+		admin.GET("/announcements", h.listAnnouncements)
+		admin.DELETE("/announcements/:id", h.deleteAnnouncement)
 	}
 }
 
@@ -286,6 +288,61 @@ func (h *Handler) createAnnouncement(c *gin.Context) {
 
 	c.JSON(http.StatusCreated, gin.H{
 		"announcement": ann,
+	})
+}
+
+func (h *Handler) listAnnouncements(c *gin.Context) {
+	var beforeID *int64
+	limit := 30
+
+	if v := strings.TrimSpace(c.Query("before_id")); v != "" {
+		id, err := parseInt64(v)
+		if err != nil || id <= 0 {
+			c.Error(apperr.New(apperr.BadRequest, "invalid before_id"))
+			return
+		}
+		beforeID = &id
+	}
+
+	if v := strings.TrimSpace(c.Query("limit")); v != "" {
+		n, err := strconv.Atoi(v)
+		if err != nil || n <= 0 || n > 100 {
+			c.Error(apperr.New(apperr.BadRequest, "invalid limit"))
+			return
+		}
+		limit = n
+	}
+
+	items, err := h.svc.ListAnnouncements(c.Request.Context(), ListAnnouncementsParams{
+		BeforeID: beforeID,
+		Limit:    limit,
+	})
+	if err != nil {
+		c.Error(err)
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"announcements": items,
+		"before_id":     beforeID,
+	})
+}
+
+func (h *Handler) deleteAnnouncement(c *gin.Context) {
+	idStr := strings.TrimSpace(c.Param("id"))
+	id, err := parseInt64(idStr)
+	if err != nil || id <= 0 {
+		c.Error(apperr.New(apperr.BadRequest, "invalid announcement_id"))
+		return
+	}
+
+	if err := h.svc.DeleteAnnouncement(c.Request.Context(), id); err != nil {
+		c.Error(err)
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"deleted": true,
 	})
 }
 

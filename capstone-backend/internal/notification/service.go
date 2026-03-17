@@ -92,6 +92,8 @@ type Service interface {
 	CreateAdminAction(ctx context.Context, in CreateAdminActionNotificationInput) (Notification, error)
 
 	CreateAnnouncement(ctx context.Context, in CreateAnnouncementInput) (Announcement, error)
+	ListAnnouncements(ctx context.Context, in ListAnnouncementsParams) ([]Announcement, error)
+	DeleteAnnouncement(ctx context.Context, announcementID int64) error
 }
 
 type service struct {
@@ -542,4 +544,15 @@ func (s *service) CreateAnnouncement(ctx context.Context, in CreateAnnouncementI
 	}
 
 	return ann, nil
+}
+
+func (s *service) ListAnnouncements(ctx context.Context, in ListAnnouncementsParams) ([]Announcement, error) {
+	return s.repo.ListAnnouncements(ctx, in)
+}
+
+func (s *service) DeleteAnnouncement(ctx context.Context, announcementID int64) error {
+	if announcementID <= 0 {
+		return apperr.New(apperr.BadRequest, "invalid announcement_id")
+	}
+	return s.repo.DeleteAnnouncement(ctx, announcementID)
 }
