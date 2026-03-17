@@ -2,6 +2,8 @@ package product
 
 import (
 	"net/http"
+	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 
@@ -61,6 +63,10 @@ func (h *Handler) Register(r *gin.RouterGroup) {
 		auth.PUT("/:id/variants-config", h.replaceVariantsConfig)
 		auth.PATCH("/:id/variants/:variantId/stock", h.updateVariantStock)
 		auth.DELETE("/:id/variants/:variantId", h.deleteVariant)
+
+		auth.PATCH("/:id/options/:keyId/image-key", h.setOptionKeyImageKey)
+		auth.PUT("/:id/options/:keyId/values/:valueId/image", h.setOptionValueImage)
+		auth.DELETE("/:id/options/:keyId/values/:valueId/image", h.deleteOptionValueImage)
 	}
 
 	// /api/stores/:id/products
@@ -123,9 +129,10 @@ type createOptionValueInline struct {
 }
 
 type createOptionKeyInline struct {
-	KeyName   string                    `json:"key_name" binding:"required"`
-	SortOrder int                       `json:"sort_order"`
-	Values    []createOptionValueInline `json:"values"`
+	KeyName    string                    `json:"key_name" binding:"required"`
+	SortOrder  int                       `json:"sort_order"`
+	IsImageKey bool                      `json:"is_image_key"`
+	Values     []createOptionValueInline `json:"values"`
 }
 
 type createVariantsReq struct {
@@ -139,9 +146,10 @@ type replaceVariantsConfigReq struct {
 }
 
 type replaceOptionKeyReq struct {
-	KeyName   string   `json:"key_name"   binding:"required"`
-	SortOrder int      `json:"sort_order"`
-	Values    []string `json:"values"     binding:"required"`
+	KeyName    string   `json:"key_name"   binding:"required"`
+	SortOrder  int      `json:"sort_order"`
+	Values     []string `json:"values"     binding:"required"`
+	IsImageKey bool     `json:"is_image_key"`
 }
 
 type replaceVariantReq struct {
@@ -161,6 +169,14 @@ type UpdateWithVariantsInput struct {
 	// nil = ไม่แตะ variants config
 	// non-nil = replace ทั้งชุด
 	VariantsConfig *ReplaceVariantsConfigInput `json:"variants_config,omitempty"`
+}
+
+type setImageKeyReq struct {
+	IsImageKey bool `json:"is_image_key"`
+}
+
+type setOptionValueImageReq struct {
+	ImageURL string `json:"image_url" binding:"required"`
 }
 
 // ===== Helpers =====
@@ -327,9 +343,10 @@ func (h *Handler) create(c *gin.Context) {
 			vals = append(vals, v.ValueLabel)
 		}
 		opts = append(opts, CreateOptionKeyWithValuesInput{
-			KeyName:   o.KeyName,
-			SortOrder: o.SortOrder,
-			Values:    vals,
+			KeyName:    o.KeyName,
+			SortOrder:  o.SortOrder,
+			IsImageKey: o.IsImageKey,
+			Values:     vals,
 		})
 	}
 
@@ -425,9 +442,10 @@ func (h *Handler) update(c *gin.Context) {
 		}
 		for _, o := range in.VariantsConfig.Options {
 			vc.Options = append(vc.Options, ReplaceOptionKeyInput{
-				KeyName:   o.KeyName,
-				SortOrder: o.SortOrder,
-				Values:    o.Values,
+				KeyName:    o.KeyName,
+				SortOrder:  o.SortOrder,
+				Values:     o.Values,
+				IsImageKey: o.IsImageKey,
 			})
 		}
 		for _, v := range in.VariantsConfig.Variants {
@@ -728,9 +746,10 @@ func (h *Handler) replaceVariantsConfig(c *gin.Context) {
 	}
 	for _, o := range in.Options {
 		svcIn.Options = append(svcIn.Options, ReplaceOptionKeyInput{
-			KeyName:   o.KeyName,
-			SortOrder: o.SortOrder,
-			Values:    o.Values,
+			KeyName:    o.KeyName,
+			SortOrder:  o.SortOrder,
+			Values:     o.Values,
+			IsImageKey: o.IsImageKey,
 		})
 	}
 	for _, v := range in.Variants {
@@ -788,4 +807,101 @@ func (h *Handler) deleteVariant(c *gin.Context) {
 		return
 	}
 	respond.Deleted(c, apperr.Deleted, gin.H{"deleted": true})
+}
+
+// PATCH /api/products/:id/options/:keyId/image-key
+func (h *Handler) setOptionKeyImageKey(c *gin.Context) {
+	p, userID, ok := h.resolveProductOwner(c)
+	if !ok {
+		return
+	}
+	keyID, ok := parseID(c, "keyId")
+	if !ok {
+		return
+	}
+
+	var in setImageKeyReq
+	if err := c.ShouldBindJSON(&in); err != nil {
+		c.Error(apperr.New(apperr.BadRequest, "bad json"))
+		return
+	}
+
+	key, err := h.svc.SetOptionKeyImageKey(c.Request.Context(), keyID, int64(p.ID), userID, in.IsImageKey)
+	if err != nil {
+		c.Error(err)
+		return
+	}
+	respond.Updated(c, apperr.Updated, key)
+}
+
+// PUT /api/products/:id/options/:keyId/values/:valueId/image
+func (h *Handler) setOptionValueImage(c *gin.Context) {
+	p, userID, ok := h.resolveProductOwner(c)
+	if !ok {
+		return
+	}
+	valueID, ok := parseID(c, "valueId")
+	if !ok {
+		return
+	}
+
+	var in setOptionValueImageReq
+	if err := c.ShouldBindJSON(&in); err != nil {
+		c.Error(apperr.New(apperr.BadRequest, "bad json"))
+		return
+	}
+
+	val, err := h.svc.SetOptionValueImage(c.Request.Context(), valueID, int64(p.ID), userID, &in.ImageURL)
+	if err != nil {
+		c.Error(err)
+		return
+	}
+	respond.Updated(c, apperr.Updated, val)
+}
+
+// DELETE /api/products/:id/options/:keyId/values/:valueId/image
+func (h *Handler) deleteOptionValueImage(c *gin.Context) {
+	p, userID, ok := h.resolveProductOwner(c)
+	if !ok {
+		return
+	}
+	valueID, ok := parseID(c, "valueId")
+	if !ok {
+		return
+	}
+
+	// ดึง image_url เดิมก่อน เพื่อจะได้ลบไฟล์
+	keys, err := h.svc.ListOptionKeys(c.Request.Context(), int64(p.ID))
+	if err != nil {
+		c.Error(err)
+		return
+	}
+	var oldImageURL string
+	for _, k := range keys {
+		for _, v := range k.Values {
+			if int64(v.ID) == valueID {
+				if v.ImageURL != nil {
+					oldImageURL = *v.ImageURL
+				}
+			}
+		}
+	}
+
+	// clear image_url ใน DB
+	val, err := h.svc.SetOptionValueImage(c.Request.Context(), valueID, int64(p.ID), userID, nil)
+	if err != nil {
+		c.Error(err)
+		return
+	}
+
+	// ลบไฟล์บน disk
+	if oldImageURL != "" {
+		relPath := strings.TrimPrefix(oldImageURL, "/uploads/")
+		if relPath != "" {
+			fsPath := filepath.Join("uploads", relPath)
+			_ = os.Remove(fsPath)
+		}
+	}
+
+	respond.Deleted(c, apperr.Deleted, val)
 }

@@ -38,7 +38,7 @@ type Repo interface {
 	GetCategoryName(ctx context.Context, categoryID int) (string, error)
 
 	// ===== Option Keys =====
-	CreateOptionKey(ctx context.Context, productID int64, keyName string, sortOrder int) (OptionKey, error)
+	CreateOptionKey(ctx context.Context, productID int64, keyName string, sortOrder int, isImageKey bool) (OptionKey, error)
 	ListOptionKeys(ctx context.Context, productID int64) ([]OptionKey, error)
 	DeleteOptionKey(ctx context.Context, keyID int64) error
 	DeleteAllOptionKeysByProductID(ctx context.Context, productID int64) error
@@ -57,6 +57,12 @@ type Repo interface {
 	DeductStock(ctx context.Context, variantID int64, qty int) error
 
 	UpdateWithVariantsConfig(ctx context.Context, id int64, in UpdateParams, variants *ReplaceVariantsConfigInput) (Product, error)
+
+	// ===== Image Key =====
+	SetOptionKeyImageKey(ctx context.Context, keyID int64, isImageKey bool) (OptionKey, error)
+
+	// ===== Option Value Image =====
+	SetOptionValueImage(ctx context.Context, valueID int64, imageURL *string) (OptionValue, error)
 }
 
 // ===== Params =====
@@ -316,7 +322,9 @@ func (r *repo) Get(ctx context.Context, id int64) (Product, error) {
 			total += int64(v.StockQty)
 		}
 		p.TotalStock = &total
-		p.Variants = variants
+
+		count := len(variants)
+		p.VariantCount = &count
 	}
 
 	return p, nil
@@ -973,19 +981,27 @@ func (r *repo) GetCategoryName(ctx context.Context, categoryID int) (string, err
 
 // ===== Option Keys =====
 
-func (r *repo) CreateOptionKey(ctx context.Context, productID int64, keyName string, sortOrder int) (OptionKey, error) {
+func (r *repo) CreateOptionKey(ctx context.Context, productID int64, keyName string, sortOrder int, isImageKey bool) (OptionKey, error) {
 	var k OptionKey
 	err := r.db.QueryRow(ctx, `
-		INSERT INTO product_option_keys (product_id, key_name, sort_order)
-		VALUES ($1, $2, $3)
-		RETURNING option_key_id, product_id, key_name, sort_order
-	`, productID, strings.TrimSpace(keyName), sortOrder).Scan(
-		&k.ID, &k.ProductID, &k.KeyName, &k.SortOrder,
+        INSERT INTO product_option_keys (product_id, key_name, sort_order, is_image_key)
+        VALUES ($1, $2, $3, $4)
+        RETURNING option_key_id, product_id, key_name, sort_order, is_image_key
+    `, productID, strings.TrimSpace(keyName), sortOrder, isImageKey).Scan(
+		&k.ID, &k.ProductID, &k.KeyName, &k.SortOrder, &k.IsImageKey,
 	)
 	if err != nil {
 		var pgErr *pgconn.PgError
-		if errors.As(err, &pgErr) && pgErr.Code == "23505" {
-			return OptionKey{}, apperr.New(apperr.BadRequest, "option key already exists")
+		if errors.As(err, &pgErr) {
+			switch pgErr.Code {
+			case "23505":
+				// อาจเป็น uq_option_key_per_product หรือ uq_one_image_key_per_product
+				if strings.Contains(pgErr.ConstraintName, "uq_one_image_key") {
+					return OptionKey{}, apperr.New(apperr.BadRequest,
+						"another option key already has images, remove those images first")
+				}
+				return OptionKey{}, apperr.New(apperr.BadRequest, "option key already exists")
+			}
 		}
 		return OptionKey{}, apperr.Wrap(apperr.Internal, err, "create option key failed")
 	}
@@ -995,11 +1011,11 @@ func (r *repo) CreateOptionKey(ctx context.Context, productID int64, keyName str
 
 func (r *repo) ListOptionKeys(ctx context.Context, productID int64) ([]OptionKey, error) {
 	rows, err := r.db.Query(ctx, `
-		SELECT option_key_id, product_id, key_name, sort_order
-		FROM product_option_keys
-		WHERE product_id = $1
-		ORDER BY sort_order, option_key_id
-	`, productID)
+        SELECT option_key_id, product_id, key_name, sort_order, is_image_key
+        FROM product_option_keys
+        WHERE product_id = $1
+        ORDER BY sort_order, option_key_id
+    `, productID)
 	if err != nil {
 		return nil, apperr.Wrap(apperr.Internal, err, "list option keys failed")
 	}
@@ -1008,7 +1024,7 @@ func (r *repo) ListOptionKeys(ctx context.Context, productID int64) ([]OptionKey
 	keys := make([]OptionKey, 0)
 	for rows.Next() {
 		var k OptionKey
-		if err := rows.Scan(&k.ID, &k.ProductID, &k.KeyName, &k.SortOrder); err != nil {
+		if err := rows.Scan(&k.ID, &k.ProductID, &k.KeyName, &k.SortOrder, &k.IsImageKey); err != nil {
 			return nil, apperr.Wrap(apperr.Internal, err, "scan option key failed")
 		}
 		keys = append(keys, k)
@@ -1029,11 +1045,11 @@ func (r *repo) ListOptionKeys(ctx context.Context, productID int64) ([]OptionKey
 
 func (r *repo) listOptionValues(ctx context.Context, keyID int64) ([]OptionValue, error) {
 	rows, err := r.db.Query(ctx, `
-		SELECT option_value_id, option_key_id, value_label, sort_order
-		FROM product_option_values
-		WHERE option_key_id = $1
-		ORDER BY sort_order, option_value_id
-	`, keyID)
+        SELECT option_value_id, option_key_id, value_label, sort_order, image_url
+        FROM product_option_values
+        WHERE option_key_id = $1
+        ORDER BY sort_order, option_value_id
+    `, keyID)
 	if err != nil {
 		return nil, apperr.Wrap(apperr.Internal, err, "list option values failed")
 	}
@@ -1042,7 +1058,7 @@ func (r *repo) listOptionValues(ctx context.Context, keyID int64) ([]OptionValue
 	vals := make([]OptionValue, 0)
 	for rows.Next() {
 		var v OptionValue
-		if err := rows.Scan(&v.ID, &v.OptionKeyID, &v.ValueLabel, &v.SortOrder); err != nil {
+		if err := rows.Scan(&v.ID, &v.OptionKeyID, &v.ValueLabel, &v.SortOrder, &v.ImageURL); err != nil {
 			return nil, apperr.Wrap(apperr.Internal, err, "scan option value failed")
 		}
 		vals = append(vals, v)
@@ -1418,10 +1434,10 @@ func (r *repo) UpdateWithVariantsConfig(ctx context.Context, id int64, in Update
 
 			var keyID int64
 			if err := tx.QueryRow(ctx, `
-				INSERT INTO product_option_keys (product_id, key_name, sort_order)
-				VALUES ($1, $2, $3)
-				RETURNING option_key_id
-			`, id, keyName, opt.SortOrder).Scan(&keyID); err != nil {
+    INSERT INTO product_option_keys (product_id, key_name, sort_order, is_image_key)
+    VALUES ($1, $2, $3, $4)
+    RETURNING option_key_id
+`, id, keyName, opt.SortOrder, opt.IsImageKey).Scan(&keyID); err != nil {
 				var pgErr *pgconn.PgError
 				if errors.As(err, &pgErr) && pgErr.Code == "23505" {
 					return Product{}, apperr.New(apperr.BadRequest, "option key already exists")
@@ -1516,11 +1532,11 @@ func (r *repo) UpdateWithVariantsConfig(ctx context.Context, id int64, in Update
 	// ===== 6) fetch options =====
 	if strings.ToUpper(strings.TrimSpace(p.ProductType)) == "STOCK" {
 		keyRows, err := tx.Query(ctx, `
-			SELECT option_key_id, product_id, key_name, sort_order
-			FROM product_option_keys
-			WHERE product_id = $1
-			ORDER BY sort_order, option_key_id
-		`, p.ID)
+    SELECT option_key_id, product_id, key_name, sort_order, is_image_key
+    FROM product_option_keys
+    WHERE product_id = $1
+    ORDER BY sort_order, option_key_id
+`, p.ID)
 		if err != nil {
 			return Product{}, apperr.Wrap(apperr.Internal, err, "list option keys failed")
 		}
@@ -1530,7 +1546,7 @@ func (r *repo) UpdateWithVariantsConfig(ctx context.Context, id int64, in Update
 
 		for keyRows.Next() {
 			var k OptionKey
-			if err := keyRows.Scan(&k.ID, &k.ProductID, &k.KeyName, &k.SortOrder); err != nil {
+			if err := keyRows.Scan(&k.ID, &k.ProductID, &k.KeyName, &k.SortOrder, &k.IsImageKey); err != nil {
 				keyRows.Close()
 				return Product{}, apperr.Wrap(apperr.Internal, err, "scan option key failed")
 			}
@@ -1546,23 +1562,24 @@ func (r *repo) UpdateWithVariantsConfig(ctx context.Context, id int64, in Update
 
 		// query values หลังจากปิด keyRows แล้ว
 		valRows, err := tx.Query(ctx, `
-			SELECT
-				ov.option_value_id,
-				ov.option_key_id,
-				ov.value_label,
-				ov.sort_order
-			FROM product_option_values ov
-			JOIN product_option_keys ok ON ok.option_key_id = ov.option_key_id
-			WHERE ok.product_id = $1
-			ORDER BY ok.sort_order, ov.sort_order, ov.option_value_id
-		`, p.ID)
+    SELECT
+        ov.option_value_id,
+        ov.option_key_id,
+        ov.value_label,
+        ov.sort_order,
+        ov.image_url
+    FROM product_option_values ov
+    JOIN product_option_keys ok ON ok.option_key_id = ov.option_key_id
+    WHERE ok.product_id = $1
+    ORDER BY ok.sort_order, ov.sort_order, ov.option_value_id
+`, p.ID)
 		if err != nil {
 			return Product{}, apperr.Wrap(apperr.Internal, err, "list option values failed")
 		}
 
 		for valRows.Next() {
 			var ov OptionValue
-			if err := valRows.Scan(&ov.ID, &ov.OptionKeyID, &ov.ValueLabel, &ov.SortOrder); err != nil {
+			if err := valRows.Scan(&ov.ID, &ov.OptionKeyID, &ov.ValueLabel, &ov.SortOrder, &ov.ImageURL); err != nil {
 				valRows.Close()
 				return Product{}, apperr.Wrap(apperr.Internal, err, "scan option value failed")
 			}
@@ -1661,4 +1678,141 @@ func (r *repo) UpdateWithVariantsConfig(ctx context.Context, id int64, in Update
 	}
 
 	return p, nil
+}
+
+// SetOptionKeyImageKey — toggle is_image_key
+// ถ้า set true จะ clear key อื่นใน product เดียวกันก่อน (via unique index จะ error แทน — ดังนั้น clear ก่อน)
+func (r *repo) SetOptionKeyImageKey(ctx context.Context, keyID int64, isImageKey bool) (OptionKey, error) {
+	tx, err := r.db.Begin(ctx)
+	if err != nil {
+		return OptionKey{}, apperr.Wrap(apperr.Internal, err, "begin tx failed")
+	}
+	defer tx.Rollback(ctx)
+
+	// หา product_id ของ key นี้
+	var productID int64
+	if err := tx.QueryRow(ctx,
+		`SELECT product_id FROM product_option_keys WHERE option_key_id = $1`, keyID,
+	).Scan(&productID); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return OptionKey{}, apperr.New(apperr.NotFound, "option key not found")
+		}
+		return OptionKey{}, apperr.Wrap(apperr.Internal, err, "get option key failed")
+	}
+
+	if isImageKey {
+		// ก่อน set true: เช็คว่ามี key อื่นที่ is_image_key=true อยู่ไหม
+		// ถ้ามี ต้องเช็คก่อนว่า values ของมันมีรูปอยู่หรือเปล่า
+		var otherKeyID *int64
+		err := tx.QueryRow(ctx, `
+            SELECT option_key_id
+            FROM product_option_keys
+            WHERE product_id = $1
+              AND is_image_key = TRUE
+              AND option_key_id <> $2
+            LIMIT 1
+        `, productID, keyID).Scan(&otherKeyID)
+		if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+			return OptionKey{}, apperr.Wrap(apperr.Internal, err, "check image key failed")
+		}
+		if otherKeyID != nil {
+			// มี image key เดิม — ตรวจสอบว่ามีรูปอยู่ไหม
+			var hasImages bool
+			if err := tx.QueryRow(ctx, `
+                SELECT EXISTS (
+                    SELECT 1
+                    FROM product_option_values
+                    WHERE option_key_id = $1
+                      AND image_url IS NOT NULL
+                )
+            `, *otherKeyID).Scan(&hasImages); err != nil {
+				return OptionKey{}, apperr.Wrap(apperr.Internal, err, "check images failed")
+			}
+			if hasImages {
+				return OptionKey{}, apperr.New(apperr.BadRequest,
+					"another option key already has images, remove those images first")
+			}
+			// ไม่มีรูปแล้ว → clear flag เดิม
+			if _, err := tx.Exec(ctx, `
+                UPDATE product_option_keys
+                SET is_image_key = FALSE
+                WHERE option_key_id = $1
+            `, *otherKeyID); err != nil {
+				return OptionKey{}, apperr.Wrap(apperr.Internal, err, "clear old image key failed")
+			}
+		}
+	} else {
+		// set false: ต้องลบ image_url ออกจาก values ทั้งหมดของ key นี้ก่อน
+		var hasImages bool
+		if err := tx.QueryRow(ctx, `
+            SELECT EXISTS (
+                SELECT 1 FROM product_option_values
+                WHERE option_key_id = $1 AND image_url IS NOT NULL
+            )
+        `, keyID).Scan(&hasImages); err != nil {
+			return OptionKey{}, apperr.Wrap(apperr.Internal, err, "check images failed")
+		}
+		if hasImages {
+			return OptionKey{}, apperr.New(apperr.BadRequest,
+				"remove all value images before disabling image key")
+		}
+	}
+
+	var k OptionKey
+	if err := tx.QueryRow(ctx, `
+        UPDATE product_option_keys
+        SET is_image_key = $2
+        WHERE option_key_id = $1
+        RETURNING option_key_id, product_id, key_name, sort_order, is_image_key
+    `, keyID, isImageKey).Scan(
+		&k.ID, &k.ProductID, &k.KeyName, &k.SortOrder, &k.IsImageKey,
+	); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return OptionKey{}, apperr.New(apperr.NotFound, "option key not found")
+		}
+		return OptionKey{}, apperr.Wrap(apperr.Internal, err, "set image key failed")
+	}
+	k.Values = []OptionValue{}
+
+	if err := tx.Commit(ctx); err != nil {
+		return OptionKey{}, apperr.Wrap(apperr.Internal, err, "commit tx failed")
+	}
+	return k, nil
+}
+
+// SetOptionValueImage — set หรือ clear image_url บน option value
+func (r *repo) SetOptionValueImage(ctx context.Context, valueID int64, imageURL *string) (OptionValue, error) {
+	// ตรวจว่า key ของ value นี้ is_image_key = true ก่อน
+	var isImageKey bool
+	if err := r.db.QueryRow(ctx, `
+        SELECT ok.is_image_key
+        FROM product_option_values ov
+        JOIN product_option_keys ok ON ok.option_key_id = ov.option_key_id
+        WHERE ov.option_value_id = $1
+    `, valueID).Scan(&isImageKey); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return OptionValue{}, apperr.New(apperr.NotFound, "option value not found")
+		}
+		return OptionValue{}, apperr.Wrap(apperr.Internal, err, "check image key failed")
+	}
+	if !isImageKey {
+		return OptionValue{}, apperr.New(apperr.BadRequest,
+			"this option key is not marked as image key, set is_image_key=true on the key first")
+	}
+
+	var v OptionValue
+	if err := r.db.QueryRow(ctx, `
+        UPDATE product_option_values
+        SET image_url = $2
+        WHERE option_value_id = $1
+        RETURNING option_value_id, option_key_id, value_label, sort_order, image_url
+    `, valueID, imageURL).Scan(
+		&v.ID, &v.OptionKeyID, &v.ValueLabel, &v.SortOrder, &v.ImageURL,
+	); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return OptionValue{}, apperr.New(apperr.NotFound, "option value not found")
+		}
+		return OptionValue{}, apperr.Wrap(apperr.Internal, err, "set option value image failed")
+	}
+	return v, nil
 }

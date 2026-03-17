@@ -292,3 +292,8 @@ CREATE INDEX IF NOT EXISTS idx_notifications_announcement
 DROP INDEX IF EXISTS idx_announcements_admin;
 CREATE INDEX IF NOT EXISTS idx_announcements_admin
   ON announcements(admin_id);
+
+DROP INDEX IF EXISTS uq_one_image_key_per_product;
+CREATE UNIQUE INDEX uq_one_image_key_per_product
+  ON product_option_keys (product_id)
+  WHERE is_image_key = TRUE;

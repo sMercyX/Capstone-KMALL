@@ -76,6 +76,8 @@ func (h *Handler) Register(r *gin.RouterGroup) {
 		{
 			productOwner.POST("/:id/images", h.createProductImage)
 			productOwner.POST("/:id/images/upload", h.uploadProductImage)
+
+			productOwner.POST("/:id/options/:keyId/values/:valueId/image/upload", h.uploadOptionValueImage)
 		}
 	}
 
@@ -729,4 +731,100 @@ func (h *Handler) deleteProductImage(c *gin.Context) {
 		return
 	}
 	respond.Deleted(c, apperr.Deleted, gin.H{"deleted": true})
+}
+func (h *Handler) uploadOptionValueImage(c *gin.Context) {
+	userID, ok := h.resolveCurrentUserID(c, false)
+	if !ok {
+		return
+	}
+
+	productID, ok := parsePathID(c, "id")
+	if !ok {
+		return
+	}
+	keyID, ok := parsePathID(c, "keyId")
+	if !ok {
+		return
+	}
+	valueID, ok := parsePathID(c, "valueId")
+	if !ok {
+		return
+	}
+
+	if !h.isProductOwnerOrAdmin(c, productID, userID) {
+		if len(c.Errors) == 0 {
+			respond.Error(c, http.StatusForbidden, "FORBIDDEN",
+				"only owner or admin can upload option value image", nil)
+		}
+		return
+	}
+
+	fileHeader, err := c.FormFile("file")
+	if err != nil {
+		c.Error(apperr.New(apperr.BadRequest, "file is required"))
+		return
+	}
+
+	// ===== ลบไฟล์เก่าถ้ามีอยู่ =====
+	keys, err := h.productSvc.ListOptionKeys(c.Request.Context(), productID)
+	if err == nil {
+		for _, k := range keys {
+			for _, v := range k.Values {
+				if int64(v.ID) == valueID && v.ImageURL != nil {
+					relPath := strings.TrimPrefix(*v.ImageURL, "/uploads/")
+					if relPath != "" {
+						_ = os.Remove(filepath.Join("uploads", relPath))
+					}
+				}
+			}
+		}
+	}
+
+	ext := strings.ToLower(filepath.Ext(fileHeader.Filename))
+	if ext == "" {
+		ext = ".jpg"
+	}
+
+	dir := filepath.Join(
+		"uploads",
+		"products", strconv.FormatInt(productID, 10),
+		"options", strconv.FormatInt(keyID, 10),
+		"values", strconv.FormatInt(valueID, 10),
+	)
+
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		c.Error(apperr.Wrap(apperr.Internal, err, "create upload dir failed"))
+		return
+	}
+
+	filename := fmt.Sprintf("%d%s", time.Now().UnixNano(), ext)
+	dstPath := filepath.Join(dir, filename)
+
+	if err := c.SaveUploadedFile(fileHeader, dstPath); err != nil {
+		c.Error(apperr.Wrap(apperr.Internal, err, "save file failed"))
+		return
+	}
+
+	relPath := filepath.ToSlash(filepath.Join(
+		"products", strconv.FormatInt(productID, 10),
+		"options", strconv.FormatInt(keyID, 10),
+		"values", strconv.FormatInt(valueID, 10),
+		filename,
+	))
+	imageURL := "/uploads/" + relPath
+
+	val, err := h.productSvc.SetOptionValueImage(
+		c.Request.Context(),
+		valueID,
+		productID,
+		userID,
+		&imageURL,
+	)
+	if err != nil {
+		_ = os.Remove(dstPath)
+		c.Error(err)
+		return
+	}
+
+	respond.Updated(c, apperr.Updated, val)
 }

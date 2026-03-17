@@ -42,9 +42,10 @@ type CreateVariantInput struct {
 }
 
 type CreateOptionKeyWithValuesInput struct {
-	KeyName   string
-	SortOrder int
-	Values    []string // value_labels
+	KeyName    string
+	SortOrder  int
+	Values     []string // value_labels
+	IsImageKey bool
 }
 
 // ReplaceVariantsConfigInput — ใช้กับ PUT /:id/variants-config
@@ -55,9 +56,10 @@ type ReplaceVariantsConfigInput struct {
 }
 
 type ReplaceOptionKeyInput struct {
-	KeyName   string   `json:"key_name"`
-	SortOrder int      `json:"sort_order"`
-	Values    []string `json:"values"` // value_labels
+	KeyName    string   `json:"key_name"`
+	SortOrder  int      `json:"sort_order"`
+	Values     []string `json:"values"` // value_labels
+	IsImageKey bool     `json:"is_image_key"`
 }
 
 type ReplaceVariantInput struct {
@@ -112,6 +114,10 @@ type Service interface {
 	ReplaceVariantsConfig(ctx context.Context, productID int64, userID string, in ReplaceVariantsConfigInput) (Product, error)
 
 	UpdateWithVariantsConfig(ctx context.Context, productID int64, userID string, in UpdateWithVariantsInput) (Product, error)
+
+	// เพิ่มใน Service interface
+	SetOptionKeyImageKey(ctx context.Context, keyID int64, productID int64, userID string, isImageKey bool) (OptionKey, error)
+	SetOptionValueImage(ctx context.Context, valueID int64, productID int64, userID string, imageURL *string) (OptionValue, error)
 }
 
 // ===== service struct =====
@@ -609,7 +615,7 @@ func (s *service) CreateOptionKey(ctx context.Context, productID int64, userID s
 		return OptionKey{}, apperr.New(apperr.BadRequest, "maximum 3 option keys per product")
 	}
 
-	return s.repo.CreateOptionKey(ctx, productID, keyName, sortOrder)
+	return s.repo.CreateOptionKey(ctx, productID, keyName, sortOrder, false)
 }
 
 func (s *service) ListOptionKeys(ctx context.Context, productID int64) ([]OptionKey, error) {
@@ -770,7 +776,7 @@ func (s *service) CreateWithOptions(ctx context.Context, in CreateInput, opts []
 	}
 
 	for _, opt := range opts {
-		key, err := s.CreateOptionKey(ctx, int64(p.ID), "", opt.KeyName, opt.SortOrder)
+		key, err := s.repo.CreateOptionKey(ctx, int64(p.ID), opt.KeyName, opt.SortOrder, opt.IsImageKey)
 		if err != nil {
 			return p, err
 		}
@@ -862,7 +868,7 @@ func (s *service) ReplaceVariantsConfig(ctx context.Context, productID int64, us
 	valueIDMap := make(map[string]map[string]int64, len(in.Options))
 
 	for i, opt := range in.Options {
-		key, err := s.repo.CreateOptionKey(ctx, productID, strings.TrimSpace(opt.KeyName), opt.SortOrder)
+		key, err := s.repo.CreateOptionKey(ctx, productID, strings.TrimSpace(opt.KeyName), opt.SortOrder, opt.IsImageKey)
 		if err != nil {
 			return Product{}, err
 		}
@@ -1003,6 +1009,33 @@ func (s *service) UpdateWithVariantsConfig(ctx context.Context, productID int64,
 		}
 	}
 
+	if up.IsActive != nil && strings.ToUpper(*up.IsActive) == "YES" && old.ProductType == "STOCK" {
+		if in.VariantsConfig == nil {
+			// ไม่ได้ส่ง variants_config มา → เช็คว่ามี active variant อยู่แล้ว
+			variants, err := s.repo.ListVariants(ctx, productID)
+			if err != nil {
+				return Product{}, err
+			}
+			hasActive := false
+			for _, v := range variants {
+				if v.IsActive {
+					hasActive = true
+					break
+				}
+			}
+			if !hasActive {
+				return Product{}, apperr.New(apperr.BadRequest,
+					"STOCK product must have at least 1 active variant before activation")
+			}
+		} else {
+			// ส่ง variants_config มาด้วย → เช็คว่ามี variant อย่างน้อย 1 ตัว
+			if len(in.VariantsConfig.Variants) == 0 {
+				return Product{}, apperr.New(apperr.BadRequest,
+					"STOCK product must have at least 1 variant before activation")
+			}
+		}
+	}
+
 	// re-embed ถ้าจำเป็น
 	newName := old.Name
 	if up.Name != nil {
@@ -1068,4 +1101,31 @@ func (s *service) UpdateWithVariantsConfig(ctx context.Context, productID int64,
 		EmbDesc:     embDescPtr,
 		EmbCategory: embCatPtr,
 	}, in.VariantsConfig)
+}
+
+func (s *service) SetOptionKeyImageKey(ctx context.Context, keyID int64, productID int64, userID string, isImageKey bool) (OptionKey, error) {
+	if keyID <= 0 {
+		return OptionKey{}, apperr.New(apperr.BadRequest, "invalid key_id")
+	}
+	// ownership check ทำที่ handler อยู่แล้ว
+	return s.repo.SetOptionKeyImageKey(ctx, keyID, isImageKey)
+}
+
+func (s *service) SetOptionValueImage(ctx context.Context, valueID int64, productID int64, userID string, imageURL *string) (OptionValue, error) {
+	if valueID <= 0 {
+		return OptionValue{}, apperr.New(apperr.BadRequest, "invalid value_id")
+	}
+	if imageURL != nil {
+		u := strings.TrimSpace(*imageURL)
+		if u != "" {
+			if len(u) > 255 {
+				return OptionValue{}, apperr.New(apperr.BadRequest, "image_url must be at most 255 characters")
+			}
+		}
+		imageURL = &u
+		if *imageURL == "" {
+			imageURL = nil // treat empty string as clear
+		}
+	}
+	return s.repo.SetOptionValueImage(ctx, valueID, imageURL)
 }

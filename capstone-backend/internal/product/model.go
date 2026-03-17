@@ -31,24 +31,27 @@ type Product struct {
 	EmbeddingDesc     []float64 `db:"embedding_desc"     json:"-"`
 	EmbeddingCategory []float64 `db:"embedding_category" json:"-"`
 
-	TotalStock *int64 `db:"-" json:"total_stock,omitempty"`
+	TotalStock   *int64 `db:"-" json:"total_stock,omitempty"`
+	VariantCount *int   `db:"-" json:"variant_count,omitempty"`
 }
 
 // ===== Option Keys & Values =====
 
 type OptionKey struct {
-	ID        int           `db:"option_key_id" json:"id"`
-	ProductID int           `db:"product_id"    json:"product_id"`
-	KeyName   string        `db:"key_name"      json:"key_name"`
-	SortOrder int           `db:"sort_order"    json:"sort_order"`
-	Values    []OptionValue `db:"-"           json:"values"`
+	ID         int           `db:"option_key_id" json:"id"`
+	ProductID  int           `db:"product_id"    json:"product_id"`
+	KeyName    string        `db:"key_name"      json:"key_name"`
+	SortOrder  int           `db:"sort_order"    json:"sort_order"`
+	IsImageKey bool          `db:"is_image_key"   json:"is_image_key"`
+	Values     []OptionValue `db:"-"           json:"values"`
 }
 
 type OptionValue struct {
-	ID          int    `db:"option_value_id" json:"id"`
-	OptionKeyID int    `db:"option_key_id"   json:"option_key_id"`
-	ValueLabel  string `db:"value_label"     json:"value_label"`
-	SortOrder   int    `db:"sort_order"      json:"sort_order"`
+	ID          int     `db:"option_value_id" json:"id"`
+	OptionKeyID int     `db:"option_key_id"   json:"option_key_id"`
+	ValueLabel  string  `db:"value_label"     json:"value_label"`
+	SortOrder   int     `db:"sort_order"      json:"sort_order"`
+	ImageURL    *string `db:"image_url"       json:"image_url,omitempty"`
 }
 
 // ===== Variants =====

@@ -140,6 +140,7 @@ CREATE TABLE IF NOT EXISTS product_option_keys (
   product_id    INT         NOT NULL,
   key_name      VARCHAR(50) NOT NULL,
   sort_order    INT         NOT NULL DEFAULT 1,
+  is_image_key  BOOLEAN     NOT NULL DEFAULT FALSE,
 
   CONSTRAINT fk_option_keys_product FOREIGN KEY (product_id)
     REFERENCES products (product_id)
@@ -157,6 +158,7 @@ CREATE TABLE IF NOT EXISTS product_option_values (
   option_key_id   INT          NOT NULL,
   value_label     VARCHAR(100) NOT NULL,
   sort_order      INT          NOT NULL DEFAULT 1,
+  image_url       VARCHAR(255) NULL,
 
   CONSTRAINT fk_option_values_key FOREIGN KEY (option_key_id)
     REFERENCES product_option_keys (option_key_id)
