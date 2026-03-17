@@ -63,6 +63,8 @@ type Service interface {
 	DeleteCategory(ctx context.Context, id int64, moveToSubID int64) error
 
 	UpsertCategoryTreeFull(ctx context.Context, in UpsertCategoryTreeInput) (Category, []Category, error)
+
+	GetBySlug(ctx context.Context, slug string) (Category, error)
 }
 
 type service struct {
@@ -578,4 +580,8 @@ func (s *service) UpsertCategoryTreeFull(ctx context.Context, in UpsertCategoryT
 	}
 
 	return s.repo.UpsertMainAndLinkSubsFull(ctx, mainParam, subParams)
+}
+
+func (s *service) GetBySlug(ctx context.Context, slug string) (Category, error) {
+	return s.repo.GetBySlug(ctx, slug)
 }

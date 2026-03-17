@@ -143,22 +143,6 @@ func parseBoolQuery(value string, def bool) bool {
 	}
 }
 
-func parseParentIDQuery(c *gin.Context) *int64 {
-	val := strings.TrimSpace(c.Query("parent_id"))
-	if val == "" {
-		return nil
-	}
-	if val == "null" {
-		x := int64(0)
-		return &x
-	}
-	id, err := strconv.ParseInt(val, 10, 64)
-	if err != nil {
-		return nil
-	}
-	return &id
-}
-
 // ===== Handlers =====
 
 // POST /api/categories (Admin)
@@ -332,7 +316,12 @@ func (h *Handler) delete(c *gin.Context) {
 //   - ?active_only=true (default = true ใน public)
 func (h *Handler) listPublic(c *gin.Context) {
 	q := strings.TrimSpace(c.Query("q"))
-	parentID := parseParentIDQuery(c)
+
+	parentID, err := h.resolveParentID(c)
+	if err != nil {
+		c.Error(err)
+		return
+	}
 
 	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "50"))
 	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
@@ -388,7 +377,12 @@ func (h *Handler) getPublic(c *gin.Context) {
 // ?q=&parent_id=&is_active=&page=&limit=
 func (h *Handler) listAdmin(c *gin.Context) {
 	q := strings.TrimSpace(c.Query("q"))
-	parentID := parseParentIDQuery(c)
+
+	parentID, err := h.resolveParentID(c)
+	if err != nil {
+		c.Error(err)
+		return
+	}
 
 	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "50"))
 	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
@@ -459,4 +453,26 @@ func (h *Handler) uploadIcon(c *gin.Context) {
 	respond.Created(c, apperr.Created, gin.H{
 		"icon_url": up.URL,
 	})
+}
+
+func (h *Handler) resolveParentID(c *gin.Context) (*int64, error) {
+	val := strings.TrimSpace(c.Query("parent_id"))
+	if val == "" {
+		return nil, nil
+	}
+	if val == "null" {
+		x := int64(0)
+		return &x, nil
+	}
+	// ถ้าเป็นตัวเลข → ใช้ตรงๆ
+	if id, err := strconv.ParseInt(val, 10, 64); err == nil {
+		return &id, nil
+	}
+	// ถ้าเป็น slug → lookup
+	cat, err := h.svc.GetBySlug(c.Request.Context(), val)
+	if err != nil {
+		return nil, apperr.New(apperr.NotFound, "parent category not found")
+	}
+	id64 := int64(cat.ID)
+	return &id64, nil
 }

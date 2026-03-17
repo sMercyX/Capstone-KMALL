@@ -34,6 +34,7 @@ type Repo interface {
 	DeleteSubAndMoveProducts(ctx context.Context, subID, moveToSubID int64) (int64, error)
 
 	UpsertMainAndLinkSubsFull(ctx context.Context, main UpsertMainParams, subs []UpsertNodeParams) (Category, []Category, error)
+	GetBySlug(ctx context.Context, slug string) (Category, error)
 }
 
 type repo struct{ db *pgxpool.Pool }
@@ -916,4 +917,24 @@ func (r *repo) UpsertMainAndLinkSubsFull(
 	}
 
 	return createdMain, createdSubs, nil
+}
+
+func (r *repo) GetBySlug(ctx context.Context, slug string) (Category, error) {
+	var c Category
+	err := r.db.QueryRow(ctx, `
+        SELECT category_id, name, slug, parent_id, sort_order, is_active,
+               icon_url, created_at, updated_at
+        FROM categories
+        WHERE slug = $1
+    `, strings.TrimSpace(slug)).Scan(
+		&c.ID, &c.Name, &c.Slug, &c.ParentID, &c.SortOrder, &c.IsActive,
+		&c.IconURL, &c.CreatedAt, &c.UpdatedAt,
+	)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return Category{}, apperr.New(apperr.NotFound, "category not found")
+		}
+		return Category{}, apperr.Wrap(apperr.Internal, err, "get category by slug failed")
+	}
+	return c, nil
 }
