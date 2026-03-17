@@ -8,14 +8,22 @@ import (
 	"github.com/gin-gonic/gin"
 
 	apperr "github.com/Perpasit/Capstone-KMALL/internal/apperr"
+	"github.com/Perpasit/Capstone-KMALL/internal/middleware"
 )
 
 type Handler struct {
-	svc Service
+	svc     Service
+	roleSvc middleware.RoleNameLister
 }
 
-func NewHandler(svc Service) *Handler {
-	return &Handler{svc: svc}
+type createAnnouncementRequest struct {
+	Title       string   `json:"title"`
+	Body        string   `json:"body"`
+	TargetRoles []string `json:"target_roles"`
+}
+
+func NewHandler(svc Service, roleSvc middleware.RoleNameLister) *Handler {
+	return &Handler{svc: svc, roleSvc: roleSvc}
 }
 
 func (h *Handler) Register(rg *gin.RouterGroup) {
@@ -28,6 +36,13 @@ func (h *Handler) Register(rg *gin.RouterGroup) {
 
 		g.DELETE("/:id", h.deleteOne)
 		g.DELETE("", h.deleteAll)
+	}
+
+	admin := rg.Group("/admin/notifications",
+		middleware.RequireRolesAny(h.roleSvc, "Admin"),
+	)
+	{
+		admin.POST("/announcements", h.createAnnouncement)
 	}
 }
 
@@ -85,8 +100,15 @@ func (h *Handler) list(c *gin.Context) {
 	}
 
 	// type (single)
-	if v := strings.TrimSpace(c.Query("type")); v != "" {
-		types = append(types, strings.TrimSpace(v))
+	// if v := strings.TrimSpace(c.Query("type")); v != "" {
+	// 	types = append(types, strings.TrimSpace(v))
+	// }
+
+	for _, t := range c.QueryArray("type") {
+		t = strings.TrimSpace(t)
+		if t != "" {
+			types = append(types, t)
+		}
 	}
 
 	// types (csv)
@@ -238,9 +260,34 @@ func (h *Handler) deleteAll(c *gin.Context) {
 	})
 }
 
-// ============================================================================
-// Helpers (adjust to your auth middleware)
-// ============================================================================
+func (h *Handler) createAnnouncement(c *gin.Context) {
+	adminID := strings.TrimSpace(getActorUserID(c))
+	if adminID == "" {
+		c.Error(apperr.New(apperr.Unauthorized, "missing user context"))
+		return
+	}
+
+	var req createAnnouncementRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.Error(apperr.New(apperr.BadRequest, "invalid request body"))
+		return
+	}
+
+	ann, err := h.svc.CreateAnnouncement(c.Request.Context(), CreateAnnouncementInput{
+		AdminID:     adminID,
+		Title:       req.Title,
+		Body:        req.Body,
+		TargetRoles: req.TargetRoles,
+	})
+	if err != nil {
+		c.Error(err)
+		return
+	}
+
+	c.JSON(http.StatusCreated, gin.H{
+		"announcement": ann,
+	})
+}
 
 // getActorUserID tries to read user id from gin context.
 // Adjust key names to match your project.

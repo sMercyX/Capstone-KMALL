@@ -282,7 +282,7 @@ func Attach(r *gin.Engine, db *pgxpool.Pool, cfg config.Config) {
 	recHdl.Register(v1)
 
 	// notification
-	notiHdl := notification.NewHandler(notiSvc)
+	notiHdl := notification.NewHandler(notiSvc, rSvc)
 	notiHdl.Register(v1)
 
 	// report

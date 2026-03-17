@@ -283,3 +283,12 @@ CREATE INDEX IF NOT EXISTS idx_notifications_user_created
 DROP INDEX IF EXISTS idx_notifications_user_created;
 CREATE INDEX IF NOT EXISTS idx_notifications_user_unread
   ON notifications (user_id, is_read);
+
+DROP INDEX IF EXISTS idx_notifications_announcement;
+CREATE INDEX IF NOT EXISTS idx_notifications_announcement
+  ON notifications(announcement_id)
+  WHERE announcement_id IS NOT NULL;
+
+DROP INDEX IF EXISTS idx_announcements_admin;
+CREATE INDEX IF NOT EXISTS idx_announcements_admin
+  ON announcements(admin_id);

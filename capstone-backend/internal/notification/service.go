@@ -2,6 +2,7 @@ package notification
 
 import (
 	"context"
+	"log"
 	"strings"
 
 	apperr "github.com/Perpasit/Capstone-KMALL/internal/apperr"
@@ -89,6 +90,8 @@ type Service interface {
 	UpdateNotification(ctx context.Context, in UpdateNotificationInput) (Notification, error)
 
 	CreateAdminAction(ctx context.Context, in CreateAdminActionNotificationInput) (Notification, error)
+
+	CreateAnnouncement(ctx context.Context, in CreateAnnouncementInput) (Announcement, error)
 }
 
 type service struct {
@@ -482,4 +485,61 @@ func (s *service) CreateAdminAction(ctx context.Context, in CreateAdminActionNot
 
 	s.broadcastNotification(n.UserID, n)
 	return n, nil
+}
+
+func (s *service) CreateAnnouncement(ctx context.Context, in CreateAnnouncementInput) (Announcement, error) {
+	in.AdminID = strings.TrimSpace(in.AdminID)
+	in.Title = strings.TrimSpace(in.Title)
+	in.Body = strings.TrimSpace(in.Body)
+
+	if in.AdminID == "" {
+		return Announcement{}, apperr.New(apperr.BadRequest, "invalid admin_id")
+	}
+	if in.Title == "" {
+		return Announcement{}, apperr.New(apperr.BadRequest, "title is required")
+	}
+	if in.Body == "" {
+		return Announcement{}, apperr.New(apperr.BadRequest, "body is required")
+	}
+	if len(in.TargetRoles) == 0 {
+		return Announcement{}, apperr.New(apperr.BadRequest, "at least one target_role is required")
+	}
+
+	seen := make(map[string]struct{}, len(in.TargetRoles))
+	clean := in.TargetRoles[:0]
+	for _, r := range in.TargetRoles {
+		r = strings.ToUpper(strings.TrimSpace(r))
+		if r == "" {
+			continue
+		}
+		if _, ok := seen[r]; !ok {
+			seen[r] = struct{}{}
+			clean = append(clean, r)
+		}
+	}
+	in.TargetRoles = clean
+	if len(in.TargetRoles) == 0 {
+		return Announcement{}, apperr.New(apperr.BadRequest, "target_roles contains no valid values")
+	}
+
+	ann, err := s.repo.CreateAnnouncement(ctx, in)
+	if err != nil {
+		return Announcement{}, err
+	}
+
+	log.Printf("[ANNOUNCEMENT] created id=%d adminID=%s roles=%v", ann.ID, in.AdminID, in.TargetRoles)
+
+	_, err = s.repo.FanOutAnnouncement(ctx, ann.ID, in.AdminID, in.Title, in.Body, in.TargetRoles)
+	if err != nil {
+		return ann, err
+	}
+
+	if s.hub != nil {
+		s.hub.BroadcastToRoom("announcements", map[string]interface{}{
+			"type": "ANNOUNCEMENT",
+			"data": ann,
+		})
+	}
+
+	return ann, nil
 }

@@ -34,6 +34,9 @@ type Repo interface {
 	CountUnread(ctx context.Context, userID string) (int64, error)
 
 	UpdateNotification(ctx context.Context, in UpdateNotificationInput) (Notification, error)
+
+	CreateAnnouncement(ctx context.Context, in CreateAnnouncementInput) (Announcement, error)
+	FanOutAnnouncement(ctx context.Context, announcementID int64, adminID string, title, body string, targetRoles []string) (int64, error)
 }
 
 type repo struct {
@@ -604,6 +607,92 @@ WHERE user_id = $1
 	tag, err := r.db.Exec(ctx, q, args...)
 	if err != nil {
 		return 0, apperr.Wrap(apperr.Internal, err, "mark read by order failed")
+	}
+	return tag.RowsAffected(), nil
+}
+
+func (r *repo) CreateAnnouncement(ctx context.Context, in CreateAnnouncementInput) (Announcement, error) {
+	rolesJSON, err := json.Marshal(in.TargetRoles)
+	if err != nil {
+		return Announcement{}, apperr.Wrap(apperr.BadRequest, err, "invalid target_roles")
+	}
+
+	var a Announcement
+	err = r.db.QueryRow(ctx, `
+WITH ins AS (
+  INSERT INTO announcements (admin_id, title, body, target_roles)
+  VALUES ($1, $2, $3, $4::jsonb)
+  RETURNING *
+)
+SELECT
+  ins.announcement_id,
+  ins.admin_id,
+  u.display_name,
+  ins.title,
+  ins.body,
+  ins.target_roles,
+  ins.created_at,
+  ins.updated_at
+FROM ins
+JOIN users u ON u.user_id = ins.admin_id
+`, in.AdminID, in.Title, in.Body, rolesJSON).Scan(
+		&a.ID,
+		&a.AdminID,
+		&a.AdminName,
+		&a.Title,
+		&a.Body,
+		&rolesJSON,
+		&a.CreatedAt,
+		&a.UpdatedAt,
+	)
+	if err != nil {
+		return Announcement{}, apperr.Wrap(apperr.Internal, err, "create announcement failed")
+	}
+	if e := json.Unmarshal(rolesJSON, &a.TargetRoles); e != nil {
+		return Announcement{}, apperr.Wrap(apperr.Internal, e, "decode target_roles failed")
+	}
+	return a, nil
+}
+
+func (r *repo) FanOutAnnouncement(
+	ctx context.Context,
+	announcementID int64,
+	adminID string,
+	title, body string,
+	targetRoles []string,
+) (int64, error) {
+
+	lowerRoles := make([]string, len(targetRoles))
+	for i, role := range targetRoles {
+		lowerRoles[i] = strings.ToLower(role)
+	}
+
+	tag, err := r.db.Exec(ctx, `
+INSERT INTO notifications (
+  user_id, type, announcement_id,
+  actor_user_id,
+  title, body,
+  is_read, created_at, updated_at
+)
+SELECT
+  ur.user_id,
+  'ANNOUNCEMENT',
+  $1,
+  $2::uuid,
+  $3,
+  $4,
+  FALSE,
+  NOW(),
+  NOW()
+FROM user_roles ur
+JOIN roles r ON r.role_id = ur.role_id
+WHERE LOWER(r.role_name) = ANY($5::text[])
+GROUP BY ur.user_id
+HAVING ur.user_id <> $2::uuid
+ON CONFLICT DO NOTHING
+`, announcementID, adminID, title, body, lowerRoles)
+	if err != nil {
+		return 0, apperr.Wrap(apperr.Internal, err, "fan-out announcement failed")
 	}
 	return tag.RowsAffected(), nil
 }
