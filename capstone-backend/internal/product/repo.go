@@ -55,6 +55,8 @@ type Repo interface {
 	DeleteVariant(ctx context.Context, variantID int64) error
 	DeleteAllVariantsByProductID(ctx context.Context, productID int64) error
 	DeductStock(ctx context.Context, variantID int64, qty int) error
+
+	UpdateWithVariantsConfig(ctx context.Context, id int64, in UpdateParams, variants *ReplaceVariantsConfigInput) (Product, error)
 }
 
 // ===== Params =====
@@ -1302,4 +1304,361 @@ func (r *repo) DeductStock(ctx context.Context, variantID int64, qty int) error 
 		return apperr.New(apperr.BadRequest, "insufficient stock")
 	}
 	return nil
+}
+
+func (r *repo) UpdateWithVariantsConfig(ctx context.Context, id int64, in UpdateParams, variants *ReplaceVariantsConfigInput) (Product, error) {
+	tx, err := r.db.Begin(ctx)
+	if err != nil {
+		return Product{}, apperr.Wrap(apperr.Internal, err, "begin tx failed")
+	}
+	defer tx.Rollback(ctx)
+
+	// ===== 1) check duplicate product name =====
+	if in.Name != nil {
+		var exists bool
+		if err := tx.QueryRow(ctx, `
+			SELECT EXISTS(
+				SELECT 1
+				FROM products
+				WHERE name = $1
+				  AND product_id <> $2
+			)
+		`, *in.Name, id).Scan(&exists); err != nil {
+			return Product{}, apperr.Wrap(apperr.Internal, err, "check product name failed")
+		}
+		if exists {
+			return Product{}, apperr.New(apperr.BadRequest, "product name already exists")
+		}
+	}
+
+	// ===== 2) prepare embedding args =====
+	var embNameArg any
+	var embDescArg any
+	var embCatArg any
+
+	if in.EmbName != nil {
+		v, err := toVecArg(*in.EmbName)
+		if err != nil {
+			return Product{}, apperr.Wrap(apperr.Internal, err, "format embedding_name failed")
+		}
+		embNameArg = v
+	}
+	if in.EmbDesc != nil {
+		v, err := toVecArg(*in.EmbDesc)
+		if err != nil {
+			return Product{}, apperr.Wrap(apperr.Internal, err, "format embedding_desc failed")
+		}
+		embDescArg = v
+	}
+	if in.EmbCategory != nil {
+		v, err := toVecArg(*in.EmbCategory)
+		if err != nil {
+			return Product{}, apperr.Wrap(apperr.Internal, err, "format embedding_category failed")
+		}
+		embCatArg = v
+	}
+
+	// ===== 3) update product =====
+	var p Product
+	err = tx.QueryRow(ctx, `
+		UPDATE products
+		SET name         = COALESCE($2,  name),
+			product_desc = COALESCE($3,  product_desc),
+			price        = COALESCE($4,  price),
+			image_url    = COALESCE($5,  image_url),
+			is_active    = COALESCE($6,  is_active),
+			category_id  = COALESCE($7,  category_id),
+
+			embedding_name     = COALESCE($8::vector,  embedding_name),
+			embedding_desc     = COALESCE($9::vector,  embedding_desc),
+			embedding_category = COALESCE($10::vector, embedding_category),
+
+			updated_at = NOW()
+		WHERE product_id = $1
+		RETURNING product_id, product_type
+	`,
+		id,
+		in.Name, in.Description, in.Price, in.ImageURL, in.IsActive, in.CategoryID,
+		embNameArg, embDescArg, embCatArg,
+	).Scan(&p.ID, &p.ProductType)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return Product{}, apperr.New(apperr.NotFound, "product not found")
+		}
+		return Product{}, apperr.Wrap(apperr.Internal, err, "update product failed")
+	}
+
+	// ===== 4) replace variants config if provided =====
+	if variants != nil {
+		if strings.ToUpper(strings.TrimSpace(p.ProductType)) != "STOCK" {
+			return Product{}, apperr.New(apperr.BadRequest, "variants config is only available for STOCK products")
+		}
+
+		// 4.1 delete old variants first
+		if _, err := tx.Exec(ctx, `
+			DELETE FROM product_variants
+			WHERE product_id = $1
+		`, id); err != nil {
+			return Product{}, apperr.Wrap(apperr.Internal, err, "delete all variants failed")
+		}
+
+		// 4.2 delete old option keys (cascade delete values)
+		if _, err := tx.Exec(ctx, `
+			DELETE FROM product_option_keys
+			WHERE product_id = $1
+		`, id); err != nil {
+			return Product{}, apperr.Wrap(apperr.Internal, err, "delete all option keys failed")
+		}
+
+		// 4.3 recreate option keys + values
+		valueIDMap := make(map[string]map[string]int64, len(variants.Options))
+
+		for _, opt := range variants.Options {
+			keyName := strings.TrimSpace(opt.KeyName)
+
+			var keyID int64
+			if err := tx.QueryRow(ctx, `
+				INSERT INTO product_option_keys (product_id, key_name, sort_order)
+				VALUES ($1, $2, $3)
+				RETURNING option_key_id
+			`, id, keyName, opt.SortOrder).Scan(&keyID); err != nil {
+				var pgErr *pgconn.PgError
+				if errors.As(err, &pgErr) && pgErr.Code == "23505" {
+					return Product{}, apperr.New(apperr.BadRequest, "option key already exists")
+				}
+				return Product{}, apperr.Wrap(apperr.Internal, err, "create option key failed")
+			}
+
+			valueIDMap[keyName] = make(map[string]int64, len(opt.Values))
+
+			for j, rawLabel := range opt.Values {
+				label := strings.TrimSpace(rawLabel)
+
+				var valueID int64
+				if err := tx.QueryRow(ctx, `
+					INSERT INTO product_option_values (option_key_id, value_label, sort_order)
+					VALUES ($1, $2, $3)
+					RETURNING option_value_id
+				`, keyID, label, j+1).Scan(&valueID); err != nil {
+					var pgErr *pgconn.PgError
+					if errors.As(err, &pgErr) && pgErr.Code == "23505" {
+						return Product{}, apperr.New(apperr.BadRequest, "option value already exists")
+					}
+					return Product{}, apperr.Wrap(apperr.Internal, err, "create option value failed")
+				}
+
+				valueIDMap[keyName][label] = valueID
+			}
+		}
+
+		// 4.4 recreate variants
+		for i, v := range variants.Variants {
+			var variantID int64
+
+			err := tx.QueryRow(ctx, `
+				INSERT INTO product_variants (product_id, sku, price_delta, stock_qty)
+				VALUES ($1, $2, $3, $4)
+				RETURNING variant_id
+			`, id, nil, v.PriceDelta, v.StockQty).Scan(&variantID)
+			if err != nil {
+				var pgErr *pgconn.PgError
+				if errors.As(err, &pgErr) && pgErr.Code == "23505" {
+					return Product{}, apperr.New(apperr.BadRequest, "variant sku already exists")
+				}
+				return Product{}, apperr.Wrap(apperr.Internal, err, "create variant failed")
+			}
+
+			for j, rawLabel := range v.OptionValueLabels {
+				keyName := strings.TrimSpace(variants.Options[j].KeyName)
+				label := strings.TrimSpace(rawLabel)
+
+				valueID, ok := valueIDMap[keyName][label]
+				if !ok {
+					return Product{}, apperr.New(
+						apperr.Internal,
+						"variant["+strconv.Itoa(i)+"]: could not resolve option value id",
+					)
+				}
+
+				if _, err := tx.Exec(ctx, `
+					INSERT INTO variant_option_selections (variant_id, option_value_id)
+					VALUES ($1, $2)
+				`, variantID, valueID); err != nil {
+					return Product{}, apperr.Wrap(apperr.Internal, err, "insert variant selection failed")
+				}
+			}
+		}
+	}
+
+	// ===== 5) fetch product after update =====
+	err = tx.QueryRow(ctx, `
+		SELECT
+			p.product_id, p.name, p.product_desc, p.price, p.image_url,
+			p.product_type, p.created_at, p.updated_at, p.is_active,
+			p.store_id, p.category_id,
+			s.store_name,
+			c.name AS category_name,
+			0 AS sold_count
+		FROM products p
+		JOIN stores     s ON s.store_id    = p.store_id
+		JOIN categories c ON c.category_id = p.category_id
+		WHERE p.product_id = $1
+	`, p.ID).Scan(
+		&p.ID, &p.Name, &p.Description, &p.Price, &p.ImageURL,
+		&p.ProductType, &p.CreatedAt, &p.UpdatedAt, &p.IsActive,
+		&p.StoreID, &p.CategoryID,
+		&p.StoreName, &p.CategoryName, &p.SoldCount,
+	)
+	if err != nil {
+		return Product{}, apperr.Wrap(apperr.Internal, err, "fetch product after update failed")
+	}
+
+	// ===== 6) fetch options =====
+	if strings.ToUpper(strings.TrimSpace(p.ProductType)) == "STOCK" {
+		keyRows, err := tx.Query(ctx, `
+			SELECT option_key_id, product_id, key_name, sort_order
+			FROM product_option_keys
+			WHERE product_id = $1
+			ORDER BY sort_order, option_key_id
+		`, p.ID)
+		if err != nil {
+			return Product{}, apperr.Wrap(apperr.Internal, err, "list option keys failed")
+		}
+
+		keys := make([]OptionKey, 0)
+		keyIndexByID := make(map[int]int)
+
+		for keyRows.Next() {
+			var k OptionKey
+			if err := keyRows.Scan(&k.ID, &k.ProductID, &k.KeyName, &k.SortOrder); err != nil {
+				keyRows.Close()
+				return Product{}, apperr.Wrap(apperr.Internal, err, "scan option key failed")
+			}
+			k.Values = []OptionValue{}
+			keyIndexByID[k.ID] = len(keys)
+			keys = append(keys, k)
+		}
+		if err := keyRows.Err(); err != nil {
+			keyRows.Close()
+			return Product{}, apperr.Wrap(apperr.Internal, err, "rows error")
+		}
+		keyRows.Close()
+
+		// query values หลังจากปิด keyRows แล้ว
+		valRows, err := tx.Query(ctx, `
+			SELECT
+				ov.option_value_id,
+				ov.option_key_id,
+				ov.value_label,
+				ov.sort_order
+			FROM product_option_values ov
+			JOIN product_option_keys ok ON ok.option_key_id = ov.option_key_id
+			WHERE ok.product_id = $1
+			ORDER BY ok.sort_order, ov.sort_order, ov.option_value_id
+		`, p.ID)
+		if err != nil {
+			return Product{}, apperr.Wrap(apperr.Internal, err, "list option values failed")
+		}
+
+		for valRows.Next() {
+			var ov OptionValue
+			if err := valRows.Scan(&ov.ID, &ov.OptionKeyID, &ov.ValueLabel, &ov.SortOrder); err != nil {
+				valRows.Close()
+				return Product{}, apperr.Wrap(apperr.Internal, err, "scan option value failed")
+			}
+
+			idx, ok := keyIndexByID[ov.OptionKeyID]
+			if ok {
+				keys[idx].Values = append(keys[idx].Values, ov)
+			}
+		}
+		if err := valRows.Err(); err != nil {
+			valRows.Close()
+			return Product{}, apperr.Wrap(apperr.Internal, err, "rows error")
+		}
+		valRows.Close()
+
+		p.Options = keys
+
+		// ===== 7) fetch variants =====
+		rows, err := tx.Query(ctx, `
+			SELECT
+				v.variant_id, v.product_id, v.sku, v.price_delta,
+				v.stock_qty, v.is_active, v.created_at, v.updated_at,
+				ok.key_name, ov.value_label
+			FROM product_variants v
+			JOIN variant_option_selections vos ON vos.variant_id     = v.variant_id
+			JOIN product_option_values     ov  ON ov.option_value_id = vos.option_value_id
+			JOIN product_option_keys       ok  ON ok.option_key_id   = ov.option_key_id
+			WHERE v.product_id = $1
+			ORDER BY v.variant_id, ok.sort_order
+		`, p.ID)
+		if err != nil {
+			return Product{}, apperr.Wrap(apperr.Internal, err, "list variants failed")
+		}
+		defer rows.Close()
+
+		variantMap := make(map[int]*Variant)
+		variantOrder := make([]int, 0)
+
+		for rows.Next() {
+			var (
+				vID        int
+				pID        int
+				sku        *string
+				priceDelta float64
+				stockQty   int
+				isActive   bool
+				createdAt  time.Time
+				updatedAt  time.Time
+				keyName    string
+				valueLabel string
+			)
+			if err := rows.Scan(
+				&vID, &pID, &sku, &priceDelta, &stockQty, &isActive,
+				&createdAt, &updatedAt, &keyName, &valueLabel,
+			); err != nil {
+				return Product{}, apperr.Wrap(apperr.Internal, err, "scan variant row failed")
+			}
+
+			if _, ok := variantMap[vID]; !ok {
+				variantMap[vID] = &Variant{
+					ID:         vID,
+					ProductID:  pID,
+					SKU:        sku,
+					PriceDelta: priceDelta,
+					StockQty:   stockQty,
+					IsActive:   isActive,
+					CreatedAt:  createdAt,
+					UpdatedAt:  updatedAt,
+					Selections: make([]VariantSelection, 0),
+				}
+				variantOrder = append(variantOrder, vID)
+			}
+
+			variantMap[vID].Selections = append(variantMap[vID].Selections, VariantSelection{
+				KeyName:    keyName,
+				ValueLabel: valueLabel,
+			})
+		}
+		if err := rows.Err(); err != nil {
+			return Product{}, apperr.Wrap(apperr.Internal, err, "rows error")
+		}
+
+		p.Variants = make([]Variant, 0, len(variantOrder))
+		var total int64
+		for _, vid := range variantOrder {
+			v := *variantMap[vid]
+			v.FinalPrice = p.Price + v.PriceDelta
+			total += int64(v.StockQty)
+			p.Variants = append(p.Variants, v)
+		}
+		p.TotalStock = &total
+	}
+	// ===== 8) commit =====
+	if err := tx.Commit(ctx); err != nil {
+		return Product{}, apperr.Wrap(apperr.Internal, err, "commit tx failed")
+	}
+
+	return p, nil
 }

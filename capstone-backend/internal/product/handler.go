@@ -93,6 +93,8 @@ type updateReq struct {
 	IsActive    *string  `json:"is_active"`
 	CategoryID  *int     `json:"category_id"`
 	ProductType *string  `json:"product_type"`
+
+	VariantsConfig *replaceVariantsConfigReq `json:"variants_config"`
 }
 
 type createOptionKeyReq struct {
@@ -146,6 +148,19 @@ type replaceVariantReq struct {
 	OptionValueLabels []string `json:"option_value_labels" binding:"required"`
 	PriceDelta        float64  `json:"price_delta"`
 	StockQty          int      `json:"stock_qty"`
+}
+
+type UpdateWithVariantsInput struct {
+	Name        *string  `json:"name,omitempty"`
+	Description *string  `json:"description,omitempty"`
+	Price       *float64 `json:"price,omitempty"`
+	ImageURL    *string  `json:"image_url,omitempty"`
+	IsActive    *string  `json:"is_active,omitempty"`
+	CategoryID  *int     `json:"category_id,omitempty"`
+
+	// nil = ไม่แตะ variants config
+	// non-nil = replace ทั้งชุด
+	VariantsConfig *ReplaceVariantsConfigInput `json:"variants_config,omitempty"`
 }
 
 // ===== Helpers =====
@@ -386,7 +401,7 @@ func (h *Handler) get(c *gin.Context) {
 }
 
 func (h *Handler) update(c *gin.Context) {
-	p, _, ok := h.resolveProductOwner(c)
+	p, userID, ok := h.resolveProductOwner(c)
 	if !ok {
 		return
 	}
@@ -402,18 +417,43 @@ func (h *Handler) update(c *gin.Context) {
 		return
 	}
 
-	up, err := h.svc.Update(c.Request.Context(), int64(p.ID), UpdateInput{
-		Name:        in.Name,
-		Description: in.Description,
-		Price:       in.Price,
-		ImageURL:    in.ImageURL,
-		IsActive:    in.IsActive,
-		CategoryID:  in.CategoryID,
+	var variantsConfig *ReplaceVariantsConfigInput
+	if in.VariantsConfig != nil {
+		vc := &ReplaceVariantsConfigInput{
+			Options:  make([]ReplaceOptionKeyInput, 0, len(in.VariantsConfig.Options)),
+			Variants: make([]ReplaceVariantInput, 0, len(in.VariantsConfig.Variants)),
+		}
+		for _, o := range in.VariantsConfig.Options {
+			vc.Options = append(vc.Options, ReplaceOptionKeyInput{
+				KeyName:   o.KeyName,
+				SortOrder: o.SortOrder,
+				Values:    o.Values,
+			})
+		}
+		for _, v := range in.VariantsConfig.Variants {
+			vc.Variants = append(vc.Variants, ReplaceVariantInput{
+				OptionValueLabels: v.OptionValueLabels,
+				PriceDelta:        v.PriceDelta,
+				StockQty:          v.StockQty,
+			})
+		}
+		variantsConfig = vc
+	}
+
+	up, err := h.svc.UpdateWithVariantsConfig(c.Request.Context(), int64(p.ID), userID, UpdateWithVariantsInput{
+		Name:           in.Name,
+		Description:    in.Description,
+		Price:          in.Price,
+		ImageURL:       in.ImageURL,
+		IsActive:       in.IsActive,
+		CategoryID:     in.CategoryID,
+		VariantsConfig: variantsConfig,
 	})
 	if err != nil {
 		c.Error(err)
 		return
 	}
+
 	respond.Updated(c, apperr.Updated, up)
 }
 

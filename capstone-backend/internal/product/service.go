@@ -110,6 +110,8 @@ type Service interface {
 	CreateWithOptions(ctx context.Context, in CreateInput, opts []CreateOptionKeyWithValuesInput) (Product, error)
 	// ReplaceVariantsConfig — แทนที่ options + variants ทั้งหมดในครั้งเดียว (Shopee/Lazada style)
 	ReplaceVariantsConfig(ctx context.Context, productID int64, userID string, in ReplaceVariantsConfigInput) (Product, error)
+
+	UpdateWithVariantsConfig(ctx context.Context, productID int64, userID string, in UpdateWithVariantsInput) (Product, error)
 }
 
 // ===== service struct =====
@@ -914,4 +916,156 @@ func (s *service) ReplaceVariantsConfig(ctx context.Context, productID int64, us
 	p.Options = keys
 	p.Variants = variants
 	return p, nil
+}
+
+func (s *service) UpdateWithVariantsConfig(ctx context.Context, productID int64, userID string, in UpdateWithVariantsInput) (Product, error) {
+	if productID <= 0 {
+		return Product{}, apperr.New(apperr.BadRequest, "invalid id")
+	}
+
+	// validate product fields
+	up := UpdateInput{
+		Name:        in.Name,
+		Description: in.Description,
+		Price:       in.Price,
+		ImageURL:    in.ImageURL,
+		IsActive:    in.IsActive,
+		CategoryID:  in.CategoryID,
+	}
+	if err := validateUpdate(&up); err != nil {
+		return Product{}, err
+	}
+
+	old, err := s.repo.Get(ctx, productID)
+	if err != nil {
+		return Product{}, err
+	}
+
+	// ถ้ามี variants_config ต้องเป็น STOCK
+	if in.VariantsConfig != nil && old.ProductType != "STOCK" {
+		return Product{}, apperr.New(apperr.BadRequest, "variants config is only available for STOCK products")
+	}
+
+	// validate variants_config
+	if in.VariantsConfig != nil {
+		if len(in.VariantsConfig.Options) == 0 {
+			return Product{}, apperr.New(apperr.BadRequest, "options must not be empty")
+		}
+		if len(in.VariantsConfig.Options) > 3 {
+			return Product{}, apperr.New(apperr.BadRequest, "maximum 3 option keys per product")
+		}
+
+		optionMap := make(map[string]map[string]bool, len(in.VariantsConfig.Options))
+		for _, opt := range in.VariantsConfig.Options {
+			key := strings.TrimSpace(opt.KeyName)
+			if key == "" {
+				return Product{}, apperr.New(apperr.BadRequest, "key_name is required")
+			}
+			if len(opt.Values) == 0 {
+				return Product{}, apperr.New(apperr.BadRequest, fmt.Sprintf("option '%s' must have at least 1 value", key))
+			}
+
+			if _, exists := optionMap[key]; exists {
+				return Product{}, apperr.New(apperr.BadRequest, fmt.Sprintf("duplicate option key '%s'", key))
+			}
+
+			optionMap[key] = map[string]bool{}
+			for _, v := range opt.Values {
+				label := strings.TrimSpace(v)
+				if label == "" {
+					return Product{}, apperr.New(apperr.BadRequest, fmt.Sprintf("option '%s' has empty value", key))
+				}
+				if optionMap[key][label] {
+					return Product{}, apperr.New(apperr.BadRequest, fmt.Sprintf("duplicate value '%s' in option '%s'", label, key))
+				}
+				optionMap[key][label] = true
+			}
+		}
+
+		for i, v := range in.VariantsConfig.Variants {
+			if len(v.OptionValueLabels) != len(in.VariantsConfig.Options) {
+				return Product{}, apperr.New(apperr.BadRequest,
+					fmt.Sprintf("variant[%d]: expected %d option_value_labels, got %d",
+						i, len(in.VariantsConfig.Options), len(v.OptionValueLabels)))
+			}
+			if v.StockQty < 0 {
+				return Product{}, apperr.New(apperr.BadRequest,
+					fmt.Sprintf("variant[%d]: stock_qty must be >= 0", i))
+			}
+
+			for j, label := range v.OptionValueLabels {
+				keyName := strings.TrimSpace(in.VariantsConfig.Options[j].KeyName)
+				if !optionMap[keyName][strings.TrimSpace(label)] {
+					return Product{}, apperr.New(apperr.BadRequest,
+						fmt.Sprintf("variant[%d]: label '%s' is not in option '%s'", i, label, keyName))
+				}
+			}
+		}
+	}
+
+	// re-embed ถ้าจำเป็น
+	newName := old.Name
+	if up.Name != nil {
+		newName = strings.TrimSpace(*up.Name)
+	}
+	newDesc := old.Description
+	if up.Description != nil {
+		newDesc = up.Description
+	}
+	newCatID := old.CategoryID
+	if up.CategoryID != nil {
+		newCatID = *up.CategoryID
+	}
+
+	needEmbed := false
+	if up.Name != nil && strings.TrimSpace(old.Name) != strings.TrimSpace(*up.Name) {
+		needEmbed = true
+	}
+	if up.Description != nil {
+		oldD := ""
+		if old.Description != nil {
+			oldD = strings.TrimSpace(*old.Description)
+		}
+		if strings.TrimSpace(*up.Description) != oldD {
+			needEmbed = true
+		}
+	}
+	if up.CategoryID != nil && *up.CategoryID != old.CategoryID {
+		needEmbed = true
+	}
+
+	var embNamePtr, embDescPtr, embCatPtr *[]float64
+	if needEmbed && s.emb != nil {
+		catName, err := s.repo.GetCategoryName(ctx, newCatID)
+		if err != nil {
+			return Product{}, err
+		}
+		rawName, err := s.emb.Embed(ctx, buildNameText(newName))
+		if err != nil {
+			return Product{}, apperr.Wrap(apperr.Internal, err, "embed name failed")
+		}
+		rawDesc, err := s.emb.Embed(ctx, buildDescText(newDesc))
+		if err != nil {
+			return Product{}, apperr.Wrap(apperr.Internal, err, "embed desc failed")
+		}
+		rawCat, err := s.emb.Embed(ctx, buildCategoryText(catName))
+		if err != nil {
+			return Product{}, apperr.Wrap(apperr.Internal, err, "embed category failed")
+		}
+		embNamePtr = &rawName
+		embDescPtr = &rawDesc
+		embCatPtr = &rawCat
+	}
+
+	return s.repo.UpdateWithVariantsConfig(ctx, productID, UpdateParams{
+		Name:        up.Name,
+		Description: up.Description,
+		Price:       up.Price,
+		ImageURL:    up.ImageURL,
+		IsActive:    up.IsActive,
+		CategoryID:  up.CategoryID,
+		EmbName:     embNamePtr,
+		EmbDesc:     embDescPtr,
+		EmbCategory: embCatPtr,
+	}, in.VariantsConfig)
 }
