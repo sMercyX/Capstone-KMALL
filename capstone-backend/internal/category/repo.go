@@ -32,6 +32,8 @@ type Repo interface {
 
 	DeleteCategoryHard(ctx context.Context, id int64) error
 	DeleteSubAndMoveProducts(ctx context.Context, subID, moveToSubID int64) (int64, error)
+
+	UpsertMainAndLinkSubsFull(ctx context.Context, main UpsertMainParams, subs []UpsertNodeParams) (Category, []Category, error)
 }
 
 type repo struct{ db *pgxpool.Pool }
@@ -790,4 +792,128 @@ func mapCategoryPgErr(err error, op string) error {
 	}
 
 	return apperr.Wrap(apperr.Internal, err, op)
+}
+
+func (r *repo) UpsertMainAndLinkSubsFull(
+	ctx context.Context,
+	main UpsertMainParams,
+	subs []UpsertNodeParams,
+) (Category, []Category, error) {
+
+	if main.ID == nil || *main.ID <= 0 {
+		return Category{}, nil, apperr.New(apperr.BadRequest, "main id is required")
+	}
+
+	tx, err := r.db.Begin(ctx)
+	if err != nil {
+		return Category{}, nil, apperr.Wrap(apperr.Internal, err, "begin tx failed")
+	}
+	defer tx.Rollback(ctx)
+
+	// 1) update main
+	var createdMain Category
+	err = tx.QueryRow(ctx, `
+        UPDATE categories
+        SET name = $2, slug = $3, sort_order = $4,
+            is_active = $5, icon_url = COALESCE($6, icon_url),
+            parent_id = NULL, updated_at = NOW()
+        WHERE category_id = $1 AND parent_id IS NULL
+        RETURNING category_id, name, slug, parent_id, sort_order,
+                  is_active, icon_url, created_at, updated_at
+    `, *main.ID, main.Name, main.Slug, main.SortOrder, main.IsActive, main.IconURL).
+		Scan(&createdMain.ID, &createdMain.Name, &createdMain.Slug, &createdMain.ParentID,
+			&createdMain.SortOrder, &createdMain.IsActive, &createdMain.IconURL,
+			&createdMain.CreatedAt, &createdMain.UpdatedAt)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return Category{}, nil, apperr.New(apperr.NotFound, "main category not found")
+		}
+		return Category{}, nil, mapCategoryPgErr(err, "update main category failed")
+	}
+
+	mainID := createdMain.ID
+
+	// 2) รวบ id ของ subs ที่ส่งมา (เฉพาะที่มี id)
+	incomingIDs := make([]int64, 0)
+	for _, sc := range subs {
+		if sc.ID != nil && *sc.ID > 0 {
+			incomingIDs = append(incomingIDs, int64(*sc.ID))
+		}
+	}
+
+	// 3) deactivate subs ที่ไม่ได้ส่งมา (เฉพาะ sub ของ main นี้)
+	if len(incomingIDs) > 0 {
+		// มี id ที่ส่งมา → deactivate อันที่ไม่อยู่ใน list
+		_, err = tx.Exec(ctx, `
+            UPDATE categories
+            SET is_active = 'NO', updated_at = NOW()
+            WHERE parent_id = $1
+              AND category_id != ALL($2)
+        `, mainID, incomingIDs)
+	} else {
+		// ส่งมาแต่ sub ใหม่ทั้งหมด (ไม่มี id เลย) → deactivate sub เก่าทุกตัว
+		_, err = tx.Exec(ctx, `
+            UPDATE categories
+            SET is_active = 'NO', updated_at = NOW()
+            WHERE parent_id = $1
+        `, mainID)
+	}
+	if err != nil {
+		return Category{}, nil, apperr.Wrap(apperr.Internal, err, "deactivate old subs failed")
+	}
+
+	// 4) upsert subs ที่ส่งมา
+	createdSubs := make([]Category, 0, len(subs))
+	seen := map[int]bool{}
+
+	for _, sc := range subs {
+		if sc.ID != nil && *sc.ID > 0 {
+			if seen[*sc.ID] {
+				return Category{}, nil, apperr.New(apperr.BadRequest, "duplicate sub_categories.id in request")
+			}
+			seen[*sc.ID] = true
+		}
+
+		var c Category
+		if sc.ID != nil && *sc.ID > 0 {
+			// update existing sub
+			err = tx.QueryRow(ctx, `
+                UPDATE categories
+                SET name = $2, slug = $3, parent_id = $4,
+                    sort_order = $5, is_active = $6,
+                    icon_url = NULL, updated_at = NOW()
+                WHERE category_id = $1 AND parent_id IS NOT NULL
+                RETURNING category_id, name, slug, parent_id, sort_order,
+                          is_active, icon_url, created_at, updated_at
+            `, *sc.ID, sc.Name, sc.Slug, mainID, sc.SortOrder, sc.IsActive).
+				Scan(&c.ID, &c.Name, &c.Slug, &c.ParentID, &c.SortOrder, &c.IsActive,
+					&c.IconURL, &c.CreatedAt, &c.UpdatedAt)
+			if err != nil {
+				if errors.Is(err, pgx.ErrNoRows) {
+					return Category{}, nil, apperr.New(apperr.NotFound, "sub category not found")
+				}
+				return Category{}, nil, mapCategoryPgErr(err, "update subcategory failed")
+			}
+		} else {
+			// insert new sub
+			err = tx.QueryRow(ctx, `
+                INSERT INTO categories (name, slug, parent_id, sort_order, is_active, icon_url)
+                VALUES ($1, $2, $3, $4, $5, NULL)
+                RETURNING category_id, name, slug, parent_id, sort_order,
+                          is_active, icon_url, created_at, updated_at
+            `, sc.Name, sc.Slug, mainID, sc.SortOrder, sc.IsActive).
+				Scan(&c.ID, &c.Name, &c.Slug, &c.ParentID, &c.SortOrder, &c.IsActive,
+					&c.IconURL, &c.CreatedAt, &c.UpdatedAt)
+			if err != nil {
+				return Category{}, nil, mapCategoryPgErr(err, "insert subcategory failed")
+			}
+		}
+		createdSubs = append(createdSubs, c)
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return Category{}, nil, apperr.Wrap(apperr.Internal, err, "commit tx failed")
+	}
+
+	return createdMain, createdSubs, nil
 }

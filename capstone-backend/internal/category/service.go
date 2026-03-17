@@ -61,6 +61,8 @@ type Service interface {
 	UpsertCategoryTree(ctx context.Context, in UpsertCategoryTreeInput) (Category, []Category, error)
 	DeactivateCategory(ctx context.Context, id int64, moveToSubID int64) (Category, error)
 	DeleteCategory(ctx context.Context, id int64, moveToSubID int64) error
+
+	UpsertCategoryTreeFull(ctx context.Context, in UpsertCategoryTreeInput) (Category, []Category, error)
 }
 
 type service struct {
@@ -526,4 +528,54 @@ func (s *service) DeactivateCategory(ctx context.Context, id int64, moveToSubID 
 		return Category{}, err
 	}
 	return deactivated, nil
+}
+
+// impl — เหมือน UpsertCategoryTree แต่เพิ่ม deactivate subs ที่ไม่ได้ส่งมา
+func (s *service) UpsertCategoryTreeFull(ctx context.Context, in UpsertCategoryTreeInput) (Category, []Category, error) {
+	if in.Main.ID == nil || *in.Main.ID <= 0 {
+		return Category{}, nil, apperr.New(apperr.BadRequest, "main_category.id is required for full upsert")
+	}
+	if len(in.Subs) < 1 {
+		return Category{}, nil, apperr.New(apperr.BadRequest, "sub_categories must have at least 1 item")
+	}
+
+	// validate main
+	mainCreate := CreateInput{
+		Name: in.Main.Name, Slug: in.Main.Slug,
+		SortOrder: in.Main.SortOrder, IsActive: in.Main.IsActive,
+		ParentID: nil, IconURL: in.Main.IconURL,
+	}
+	if err := validateCreate(&mainCreate); err != nil {
+		return Category{}, nil, err
+	}
+
+	// validate subs
+	subParams := make([]UpsertNodeParams, 0, len(in.Subs))
+	for _, sc := range in.Subs {
+		tmp := CreateInput{
+			Name: sc.Name, Slug: sc.Slug,
+			SortOrder: sc.SortOrder, IsActive: sc.IsActive,
+		}
+		if err := validateCreate(&tmp); err != nil {
+			return Category{}, nil, err
+		}
+		subParams = append(subParams, UpsertNodeParams{
+			ID:        sc.ID,
+			Name:      tmp.Name,
+			Slug:      *tmp.Slug,
+			SortOrder: derefInt(tmp.SortOrder, 2),
+			IsActive:  tmp.IsActive,
+		})
+	}
+
+	mainParam := UpsertMainParams{
+		ID:        in.Main.ID,
+		Name:      mainCreate.Name,
+		Slug:      *mainCreate.Slug,
+		SortOrder: derefInt(mainCreate.SortOrder, 1),
+		IsActive:  mainCreate.IsActive,
+		IconURL:   in.Main.IconURL,
+	}
+
+	return s.repo.UpsertMainAndLinkSubsFull(ctx, mainParam, subParams)
 }

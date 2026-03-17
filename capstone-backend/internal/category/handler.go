@@ -65,6 +65,16 @@ type updateReq struct {
 	SortOrder *int    `json:"sort_order"`
 	IsActive  *string `json:"is_active"`
 	IconURL   *string `json:"icon_url"`
+
+	Subcategories *[]UpsertSubReq `json:"sub_categories,omitempty"`
+}
+
+type UpsertSubReq struct {
+	ID        *int    `json:"id,omitempty"`
+	Name      string  `json:"name"`
+	Slug      *string `json:"slug,omitempty"`
+	SortOrder *int    `json:"sort_order,omitempty"`
+	IsActive  string  `json:"is_active,omitempty"`
 }
 
 type upsertTreeReq struct {
@@ -226,22 +236,66 @@ func (h *Handler) update(c *gin.Context) {
 		return
 	}
 
+	// ถ้ามี sub_categories ส่งมา → upsert ทั้งชุด
+	if in.Subcategories != nil {
+		subs := make([]UpsertNodeInput, 0, len(*in.Subcategories))
+		for _, s := range *in.Subcategories {
+			subs = append(subs, UpsertNodeInput{
+				ID:        s.ID,
+				Name:      s.Name,
+				Slug:      s.Slug,
+				SortOrder: s.SortOrder,
+				IsActive:  s.IsActive,
+			})
+		}
+
+		idInt := int(id)
+		treeIn := UpsertCategoryTreeInput{
+			Main: UpsertNodeInput{
+				ID:        &idInt,
+				Name:      derefStrOr(in.Name, ""),
+				Slug:      in.Slug,
+				SortOrder: in.SortOrder,
+				IsActive:  derefStrOr(in.IsActive, ""),
+				IconURL:   in.IconURL,
+			},
+			Subs: subs,
+		}
+
+		main, subs2, err := h.svc.UpsertCategoryTreeFull(c.Request.Context(), treeIn)
+		if err != nil {
+			c.Error(err)
+			return
+		}
+		respond.Updated(c, apperr.Updated, gin.H{
+			"main_category":  main,
+			"sub_categories": subs2,
+		})
+		return
+	}
+
+	// ไม่มี sub_categories → update แค่ main เหมือนเดิม
 	input := UpdateInput{
 		Name:      in.Name,
 		Slug:      in.Slug,
-		ParentID:  in.ParentID,
 		SortOrder: in.SortOrder,
 		IsActive:  in.IsActive,
-		IconURL:   in.IconURL, // ถ้ามี field นี้ใน updateReq/UpdateInput
+		IconURL:   in.IconURL,
 	}
-
 	cat, err := h.svc.Update(c.Request.Context(), id, input)
 	if err != nil {
 		c.Error(err)
 		return
 	}
-
 	respond.Updated(c, apperr.Updated, cat)
+}
+
+// helper
+func derefStrOr(s *string, def string) string {
+	if s == nil {
+		return def
+	}
+	return *s
 }
 
 // DELETE /api/categories/:id (Admin)
