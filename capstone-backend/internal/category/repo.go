@@ -297,36 +297,51 @@ func (r *repo) ListAdmin(ctx context.Context, q string, parentID *int64, isActiv
 	argPos := 1
 
 	if q != "" {
-		where = append(where, `LOWER(name) LIKE LOWER('%' || $`+strconv.Itoa(argPos)+` || '%')`)
+		where = append(where, `LOWER(c.name) LIKE LOWER('%' || $`+strconv.Itoa(argPos)+` || '%')`)
 		args = append(args, q)
 		argPos++
 	}
 
 	if parentID != nil {
 		if *parentID == 0 {
-			where = append(where, `parent_id IS NULL`)
+			where = append(where, `c.parent_id IS NULL`)
 		} else {
-			where = append(where, `parent_id = $`+strconv.Itoa(argPos))
+			where = append(where, `c.parent_id = $`+strconv.Itoa(argPos))
 			args = append(args, *parentID)
 			argPos++
 		}
 	}
 
 	if isActive != nil {
-		where = append(where, `is_active = $`+strconv.Itoa(argPos))
+		where = append(where, `c.is_active = $`+strconv.Itoa(argPos))
 		args = append(args, strings.ToUpper(strings.TrimSpace(*isActive)))
 		argPos++
 	}
 
-	// paging
 	args = append(args, limit, offset)
 
 	sql := `
-	SELECT category_id, name, slug, parent_id, sort_order, is_active,
-	       icon_url, created_at, updated_at
-	FROM categories
+	SELECT
+		c.category_id,
+		c.name,
+		c.slug,
+		c.parent_id,
+		c.sort_order,
+		c.is_active,
+		c.icon_url,
+		c.created_at,
+		c.updated_at,
+		COUNT(p.product_id) AS product_count,
+		COUNT(p.product_id) FILTER (WHERE p.is_active = 'YES') AS active_product_count,
+		COUNT(p.product_id) FILTER (WHERE p.is_active = 'NO') AS inactive_product_count
+	FROM categories c
+	LEFT JOIN products p
+		ON p.category_id = c.category_id
 	WHERE ` + strings.Join(where, " AND ") + `
-	ORDER BY created_at ASC
+	GROUP BY
+		c.category_id, c.name, c.slug, c.parent_id, c.sort_order,
+		c.is_active, c.icon_url, c.created_at, c.updated_at
+	ORDER BY c.created_at ASC
 	LIMIT $` + strconv.Itoa(argPos) + ` OFFSET $` + strconv.Itoa(argPos+1)
 
 	rows, err := r.db.Query(ctx, sql, args...)
@@ -341,6 +356,7 @@ func (r *repo) ListAdmin(ctx context.Context, q string, parentID *int64, isActiv
 		if err := rows.Scan(
 			&c.ID, &c.Name, &c.Slug, &c.ParentID, &c.SortOrder, &c.IsActive,
 			&c.IconURL, &c.CreatedAt, &c.UpdatedAt,
+			&c.ProductCount, &c.ActiveProductCount, &c.InactiveProductCount,
 		); err != nil {
 			return nil, apperr.Wrap(apperr.Internal, err, "scan category failed")
 		}
