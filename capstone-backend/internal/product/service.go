@@ -67,6 +67,13 @@ type ReplaceVariantInput struct {
 	OptionValueLabels []string `json:"option_value_labels"`
 	PriceDelta        float64  `json:"price_delta"`
 	StockQty          int      `json:"stock_qty"`
+	IsActive          *bool    `json:"is_active"`
+}
+
+type UpdateVariantInput struct {
+	PriceDelta *float64
+	StockQty   *int
+	IsActive   *bool
 }
 
 // ===== Service interface =====
@@ -114,6 +121,7 @@ type Service interface {
 	ReplaceVariantsConfig(ctx context.Context, productID int64, userID string, in ReplaceVariantsConfigInput) (Product, error)
 
 	UpdateWithVariantsConfig(ctx context.Context, productID int64, userID string, in UpdateWithVariantsInput) (Product, error)
+	UpdateVariant(ctx context.Context, variantID int64, productID int64, userID string, in UpdateVariantInput) (Variant, error)
 
 	// เพิ่มใน Service interface
 	SetOptionKeyImageKey(ctx context.Context, keyID int64, productID int64, userID string, isImageKey bool) (OptionKey, error)
@@ -853,6 +861,18 @@ func (s *service) ReplaceVariantsConfig(ctx context.Context, productID int64, us
 		}
 	}
 
+	oldImageMap := make(map[string]string) // key: value_label → image_url
+	oldKeys, _ := s.repo.ListOptionKeys(ctx, productID)
+	for _, k := range oldKeys {
+		if k.IsImageKey {
+			for _, v := range k.Values {
+				if v.ImageURL != nil {
+					oldImageMap[strings.TrimSpace(v.ValueLabel)] = *v.ImageURL
+				}
+			}
+		}
+	}
+
 	// ===== Step 1: ลบ variants เก่าทั้งหมด =====
 	if err := s.repo.DeleteAllVariantsByProductID(ctx, productID); err != nil {
 		return Product{}, err
@@ -883,6 +903,21 @@ func (s *service) ReplaceVariantsConfig(ctx context.Context, productID int64, us
 		}
 	}
 
+	for keyName, valMap := range valueIDMap {
+		// หา key ที่ is_image_key = true
+		for _, opt := range in.Options {
+			if strings.TrimSpace(opt.KeyName) == keyName && opt.IsImageKey {
+				for label, newValueID := range valMap {
+					if oldURL, ok := oldImageMap[label]; ok {
+						if err := s.repo.SetOptionValueImageDirect(ctx, newValueID, &oldURL); err != nil {
+							return Product{}, err
+						}
+					}
+				}
+			}
+		}
+	}
+
 	// ===== Step 4: สร้าง variants ใหม่ =====
 	for i, v := range in.Variants {
 		optionValueIDs := make([]int64, 0, len(v.OptionValueLabels))
@@ -899,6 +934,7 @@ func (s *service) ReplaceVariantsConfig(ctx context.Context, productID int64, us
 			ProductID:    productID,
 			PriceDelta:   v.PriceDelta,
 			StockQty:     v.StockQty,
+			IsActive:     v.IsActive,
 			OptionValues: optionValueIDs,
 		})
 		if err != nil {
@@ -918,6 +954,15 @@ func (s *service) ReplaceVariantsConfig(ctx context.Context, productID int64, us
 	for i := range variants {
 		variants[i].FinalPrice = p.Price + variants[i].PriceDelta
 	}
+
+	var total int64
+	for _, v := range variants {
+		total += int64(v.StockQty)
+	}
+	p.TotalStock = &total
+
+	count := len(variants)
+	p.VariantCount = &count
 
 	p.Options = keys
 	p.Variants = variants
@@ -1128,4 +1173,14 @@ func (s *service) SetOptionValueImage(ctx context.Context, valueID int64, produc
 		}
 	}
 	return s.repo.SetOptionValueImage(ctx, valueID, imageURL)
+}
+
+func (s *service) UpdateVariant(ctx context.Context, variantID int64, productID int64, userID string, in UpdateVariantInput) (Variant, error) {
+	if variantID <= 0 {
+		return Variant{}, apperr.New(apperr.BadRequest, "invalid variant_id")
+	}
+	if in.StockQty != nil && *in.StockQty < 0 {
+		return Variant{}, apperr.New(apperr.BadRequest, "stock_qty must be >= 0")
+	}
+	return s.repo.UpdateVariant(ctx, variantID, in)
 }

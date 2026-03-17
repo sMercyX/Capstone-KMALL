@@ -57,12 +57,14 @@ type Repo interface {
 	DeductStock(ctx context.Context, variantID int64, qty int) error
 
 	UpdateWithVariantsConfig(ctx context.Context, id int64, in UpdateParams, variants *ReplaceVariantsConfigInput) (Product, error)
+	UpdateVariant(ctx context.Context, variantID int64, in UpdateVariantInput) (Variant, error)
 
 	// ===== Image Key =====
 	SetOptionKeyImageKey(ctx context.Context, keyID int64, isImageKey bool) (OptionKey, error)
 
 	// ===== Option Value Image =====
 	SetOptionValueImage(ctx context.Context, valueID int64, imageURL *string) (OptionValue, error)
+	SetOptionValueImageDirect(ctx context.Context, valueID int64, imageURL *string) error
 }
 
 // ===== Params =====
@@ -100,6 +102,7 @@ type CreateVariantParams struct {
 	SKU          *string
 	PriceDelta   float64
 	StockQty     int
+	IsActive     *bool
 	OptionValues []int64 // option_value_ids
 }
 
@@ -325,6 +328,8 @@ func (r *repo) Get(ctx context.Context, id int64) (Product, error) {
 
 		count := len(variants)
 		p.VariantCount = &count
+
+		p.Variants = variants
 	}
 
 	return p, nil
@@ -1157,10 +1162,10 @@ func (r *repo) CreateVariant(ctx context.Context, in CreateVariantParams) (Varia
 
 	var v Variant
 	err = tx.QueryRow(ctx, `
-		INSERT INTO product_variants (product_id, sku, price_delta, stock_qty)
-		VALUES ($1, $2, $3, $4)
-		RETURNING variant_id, product_id, sku, price_delta, stock_qty, is_active, created_at, updated_at
-	`, in.ProductID, in.SKU, in.PriceDelta, in.StockQty).Scan(
+    INSERT INTO product_variants (product_id, sku, price_delta, stock_qty, is_active)
+    VALUES ($1, $2, $3, $4, COALESCE($5, TRUE))
+    RETURNING variant_id, product_id, sku, price_delta, stock_qty, is_active, created_at, updated_at
+`, in.ProductID, in.SKU, in.PriceDelta, in.StockQty, in.IsActive).Scan(
 		&v.ID, &v.ProductID, &v.SKU, &v.PriceDelta, &v.StockQty, &v.IsActive, &v.CreatedAt, &v.UpdatedAt,
 	)
 	if err != nil {
@@ -1472,10 +1477,10 @@ func (r *repo) UpdateWithVariantsConfig(ctx context.Context, id int64, in Update
 			var variantID int64
 
 			err := tx.QueryRow(ctx, `
-				INSERT INTO product_variants (product_id, sku, price_delta, stock_qty)
-				VALUES ($1, $2, $3, $4)
-				RETURNING variant_id
-			`, id, nil, v.PriceDelta, v.StockQty).Scan(&variantID)
+    INSERT INTO product_variants (product_id, sku, price_delta, stock_qty, is_active)
+    VALUES ($1, $2, $3, $4, COALESCE($5, TRUE))
+    RETURNING variant_id
+`, id, nil, v.PriceDelta, v.StockQty, v.IsActive).Scan(&variantID)
 			if err != nil {
 				var pgErr *pgconn.PgError
 				if errors.As(err, &pgErr) && pgErr.Code == "23505" {
@@ -1671,6 +1676,9 @@ func (r *repo) UpdateWithVariantsConfig(ctx context.Context, id int64, in Update
 			p.Variants = append(p.Variants, v)
 		}
 		p.TotalStock = &total
+
+		count := len(p.Variants)
+		p.VariantCount = &count
 	}
 	// ===== 8) commit =====
 	if err := tx.Commit(ctx); err != nil {
@@ -1814,5 +1822,40 @@ func (r *repo) SetOptionValueImage(ctx context.Context, valueID int64, imageURL 
 		}
 		return OptionValue{}, apperr.Wrap(apperr.Internal, err, "set option value image failed")
 	}
+	return v, nil
+}
+
+func (r *repo) SetOptionValueImageDirect(ctx context.Context, valueID int64, imageURL *string) error {
+	_, err := r.db.Exec(ctx, `
+        UPDATE product_option_values
+        SET image_url = $2
+        WHERE option_value_id = $1
+    `, valueID, imageURL)
+	if err != nil {
+		return apperr.Wrap(apperr.Internal, err, "set option value image direct failed")
+	}
+	return nil
+}
+
+func (r *repo) UpdateVariant(ctx context.Context, variantID int64, in UpdateVariantInput) (Variant, error) {
+	var v Variant
+	err := r.db.QueryRow(ctx, `
+        UPDATE product_variants
+        SET price_delta = COALESCE($2, price_delta),
+            stock_qty   = COALESCE($3, stock_qty),
+            is_active   = COALESCE($4, is_active),
+            updated_at  = NOW()
+        WHERE variant_id = $1
+        RETURNING variant_id, product_id, sku, price_delta, stock_qty, is_active, created_at, updated_at
+    `, variantID, in.PriceDelta, in.StockQty, in.IsActive).Scan(
+		&v.ID, &v.ProductID, &v.SKU, &v.PriceDelta, &v.StockQty, &v.IsActive, &v.CreatedAt, &v.UpdatedAt,
+	)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return Variant{}, apperr.New(apperr.NotFound, "variant not found")
+		}
+		return Variant{}, apperr.Wrap(apperr.Internal, err, "update variant failed")
+	}
+	v.Selections = []VariantSelection{}
 	return v, nil
 }

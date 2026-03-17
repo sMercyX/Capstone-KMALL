@@ -61,6 +61,7 @@ func (h *Handler) Register(r *gin.RouterGroup) {
 		// Variants
 		auth.POST("/:id/variants", h.createVariants)
 		auth.PUT("/:id/variants-config", h.replaceVariantsConfig)
+		auth.PATCH("/:id/variants/bulk", h.updateVariantsBulk)
 		auth.PATCH("/:id/variants/:variantId/stock", h.updateVariantStock)
 		auth.DELETE("/:id/variants/:variantId", h.deleteVariant)
 
@@ -157,6 +158,7 @@ type replaceVariantReq struct {
 	OptionValueLabels []string `json:"option_value_labels" binding:"required"`
 	PriceDelta        float64  `json:"price_delta"`
 	StockQty          int      `json:"stock_qty"`
+	IsActive          *bool    `json:"is_active"`
 }
 
 type UpdateWithVariantsInput struct {
@@ -178,6 +180,17 @@ type setImageKeyReq struct {
 
 type setOptionValueImageReq struct {
 	ImageURL string `json:"image_url" binding:"required"`
+}
+
+type updateVariantBulkItemReq struct {
+	ID         int64    `json:"id"          binding:"required"`
+	PriceDelta *float64 `json:"price_delta"`
+	StockQty   *int     `json:"stock_qty"`
+	IsActive   *bool    `json:"is_active"`
+}
+
+type updateVariantsBulkReq struct {
+	Variants []updateVariantBulkItemReq `json:"variants" binding:"required"`
 }
 
 // ===== Helpers =====
@@ -769,6 +782,7 @@ func (h *Handler) replaceVariantsConfig(c *gin.Context) {
 			OptionValueLabels: v.OptionValueLabels,
 			PriceDelta:        v.PriceDelta,
 			StockQty:          v.StockQty,
+			IsActive:          v.IsActive,
 		})
 	}
 
@@ -916,4 +930,37 @@ func (h *Handler) deleteOptionValueImage(c *gin.Context) {
 	}
 
 	respond.Deleted(c, apperr.Deleted, val)
+}
+
+func (h *Handler) updateVariantsBulk(c *gin.Context) {
+	p, userID, ok := h.resolveProductOwner(c)
+	if !ok {
+		return
+	}
+
+	var in updateVariantsBulkReq
+	if err := c.ShouldBindJSON(&in); err != nil {
+		c.Error(apperr.New(apperr.BadRequest, "bad json"))
+		return
+	}
+	if len(in.Variants) == 0 {
+		c.Error(apperr.New(apperr.BadRequest, "variants must not be empty"))
+		return
+	}
+
+	out := make([]Variant, 0, len(in.Variants))
+	for _, v := range in.Variants {
+		updated, err := h.svc.UpdateVariant(c.Request.Context(), v.ID, int64(p.ID), userID, UpdateVariantInput{
+			PriceDelta: v.PriceDelta,
+			StockQty:   v.StockQty,
+			IsActive:   v.IsActive,
+		})
+		if err != nil {
+			c.Error(err)
+			return
+		}
+		out = append(out, updated)
+	}
+
+	respond.Updated(c, apperr.Updated, out)
 }
