@@ -85,3 +85,30 @@ func (s *LocalStore) Save(ctx context.Context, keyPrefix string, fh *multipart.F
 		SHA256:   nil, // ถ้าจะทำ hash ค่อยเพิ่มทีหลัง
 	}, nil
 }
+
+func (s *LocalStore) Delete(ctx context.Context, fileURL string) error {
+	_ = ctx
+
+	// แปลง URL กลับเป็น path บน disk
+	// เช่น "/uploads/category-icons/abc.jpg" → "./uploads/category-icons/abc.jpg"
+	urlBase := strings.TrimRight(s.BaseURL, "/")
+	if !strings.HasPrefix(fileURL, urlBase+"/") {
+		// URL ไม่ได้อยู่ใน BaseURL นี้ → ไม่ทำอะไร
+		return nil
+	}
+
+	rel := strings.TrimPrefix(fileURL, urlBase+"/")
+	rel = filepath.FromSlash(rel)
+
+	// กัน path traversal
+	clean := filepath.Clean(rel)
+	if strings.HasPrefix(clean, "..") {
+		return apperr.New(apperr.BadRequest, "invalid file path")
+	}
+
+	fsPath := filepath.Join(s.BaseDir, clean)
+	if err := os.Remove(fsPath); err != nil && !os.IsNotExist(err) {
+		return apperr.Wrap(apperr.Internal, err, "delete file failed")
+	}
+	return nil
+}

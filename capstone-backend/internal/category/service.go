@@ -60,7 +60,7 @@ type Service interface {
 
 	UpsertCategoryTree(ctx context.Context, in UpsertCategoryTreeInput) (Category, []Category, error)
 	DeactivateCategory(ctx context.Context, id int64, moveToSubID int64) (Category, error)
-	DeleteCategory(ctx context.Context, id int64, moveToSubID int64) error
+	DeleteCategory(ctx context.Context, id int64) error
 
 	UpsertCategoryTreeFull(ctx context.Context, in UpsertCategoryTreeInput) (Category, []Category, error)
 
@@ -255,26 +255,53 @@ func (s *service) Update(ctx context.Context, id int64, in UpdateInput) (Categor
 		return Category{}, err
 	}
 
-	// 1) ดูสถานะปัจจุบันว่าเป็น main หรือ sub
+	if in.Name != nil && in.Slug == nil {
+		newSlug := generateSlug(*in.Name)
+		in.Slug = &newSlug
+	}
+
 	cur, err := s.repo.Get(ctx, id)
 	if err != nil {
 		return Category{}, err
 	}
+
+	// ===== เพิ่ม: ถ้าจะ set is_active = NO ต้องไม่มี product ใช้อยู่ =====
+	if in.IsActive != nil && strings.ToUpper(*in.IsActive) == "NO" {
+		if cur.ParentID != nil {
+			// sub category: เช็ค product โดยตรง
+			cnt, err := s.repo.CountProductsByCategory(ctx, id)
+			if err != nil {
+				return Category{}, err
+			}
+			if cnt > 0 {
+				return Category{}, apperr.New(apperr.BadRequest,
+					"cannot deactivate category that still has products, use PATCH /:id/deactivate with move_to_sub_category_id instead")
+			}
+		} else {
+			// main category: เช็คว่ายังมี active sub อยู่ไหม
+			cnt, err := s.repo.CountSubcategories(ctx, id)
+			if err != nil {
+				return Category{}, err
+			}
+			if cnt > 0 {
+				return Category{}, apperr.New(apperr.BadRequest,
+					"cannot deactivate main category while it still has sub categories")
+			}
+		}
+	}
+	// ================================================================
+
 	isMain := cur.ParentID == nil
 	isSub := cur.ParentID != nil
 
-	// 2) enforce rule
 	if isMain {
-		// main ห้ามโดน set parent_id
 		if in.ParentID != nil {
 			return Category{}, apperr.New(apperr.BadRequest, "main category cannot set parent_id")
 		}
 	} else if isSub {
-		// sub ห้าม set parent_id = NULL
-		if in.ParentID != nil && *in.ParentID == 0 { // (ถ้าคุณใช้ 0 แทน null ใน update) ไม่แนะนำ
+		if in.ParentID != nil && *in.ParentID == 0 {
 			return Category{}, apperr.New(apperr.BadRequest, "sub category cannot set parent_id to NULL")
 		}
-		// ถ้าส่ง parent_id มา ต้องเป็น main เท่านั้น
 		if in.ParentID != nil {
 			if int64(*in.ParentID) == id {
 				return Category{}, apperr.New(apperr.BadRequest, "parent_id cannot be itself")
@@ -374,8 +401,14 @@ func (s *service) UpsertCategoryTree(ctx context.Context, in UpsertCategoryTreeI
 		Slug:      in.Main.Slug,
 		SortOrder: in.Main.SortOrder,
 		IsActive:  in.Main.IsActive,
-		ParentID:  nil, // main ต้องเป็น NULL เสมอ
+		ParentID:  nil,
 		IconURL:   in.Main.IconURL,
+	}
+
+	// ถ้าไม่ได้ส่ง slug มา → generate จาก name ใหม่เสมอ
+	if in.Main.Slug == nil {
+		newSlug := generateSlug(in.Main.Name)
+		mainCreate.Slug = &newSlug
 	}
 	if err := validateCreate(&mainCreate); err != nil {
 		return Category{}, nil, err
@@ -422,7 +455,7 @@ func (s *service) UpsertCategoryTree(ctx context.Context, in UpsertCategoryTreeI
 	return main, subs, nil
 }
 
-func (s *service) DeleteCategory(ctx context.Context, id int64, moveToSubID int64) error {
+func (s *service) DeleteCategory(ctx context.Context, id int64) error {
 	if id <= 0 {
 		return apperr.New(apperr.BadRequest, "invalid id")
 	}
@@ -432,6 +465,7 @@ func (s *service) DeleteCategory(ctx context.Context, id int64, moveToSubID int6
 		return err
 	}
 
+	// ลบ main category: ต้องไม่มี sub เหลืออยู่
 	if cur.ParentID == nil {
 		cnt, err := s.repo.CountSubcategories(ctx, id)
 		if err != nil {
@@ -443,38 +477,23 @@ func (s *service) DeleteCategory(ctx context.Context, id int64, moveToSubID int6
 		return s.repo.DeleteCategoryHard(ctx, id)
 	}
 
-	if moveToSubID <= 0 {
-		cntP, err := s.repo.CountProductsByCategory(ctx, id)
-		if err != nil {
-			return err
-		}
-		if cntP == 0 {
-			return s.repo.DeleteCategoryHard(ctx, id)
-		}
-		return apperr.New(apperr.BadRequest, "move_to_sub_category_id is required")
+	// ลบ sub category
+	// 1) ต้อง inactive ก่อน
+	if strings.ToUpper(strings.TrimSpace(cur.IsActive)) != "NO" {
+		return apperr.New(apperr.BadRequest, "category must be deactivated before deletion")
 	}
 
-	if moveToSubID == id {
-		return apperr.New(apperr.BadRequest, "move_to_sub_category_id cannot be same as source")
-	}
-
-	target, err := s.repo.Get(ctx, moveToSubID)
+	// 2) ต้องไม่มี product ใช้อยู่
+	cnt, err := s.repo.CountProductsByCategory(ctx, id)
 	if err != nil {
 		return err
 	}
-	if target.ParentID == nil {
-		return apperr.New(apperr.BadRequest, "move_to_sub_category_id must be a sub category")
-	}
-	if !strings.EqualFold(target.IsActive, "YES") {
-		return apperr.New(apperr.BadRequest, "move_to_sub_category_id must be active (YES)")
+	if cnt > 0 {
+		return apperr.New(apperr.BadRequest,
+			"category still has products, move them to another category first")
 	}
 
-	if *cur.ParentID != *target.ParentID {
-		return apperr.New(apperr.BadRequest, "move_to_sub_category_id must be in the same main category")
-	}
-
-	_, err = s.repo.DeleteSubAndMoveProducts(ctx, id, moveToSubID)
-	return err
+	return s.repo.DeleteCategoryHard(ctx, id)
 }
 
 func (s *service) DeactivateCategory(ctx context.Context, id int64, moveToSubID int64) (Category, error) {
@@ -487,49 +506,64 @@ func (s *service) DeactivateCategory(ctx context.Context, id int64, moveToSubID 
 		return Category{}, err
 	}
 
-	// main
+	// deactivate main: ต้องไม่มี sub เหลืออยู่
 	if cur.ParentID == nil {
 		cnt, err := s.repo.CountSubcategories(ctx, id)
 		if err != nil {
 			return Category{}, err
 		}
 		if cnt > 0 {
-			return Category{}, apperr.New(apperr.BadRequest, "cannot deactivate main category while it still has sub categories")
+			return Category{}, apperr.New(apperr.BadRequest,
+				"cannot deactivate main category while it still has sub categories")
 		}
 		return s.repo.SetCategoryActive(ctx, id, "NO")
 	}
 
-	// sub
-	if moveToSubID <= 0 {
-		return Category{}, apperr.New(apperr.BadRequest, "move_to_sub_category_id is required")
-	}
-	if moveToSubID == id {
-		return Category{}, apperr.New(apperr.BadRequest, "move_to_sub_category_id cannot be same as source")
-	}
-
-	target, err := s.repo.Get(ctx, moveToSubID)
+	// deactivate sub
+	// เช็คว่ามี product ใช้อยู่ไหม
+	cnt, err := s.repo.CountProductsByCategory(ctx, id)
 	if err != nil {
 		return Category{}, err
 	}
-	if target.ParentID == nil {
-		return Category{}, apperr.New(apperr.BadRequest, "move_to_sub_category_id must be a sub category")
-	}
-	if !strings.EqualFold(target.IsActive, "YES") {
-		return Category{}, apperr.New(apperr.BadRequest, "move_to_sub_category_id must be active (YES)")
+
+	if cnt > 0 {
+		// มี product อยู่ → ต้องส่ง move_to มาด้วย
+		if moveToSubID <= 0 {
+			return Category{}, apperr.New(apperr.BadRequest,
+				"category has products, move_to_sub_category_id is required")
+		}
+		if moveToSubID == id {
+			return Category{}, apperr.New(apperr.BadRequest,
+				"move_to_sub_category_id cannot be same as source")
+		}
+
+		target, err := s.repo.Get(ctx, moveToSubID)
+		if err != nil {
+			return Category{}, apperr.New(apperr.NotFound, "move_to category not found")
+		}
+		if target.ParentID == nil {
+			return Category{}, apperr.New(apperr.BadRequest,
+				"move_to_sub_category_id must be a sub category")
+		}
+		if !strings.EqualFold(target.IsActive, "YES") {
+			return Category{}, apperr.New(apperr.BadRequest,
+				"move_to_sub_category_id must be active")
+		}
+		if *cur.ParentID != *target.ParentID {
+			return Category{}, apperr.New(apperr.BadRequest,
+				"move_to_sub_category_id must be in the same main category")
+		}
+
+		// move แล้ว deactivate ในครั้งเดียว
+		deactivated, _, err := s.repo.DeactivateSubAndMoveProducts(ctx, id, moveToSubID)
+		if err != nil {
+			return Category{}, err
+		}
+		return deactivated, nil
 	}
 
-	if cur.ParentID == nil || target.ParentID == nil {
-		return Category{}, apperr.New(apperr.BadRequest, "move_to_sub_category_id must be a sub category")
-	}
-	if *cur.ParentID != *target.ParentID {
-		return Category{}, apperr.New(apperr.BadRequest, "move_to_sub_category_id must be in the same main category")
-	}
-
-	deactivated, _, err := s.repo.DeactivateSubAndMoveProducts(ctx, id, moveToSubID)
-	if err != nil {
-		return Category{}, err
-	}
-	return deactivated, nil
+	// ไม่มี product → deactivate ได้เลย
+	return s.repo.SetCategoryActive(ctx, id, "NO")
 }
 
 // impl — เหมือน UpsertCategoryTree แต่เพิ่ม deactivate subs ที่ไม่ได้ส่งมา
@@ -555,12 +589,15 @@ func (s *service) UpsertCategoryTreeFull(ctx context.Context, in UpsertCategoryT
 	subParams := make([]UpsertNodeParams, 0, len(in.Subs))
 	for _, sc := range in.Subs {
 		tmp := CreateInput{
-			Name: sc.Name, Slug: sc.Slug,
-			SortOrder: sc.SortOrder, IsActive: sc.IsActive,
+			Name:      sc.Name,
+			Slug:      sc.Slug,
+			SortOrder: sc.SortOrder,
+			IsActive:  sc.IsActive,
 		}
 		if err := validateCreate(&tmp); err != nil {
 			return Category{}, nil, err
 		}
+
 		subParams = append(subParams, UpsertNodeParams{
 			ID:        sc.ID,
 			Name:      tmp.Name,
