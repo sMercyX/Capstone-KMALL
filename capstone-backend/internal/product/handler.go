@@ -90,6 +90,8 @@ type createReq struct {
 	StoreID     int                     `json:"store_id"     binding:"required"`
 	CategoryID  int                     `json:"category_id"  binding:"required"`
 	Options     []createOptionKeyInline `json:"options"`
+
+	Variants []replaceVariantReq `json:"variants"`
 }
 
 type updateReq struct {
@@ -378,6 +380,61 @@ func (h *Handler) create(c *gin.Context) {
 		c.Error(err)
 		return
 	}
+
+	// ถ้าส่ง variants มาด้วย → replace config เลย
+	if len(in.Variants) > 0 && p.ProductType == "STOCK" {
+		// ต้องมี options อยู่แล้วจาก CreateWithOptions
+		keys, err := h.svc.ListOptionKeys(c.Request.Context(), int64(p.ID))
+		if err != nil {
+			c.Error(err)
+			return
+		}
+
+		// แปลง keys เป็น ReplaceOptionKeyInput
+		optInputs := make([]ReplaceOptionKeyInput, 0, len(keys))
+		for _, k := range keys {
+			vals := make([]string, 0, len(k.Values))
+			for _, v := range k.Values {
+				vals = append(vals, v.ValueLabel)
+			}
+			optInputs = append(optInputs, ReplaceOptionKeyInput{
+				KeyName:    k.KeyName,
+				SortOrder:  k.SortOrder,
+				IsImageKey: k.IsImageKey,
+				Values:     vals,
+			})
+		}
+
+		varInputs := make([]ReplaceVariantInput, 0, len(in.Variants))
+		for _, v := range in.Variants {
+			varInputs = append(varInputs, ReplaceVariantInput{
+				OptionValueLabels: v.OptionValueLabels,
+				PriceDelta:        v.PriceDelta,
+				StockQty:          v.StockQty,
+				IsActive:          v.IsActive,
+			})
+		}
+
+		p, err = h.svc.ReplaceVariantsConfig(c.Request.Context(), int64(p.ID), userID, ReplaceVariantsConfigInput{
+			Options:  optInputs,
+			Variants: varInputs,
+		})
+		if err != nil {
+			c.Error(err)
+			return
+		}
+
+		// ถ้าต้องการ set is_active = YES ด้วย
+		isActiveYes := "YES"
+		p, err = h.svc.Update(c.Request.Context(), int64(p.ID), UpdateInput{
+			IsActive: &isActiveYes,
+		})
+		if err != nil {
+			c.Error(err)
+			return
+		}
+	}
+
 	respond.Created(c, apperr.Created, p)
 }
 

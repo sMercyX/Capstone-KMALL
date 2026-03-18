@@ -75,6 +75,7 @@ func (h *Handler) Register(r *gin.RouterGroup) {
 
 		productOwner := pg.Group("", middleware.RequireRolesAny(h.roleSvc, "Seller", "Admin"))
 		{
+			productOwner.POST("/:id/images/bulk-upload", h.bulkUploadProductImages)
 			productOwner.POST("/:id/images", h.createProductImage)
 			productOwner.POST("/:id/images/upload", h.uploadProductImage)
 
@@ -855,4 +856,167 @@ func (h *Handler) listOptionValueImages(c *gin.Context) {
 	}
 
 	respond.Error(c, http.StatusNotFound, "NOT_FOUND", "option key not found", nil)
+}
+
+// POST /api/products/:id/images/bulk-upload
+// multipart fields:
+//
+//	images[]                     → product images (หลายไฟล์)
+//	option_value_image[สี:ดำ]   → option value image (key = "key_name:value_label")
+func (h *Handler) bulkUploadProductImages(c *gin.Context) {
+	userID, ok := h.resolveCurrentUserID(c, false)
+	if !ok {
+		return
+	}
+	productID, ok := parsePathID(c, "id")
+	if !ok {
+		return
+	}
+	if !h.isProductOwnerOrAdmin(c, productID, userID) {
+		if len(c.Errors) == 0 {
+			respond.Error(c, http.StatusForbidden, "FORBIDDEN", "only owner or admin", nil)
+		}
+		return
+	}
+
+	if err := c.Request.ParseMultipartForm(64 << 20); err != nil {
+		c.Error(apperr.New(apperr.BadRequest, "invalid multipart form"))
+		return
+	}
+	form := c.Request.MultipartForm
+
+	// ===== 1) upload product images =====
+	existing, _ := h.svc.ListProductImagesByProductID(c.Request.Context(), productID)
+	hasPrimary := false
+	maxSort := 0
+	for _, img := range existing {
+		if img.IsPrimary {
+			hasPrimary = true
+		}
+		if img.SortOrder > maxSort {
+			maxSort = img.SortOrder
+		}
+	}
+
+	createdProductImages := make([]ProductImage, 0)
+	if files := form.File["images"]; len(files) > 0 {
+		for i, fh := range files {
+			ext := strings.ToLower(filepath.Ext(fh.Filename))
+			if ext == "" {
+				ext = ".jpg"
+			}
+
+			dir := filepath.Join("uploads", "products", strconv.FormatInt(productID, 10))
+			_ = os.MkdirAll(dir, 0o755)
+
+			filename := fmt.Sprintf("%d_%d_%d%s", productID, time.Now().UnixNano(), i, ext)
+			dstPath := filepath.Join(dir, filename)
+			if err := c.SaveUploadedFile(fh, dstPath); err != nil {
+				c.Error(apperr.Wrap(apperr.Internal, err, "save product image failed"))
+				return
+			}
+
+			imageURL := "/uploads/" + filepath.ToSlash(filepath.Join("products", strconv.FormatInt(productID, 10), filename))
+			isPrimary := i == 0 && !hasPrimary
+
+			img, err := h.svc.CreateProductImage(c.Request.Context(), ProductImageCreateInput{
+				ProductID: int(productID),
+				ImageURL:  imageURL,
+				SortOrder: maxSort + i + 1,
+				IsPrimary: isPrimary,
+			})
+			if err != nil {
+				c.Error(err)
+				return
+			}
+			createdProductImages = append(createdProductImages, img)
+		}
+	}
+
+	// ===== 2) upload option value images =====
+	// key format: "option_value_image[สี:ดำ]" → map key = "สี:ดำ"
+	// ดึง option keys ของ product เพื่อ resolve valueID
+	keys, err := h.productSvc.ListOptionKeys(c.Request.Context(), productID)
+	if err != nil {
+		c.Error(err)
+		return
+	}
+
+	// สร้าง map: "key_name:value_label" → value_id
+	valueIDMap := make(map[string]int64)
+	imageKeyName := ""
+	for _, k := range keys {
+		if k.IsImageKey {
+			imageKeyName = k.KeyName
+			for _, v := range k.Values {
+				mapKey := k.KeyName + ":" + v.ValueLabel
+				valueIDMap[mapKey] = int64(v.ID)
+			}
+		}
+	}
+
+	createdOptionImages := make([]product.OptionValue, 0)
+	for formKey, files := range form.File {
+		// รองรับทั้ง "option_value_image[สี:ดำ]" และ "option_value_image[ดำ]"
+		if !strings.HasPrefix(formKey, "option_value_image[") {
+			continue
+		}
+		label := strings.TrimSuffix(strings.TrimPrefix(formKey, "option_value_image["), "]")
+
+		// ลอง "key_name:value_label" ก่อน แล้ว fallback เป็น imageKeyName + ":" + label
+		valueID, ok := valueIDMap[label]
+		if !ok && imageKeyName != "" {
+			valueID, ok = valueIDMap[imageKeyName+":"+label]
+		}
+		if !ok || len(files) == 0 {
+			continue
+		}
+
+		fh := files[0]
+		ext := strings.ToLower(filepath.Ext(fh.Filename))
+		if ext == "" {
+			ext = ".jpg"
+		}
+
+		// หา keyID จาก valueID
+		var keyID int64
+		for _, k := range keys {
+			for _, v := range k.Values {
+				if int64(v.ID) == valueID {
+					keyID = int64(k.ID)
+				}
+			}
+		}
+
+		dir := filepath.Join("uploads", "products", strconv.FormatInt(productID, 10),
+			"options", strconv.FormatInt(keyID, 10),
+			"values", strconv.FormatInt(valueID, 10))
+		_ = os.MkdirAll(dir, 0o755)
+
+		filename := fmt.Sprintf("%d%s", time.Now().UnixNano(), ext)
+		dstPath := filepath.Join(dir, filename)
+		if err := c.SaveUploadedFile(fh, dstPath); err != nil {
+			c.Error(apperr.Wrap(apperr.Internal, err, "save option image failed"))
+			return
+		}
+
+		imageURL := "/uploads/" + filepath.ToSlash(filepath.Join(
+			"products", strconv.FormatInt(productID, 10),
+			"options", strconv.FormatInt(keyID, 10),
+			"values", strconv.FormatInt(valueID, 10), filename,
+		))
+
+		val, err := h.productSvc.SetOptionValueImage(c.Request.Context(), valueID, productID, userID, &imageURL)
+		if err != nil {
+			_ = os.Remove(dstPath)
+			c.Error(err)
+			return
+		}
+		createdOptionImages = append(createdOptionImages, val)
+	}
+
+	respond.Created(c, apperr.Created, gin.H{
+		"product_images":      createdProductImages,
+		"option_value_images": createdOptionImages,
+	})
 }
