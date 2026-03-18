@@ -780,12 +780,6 @@ func (s *service) DeleteVariant(ctx context.Context, variantID int64, productID 
 // ===== CreateWithOptions =====
 
 func (s *service) CreateWithOptions(ctx context.Context, in CreateInput, opts []CreateOptionKeyWithValuesInput) (Product, error) {
-	// ถ้าเป็น STOCK และพยายาม active เลย ให้ block ก่อน
-	if strings.ToUpper(in.IsActive) == "YES" && strings.ToUpper(normalizeProductType(in.ProductType)) == "STOCK" {
-		return Product{}, apperr.New(apperr.BadRequest,
-			"STOCK product cannot be activated at creation, add variants first")
-	}
-
 	p, err := s.Create(ctx, in)
 	if err != nil {
 		return Product{}, err

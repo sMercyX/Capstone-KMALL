@@ -351,6 +351,14 @@ func (h *Handler) create(c *gin.Context) {
 		return
 	}
 
+	if strings.ToUpper(strings.TrimSpace(in.IsActive)) == "YES" &&
+		strings.ToUpper(strings.TrimSpace(in.ProductType)) == "STOCK" &&
+		len(in.Variants) == 0 {
+		c.Error(apperr.New(apperr.BadRequest,
+			"STOCK product cannot be activated at creation without variants"))
+		return
+	}
+
 	opts := make([]CreateOptionKeyWithValuesInput, 0, len(in.Options))
 	for _, o := range in.Options {
 		vals := make([]string, 0, len(o.Values))
