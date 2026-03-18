@@ -215,8 +215,14 @@ func validateCreate(in *CreateInput) error {
 		return apperr.New(apperr.BadRequest, "category_id must be positive")
 	}
 
-	in.IsActive = normalizeYesNo(in.IsActive, "YES")
 	in.ProductType = normalizeProductType(in.ProductType)
+
+	if in.ProductType == "STOCK" {
+		in.IsActive = normalizeYesNo(in.IsActive, "NO")
+	} else {
+		in.IsActive = normalizeYesNo(in.IsActive, "YES")
+	}
+
 	return nil
 }
 
@@ -774,6 +780,12 @@ func (s *service) DeleteVariant(ctx context.Context, variantID int64, productID 
 // ===== CreateWithOptions =====
 
 func (s *service) CreateWithOptions(ctx context.Context, in CreateInput, opts []CreateOptionKeyWithValuesInput) (Product, error) {
+	// ถ้าเป็น STOCK และพยายาม active เลย ให้ block ก่อน
+	if strings.ToUpper(in.IsActive) == "YES" && strings.ToUpper(normalizeProductType(in.ProductType)) == "STOCK" {
+		return Product{}, apperr.New(apperr.BadRequest,
+			"STOCK product cannot be activated at creation, add variants first")
+	}
+
 	p, err := s.Create(ctx, in)
 	if err != nil {
 		return Product{}, err
@@ -821,6 +833,22 @@ func (s *service) ReplaceVariantsConfig(ctx context.Context, productID int64, us
 	}
 	if len(in.Options) > 3 {
 		return Product{}, apperr.New(apperr.BadRequest, "maximum 3 option keys per product")
+	}
+
+	// ===== เพิ่ม: ถ้า product active อยู่ ต้องมี active variant อย่างน้อย 1 ตัว =====
+	if strings.ToUpper(strings.TrimSpace(p.IsActive)) == "YES" {
+		hasActive := false
+		for _, v := range in.Variants {
+			isActive := v.IsActive == nil || *v.IsActive // nil = default true
+			if isActive {
+				hasActive = true
+				break
+			}
+		}
+		if !hasActive {
+			return Product{}, apperr.New(apperr.BadRequest,
+				"cannot replace variants: STOCK product is active but no active variant provided")
+		}
 	}
 
 	// validate options
@@ -1073,10 +1101,22 @@ func (s *service) UpdateWithVariantsConfig(ctx context.Context, productID int64,
 					"STOCK product must have at least 1 active variant before activation")
 			}
 		} else {
-			// ส่ง variants_config มาด้วย → เช็คว่ามี variant อย่างน้อย 1 ตัว
+			// ส่ง variants_config มาด้วย → เช็คว่ามี active variant อย่างน้อย 1 ตัว
 			if len(in.VariantsConfig.Variants) == 0 {
 				return Product{}, apperr.New(apperr.BadRequest,
 					"STOCK product must have at least 1 variant before activation")
+			}
+			// เพิ่ม: เช็คว่ามี is_active=true อย่างน้อย 1 ตัว
+			hasActive := false
+			for _, v := range in.VariantsConfig.Variants {
+				if v.IsActive == nil || *v.IsActive {
+					hasActive = true
+					break
+				}
+			}
+			if !hasActive {
+				return Product{}, apperr.New(apperr.BadRequest,
+					"STOCK product must have at least 1 active variant before activation")
 			}
 		}
 	}
@@ -1183,4 +1223,14 @@ func (s *service) UpdateVariant(ctx context.Context, variantID int64, productID 
 		return Variant{}, apperr.New(apperr.BadRequest, "stock_qty must be >= 0")
 	}
 	return s.repo.UpdateVariant(ctx, variantID, in)
+}
+
+func validateActiveStock(variants []Variant) error {
+	for _, v := range variants {
+		if v.IsActive {
+			return nil
+		}
+	}
+	return apperr.New(apperr.BadRequest,
+		"STOCK product must have at least 1 active variant before activation")
 }

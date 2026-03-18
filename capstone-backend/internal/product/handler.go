@@ -332,7 +332,6 @@ func (h *Handler) resolveProductOwner(c *gin.Context) (Product, string, bool) {
 }
 
 // ===== Product CRUD =====
-
 func (h *Handler) create(c *gin.Context) {
 	userID, ok := h.resolveCurrentUserID(c, false)
 	if !ok {
@@ -383,14 +382,12 @@ func (h *Handler) create(c *gin.Context) {
 
 	// ถ้าส่ง variants มาด้วย → replace config เลย
 	if len(in.Variants) > 0 && p.ProductType == "STOCK" {
-		// ต้องมี options อยู่แล้วจาก CreateWithOptions
 		keys, err := h.svc.ListOptionKeys(c.Request.Context(), int64(p.ID))
 		if err != nil {
 			c.Error(err)
 			return
 		}
 
-		// แปลง keys เป็น ReplaceOptionKeyInput
 		optInputs := make([]ReplaceOptionKeyInput, 0, len(keys))
 		for _, k := range keys {
 			vals := make([]string, 0, len(k.Values))
@@ -424,14 +421,16 @@ func (h *Handler) create(c *gin.Context) {
 			return
 		}
 
-		// ถ้าต้องการ set is_active = YES ด้วย
-		isActiveYes := "YES"
-		p, err = h.svc.Update(c.Request.Context(), int64(p.ID), UpdateInput{
-			IsActive: &isActiveYes,
-		})
-		if err != nil {
-			c.Error(err)
-			return
+		// set is_active = YES ถ้าต้องการ — service.Update เช็ค active variant เองอยู่แล้ว
+		if strings.ToUpper(strings.TrimSpace(in.IsActive)) == "YES" {
+			isActiveYes := "YES"
+			p, err = h.svc.Update(c.Request.Context(), int64(p.ID), UpdateInput{
+				IsActive: &isActiveYes,
+			})
+			if err != nil {
+				c.Error(err)
+				return
+			}
 		}
 	}
 
