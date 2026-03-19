@@ -49,5 +49,13 @@ export function useCatagoriesApi() {
     return http.putItem(`/admin/categories/${id}`, payload)
   }
 
-  return { getCatagoriesName, getCatagoriesSubName, getCatagoriesDetail, uploadCategoryIcon, addCategory, updateCategory }
+  async function deleteCategory(id: number, moveToSubCategoryId?: number): Promise<ApiResponse<any>> {
+    let url = `/admin/categories/${id}`
+    if (moveToSubCategoryId) {
+      url += `?move_to_sub_category_id=${moveToSubCategoryId}`
+    }
+    return http.deleteItem(url)
+  }
+
+  return { getCatagoriesName, getCatagoriesSubName, getCatagoriesDetail, uploadCategoryIcon, addCategory, updateCategory, deleteCategory }
 }

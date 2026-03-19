@@ -153,9 +153,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         }
 
         // 2) หา account ปัจจุบัน
-        const account =
-          msalInstance.getActiveAccount() ||
-          msalInstance.getAllAccounts()[0]
+        let account = msalInstance.getActiveAccount()
+        if (!account && msalInstance.getAllAccounts().length > 0) {
+          account = msalInstance.getAllAccounts()[0]
+          msalInstance.setActiveAccount(account)
+          console.log("[AUTH] recovered account from cache:", account)
+        }
 
         console.log("[AUTH] active account:", account)
 

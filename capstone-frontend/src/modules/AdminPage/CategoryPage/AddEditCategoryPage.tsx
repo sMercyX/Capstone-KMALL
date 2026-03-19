@@ -4,10 +4,17 @@ import { Plus, Trash2, Image as ImageIcon } from "lucide-react"
 import { useCatagoriesApi } from "../../../api/catagoriesApi"
 import { toast } from "react-toastify"
 import { resolveImageUrl } from "../../../utils/resolve"
+import ConfirmationModal from "../../../components/Modal/ConfirmationModal"
+
+// Interface for Subcategories to hold ID
+interface SubCategoryItem {
+  id?: number
+  name: string
+}
 
 export default function AddCategoryPage() {
   const navigate = useNavigate()
-  const { addCategory, updateCategory, uploadCategoryIcon } = useCatagoriesApi()
+  const { addCategory, updateCategory, uploadCategoryIcon, deleteCategory } = useCatagoriesApi()
 
   const location = useLocation()
   // Explicitly check for edit data passed from CategoryPage
@@ -22,8 +29,22 @@ export default function AddCategoryPage() {
   const [mainName, setMainName] = useState("")
   const [imageFile, setImageFile] = useState<File | null>(null)
   const [imagePreview, setImagePreview] = useState<string | null>(null)
-  const [subCategories, setSubCategories] = useState<string[]>([""])
+  const [subCategories, setSubCategories] = useState<SubCategoryItem[]>([])
+  const [newSubCategoryName, setNewSubCategoryName] = useState("")
   const [activeTab, setActiveTab] = useState<string>("MAIN")
+
+  // Modals state
+  const [isDeleteMainModalOpen, setIsDeleteMainModalOpen] = useState(false)
+  
+  // Reassign Modal State
+  const [reassignModalState, setReassignModalState] = useState<{
+    isOpen: boolean
+    subcategoryIdToDelete: number | null
+    subcategoryNameToDelete: string
+  }>({ isOpen: false, subcategoryIdToDelete: null, subcategoryNameToDelete: "" })
+  
+  const [availableSubcategoriesForReassign, setAvailableSubcategoriesForReassign] = useState<{ id: number; name: string }[]>([])
+  const [selectedSubForReassign, setSelectedSubForReassign] = useState<number | "">("")
   const isScrolling = useRef(false)
   const contentRef = useRef<HTMLDivElement>(null)
 
@@ -87,7 +108,7 @@ export default function AddCategoryPage() {
         setImagePreview(resolveImageUrl(editData.main.icon_url))
       }
       if (editData.subs && editData.subs.length > 0) {
-        setSubCategories(editData.subs.map(sub => sub.name))
+        setSubCategories(editData.subs.map(sub => ({ id: sub.id, name: sub.name })))
       }
     }
   }, [isEditMode, editData])
@@ -109,21 +130,87 @@ export default function AddCategoryPage() {
 
   const handleSubCategoryChange = (index: number, value: string) => {
     const newSubs = [...subCategories]
-    newSubs[index] = value
+    newSubs[index].name = value
     setSubCategories(newSubs)
   }
 
-  const addSubCategoryRow = (index: number) => {
-    const newSubs = [...subCategories]
-    newSubs.splice(index + 1, 0, "")
-    setSubCategories(newSubs)
+  const handleAddSubCategory = () => {
+    if (!newSubCategoryName.trim()) return
+    setSubCategories([...subCategories, { name: newSubCategoryName.trim() }])
+    setNewSubCategoryName("")
   }
 
-  const removeSubCategoryRow = (index: number) => {
-    if (subCategories.length > 1) {
-      const newSubs = [...subCategories]
-      newSubs.splice(index, 1)
-      setSubCategories(newSubs)
+  const removeSubCategoryRow = async (index: number) => {
+    const subToDelete = subCategories[index]
+
+    if (subToDelete.id) {
+      // It's an existing subcategory, call API to delete
+      try {
+        setIsLoading(true)
+        await deleteCategory(subToDelete.id)
+        toast.success(`Subcategory "${subToDelete.name}" deleted successfully.`)
+        // Filter out locally
+        setSubCategories(prev => prev.filter((_, i) => i !== index))
+      } catch (error: any) {
+        if (error.response?.status === 400 || error.message?.toLowerCase().includes("move to sub catagory")) {
+           // Need to reassign
+           setReassignModalState({
+             isOpen: true,
+             subcategoryIdToDelete: subToDelete.id,
+             subcategoryNameToDelete: subToDelete.name
+           })
+           const validReassignTargets = subCategories.filter(
+             s => s.id !== undefined && s.id !== subToDelete.id
+           ) as { id: number, name: string }[]
+           setAvailableSubcategoriesForReassign(validReassignTargets)
+        } else {
+          toast.error(error.message || "Failed to delete subcategory.")
+        }
+      } finally {
+        setIsLoading(false)
+      }
+    } else {
+        // It's a new unsaved row, just remove it from state
+        const newSubs = [...subCategories]
+        newSubs.splice(index, 1)
+        setSubCategories(newSubs)
+    }
+  }
+
+  const handleConfirmReassignAndDelete = async () => {
+    if (!reassignModalState.subcategoryIdToDelete || selectedSubForReassign === "") return
+
+    try {
+      setIsLoading(true)
+      await deleteCategory(reassignModalState.subcategoryIdToDelete, Number(selectedSubForReassign))
+      toast.success(`Subcategory deleted and products reassigned successfully.`)
+      
+      // Close modal and reset state
+      setReassignModalState({ isOpen: false, subcategoryIdToDelete: null, subcategoryNameToDelete: "" })
+      setSelectedSubForReassign("")
+      
+      // Remove from local structure
+      setSubCategories(prev => prev.filter(sub => sub.id !== reassignModalState.subcategoryIdToDelete))
+      
+    } catch (error: any) {
+      toast.error(error.message || "Failed to reassign and delete subcategory.")
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  const handleDeleteMainCategory = async () => {
+    if (!editData) return
+    try {
+        setIsLoading(true)
+        await deleteCategory(editData.main.id)
+        toast.success(`Main category "${editData.main.name}" deleted successfully.`)
+        navigate("/admin/category")
+    } catch (error: any) {
+        toast.error(error.message || "Failed to delete main category.")
+    } finally {
+        setIsLoading(false)
+        setIsDeleteMainModalOpen(false)
     }
   }
 
@@ -138,7 +225,7 @@ export default function AddCategoryPage() {
     }
     
     // Filter out empty subcategories
-    const validSubs = subCategories.map(s => s.trim()).filter(Boolean)
+    const validSubs = subCategories.filter(s => s.name.trim() !== "")
     if (validSubs.length === 0) {
       toast.error("At least 1 subcategory is required")
       return
@@ -166,22 +253,19 @@ export default function AddCategoryPage() {
         }
         await updateCategory(editData!.main.id, updatePayload)
         
-        // Find new subcategories (ones that weren't in editData.subs originally)
-        const originalSubNames = editData?.subs.map(s => s.name) || []
-        const newSubs = validSubs.filter(sub => !originalSubNames.includes(sub))
-        
-        if (newSubs.length > 0) {
-           const subcatPayload = {
-             main_category: {
-               id: editData!.main.id // specify ID to indicate we are attaching to existing
-             },
-             sub_categories: newSubs.map(sub => ({
-               name: sub.trim(),
-               sort_order: 10
-             }))
-           }
-           await addCategory(subcatPayload)
+        // Send all subcategories (both old and new) as requested
+        const subcatPayload = {
+          main_category: {
+            id: editData!.main.id,
+            name: mainName.trim()
+          },
+          sub_categories: validSubs.map(sub => ({
+            id: sub.id,
+            name: sub.name.trim(),
+            // sort_order: 10
+          }))
         }
+        await addCategory(subcatPayload)
 
       } else {
         // Add mode API call
@@ -189,11 +273,11 @@ export default function AddCategoryPage() {
           main_category: {
             name: mainName.trim(),
             icon_url: iconUrl,
-            sort_order: 1
+            // sort_order: 1
           },
-          sub_categories: validSubs.map((sub, index) => ({
-            name: sub.trim(),
-            sort_order: (index + 1) * 10
+          sub_categories: validSubs.map((sub) => ({
+            name: sub.name.trim(),
+            // sort_order: (index + 1) * 10
           }))
         }
         await addCategory(payload)
@@ -214,13 +298,27 @@ export default function AddCategoryPage() {
     <div className="p-6 md:p-8 text-[#2D2D2D] mx-auto h-[calc(100vh-60px)] flex flex-col overflow-hidden">
       {/* Header */}
       <div className="mb-6 flex-shrink-0">
-        <p className="text-gray-500 text-sm mb-1 cursor-pointer" onClick={() => navigate("/admin/category")}>
-          Category &gt; Category Management &gt; <span className="text-gray-800">{isEditMode ? "Edit Category" : "Add Category"}</span>
-        </p>
-        <h1 className="text-2xl font-bold">{isEditMode ? "Edit Main Category" : "Add Main Category"}</h1>
-        <p className="text-gray-500 text-sm mt-1">
-          {isEditMode ? "Update the main category information and subcategories." : "Enter the main category information and add at least one subcategory."}
-        </p>
+        <div className="flex justify-between items-start">
+            <div>
+                <p className="text-gray-500 text-sm mb-1 cursor-pointer hover:underline" onClick={() => navigate("/admin/category")}>
+                Category &gt; Category Management &gt; <span className="text-gray-800">{isEditMode ? "Edit Category" : "Add Category"}</span>
+                </p>
+                <h1 className="text-2xl font-bold flex items-center gap-4">
+                  {isEditMode ? "Edit Main Category" : "Add Main Category"}
+                  {isEditMode && (
+                     <button
+                       onClick={() => setIsDeleteMainModalOpen(true)}
+                       className="flex items-center gap-1.5 text-sm font-medium text-red-500 hover:text-red-600 bg-red-50 hover:bg-red-100 px-3 py-1.5 rounded-lg transition-colors"
+                     >
+                       <Trash2 className="w-4 h-4" />
+                     </button>
+                  )}
+                </h1>
+                <p className="text-gray-500 text-sm mt-1">
+                {isEditMode ? "Update the main category information and subcategories." : "Enter the main category information and add at least one subcategory."}
+                </p>
+            </div>
+        </div>
       </div>
 
       {/* Navigation Tabs */}
@@ -337,32 +435,46 @@ export default function AddCategoryPage() {
               <span className="text-xs text-gray-400">At least 1 subcategory is required</span>
             </div>
             
+            {/* Input for adding new subcategory */}
+            <div className="flex gap-3 mb-4">
+               <input 
+                  type="text" 
+                  placeholder="e.g., Jeans, T-Shirts"
+                  className="flex-grow bg-[#F4F4F4] border border-gray-300 rounded-lg px-4 py-3 outline-none focus:ring-1 focus:ring-gray-400 transition-all text-sm font-medium text-[#2D2D2D]"
+                  value={newSubCategoryName}
+                  onChange={(e) => setNewSubCategoryName(e.target.value)}
+                  onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                          e.preventDefault()
+                          handleAddSubCategory()
+                      }
+                  }}
+               />
+               <button 
+                  onClick={handleAddSubCategory}
+                  className="bg-[#2D2D2D] hover:bg-black text-white w-12 h-12 rounded-lg flex items-center justify-center transition-colors shrink-0"
+               >
+                  <Plus className="w-5 h-5" />
+               </button>
+            </div>
+
             <div className="space-y-3">
-              {subCategories.map((subName, index) => (
-                <div key={index} className="flex gap-3">
+              {subCategories.map((sub, index) => (
+                <div key={sub.id || `new-${index}`} className="flex justify-between items-center bg-white border border-gray-300 rounded-lg px-4 py-2">
                   <input 
                     type="text" 
                     placeholder="Subcategory Name"
-                    className="flex-grow bg-[#F4F4F4] border-none rounded-lg px-4 py-3 outline-none focus:ring-2 focus:ring-[#FF4C24]/50"
-                    value={subName}
+                    className="flex-grow bg-transparent border-none outline-none font-medium text-[#2D2D2D] text-sm py-1"
+                    value={sub.name}
                     onChange={(e) => handleSubCategoryChange(index, e.target.value)}
                   />
-                  
-                  <div className="flex gap-2 shrink-0">
-                    <button 
-                      onClick={() => addSubCategoryRow(index)}
-                      className="bg-[#2D2D2D] hover:bg-black text-white w-12 h-12 rounded-lg flex items-center justify-center transition-colors shrink-0"
-                    >
-                      <Plus className="w-5 h-5" />
-                    </button>
-                    {subCategories.length > 1 && (
+                  <div className="flex gap-2 shrink-0 ml-4">
                       <button 
                         onClick={() => removeSubCategoryRow(index)}
-                        className="bg-white border border-[#FF4C24] text-[#FF4C24] hover:bg-[#FFF8F6] w-12 h-12 rounded-lg flex items-center justify-center transition-colors shrink-0"
+                        className="text-red-500 hover:text-red-600 transition-colors p-1"
                       >
                         <Trash2 className="w-5 h-5" />
                       </button>
-                    )}
                   </div>
                 </div>
               ))}
@@ -390,6 +502,49 @@ export default function AddCategoryPage() {
           </button>
         </div>
       </div>
+
+      {/* Delete Main Category Confirmation */}
+      <ConfirmationModal
+        isOpen={isDeleteMainModalOpen}
+        onClose={() => setIsDeleteMainModalOpen(false)}
+        onConfirm={handleDeleteMainCategory}
+        title="Delete Main Category"
+        message={`Are you sure you want to delete "${editData?.main.name}"? This action cannot be undone and will affect all subcategories under it.`}
+        confirmText="Delete"
+        variant="danger"
+      />
+
+       {/* Subcategory Reassign Modal */}
+       <ConfirmationModal
+        isOpen={reassignModalState.isOpen}
+        onClose={() => setReassignModalState({ isOpen: false, subcategoryIdToDelete: null, subcategoryNameToDelete: "" })}
+        onConfirm={handleConfirmReassignAndDelete}
+        title="Products In Category"
+        message={`You cannot delete "${reassignModalState.subcategoryNameToDelete}" because there are products inside. Please select a new category to move these products to before deleting.`}
+        confirmText="Move & Delete"
+        confirmDisabled={selectedSubForReassign === ""}
+        variant="warning"
+      >
+        <div className="flex flex-col gap-4 mt-6">
+            <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Target Subcategory</label>
+                <select 
+                    className="w-full bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-orange-500 focus:border-orange-500 block p-2.5"
+                    value={selectedSubForReassign}
+                    onChange={(e) => setSelectedSubForReassign(Number(e.target.value))}
+                >
+                    <option value="" disabled>Select Subcategory...</option>
+                    {availableSubcategoriesForReassign.map(sub => (
+                        <option key={sub.id} value={sub.id}>{sub.name}</option>
+                    ))}
+                    {availableSubcategoriesForReassign.length === 0 && (
+                        <option value="" disabled>No valid subcategories found to transfer products.</option>
+                    )}
+                </select>
+            </div>
+        </div>
+      </ConfirmationModal>
+
     </div>
   )
 }
