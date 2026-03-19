@@ -12,6 +12,9 @@ export interface CatagoriesResponse {
   icon_url?: string | null
   created_at: string
   updated_at: string
+  product_count?: number
+  active_product_count?: number
+  inactive_product_count?: number
 }
 
 export function useCatagoriesApi() {
@@ -21,6 +24,28 @@ export function useCatagoriesApi() {
     parent_id: number
   ): Promise<ApiResponse<CatagoriesResponse[]>> {
     return http.getItems(`/categories?parent_id=${parent_id}`)
+  }
+
+  async function getAdminCategories(params?: {
+    is_active?: string
+    parent_id?: string | number | null
+    q?: string
+    limit?: number
+  }): Promise<ApiResponse<CatagoriesResponse[]>> {
+    let url = "/admin/categories"
+    const query = new URLSearchParams()
+    if (params?.is_active) query.append("is_active", params.is_active)
+    if (params?.parent_id !== undefined) {
+      if (params.parent_id === null) query.append("parent_id", "null")
+      else query.append("parent_id", String(params.parent_id))
+    }
+    if (params?.q) query.append("q", params.q)
+    if (params?.limit) query.append("limit", String(params.limit))
+    
+    const qs = query.toString()
+    if (qs) url += `?${qs}`
+
+    return http.getItems(url)
   }
 
   async function getCatagoriesSubName(): Promise<
@@ -57,5 +82,5 @@ export function useCatagoriesApi() {
     return http.deleteItem(url)
   }
 
-  return { getCatagoriesName, getCatagoriesSubName, getCatagoriesDetail, uploadCategoryIcon, addCategory, updateCategory, deleteCategory }
+  return { getCatagoriesName, getCatagoriesSubName, getAdminCategories, getCatagoriesDetail, uploadCategoryIcon, addCategory, updateCategory, deleteCategory }
 }
