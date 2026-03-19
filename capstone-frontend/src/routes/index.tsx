@@ -236,6 +236,7 @@ export default function AppRoutes() {
           <Route path="" element={<Navigate to="/admin/category" replace />} />
           <Route path="category" element={<AdminCategoryPage />} />
           <Route path="category/add" element={<AdminAddCategoryPage />} />
+          <Route path="category/edit/:categoryname" element={<AdminAddCategoryPage />} />
           <Route path="report/seller" element={<AdminSellerReportPage />} />
           <Route path="report/buyer" element={<AdminBuyerReportPage />} />
           <Route path="report/:type/:reportId" element={<AdminReportDetailPage />} />

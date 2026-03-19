@@ -60,18 +60,9 @@ export function useCatagoriesApi() {
     return http.getItems(`/categories/${id}/public`)
   }
 
-  async function uploadCategoryIcon(file: File): Promise<ApiResponse<{ icon_url: string }>> {
-    const formData = new FormData()
-    formData.append("file", file)
-    return http.postItem("/admin/categories/upload-icon", formData) as Promise<ApiResponse<{ icon_url: string }>>
-  }
-
-  async function addCategory(payload: any): Promise<ApiResponse<any>> {
-    return http.postItem("/admin/categories", payload)
-  }
-
-  async function updateCategory(id: number, payload: { name: string; icon_url: string }): Promise<ApiResponse<any>> {
-    return http.putItem(`/admin/categories/${id}`, payload)
+  async function addCategory(payload: any, id?: number): Promise<ApiResponse<any>> {
+    const url = id ? `/admin/categories/${id}` : "/admin/categories"
+    return http.postItem(url, payload)
   }
 
   async function deleteCategory(id: number, moveToSubCategoryId?: number): Promise<ApiResponse<any>> {
@@ -82,5 +73,11 @@ export function useCatagoriesApi() {
     return http.deleteItem(url)
   }
 
-  return { getCatagoriesName, getCatagoriesSubName, getAdminCategories, getCatagoriesDetail, uploadCategoryIcon, addCategory, updateCategory, deleteCategory }
+  async function deactivateCategory(id: number, moveToSubCategoryId: number): Promise<ApiResponse<any>> {
+    return http.patchItem(`/admin/categories/${id}/deactivate`, {
+      move_to_sub_category_id: moveToSubCategoryId
+    })
+  }
+
+  return { getCatagoriesName, getCatagoriesSubName, getAdminCategories, getCatagoriesDetail, addCategory, deleteCategory, deactivateCategory }
 }

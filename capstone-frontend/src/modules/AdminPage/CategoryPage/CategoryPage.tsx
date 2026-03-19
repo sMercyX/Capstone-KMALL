@@ -177,7 +177,7 @@ export default function CategoryPage() {
                 
                 {/* Edit Button */}
                 <button 
-                  onClick={() => navigate("/admin/category/add", { state: group })}
+                  onClick={() => navigate(`/admin/category/edit/${group.main.slug}`)}
                   className="w-full flex items-center justify-center gap-2 bg-[#FF4C24] hover:bg-[#E63E1A] text-white py-3.5 rounded-lg font-medium text-[16px] transition-colors mt-auto shrink-0 shadow-sm"
                 >
                   <Pencil className="w-5 h-5" />
