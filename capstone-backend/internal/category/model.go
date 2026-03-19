@@ -16,4 +16,5 @@ type Category struct {
 	ProductCount         int64 `json:"product_count,omitempty"`
 	ActiveProductCount   int64 `json:"active_product_count,omitempty"`
 	InactiveProductCount int64 `json:"inactive_product_count,omitempty"`
+	SubCategoryCount     int64 `json:"sub_category_count,omitempty"`
 }

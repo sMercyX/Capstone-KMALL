@@ -2,6 +2,7 @@ package category
 
 import (
 	"context"
+	"sort"
 	"strings"
 
 	apperr "github.com/Perpasit/Capstone-KMALL/internal/apperr"
@@ -384,7 +385,57 @@ func (s *service) ListAdmin(ctx context.Context, q string, parentID *int64, isAc
 		*isActive = v
 	}
 
-	return s.repo.ListAdmin(ctx, q, parentID, isActive, limit, page)
+	cats, err := s.repo.ListAdmin(ctx, q, parentID, isActive, limit, page)
+	if err != nil {
+		return nil, err
+	}
+
+	// ถ้าไม่ได้ search ไม่ต้องแทรก parent
+	if q == "" {
+		return cats, nil
+	}
+
+	// รวบ id ที่มีอยู่แล้วใน result
+	existingIDs := make(map[int64]struct{}, len(cats))
+	for _, c := range cats {
+		existingIDs[int64(c.ID)] = struct{}{}
+	}
+
+	// หา parent_id ที่ยังไม่อยู่ใน result
+	missingParentIDs := make(map[int64]struct{})
+	for _, c := range cats {
+		if c.ParentID != nil {
+			pid := int64(*c.ParentID)
+			if _, found := existingIDs[pid]; !found {
+				missingParentIDs[pid] = struct{}{}
+			}
+		}
+	}
+
+	// ดึง parent มาเพิ่มใน list
+	for pid := range missingParentIDs {
+		parent, err := s.repo.Get(ctx, pid)
+		if err != nil {
+			continue
+		}
+		cnt, err := s.repo.CountSubcategories(ctx, pid)
+		if err == nil {
+			parent.SubCategoryCount = cnt
+		}
+		cats = append(cats, parent)
+	}
+
+	// เรียง main ขึ้นก่อน แล้วค่อย sub เรียงตาม id
+	sort.Slice(cats, func(i, j int) bool {
+		iIsMain := cats[i].ParentID == nil
+		jIsMain := cats[j].ParentID == nil
+		if iIsMain != jIsMain {
+			return iIsMain
+		}
+		return cats[i].ID < cats[j].ID
+	})
+
+	return cats, nil
 }
 
 func (s *service) UpsertCategoryTree(ctx context.Context, in UpsertCategoryTreeInput) (Category, []Category, error) {
