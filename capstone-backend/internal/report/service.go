@@ -311,7 +311,6 @@ func (s *service) ListReports(ctx context.Context, in ListReportsParams) (Report
 		Items:     reports,
 	}, nil
 }
-
 func (s *service) AdminTakeAction(ctx context.Context, in AdminTakeActionInput) (ReportAdminAction, error) {
 	in.AdminID = strings.TrimSpace(in.AdminID)
 	in.ActionType = strings.ToUpper(strings.TrimSpace(in.ActionType))
@@ -399,7 +398,7 @@ func (s *service) AdminTakeAction(ctx context.Context, in AdminTakeActionInput) 
 	}
 
 	reportID := in.ReportID
-	if _, err := s.repo.CreateUserBan(ctx, CreateUserBanInput{
+	actualBan, err := s.repo.CreateUserBan(ctx, CreateUserBanInput{
 		UserID:      targetUserID,
 		UserRole:    in.UserRole,
 		ReportID:    &reportID,
@@ -407,13 +406,18 @@ func (s *service) AdminTakeAction(ctx context.Context, in AdminTakeActionInput) 
 		BanType:     banType,
 		BannedUntil: bannedUntil,
 		CreatedBy:   in.AdminID,
-	}); err != nil {
+	})
+	if err != nil {
 		return ReportAdminAction{}, err
 	}
 
-	if in.UserRole == "SELLER" && banType != "WARNING" {
+	// ใช้ effectiveBanType จาก ban ที่ active จริงๆ
+	// (อาจต่างจาก banType ที่ส่งมา ถ้าของเก่าหนักกว่า → repo คืน record เก่า)
+	effectiveBanType := actualBan.BanType
+
+	if in.UserRole == "SELLER" && effectiveBanType != "WARNING" {
 		storeID := int64(*in.TargetStoreID)
-		reason := "AUTO_CANCELLED_DUE_TO_" + banType + "_" + in.ActionType + "_SELLER"
+		reason := "AUTO_CANCELLED_DUE_TO_" + effectiveBanType + "_" + in.ActionType + "_SELLER"
 
 		if s.storeSvc != nil {
 			log.Printf("[ADMIN] ForceClose store: admin=%s store=%d reason=%s", in.AdminID, storeID, reason)
@@ -434,8 +438,8 @@ func (s *service) AdminTakeAction(ctx context.Context, in AdminTakeActionInput) 
 		}
 	}
 
-	if s.orderSvc != nil && banType != "WARNING" && in.UserRole == "BUYER" {
-		cancelReason := "AUTO_CANCELLED_DUE_TO_" + banType + "_" + in.ActionType + "_BUYER"
+	if s.orderSvc != nil && effectiveBanType != "WARNING" && in.UserRole == "BUYER" {
+		cancelReason := "AUTO_CANCELLED_DUE_TO_" + effectiveBanType + "_" + in.ActionType + "_BUYER"
 
 		log.Printf("[ADMIN] Trigger cancel by buyer: admin=%s buyer=%s reason=%s",
 			in.AdminID, targetUserID, cancelReason)
@@ -481,7 +485,7 @@ func (s *service) AdminTakeAction(ctx context.Context, in AdminTakeActionInput) 
 				StoreID:         storeID,
 				ActionType:      in.ActionType,
 				Note:            in.Note,
-				BanType:         &banType,
+				BanType:         &effectiveBanType,
 				Reason:          reason,
 			})
 		}
@@ -495,7 +499,7 @@ func (s *service) AdminTakeAction(ctx context.Context, in AdminTakeActionInput) 
 				StoreID:         storeID,
 				ActionType:      "REPORT_ACTION_TAKEN",
 				Note:            in.Note,
-				BanType:         &banType,
+				BanType:         &effectiveBanType,
 				Reason:          reason,
 			})
 		}

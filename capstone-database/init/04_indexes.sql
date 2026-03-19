@@ -283,3 +283,17 @@ CREATE INDEX IF NOT EXISTS idx_notifications_user_created
 DROP INDEX IF EXISTS idx_notifications_user_created;
 CREATE INDEX IF NOT EXISTS idx_notifications_user_unread
   ON notifications (user_id, is_read);
+
+DROP INDEX IF EXISTS idx_notifications_announcement;
+CREATE INDEX IF NOT EXISTS idx_notifications_announcement
+  ON notifications(announcement_id)
+  WHERE announcement_id IS NOT NULL;
+
+DROP INDEX IF EXISTS idx_announcements_admin;
+CREATE INDEX IF NOT EXISTS idx_announcements_admin
+  ON announcements(admin_id);
+
+DROP INDEX IF EXISTS uq_one_image_key_per_product;
+CREATE UNIQUE INDEX uq_one_image_key_per_product
+  ON product_option_keys (product_id)
+  WHERE is_image_key = TRUE;

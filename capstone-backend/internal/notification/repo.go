@@ -34,10 +34,20 @@ type Repo interface {
 	CountUnread(ctx context.Context, userID string) (int64, error)
 
 	UpdateNotification(ctx context.Context, in UpdateNotificationInput) (Notification, error)
+
+	CreateAnnouncement(ctx context.Context, in CreateAnnouncementInput) (Announcement, error)
+	FanOutAnnouncement(ctx context.Context, announcementID int64, adminID string, title, body string, targetRoles []string) (int64, error)
+	ListAnnouncements(ctx context.Context, in ListAnnouncementsParams) ([]Announcement, error)
+	DeleteAnnouncement(ctx context.Context, announcementID int64) error
 }
 
 type repo struct {
 	db *pgxpool.Pool
+}
+
+type ListAnnouncementsParams struct {
+	BeforeID *int64
+	Limit    int
 }
 
 func NewRepo(db *pgxpool.Pool) Repo {
@@ -606,4 +616,163 @@ WHERE user_id = $1
 		return 0, apperr.Wrap(apperr.Internal, err, "mark read by order failed")
 	}
 	return tag.RowsAffected(), nil
+}
+
+func (r *repo) CreateAnnouncement(ctx context.Context, in CreateAnnouncementInput) (Announcement, error) {
+	rolesJSON, err := json.Marshal(in.TargetRoles)
+	if err != nil {
+		return Announcement{}, apperr.Wrap(apperr.BadRequest, err, "invalid target_roles")
+	}
+
+	var a Announcement
+	err = r.db.QueryRow(ctx, `
+WITH ins AS (
+  INSERT INTO announcements (admin_id, title, body, target_roles)
+  VALUES ($1, $2, $3, $4::jsonb)
+  RETURNING *
+)
+SELECT
+  ins.announcement_id,
+  ins.admin_id,
+  u.display_name,
+  ins.title,
+  ins.body,
+  ins.target_roles,
+  ins.created_at,
+  ins.updated_at
+FROM ins
+JOIN users u ON u.user_id = ins.admin_id
+`, in.AdminID, in.Title, in.Body, rolesJSON).Scan(
+		&a.ID,
+		&a.AdminID,
+		&a.AdminName,
+		&a.Title,
+		&a.Body,
+		&rolesJSON,
+		&a.CreatedAt,
+		&a.UpdatedAt,
+	)
+	if err != nil {
+		return Announcement{}, apperr.Wrap(apperr.Internal, err, "create announcement failed")
+	}
+	if e := json.Unmarshal(rolesJSON, &a.TargetRoles); e != nil {
+		return Announcement{}, apperr.Wrap(apperr.Internal, e, "decode target_roles failed")
+	}
+	return a, nil
+}
+
+func (r *repo) FanOutAnnouncement(
+	ctx context.Context,
+	announcementID int64,
+	adminID string,
+	title, body string,
+	targetRoles []string,
+) (int64, error) {
+
+	lowerRoles := make([]string, len(targetRoles))
+	for i, role := range targetRoles {
+		lowerRoles[i] = strings.ToLower(role)
+	}
+
+	tag, err := r.db.Exec(ctx, `
+INSERT INTO notifications (
+  user_id, type, announcement_id,
+  actor_user_id,
+  title, body,
+  is_read, created_at, updated_at
+)
+SELECT
+  ur.user_id,
+  'ANNOUNCEMENT',
+  $1,
+  $2::uuid,
+  $3,
+  $4,
+  FALSE,
+  NOW(),
+  NOW()
+FROM user_roles ur
+JOIN roles r ON r.role_id = ur.role_id
+WHERE LOWER(r.role_name) = ANY($5::text[])
+GROUP BY ur.user_id
+HAVING ur.user_id <> $2::uuid
+ON CONFLICT DO NOTHING
+`, announcementID, adminID, title, body, lowerRoles)
+	if err != nil {
+		return 0, apperr.Wrap(apperr.Internal, err, "fan-out announcement failed")
+	}
+	return tag.RowsAffected(), nil
+}
+
+func (r *repo) ListAnnouncements(ctx context.Context, in ListAnnouncementsParams) ([]Announcement, error) {
+	if in.Limit <= 0 || in.Limit > 100 {
+		in.Limit = 30
+	}
+
+	q := `
+SELECT
+  a.announcement_id,
+  a.admin_id,
+  u.display_name,
+  a.title,
+  a.body,
+  a.target_roles,
+  a.created_at,
+  a.updated_at
+FROM announcements a
+JOIN users u ON u.user_id = a.admin_id
+`
+	args := []any{}
+	argPos := 1
+
+	if in.BeforeID != nil && *in.BeforeID > 0 {
+		q += " WHERE a.announcement_id < $" + itoa(argPos)
+		args = append(args, *in.BeforeID)
+		argPos++
+	}
+
+	q += " ORDER BY a.announcement_id DESC LIMIT $" + itoa(argPos)
+	args = append(args, in.Limit)
+
+	rows, err := r.db.Query(ctx, q, args...)
+	if err != nil {
+		return nil, apperr.Wrap(apperr.Internal, err, "list announcements failed")
+	}
+	defer rows.Close()
+
+	out := make([]Announcement, 0, in.Limit)
+	for rows.Next() {
+		var a Announcement
+		var rolesJSON []byte
+		if err := rows.Scan(
+			&a.ID, &a.AdminID, &a.AdminName,
+			&a.Title, &a.Body,
+			&rolesJSON,
+			&a.CreatedAt, &a.UpdatedAt,
+		); err != nil {
+			return nil, apperr.Wrap(apperr.Internal, err, "scan announcement failed")
+		}
+		if e := json.Unmarshal(rolesJSON, &a.TargetRoles); e != nil {
+			return nil, apperr.Wrap(apperr.Internal, e, "decode target_roles failed")
+		}
+		out = append(out, a)
+	}
+	return out, nil
+}
+
+func (r *repo) DeleteAnnouncement(ctx context.Context, announcementID int64) error {
+	if announcementID <= 0 {
+		return apperr.New(apperr.BadRequest, "invalid announcement_id")
+	}
+
+	tag, err := r.db.Exec(ctx, `
+DELETE FROM announcements WHERE announcement_id = $1
+`, announcementID)
+	if err != nil {
+		return apperr.Wrap(apperr.Internal, err, "delete announcement failed")
+	}
+	if tag.RowsAffected() == 0 {
+		return apperr.New(apperr.NotFound, "announcement not found")
+	}
+	return nil
 }

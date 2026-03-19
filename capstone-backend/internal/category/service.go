@@ -60,7 +60,11 @@ type Service interface {
 
 	UpsertCategoryTree(ctx context.Context, in UpsertCategoryTreeInput) (Category, []Category, error)
 	DeactivateCategory(ctx context.Context, id int64, moveToSubID int64) (Category, error)
-	DeleteCategory(ctx context.Context, id int64, moveToSubID int64) error
+	DeleteCategory(ctx context.Context, id int64) error
+
+	UpsertCategoryTreeFull(ctx context.Context, in UpsertCategoryTreeInput) (Category, []Category, error)
+
+	GetBySlug(ctx context.Context, slug string) (Category, error)
 }
 
 type service struct {
@@ -206,19 +210,23 @@ func (s *service) Create(ctx context.Context, in CreateInput) (Category, error) 
 		if err != nil {
 			return Category{}, apperr.New(apperr.BadRequest, "parent category not found")
 		}
-		if parent.ParentID != nil { // parent is not main
+		if parent.ParentID != nil {
 			return Category{}, apperr.New(apperr.BadRequest, "parent category must be a main category")
 		}
 	}
 
-	// default sortOrder
-	sortOrder := 0
+	defaultSort := 1
+	if in.ParentID != nil {
+		defaultSort = 2
+	}
+	sortOrder := defaultSort
 	if in.SortOrder != nil {
 		sortOrder = *in.SortOrder
 	}
 
 	params := CreateParams{
-		Name: in.Name, Slug: *in.Slug,
+		Name:      in.Name,
+		Slug:      *in.Slug,
 		ParentID:  in.ParentID,
 		SortOrder: sortOrder,
 		IsActive:  in.IsActive,
@@ -247,26 +255,53 @@ func (s *service) Update(ctx context.Context, id int64, in UpdateInput) (Categor
 		return Category{}, err
 	}
 
-	// 1) ดูสถานะปัจจุบันว่าเป็น main หรือ sub
+	if in.Name != nil && in.Slug == nil {
+		newSlug := generateSlug(*in.Name)
+		in.Slug = &newSlug
+	}
+
 	cur, err := s.repo.Get(ctx, id)
 	if err != nil {
 		return Category{}, err
 	}
+
+	if in.IsActive != nil && strings.EqualFold(*in.IsActive, "NO") {
+		if cur.ParentID != nil {
+			cnt, err := s.repo.CountProductsByCategory(ctx, id)
+			if err != nil {
+				return Category{}, err
+			}
+			if cnt > 0 {
+				return Category{}, apperr.New(
+					apperr.BadRequest,
+					"cannot deactivate category that still has products, use PATCH /:id/deactivate with move_to_sub_category_id instead",
+				)
+			}
+		} else {
+			cnt, err := s.repo.CountSubcategories(ctx, id)
+			if err != nil {
+				return Category{}, err
+			}
+			if cnt > 0 {
+				return Category{}, apperr.New(
+					apperr.BadRequest,
+					"cannot deactivate main category while it still has sub categories",
+				)
+			}
+		}
+	}
+
 	isMain := cur.ParentID == nil
 	isSub := cur.ParentID != nil
 
-	// 2) enforce rule
 	if isMain {
-		// main ห้ามโดน set parent_id
 		if in.ParentID != nil {
 			return Category{}, apperr.New(apperr.BadRequest, "main category cannot set parent_id")
 		}
 	} else if isSub {
-		// sub ห้าม set parent_id = NULL
-		if in.ParentID != nil && *in.ParentID == 0 { // (ถ้าคุณใช้ 0 แทน null ใน update) ไม่แนะนำ
+		if in.ParentID != nil && *in.ParentID == 0 {
 			return Category{}, apperr.New(apperr.BadRequest, "sub category cannot set parent_id to NULL")
 		}
-		// ถ้าส่ง parent_id มา ต้องเป็น main เท่านั้น
 		if in.ParentID != nil {
 			if int64(*in.ParentID) == id {
 				return Category{}, apperr.New(apperr.BadRequest, "parent_id cannot be itself")
@@ -292,7 +327,6 @@ func (s *service) Delete(ctx context.Context, id int64) error {
 }
 
 func (s *service) CreateWithSubs(ctx context.Context, in CreateWithSubsInput) (Category, []Category, error) {
-	// validate main
 	main := CreateInput{
 		Name: in.Name, Slug: in.Slug, SortOrder: in.SortOrder, IsActive: in.IsActive,
 	}
@@ -304,31 +338,31 @@ func (s *service) CreateWithSubs(ctx context.Context, in CreateWithSubsInput) (C
 		return Category{}, nil, apperr.New(apperr.BadRequest, "main category must have at least 1 subcategory")
 	}
 
-	// validate subs
 	subs := make([]CreateParams, 0, len(in.Subcategories))
 	for _, sc := range in.Subcategories {
 		tmp := sc
 		if err := validateCreate(&tmp); err != nil {
 			return Category{}, nil, err
 		}
-		sortOrder := 0
+		sortOrder := 2
 		if tmp.SortOrder != nil {
 			sortOrder = *tmp.SortOrder
 		}
 
 		subs = append(subs, CreateParams{
-			Name: tmp.Name, Slug: *tmp.Slug,
-			ParentID:  nil, // set later after main insert
+			Name:      tmp.Name,
+			Slug:      *tmp.Slug,
+			ParentID:  nil,
 			SortOrder: sortOrder,
 			IsActive:  tmp.IsActive,
 		})
 	}
 
-	// ✅ call repo tx
 	mainParams := CreateParams{
-		Name: main.Name, Slug: *main.Slug,
-		ParentID:  nil, // main
-		SortOrder: derefInt(main.SortOrder, 0),
+		Name:      main.Name,
+		Slug:      *main.Slug,
+		ParentID:  nil,
+		SortOrder: derefInt(main.SortOrder, 1),
 		IsActive:  main.IsActive,
 	}
 
@@ -342,7 +376,6 @@ func (s *service) CreateWithSubs(ctx context.Context, in CreateWithSubsInput) (C
 func (s *service) ListAdmin(ctx context.Context, q string, parentID *int64, isActive *string, limit, page int) ([]Category, error) {
 	q = strings.TrimSpace(q)
 
-	// validate isActive if provided
 	if isActive != nil {
 		v := normalizeYesNo(*isActive, "")
 		if v == "" {
@@ -355,25 +388,27 @@ func (s *service) ListAdmin(ctx context.Context, q string, parentID *int64, isAc
 }
 
 func (s *service) UpsertCategoryTree(ctx context.Context, in UpsertCategoryTreeInput) (Category, []Category, error) {
-	// 1) ต้องมี sub อย่างน้อย 1
 	if len(in.Subs) < 1 {
 		return Category{}, nil, apperr.New(apperr.BadRequest, "sub_categories must have at least 1 item")
 	}
 
-	// 2) validate main (ใช้ validateCreate ได้ เพราะเราต้องการ name/slug/...)
 	mainCreate := CreateInput{
 		Name:      in.Main.Name,
 		Slug:      in.Main.Slug,
 		SortOrder: in.Main.SortOrder,
 		IsActive:  in.Main.IsActive,
-		ParentID:  nil, // main ต้องเป็น NULL เสมอ
+		ParentID:  nil,
 		IconURL:   in.Main.IconURL,
+	}
+
+	if in.Main.Slug == nil {
+		newSlug := generateSlug(in.Main.Name)
+		mainCreate.Slug = &newSlug
 	}
 	if err := validateCreate(&mainCreate); err != nil {
 		return Category{}, nil, err
 	}
 
-	// 3) validate subs (ใช้ validateCreate เช่นกัน)
 	subParams := make([]UpsertNodeParams, 0, len(in.Subs))
 	for _, sc := range in.Subs {
 		tmp := CreateInput{
@@ -381,7 +416,7 @@ func (s *service) UpsertCategoryTree(ctx context.Context, in UpsertCategoryTreeI
 			Slug:      sc.Slug,
 			SortOrder: sc.SortOrder,
 			IsActive:  sc.IsActive,
-			ParentID:  nil, // set โดย repo เป็น main_id
+			ParentID:  nil,
 		}
 		if err := validateCreate(&tmp); err != nil {
 			return Category{}, nil, err
@@ -391,22 +426,20 @@ func (s *service) UpsertCategoryTree(ctx context.Context, in UpsertCategoryTreeI
 			ID:        sc.ID,
 			Name:      tmp.Name,
 			Slug:      *tmp.Slug,
-			SortOrder: derefInt(tmp.SortOrder, 0),
+			SortOrder: derefInt(tmp.SortOrder, 2),
 			IsActive:  tmp.IsActive,
 		})
 	}
 
-	// 4) เตรียม main params
 	mainParam := UpsertMainParams{
 		ID:        in.Main.ID,
 		Name:      mainCreate.Name,
 		Slug:      *mainCreate.Slug,
-		SortOrder: derefInt(mainCreate.SortOrder, 0),
+		SortOrder: derefInt(mainCreate.SortOrder, 1),
 		IsActive:  mainCreate.IsActive,
 		IconURL:   in.Main.IconURL,
 	}
 
-	// 5) call repo tx
 	main, subs, err := s.repo.UpsertMainAndLinkSubs(ctx, mainParam, subParams)
 	if err != nil {
 		return Category{}, nil, err
@@ -414,7 +447,7 @@ func (s *service) UpsertCategoryTree(ctx context.Context, in UpsertCategoryTreeI
 	return main, subs, nil
 }
 
-func (s *service) DeleteCategory(ctx context.Context, id int64, moveToSubID int64) error {
+func (s *service) DeleteCategory(ctx context.Context, id int64) error {
 	if id <= 0 {
 		return apperr.New(apperr.BadRequest, "invalid id")
 	}
@@ -435,38 +468,22 @@ func (s *service) DeleteCategory(ctx context.Context, id int64, moveToSubID int6
 		return s.repo.DeleteCategoryHard(ctx, id)
 	}
 
-	if moveToSubID <= 0 {
-		cntP, err := s.repo.CountProductsByCategory(ctx, id)
-		if err != nil {
-			return err
-		}
-		if cntP == 0 {
-			return s.repo.DeleteCategoryHard(ctx, id)
-		}
-		return apperr.New(apperr.BadRequest, "move_to_sub_category_id is required")
+	if strings.ToUpper(strings.TrimSpace(cur.IsActive)) != "NO" {
+		return apperr.New(apperr.BadRequest, "category must be deactivated before deletion")
 	}
 
-	if moveToSubID == id {
-		return apperr.New(apperr.BadRequest, "move_to_sub_category_id cannot be same as source")
-	}
-
-	target, err := s.repo.Get(ctx, moveToSubID)
+	cnt, err := s.repo.CountProductsByCategory(ctx, id)
 	if err != nil {
 		return err
 	}
-	if target.ParentID == nil {
-		return apperr.New(apperr.BadRequest, "move_to_sub_category_id must be a sub category")
-	}
-	if !strings.EqualFold(target.IsActive, "YES") {
-		return apperr.New(apperr.BadRequest, "move_to_sub_category_id must be active (YES)")
-	}
-
-	if *cur.ParentID != *target.ParentID {
-		return apperr.New(apperr.BadRequest, "move_to_sub_category_id must be in the same main category")
+	if cnt > 0 {
+		return apperr.New(
+			apperr.BadRequest,
+			"category still has products, move them to another category first",
+		)
 	}
 
-	_, err = s.repo.DeleteSubAndMoveProducts(ctx, id, moveToSubID)
-	return err
+	return s.repo.DeleteCategoryHard(ctx, id)
 }
 
 func (s *service) DeactivateCategory(ctx context.Context, id int64, moveToSubID int64) (Category, error) {
@@ -479,47 +496,223 @@ func (s *service) DeactivateCategory(ctx context.Context, id int64, moveToSubID 
 		return Category{}, err
 	}
 
-	// main
 	if cur.ParentID == nil {
 		cnt, err := s.repo.CountSubcategories(ctx, id)
 		if err != nil {
 			return Category{}, err
 		}
 		if cnt > 0 {
-			return Category{}, apperr.New(apperr.BadRequest, "cannot deactivate main category while it still has sub categories")
+			return Category{}, apperr.New(
+				apperr.BadRequest,
+				"cannot deactivate main category while it still has sub categories",
+			)
 		}
 		return s.repo.SetCategoryActive(ctx, id, "NO")
 	}
 
-	// sub
-	if moveToSubID <= 0 {
-		return Category{}, apperr.New(apperr.BadRequest, "move_to_sub_category_id is required")
-	}
-	if moveToSubID == id {
-		return Category{}, apperr.New(apperr.BadRequest, "move_to_sub_category_id cannot be same as source")
-	}
-
-	target, err := s.repo.Get(ctx, moveToSubID)
+	cnt, err := s.repo.CountProductsByCategory(ctx, id)
 	if err != nil {
 		return Category{}, err
 	}
-	if target.ParentID == nil {
-		return Category{}, apperr.New(apperr.BadRequest, "move_to_sub_category_id must be a sub category")
-	}
-	if !strings.EqualFold(target.IsActive, "YES") {
-		return Category{}, apperr.New(apperr.BadRequest, "move_to_sub_category_id must be active (YES)")
+
+	if cnt > 0 {
+		if moveToSubID <= 0 {
+			return Category{}, apperr.New(
+				apperr.BadRequest,
+				"category has products, move_to_sub_category_id is required",
+			)
+		}
+		if moveToSubID == id {
+			return Category{}, apperr.New(
+				apperr.BadRequest,
+				"move_to_sub_category_id cannot be same as source",
+			)
+		}
+
+		target, err := s.repo.Get(ctx, moveToSubID)
+		if err != nil {
+			return Category{}, apperr.New(apperr.NotFound, "move_to category not found")
+		}
+		if target.ParentID == nil {
+			return Category{}, apperr.New(
+				apperr.BadRequest,
+				"move_to_sub_category_id must be a sub category",
+			)
+		}
+		if !strings.EqualFold(target.IsActive, "YES") {
+			return Category{}, apperr.New(
+				apperr.BadRequest,
+				"move_to_sub_category_id must be active",
+			)
+		}
+		if *cur.ParentID != *target.ParentID {
+			return Category{}, apperr.New(
+				apperr.BadRequest,
+				"move_to_sub_category_id must be in the same main category",
+			)
+		}
+
+		deactivated, _, err := s.repo.DeactivateSubAndMoveProducts(ctx, id, moveToSubID)
+		if err != nil {
+			return Category{}, err
+		}
+		return deactivated, nil
 	}
 
-	if cur.ParentID == nil || target.ParentID == nil {
-		return Category{}, apperr.New(apperr.BadRequest, "move_to_sub_category_id must be a sub category")
+	return s.repo.SetCategoryActive(ctx, id, "NO")
+}
+
+// impl — เหมือน UpsertCategoryTree แต่เพิ่ม deactivate subs ที่ไม่ได้ส่งมา
+func (s *service) UpsertCategoryTreeFull(ctx context.Context, in UpsertCategoryTreeInput) (Category, []Category, error) {
+	if in.Main.ID == nil || *in.Main.ID <= 0 {
+		return Category{}, nil, apperr.New(apperr.BadRequest, "main_category.id is required for full upsert")
 	}
-	if *cur.ParentID != *target.ParentID {
-		return Category{}, apperr.New(apperr.BadRequest, "move_to_sub_category_id must be in the same main category")
+	if len(in.Subs) < 1 {
+		return Category{}, nil, apperr.New(apperr.BadRequest, "sub_categories must have at least 1 item")
 	}
 
-	deactivated, _, err := s.repo.DeactivateSubAndMoveProducts(ctx, id, moveToSubID)
+	mainCreate := CreateInput{
+		Name:      in.Main.Name,
+		Slug:      in.Main.Slug,
+		SortOrder: in.Main.SortOrder,
+		IsActive:  in.Main.IsActive,
+		ParentID:  nil,
+		IconURL:   in.Main.IconURL,
+	}
+	if err := validateCreate(&mainCreate); err != nil {
+		return Category{}, nil, err
+	}
+
+	subParams := make([]UpsertNodeParams, 0, len(in.Subs))
+	for _, sc := range in.Subs {
+		tmp := CreateInput{
+			Name:      sc.Name,
+			Slug:      sc.Slug,
+			SortOrder: sc.SortOrder,
+			IsActive:  sc.IsActive,
+		}
+		if err := validateCreate(&tmp); err != nil {
+			return Category{}, nil, err
+		}
+
+		subParams = append(subParams, UpsertNodeParams{
+			ID:        sc.ID,
+			Name:      tmp.Name,
+			Slug:      *tmp.Slug,
+			SortOrder: derefInt(tmp.SortOrder, 2),
+			IsActive:  tmp.IsActive,
+		})
+	}
+
+	mainParam := UpsertMainParams{
+		ID:        in.Main.ID,
+		Name:      mainCreate.Name,
+		Slug:      *mainCreate.Slug,
+		SortOrder: derefInt(mainCreate.SortOrder, 1),
+		IsActive:  mainCreate.IsActive,
+		IconURL:   in.Main.IconURL,
+	}
+
+	if err := s.validateFullUpsertDeactivateRules(
+		ctx,
+		int64(*in.Main.ID),
+		mainParam.IsActive,
+		subParams,
+	); err != nil {
+		return Category{}, nil, err
+	}
+
+	return s.repo.UpsertMainAndLinkSubsFull(ctx, mainParam, subParams)
+}
+
+func (s *service) GetBySlug(ctx context.Context, slug string) (Category, error) {
+	return s.repo.GetBySlug(ctx, slug)
+}
+
+func (s *service) validateDeactivateSubcategories(
+	ctx context.Context,
+	mainID int64,
+	subs []UpsertNodeParams,
+) error {
+	sentIDs := make(map[int64]struct{}, len(subs))
+
+	for _, sc := range subs {
+		if sc.ID != nil && *sc.ID > 0 {
+			subID := int64(*sc.ID)
+			sentIDs[subID] = struct{}{}
+
+			if strings.EqualFold(strings.TrimSpace(sc.IsActive), "NO") {
+				cnt, err := s.repo.CountProductsByCategory(ctx, subID)
+				if err != nil {
+					return err
+				}
+				if cnt > 0 {
+					return apperr.New(
+						apperr.BadRequest,
+						"cannot deactivate category that still has products, use PATCH /:id/deactivate with move_to_sub_category_id instead",
+					)
+				}
+			}
+		}
+	}
+
+	existingSubs, err := s.repo.List(ctx, "", &mainID, false, 1000, 1)
 	if err != nil {
-		return Category{}, err
+		return err
 	}
-	return deactivated, nil
+
+	for _, ex := range existingSubs {
+		if ex.ParentID == nil {
+			continue
+		}
+		if _, ok := sentIDs[int64(ex.ID)]; ok {
+			continue
+		}
+
+		cnt, err := s.repo.CountProductsByCategory(ctx, int64(ex.ID))
+		if err != nil {
+			return err
+		}
+		if cnt > 0 {
+			return apperr.New(
+				apperr.BadRequest,
+				"cannot deactivate category that still has products, use PATCH /:id/deactivate with move_to_sub_category_id instead",
+			)
+		}
+	}
+
+	return nil
+}
+
+func (s *service) validateFullUpsertDeactivateRules(
+	ctx context.Context,
+	mainID int64,
+	mainIsActive string,
+	subs []UpsertNodeParams,
+) error {
+	if strings.EqualFold(strings.TrimSpace(mainIsActive), "NO") {
+		if len(subs) > 0 {
+			return apperr.New(
+				apperr.BadRequest,
+				"cannot deactivate main category while it still has sub categories",
+			)
+		}
+
+		cnt, err := s.repo.CountSubcategories(ctx, mainID)
+		if err != nil {
+			return err
+		}
+		if cnt > 0 {
+			return apperr.New(
+				apperr.BadRequest,
+				"cannot deactivate main category while it still has sub categories",
+			)
+		}
+	}
+
+	if err := s.validateDeactivateSubcategories(ctx, mainID, subs); err != nil {
+		return err
+	}
+
+	return nil
 }

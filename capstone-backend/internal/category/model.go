@@ -12,4 +12,8 @@ type Category struct {
 	IconURL   *string   `db:"icon_url"    json:"icon_url,omitempty"`
 	CreatedAt time.Time `db:"created_at"  json:"created_at"`
 	UpdatedAt time.Time `db:"updated_at"  json:"updated_at"`
+
+	ProductCount         int64 `json:"product_count,omitempty"`
+	ActiveProductCount   int64 `json:"active_product_count,omitempty"`
+	InactiveProductCount int64 `json:"inactive_product_count,omitempty"`
 }

@@ -95,3 +95,21 @@ type CreateAdminActionNotificationInput struct {
 	BanType         *string
 	Reason          *string
 }
+
+type Announcement struct {
+	ID          int64     `json:"announcement_id"`
+	AdminID     string    `json:"admin_id"`
+	AdminName   string    `json:"admin_display_name"`
+	Title       string    `json:"title"`
+	Body        string    `json:"body"`
+	TargetRoles []string  `json:"target_roles"`
+	CreatedAt   time.Time `json:"created_at"`
+	UpdatedAt   time.Time `json:"updated_at"`
+}
+
+type CreateAnnouncementInput struct {
+	AdminID     string
+	Title       string
+	Body        string
+	TargetRoles []string
+}

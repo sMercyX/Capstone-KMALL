@@ -1,7 +1,7 @@
 package category
 
 import (
-	"fmt"
+	"encoding/json"
 	"strconv"
 	"strings"
 
@@ -35,7 +35,7 @@ func (h *Handler) Register(r *gin.RouterGroup) {
 	admin := r.Group("/admin/categories", middleware.RequireRolesAny(h.roleSvc, "Admin"))
 	admin.GET("", h.listAdmin)
 	admin.POST("", h.create)
-	admin.POST("/upload-icon", h.uploadIcon)
+	admin.POST("/:id/icon/upload", h.uploadIcon)
 	admin.GET("/:id", h.get)
 	admin.PUT("/:id", h.update)
 	admin.DELETE("/:id", h.delete)
@@ -65,6 +65,16 @@ type updateReq struct {
 	SortOrder *int    `json:"sort_order"`
 	IsActive  *string `json:"is_active"`
 	IconURL   *string `json:"icon_url"`
+
+	Subcategories *[]UpsertSubReq `json:"sub_categories,omitempty"`
+}
+
+type UpsertSubReq struct {
+	ID        *int    `json:"id,omitempty"`
+	Name      string  `json:"name"`
+	Slug      *string `json:"slug,omitempty"`
+	SortOrder *int    `json:"sort_order,omitempty"`
+	IsActive  string  `json:"is_active,omitempty"`
 }
 
 type upsertTreeReq struct {
@@ -133,63 +143,46 @@ func parseBoolQuery(value string, def bool) bool {
 	}
 }
 
-func parseParentIDQuery(c *gin.Context) *int64 {
-	val := strings.TrimSpace(c.Query("parent_id"))
-	if val == "" {
-		return nil
-	}
-	if val == "null" {
-		x := int64(0)
-		return &x
-	}
-	id, err := strconv.ParseInt(val, 10, 64)
-	if err != nil {
-		return nil
-	}
-	return &id
-}
-
 // ===== Handlers =====
 
 // POST /api/categories (Admin)
 func (h *Handler) create(c *gin.Context) {
+	// อ่าน JSON จาก form field "data"
+	raw := c.PostForm("data")
+	if raw == "" {
+		c.Error(apperr.New(apperr.BadRequest, "data field is required"))
+		return
+	}
 
 	var in UpsertCategoryTreeInput
-
-	if err := c.ShouldBindJSON(&in); err != nil {
-		c.Error(apperr.New(apperr.BadRequest, "invalid json body"))
+	if err := json.Unmarshal([]byte(raw), &in); err != nil {
+		c.Error(apperr.New(apperr.BadRequest, "invalid json in data field"))
 		return
 	}
 
-	missing := []string{}
-
-	if strings.TrimSpace(in.Main.Name) == "" {
-		missing = append(missing, "main_category.name")
-	}
-
-	if len(in.Subs) == 0 {
-		missing = append(missing, "sub_categories (must have at least 1 item)")
-	} else {
-		for i, sc := range in.Subs {
-			if strings.TrimSpace(sc.Name) == "" {
-				missing = append(missing, fmt.Sprintf("sub_categories[%d].name", i))
-			}
+	// upload icon ถ้ามีส่งมา
+	var iconURL *string
+	fh, err := c.FormFile("file")
+	if err == nil && fh != nil {
+		up, err := h.fs.Save(c.Request.Context(), "category-icons", fh)
+		if err != nil {
+			c.Error(err)
+			return
 		}
+		iconURL = &up.URL
 	}
 
-	if len(missing) > 0 {
-		c.Error(apperr.WithFields(
-			apperr.New(apperr.BadRequest, "missing required fields"),
-			map[string]any{
-				"required": missing,
-			},
-		))
-		return
+	// ใส่ iconURL เข้าไปใน main category
+	if iconURL != nil {
+		in.Main.IconURL = iconURL
 	}
 
-	// call service
 	main, subs, err := h.svc.UpsertCategoryTree(c.Request.Context(), in)
 	if err != nil {
+		// ถ้า category สร้างไม่สำเร็จ ลบไฟล์ที่ upload ไปแล้ว
+		if iconURL != nil {
+			_ = h.fs.Delete(c.Request.Context(), *iconURL)
+		}
 		c.Error(err)
 		return
 	}
@@ -226,22 +219,66 @@ func (h *Handler) update(c *gin.Context) {
 		return
 	}
 
+	// ถ้ามี sub_categories ส่งมา → upsert ทั้งชุด
+	if in.Subcategories != nil {
+		subs := make([]UpsertNodeInput, 0, len(*in.Subcategories))
+		for _, s := range *in.Subcategories {
+			subs = append(subs, UpsertNodeInput{
+				ID:        s.ID,
+				Name:      s.Name,
+				Slug:      s.Slug,
+				SortOrder: s.SortOrder,
+				IsActive:  s.IsActive,
+			})
+		}
+
+		idInt := int(id)
+		treeIn := UpsertCategoryTreeInput{
+			Main: UpsertNodeInput{
+				ID:        &idInt,
+				Name:      derefStrOr(in.Name, ""),
+				Slug:      in.Slug,
+				SortOrder: in.SortOrder,
+				IsActive:  derefStrOr(in.IsActive, ""),
+				IconURL:   in.IconURL,
+			},
+			Subs: subs,
+		}
+
+		main, subs2, err := h.svc.UpsertCategoryTreeFull(c.Request.Context(), treeIn)
+		if err != nil {
+			c.Error(err)
+			return
+		}
+		respond.Updated(c, apperr.Updated, gin.H{
+			"main_category":  main,
+			"sub_categories": subs2,
+		})
+		return
+	}
+
+	// ไม่มี sub_categories → update แค่ main เหมือนเดิม
 	input := UpdateInput{
 		Name:      in.Name,
 		Slug:      in.Slug,
-		ParentID:  in.ParentID,
 		SortOrder: in.SortOrder,
 		IsActive:  in.IsActive,
-		IconURL:   in.IconURL, // ถ้ามี field นี้ใน updateReq/UpdateInput
+		IconURL:   in.IconURL,
 	}
-
 	cat, err := h.svc.Update(c.Request.Context(), id, input)
 	if err != nil {
 		c.Error(err)
 		return
 	}
-
 	respond.Updated(c, apperr.Updated, cat)
+}
+
+// helper
+func derefStrOr(s *string, def string) string {
+	if s == nil {
+		return def
+	}
+	return *s
 }
 
 // DELETE /api/categories/:id (Admin)
@@ -250,24 +287,10 @@ func (h *Handler) delete(c *gin.Context) {
 	if !ok {
 		return
 	}
-
-	moveToStr := strings.TrimSpace(c.Query("move_to_sub_category_id"))
-	var moveTo int64
-	if moveToStr != "" {
-		v, err := strconv.ParseInt(moveToStr, 10, 64)
-		if err != nil || v <= 0 {
-			c.Error(apperr.New(apperr.BadRequest, "invalid move_to_sub_category_id"))
-			return
-		}
-		moveTo = v
-	}
-
-	// ส่ง moveTo ไป service ให้ service enforce rule เอง
-	if err := h.svc.DeleteCategory(c.Request.Context(), id, moveTo); err != nil {
+	if err := h.svc.DeleteCategory(c.Request.Context(), id); err != nil {
 		c.Error(err)
 		return
 	}
-
 	respond.Deleted(c, apperr.Deleted, gin.H{"deleted": true})
 }
 
@@ -278,7 +301,12 @@ func (h *Handler) delete(c *gin.Context) {
 //   - ?active_only=true (default = true ใน public)
 func (h *Handler) listPublic(c *gin.Context) {
 	q := strings.TrimSpace(c.Query("q"))
-	parentID := parseParentIDQuery(c)
+
+	parentID, err := h.resolveParentID(c)
+	if err != nil {
+		c.Error(err)
+		return
+	}
 
 	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "50"))
 	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
@@ -334,7 +362,12 @@ func (h *Handler) getPublic(c *gin.Context) {
 // ?q=&parent_id=&is_active=&page=&limit=
 func (h *Handler) listAdmin(c *gin.Context) {
 	q := strings.TrimSpace(c.Query("q"))
-	parentID := parseParentIDQuery(c)
+
+	parentID, err := h.resolveParentID(c)
+	if err != nil {
+		c.Error(err)
+		return
+	}
 
 	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "50"))
 	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
@@ -390,6 +423,18 @@ func (h *Handler) deactivate(c *gin.Context) {
 }
 
 func (h *Handler) uploadIcon(c *gin.Context) {
+	id, ok := parseID(c)
+	if !ok {
+		return
+	}
+
+	// ดึง icon_url เดิมก่อน เพื่อลบไฟล์เก่า
+	cat, err := h.svc.Get(c.Request.Context(), id)
+	if err != nil {
+		c.Error(err)
+		return
+	}
+
 	fh, err := c.FormFile("file")
 	if err != nil {
 		c.Error(apperr.New(apperr.BadRequest, "file is required"))
@@ -402,7 +447,41 @@ func (h *Handler) uploadIcon(c *gin.Context) {
 		return
 	}
 
-	respond.Created(c, apperr.Created, gin.H{
-		"icon_url": up.URL,
+	// ลบไฟล์เก่า
+	if cat.IconURL != nil && *cat.IconURL != "" {
+		_ = h.fs.Delete(c.Request.Context(), *cat.IconURL)
+	}
+
+	// update icon_url ใน DB เลย
+	updated, err := h.svc.Update(c.Request.Context(), id, UpdateInput{
+		IconURL: &up.URL,
 	})
+	if err != nil {
+		c.Error(err)
+		return
+	}
+
+	respond.Updated(c, apperr.Updated, updated)
+}
+
+func (h *Handler) resolveParentID(c *gin.Context) (*int64, error) {
+	val := strings.TrimSpace(c.Query("parent_id"))
+	if val == "" {
+		return nil, nil
+	}
+	if val == "null" {
+		x := int64(0)
+		return &x, nil
+	}
+	// ถ้าเป็นตัวเลข → ใช้ตรงๆ
+	if id, err := strconv.ParseInt(val, 10, 64); err == nil {
+		return &id, nil
+	}
+	// ถ้าเป็น slug → lookup
+	cat, err := h.svc.GetBySlug(c.Request.Context(), val)
+	if err != nil {
+		return nil, apperr.New(apperr.NotFound, "parent category not found")
+	}
+	id64 := int64(cat.ID)
+	return &id64, nil
 }
