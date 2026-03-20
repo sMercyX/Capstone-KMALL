@@ -15,6 +15,7 @@ export interface CatagoriesResponse {
   product_count?: number
   active_product_count?: number
   inactive_product_count?: number
+  sub_category_count?: number
 }
 
 export function useCatagoriesApi() {
