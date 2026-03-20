@@ -301,7 +301,6 @@ func (r *repo) ListAdmin(ctx context.Context, q string, parentID *int64, isActiv
 		args = append(args, q)
 		argPos++
 	}
-
 	if parentID != nil {
 		if *parentID == 0 {
 			where = append(where, `c.parent_id IS NULL`)
@@ -311,7 +310,6 @@ func (r *repo) ListAdmin(ctx context.Context, q string, parentID *int64, isActiv
 			argPos++
 		}
 	}
-
 	if isActive != nil {
 		where = append(where, `c.is_active = $`+strconv.Itoa(argPos))
 		args = append(args, strings.ToUpper(strings.TrimSpace(*isActive)))
@@ -331,12 +329,16 @@ func (r *repo) ListAdmin(ctx context.Context, q string, parentID *int64, isActiv
 		c.icon_url,
 		c.created_at,
 		c.updated_at,
-		COUNT(p.product_id) AS product_count,
-		COUNT(p.product_id) FILTER (WHERE p.is_active = 'YES') AS active_product_count,
-		COUNT(p.product_id) FILTER (WHERE p.is_active = 'NO') AS inactive_product_count
+		COUNT(DISTINCT p.product_id)                                        AS product_count,
+		COUNT(DISTINCT p.product_id) FILTER (WHERE p.is_active = 'YES')    AS active_product_count,
+		COUNT(DISTINCT p.product_id) FILTER (WHERE p.is_active = 'NO')     AS inactive_product_count,
+		CASE
+			WHEN c.parent_id IS NULL THEN
+				(SELECT COUNT(*) FROM categories s WHERE s.parent_id = c.category_id)
+			ELSE 0
+		END AS sub_category_count
 	FROM categories c
-	LEFT JOIN products p
-		ON p.category_id = c.category_id
+	LEFT JOIN products p ON p.category_id = c.category_id
 	WHERE ` + strings.Join(where, " AND ") + `
 	GROUP BY
 		c.category_id, c.name, c.slug, c.parent_id, c.sort_order,
@@ -354,9 +356,10 @@ func (r *repo) ListAdmin(ctx context.Context, q string, parentID *int64, isActiv
 	for rows.Next() {
 		var c Category
 		if err := rows.Scan(
-			&c.ID, &c.Name, &c.Slug, &c.ParentID, &c.SortOrder, &c.IsActive,
-			&c.IconURL, &c.CreatedAt, &c.UpdatedAt,
+			&c.ID, &c.Name, &c.Slug, &c.ParentID, &c.SortOrder,
+			&c.IsActive, &c.IconURL, &c.CreatedAt, &c.UpdatedAt,
 			&c.ProductCount, &c.ActiveProductCount, &c.InactiveProductCount,
+			&c.SubCategoryCount,
 		); err != nil {
 			return nil, apperr.Wrap(apperr.Internal, err, "scan category failed")
 		}
