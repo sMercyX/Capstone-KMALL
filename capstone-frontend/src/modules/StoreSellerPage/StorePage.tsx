@@ -27,11 +27,11 @@ export default function StorePage() {
   else if (pathname.startsWith("/store/settings")) activeKey = "settings"
   // ถ้าไม่ตรงอะไรเลย (เช่น /store) ก็เป็น "store"
 
-  let activeLabel = "My Store"
-  if (activeKey === "products") activeLabel = "Products"
-  else if (activeKey === "add") activeLabel = "Add New Product"
-  else if (activeKey === "orders") activeLabel = "Orders"
-  else if (activeKey === "settings") activeLabel = "Store Settings"
+  // let activeLabel = "My Store"
+  // if (activeKey === "products") activeLabel = "Products"
+  // else if (activeKey === "add") activeLabel = "Add New Product"
+  // else if (activeKey === "orders") activeLabel = "Orders"
+  // else if (activeKey === "settings") activeLabel = "Store Settings"
 
   const roles = useUserStore((s) => s.roles)
   // 🔒 ถ้ามี role seller อยู่แล้ว ห้ามเข้าหน้านี้ → เด้งไป /store/me
@@ -53,18 +53,18 @@ export default function StorePage() {
   }, [store?.id, fetchStore])
 
   return (
-    <div className="max-w-6xl mx-auto py-10">
-      <Card className="space-y-5">
-        <h1 className="text-center text-3xl font-bold  text-black">
-          {activeLabel}
-        </h1>
+    <div className="mx-auto h-full">
+        <Card className="space-y-5 h-full">
+        {/* <h1 className="text-center text-3xl font-bold  text-black">
+            {activeLabel}
+          </h1> */}
 
-        {activeKey === "store" && <StoreInfoTab />}
-        {activeKey === "products" && <StoreProductsTab />}
-        {activeKey === "add" && <StoreAddTab />}
-        {activeKey === "orders" && <StoreOrdersTab />}
-        {activeKey === "settings" && <StoreSettingsTab />}
-      </Card>
+          {activeKey === "store" && <StoreInfoTab />}
+          {activeKey === "products" && <StoreProductsTab />}
+          {activeKey === "add" && <StoreAddTab />}
+          {activeKey === "orders" && <StoreOrdersTab />}
+          {activeKey === "settings" && <StoreSettingsTab />}
+        </Card>
     </div>
   )
 }
