@@ -3,13 +3,13 @@ import Card from "../../components/Card/Card"
 import StoreInfoTab from "./StoreInfoTab/StoreInfoTab"
 import StoreOrdersTab from "./storeOrderTab/StoreOrdersTab"
 import StoreSettingsTab from "./StoreSettingTab"
-import { StoreAddTab } from "./StoreAddTab/StoreAddTab"
+import { StoreAddEditTab } from "./StoreAddEditTab/StoreAddEditTab"
 import StoreProductsTab from "./StoreProductsTab/StoreProductsTab"
 import { useUserStore } from "../../stores/userStore"
 import { useStoreStore } from "../../stores/storeStore"
 import { useEffect } from "react"
 
-type StoreTabKey = "store" | "products" | "add" | "orders" | "settings"
+type StoreTabKey = "store" | "products" | "add" | "edit" | "orders" | "settings"
 
 export default function StorePage() {
   const location = useLocation()
@@ -22,6 +22,7 @@ export default function StorePage() {
   let activeKey: StoreTabKey = "store"
   if (pathname.startsWith("/store/me")) activeKey = "store"
   else if (pathname.startsWith("/store/products/add")) activeKey = "add"
+  else if (pathname.match(/^\/store\/products\/edit\/\d+$/)) activeKey = "edit"
   else if (pathname.startsWith("/store/products")) activeKey = "products"
   else if (pathname.startsWith("/store/orders")) activeKey = "orders"
   else if (pathname.startsWith("/store/settings")) activeKey = "settings"
@@ -61,7 +62,7 @@ export default function StorePage() {
 
           {activeKey === "store" && <StoreInfoTab />}
           {activeKey === "products" && <StoreProductsTab />}
-          {activeKey === "add" && <StoreAddTab />}
+          {(activeKey === "add" || activeKey === "edit") && <StoreAddEditTab />}
           {activeKey === "orders" && <StoreOrdersTab />}
           {activeKey === "settings" && <StoreSettingsTab />}
         </Card>

@@ -7,7 +7,6 @@ import { useProductApi } from "../../../api/productApi"
 import { type storeProductDataRequset } from "../../../api/storeApi"
 import { useStoreStore } from "../../../stores/storeStore"
 import { useStoreProductStore } from "./storeProductStore"
-import StoreEditProductModal from "./StoreEditProductModal"
 import ConfirmationModal from "../../../components/Modal/ConfirmationModal"
 import { toast } from "react-toastify"
 import { resolveImageUrl } from "../../../utils/resolve"
@@ -34,8 +33,6 @@ export default function StoreProductsTab() {
     reset,
   } = useStoreProductStore()
 
-  const [isEditOpen, setIsEditOpen] = useState(false)
-  const [editProduct, setEditProduct] = useState<storeProductDataRequset | null>(null)
   const [refreshKey, setRefreshKey] = useState(0)
 
   const [searchQuery, setSearchQuery] = useState("")
@@ -132,17 +129,7 @@ export default function StoreProductsTab() {
   const totalPages = Math.max(1, Math.ceil(total / pageSize))
 
   const handleOpenEdit = (product: storeProductDataRequset) => {
-    setEditProduct(product)
-    setIsEditOpen(true)
-  }
-
-  const handleCloseEdit = () => {
-    setIsEditOpen(false)
-    setEditProduct(null)
-  }
-
-  const handleEditSuccess = () => {
-    setRefreshKey((prev) => prev + 1)
+    navigate(`/store/products/edit/${product.id}`)
   }
 
   const handleDeleteClick = (id: number) => {
@@ -349,15 +336,6 @@ export default function StoreProductsTab() {
         </div>
       )}
 
-      {/* Modals */}
-      {isEditOpen && editProduct && (
-        <StoreEditProductModal
-          isOpen={isEditOpen}
-          onClose={handleCloseEdit}
-          product={editProduct}
-          onSuccess={handleEditSuccess}
-        />
-      )}
 
       <ConfirmationModal
         isOpen={!!deleteId}

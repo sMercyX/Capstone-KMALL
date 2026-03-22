@@ -257,6 +257,7 @@ export default function AppRoutes() {
           <Route path="/store/me" element={<StoreSellerPage />} />
           <Route path="/store/products" element={<StoreSellerPage />} />
           <Route path="/store/products/add" element={<StoreSellerPage />} />
+          <Route path="/store/products/edit/:id" element={<StoreSellerPage />} />
           <Route path="/store/orders" element={<StoreSellerPage />} />
           <Route path="/store/orders/:orderId" element={<StoreOrderDetailPage />} />
           <Route path="/store/orders/:orderId/chat" element={<ChatPage />} />

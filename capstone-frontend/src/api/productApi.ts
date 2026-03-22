@@ -18,24 +18,40 @@ export interface Product {
   category_id: number
   category_name: string
   sold_count?: number
+  product_type: "STOCK" | "PREORDER"
+  options?: OptionKey[]
+  variants?: Variant[]
 }
 
-export interface ProductOptionValueRequest {
-  value_label: string;
+export interface OptionKey {
+  id: number
+  product_id: number
+  key_name: string
+  sort_order: number
+  is_image_key: boolean
+  values: OptionValue[]
 }
 
-export interface ProductOptionRequest {
-  key_name: string;
-  is_image_key?: boolean;
-  sort_order: number;
-  values: ProductOptionValueRequest[];
+export interface OptionValue {
+  id: number
+  option_key_id: number
+  value_label: string
+  sort_order: number
+  image_url?: string
 }
 
-export interface ProductVariantRequest {
-  option_value_labels: string[];
-  price_delta: number;
-  stock_qty: number;
-  is_active: boolean;
+export interface Variant {
+  id: number
+  product_id: number
+  sku?: string
+  price_delta: number
+  final_price: number
+  stock_qty: number
+  is_active: boolean
+  selections: {
+    key: string
+    value: string
+  }[]
 }
 
 export interface AddProductRequest {
@@ -47,8 +63,21 @@ export interface AddProductRequest {
   is_active: "YES" | "NO"
   store_id: number
   category_id: number
-  options?: ProductOptionRequest[]
-  variants?: ProductVariantRequest[]
+  options?: {
+    key_name: string
+    sort_order: number
+    is_image_key?: boolean
+    values: {
+      value_label: string
+      sort_order: number
+    }[]
+  }[]
+  variants?: {
+    option_value_labels: string[]
+    price_delta: number
+    stock_qty: number
+    is_active: boolean
+  }[]
 }
 
 export type ProductListResponse = PaginatedResponse<Product>
@@ -70,12 +99,26 @@ export interface productPictureEditRequest {
 }
 
 export interface EditProductRequest {
-  name: string
-  description: string
-  price: number
-  image_url: string
-  is_active: "YES" | "NO"
-  category_id: number
+  name?: string
+  description?: string
+  price?: number
+  image_url?: string
+  is_active?: "YES" | "NO"
+  category_id?: number
+  variants_config?: {
+    options: {
+      key_name: string
+      sort_order: number
+      values: string[]
+      is_image_key?: boolean
+    }[]
+    variants: {
+      option_value_labels: string[]
+      price_delta: number
+      stock_qty: number
+      is_active: boolean
+    }[]
+  }
 }
 
 // Recommendation API types
@@ -216,6 +259,10 @@ export function useProductApi() {
   async function getProduct(store_id: number) {
     return http.getItems(`/products/${store_id}/public`)
   }
+
+  async function getProductById(id: number): Promise<ApiResponse<Product>> {
+    return http.getItems(`/products/${id}`)
+  }
   
   async function editProduct(
     product_id: number,
@@ -277,6 +324,7 @@ export function useProductApi() {
     getProductsStoreByStoreId,
     addProduct,
     getProduct,
+    getProductById,
     editProduct,
     deleteProduct,
     addImageProduct,

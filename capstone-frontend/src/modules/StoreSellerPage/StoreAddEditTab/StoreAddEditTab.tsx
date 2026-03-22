@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react"
-import { useNavigate } from "react-router-dom"
+import { useNavigate, useParams } from "react-router-dom"
 import {
   ImagePlus,
   Trash2,
@@ -7,7 +7,7 @@ import {
 import { toast } from "react-toastify"
 
 import { handleApiError } from "../../../utils/handleApiError"
-import { useProductApi, type AddProductRequest, type productPictureResponse } from "../../../api/productApi"
+import { useProductApi, type AddProductRequest, type productPictureResponse, type EditProductRequest, type OptionKey, type OptionValue, type Variant } from "../../../api/productApi"
 import { useStoreStore } from "../../../stores/storeStore"
 import { useCatagoriesApi, type CatagoriesResponse } from "../../../api/catagoriesApi"
 import { processImageFile, SUPPORTED_IMAGE_TYPES } from "../../../utils/imageProcessing"
@@ -27,7 +27,11 @@ export interface LocalVariant {
   is_active: boolean;
 }
 
-type ImageSlot = string
+type ImageItem = {
+  id?: number; // for existing images
+  url: string;
+  file?: File; // for new images
+}
 
 const steps = [
   { id: "product-info", label: "Product Information" },
@@ -110,10 +114,13 @@ function OptionCard({
   )
 }
 
-export function StoreAddTab() {
+export function StoreAddEditTab() {
   const navigate = useNavigate()
-  const [images, setImages] = useState<ImageSlot[]>([])
-  const [files, setFiles] = useState<File[]>([])
+  const { id } = useParams<{ id: string }>()
+  const isEditMode = !!id
+
+  const [images, setImages] = useState<ImageItem[]>([])
+  const [deletedImageIds, setDeletedImageIds] = useState<number[]>([])
   const [mainIndex, setMainIndex] = useState(0)
   const fileInputRef = useRef<HTMLInputElement | null>(null)
   const contentRef = useRef<HTMLDivElement>(null)
@@ -147,9 +154,67 @@ export function StoreAddTab() {
   const [activeTab, setActiveTab] = useState("product-info")
   const isScrolling = useRef(false)
 
-  const { addProduct, addImageProduct, editImageProduct } = useProductApi()
+  const { addProduct, editProduct, getProductById, addImageProduct, editImageProduct, getProductImage, deleteProductImage } = useProductApi()
   const { store } = useStoreStore()
   const { getCatagoriesName } = useCatagoriesApi()
+
+  // ---------- Fetch Product Data (Edit Mode) ----------
+  useEffect(() => {
+    if (!isEditMode || !id) return
+
+    const fetchProduct = async () => {
+      try {
+        const productId = Number(id)
+        
+        // 1. Get Product Details
+        const res = await getProductById(productId)
+        const p = res.data
+        if (!p) return
+
+        setName(p.name)
+        setDescription(p.description)
+        setPrice(String(p.price))
+        setProductType(p.product_type)
+        setMainCategoryId(p.category_id > 1000 ? Math.floor(p.category_id / 1000) : p.category_id)
+        setSubCategoryId(p.category_id)
+
+        // 2. Options & Variants
+        if (p.options && p.options.length > 0) {
+          setOptions(p.options.map((opt: OptionKey) => ({
+            id: String(opt.id),
+            name: opt.key_name,
+            values: opt.values.map((v: OptionValue) => v.value_label)
+          })))
+        }
+
+        if (p.variants && p.variants.length > 0) {
+          setVariants(p.variants.map((v: Variant) => ({
+            id: v.selections.map((s: { value: string }) => s.value).join(" / "),
+            option_value_labels: v.selections.map((s: { value: string }) => s.value),
+            price_delta: v.price_delta,
+            stock_qty: v.stock_qty,
+            is_active: v.is_active
+          })))
+        }
+
+        // 3. Images
+        const imgRes = await getProductImage(productId)
+        const apiImages = imgRes.data || []
+        setImages(apiImages.map((img: productPictureResponse) => ({
+          id: img.id,
+          url: img.image_url
+        })))
+        
+        const primaryIdx = apiImages.findIndex((img: productPictureResponse) => img.is_primary)
+        if (primaryIdx >= 0) setMainIndex(primaryIdx)
+
+      } catch (err) {
+        handleApiError(err)
+      }
+    }
+
+    fetchProduct()
+  }, [isEditMode, id])
 
   // ---------- scroll spy ----------
   useEffect(() => {
@@ -233,8 +298,7 @@ export function StoreAddTab() {
     const selectedFiles = e.target.files
     if (!selectedFiles || selectedFiles.length === 0) return
 
-    const newFiles: File[] = []
-    const newUrls: string[] = []
+    const newItems: ImageItem[] = []
 
     for (const file of Array.from(selectedFiles)) {
        try {
@@ -243,21 +307,22 @@ export function StoreAddTab() {
              toast.error(`File ${file.name} exceeds 2MB after processing.`)
              continue
            }
-           newFiles.push(processedFile)
-           newUrls.push(URL.createObjectURL(processedFile))
+           newItems.push({
+             url: URL.createObjectURL(processedFile),
+             file: processedFile
+           })
        } catch (err) {
            console.error("File processing failed:", err)
        }
     }
 
-    if (newFiles.length === 0) {
+    if (newItems.length === 0) {
       e.target.value = ""
       return
     }
 
-    setFiles((prev) => [...prev, ...newFiles])
     setImages((prev) => {
-      const next = [...prev, ...newUrls]
+      const next = [...prev, ...newItems]
       if (prev.length === 0 && next.length > 0) {
         setMainIndex(0)
       }
@@ -268,7 +333,11 @@ export function StoreAddTab() {
   }
 
   const handleDeleteImage = (index: number) => {
-    setFiles((prev) => prev.filter((_, i) => i !== index))
+    const target = images[index]
+    if (target?.id) {
+       setDeletedImageIds(prev => [...prev, target.id!])
+    }
+
     setImages((prev) => {
       const next = prev.filter((_, i) => i !== index)
       if (next.length === 0) { setMainIndex(0); return next; }
@@ -362,47 +431,96 @@ export function StoreAddTab() {
 
     try {
       setIsSubmitting(true)
+      const productId = isEditMode ? Number(id) : null
 
-      const payload: AddProductRequest = {
-        name,
-        description,
-        price: priceNumber,
-        product_type: productType,
-        image_url: "", 
-        is_active: "YES",
-        store_id: store.id,
-        category_id: subCategoryId as number,
-        options: options.map((opt, i) => ({
-          key_name: opt.name,
-          sort_order: i + 1,
-          is_image_key: i === 0, // Mock first option as image key if needed
-          values: opt.values.map(val => ({ value_label: val }))
-        })),
-        variants: variants.map(v => ({
-          option_value_labels: v.option_value_labels,
-          price_delta: v.price_delta,
-          stock_qty: v.stock_qty,
-          is_active: v.is_active
-        }))
-      }
-
-      const res = await addProduct(payload)
-      const newProductId = res.data.id
-
-      if (files.length > 0) {
-        const resImages = await addImageProduct(newProductId, files)
-        const uploadedImages = resImages.data as unknown as productPictureResponse[]
-
-        if (uploadedImages && uploadedImages.length > mainIndex) {
-          const mainImg = uploadedImages[mainIndex]
-          if (mainImg) {
-            await editImageProduct(mainImg.id, { is_primary: true })
+      if (isEditMode && productId) {
+        // ---------- EDIT MODE ----------
+        const editPayload: EditProductRequest = {
+          name,
+          description,
+          price: priceNumber,
+          category_id: subCategoryId as number,
+          variants_config: {
+            options: options.map((opt, i) => ({
+              key_name: opt.name,
+              sort_order: i + 1,
+              is_image_key: i === 0,
+              values: opt.values
+            })),
+            variants: variants.map(v => ({
+              option_value_labels: v.option_value_labels,
+              price_delta: v.price_delta,
+              stock_qty: v.stock_qty,
+              is_active: v.is_active
+            }))
           }
         }
-      }
+        await editProduct(productId, editPayload)
 
-      toast.success("Product added successfully.")
-      navigate("/store/products")
+        // Handle Image Deletions
+        for (const imageId of deletedImageIds) {
+          await deleteProductImage(imageId)
+        }
+
+        // Handle New Image Uploads
+        const newFiles = images.filter(img => img.file).map(img => img.file!)
+        if (newFiles.length > 0) {
+          await addImageProduct(productId, newFiles)
+        }
+
+        // Update Primary Image if changed
+        // This is tricky because we need the IDs of newly uploaded images if they are set to primary.
+        // For simplicity, we might just re-fetch images and set primary based on mainIndex.
+        const freshImgsRes = await getProductImage(productId)
+        const freshImgs = freshImgsRes.data || []
+        if (freshImgs[mainIndex]) {
+          await editImageProduct(freshImgs[mainIndex].id, { is_primary: true })
+        }
+
+        toast.success("Product updated successfully!")
+        navigate("/store/products")
+
+      } else {
+        // ---------- ADD MODE ----------
+        const payload: AddProductRequest = {
+          name,
+          description,
+          price: priceNumber,
+          product_type: productType,
+          image_url: "", 
+          is_active: "YES",
+          store_id: store.id,
+          category_id: subCategoryId as number,
+          options: options.map((opt, i) => ({
+            key_name: opt.name,
+            sort_order: i + 1,
+            is_image_key: i === 0,
+            values: opt.values.map((val, j) => ({ value_label: val, sort_order: j + 1 }))
+          })),
+          variants: variants.map(v => ({
+            option_value_labels: v.option_value_labels,
+            price_delta: v.price_delta,
+            stock_qty: v.stock_qty,
+            is_active: v.is_active
+          }))
+        }
+
+        const res = await addProduct(payload)
+        const newProductId = res.data.id
+
+        const newFiles = images.filter(img => img.file).map(img => img.file!)
+        if (newFiles.length > 0) {
+          const resImages = await addImageProduct(newProductId, newFiles)
+          const uploadedImages = resImages.data || []
+
+          if (uploadedImages[mainIndex]) {
+            await editImageProduct(uploadedImages[mainIndex].id, { is_primary: true })
+          }
+        }
+
+        toast.success("Product published successfully!")
+        navigate("/store/products")
+      }
     } catch (err) {
       handleApiError(err)
     } finally {
@@ -426,10 +544,14 @@ export function StoreAddTab() {
           >
             Product Management
           </span>{" "}
-          &gt; <span className="font-semibold text-gray-600">Add Product</span>
+          &gt; <span className="font-semibold text-gray-600">{isEditMode ? "Edit Product" : "Add Product"}</span>
         </p>
-        <h1 className="text-3xl font-bold text-gray-900 mb-1">Add Product</h1>
-        <p className="text-sm text-gray-500">Create a new product by adding details, pricing, and stock information.</p>
+        <h1 className="text-3xl font-bold text-gray-900 mb-1">{isEditMode ? "Edit Product" : "Add Product"}</h1>
+        <p className="text-sm text-gray-500">
+          {isEditMode 
+            ? "Update your product details, pricing, and stock information." 
+            : "Create a new product by adding details, pricing, and stock information."}
+        </p>
       </div>
 
       {/* Stepper (Navigation Tabs) */}
@@ -561,7 +683,7 @@ export function StoreAddTab() {
                    <div className="mt-6 flex flex-wrap gap-4">
                       {images.map((img, idx) => (
                         <div key={idx} className={`relative w-24 h-24 rounded-2xl border-2 overflow-hidden group shadow-sm ${mainIndex === idx ? "border-[#ff5a36]" : "border-gray-100"}`}>
-                           <img src={img} className="w-full h-full object-cover" />
+                           <img src={img.url} className="w-full h-full object-cover" />
                            <button 
                              onClick={(e) => { e.stopPropagation(); handleDeleteImage(idx); }}
                              className="absolute top-1 right-1 w-6 h-6 rounded-full bg-white/90 shadow-md flex items-center justify-center text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"
