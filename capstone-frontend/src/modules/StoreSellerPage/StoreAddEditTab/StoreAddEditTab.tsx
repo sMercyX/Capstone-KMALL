@@ -12,6 +12,7 @@ import { useStoreStore } from "../../../stores/storeStore"
 import { useCatagoriesApi, type CatagoriesResponse } from "../../../api/catagoriesApi"
 import { processImageFile, SUPPORTED_IMAGE_TYPES } from "../../../utils/imageProcessing"
 import { Dropdown } from "../../../components/Dropdown"
+import ToggleSwitch from "../../../components/Toggle/ToggleSwitch"
 
 export interface LocalOption {
   id: string;
@@ -33,11 +34,6 @@ type ImageItem = {
   file?: File; // for new images
 }
 
-const steps = [
-  { id: "product-info", label: "Product Information" },
-  { id: "product-options", label: "Options" },
-  { id: "product-variants", label: "Variants" },
-]
 
 function OptionCard({ 
   option, 
@@ -129,6 +125,7 @@ export function StoreAddEditTab() {
   const [description, setDescription] = useState("")
   const [price, setPrice] = useState<string>("")
   const [productType, setProductType] = useState("PREORDER")
+  const [isActive, setIsActive] = useState(true)
   
   // Category states
   const [mainCategoryId, setMainCategoryId] = useState<number | "ALL">("ALL")
@@ -149,6 +146,19 @@ export function StoreAddEditTab() {
   // Validation state
   const [errors, setErrors] = useState<{ name?: boolean; price?: boolean; category?: boolean; description?: boolean; images?: boolean }>({})
   const [formError, setFormError] = useState<string | null>(null)
+  
+  const steps = [
+    { id: "product-info", label: "Product Information" },
+    { id: "product-options", label: "Options" },
+    { id: "product-variants", label: "Variants" },
+  ]
+
+  const filteredSteps = steps.filter(step => {
+    if (productType === "PREORDER") {
+      return step.id === "product-info"
+    }
+    return true
+  })
 
   // ScrollSpy state
   const [activeTab, setActiveTab] = useState("product-info")
@@ -176,6 +186,7 @@ export function StoreAddEditTab() {
         setDescription(p.description)
         setPrice(String(p.price))
         setProductType(p.product_type)
+        setIsActive(p.is_active === "YES")
         
         // Fetch category detail to get parent_id
         try {
@@ -252,7 +263,7 @@ export function StoreAddEditTab() {
       threshold: 0
     })
 
-    steps.forEach(step => {
+    filteredSteps.forEach(step => {
       const el = document.getElementById(step.id)
       if (el) observer.observe(el)
     })
@@ -463,8 +474,12 @@ export function StoreAddEditTab() {
           name,
           description,
           price: priceNumber,
+          is_active: isActive ? "YES" : "NO",
           category_id: subCategoryId as number,
-          variants_config: {
+        }
+
+        if (productType !== "PREORDER") {
+          editPayload.variants_config = {
             options: options.map((opt, i) => ({
               key_name: opt.name,
               sort_order: i + 1,
@@ -479,6 +494,7 @@ export function StoreAddEditTab() {
             }))
           }
         }
+
         await editProduct(productId, editPayload)
 
         // Handle Image Deletions
@@ -515,13 +531,16 @@ export function StoreAddEditTab() {
           is_active: "YES",
           store_id: store.id,
           category_id: subCategoryId as number,
-          options: options.map((opt, i) => ({
+        }
+
+        if (productType !== "PREORDER") {
+          payload.options = options.map((opt, i) => ({
             key_name: opt.name,
             sort_order: i + 1,
             is_image_key: i === 0,
             values: opt.values.map((val, j) => ({ value_label: val, sort_order: j + 1 }))
-          })),
-          variants: variants.map(v => ({
+          }))
+          payload.variants = variants.map(v => ({
             option_value_labels: v.option_value_labels,
             price_delta: v.price_delta,
             stock_qty: v.stock_qty,
@@ -581,7 +600,7 @@ export function StoreAddEditTab() {
       {/* Stepper (Navigation Tabs) */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 mb-4 px-4 flex-shrink-0">
         <div className="flex gap-4 sm:gap-10 overflow-x-auto scrollbar-hide">
-          {steps.map((step) => (
+          {filteredSteps.map((step) => (
             <button
               key={step.id}
               onClick={() => scrollToSection(step.id)}
@@ -602,7 +621,15 @@ export function StoreAddEditTab() {
 
       <div ref={contentRef} className="flex-1 overflow-y-auto bg-transparent border-0 space-y-6 pb-20 pr-2 scroll-smooth">
           <div id="product-info" className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden p-6 md:p-10">
-            <h2 className="text-2xl font-bold text-gray-900 mb-8 pb-4 border-b border-gray-50">Product Information</h2>
+            <div className="flex justify-between items-center mb-8 pb-4 border-b border-gray-50">
+              <h2 className="text-2xl font-bold text-gray-900">Product Information</h2>
+              {isEditMode && (
+                <div className="flex items-center gap-3">
+                  <span className="text-sm font-bold text-gray-700">Display Product</span>
+                  <ToggleSwitch checked={isActive} onChange={setIsActive} />
+                </div>
+              )}
+            </div>
             
             <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-6">
               {/* Product Name */}
@@ -636,14 +663,20 @@ export function StoreAddEditTab() {
               {/* Product Type */}
               <div>
                 <label className="block text-sm font-bold text-gray-700 mb-2">Product Type <span className="text-red-500">*</span></label>
-                <Dropdown
-                  label="Product Type"
-                  options={productTypeOptions as any}
-                  value={productType}
-                  onChange={(val) => setProductType(val as string)}
-                  allLabel={null}
-                  className="w-full"
-                />
+                {isEditMode ? (
+                  <div className="w-full px-5 py-4 rounded-xl border border-gray-100 bg-gray-50/50 text-gray-500 font-medium h-[60px] flex items-center">
+                    {productType === "PREORDER" ? "Pre-order" : "Stock"}
+                  </div>
+                ) : (
+                  <Dropdown
+                    label="Product Type"
+                    options={productTypeOptions as any}
+                    value={productType}
+                    onChange={(val) => setProductType(val as string)}
+                    allLabel={null}
+                    className="w-full"
+                  />
+                )}
               </div>
 
               {/* Description */}
@@ -736,145 +769,149 @@ export function StoreAddEditTab() {
             {categoryError && <p className="mt-2 text-xs text-red-500 text-center">{categoryError}</p>}
           </div>
 
-          <div id="product-options" className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden p-6 md:p-10">
-            <h2 className="text-2xl font-bold text-gray-900 mb-2">Product Options</h2>
-            <p className="text-sm text-gray-500 mb-8 pb-4 border-b border-gray-50">Add product options like Color, Size (max 3 options).</p>
-            
-            <div className="space-y-6">
-              {options.map((opt, idx) => (
-                <OptionCard 
-                  key={opt.id} 
-                  option={opt} 
-                  index={idx} 
-                  updateOption={handleUpdateOption} 
-                  removeOption={handleRemoveOption} 
-                />
-              ))}
-            </div>
-
-            <button 
-              onClick={handleAddOption}
-              disabled={options.length >= 3}
-              className="w-full py-4 mt-6 border-2 border-dashed border-[#ff5a36] text-[#ff5a36] rounded-xl font-bold hover:bg-orange-50 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              + Add Option (max 3 options)
-            </button>
-          </div>
-
-          <div id="product-variants" className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden p-6 md:p-10">
-            <h2 className="text-2xl font-bold text-gray-900 mb-2">Product Variants</h2>
-            <p className="text-sm text-gray-500 mb-8 pb-4 border-b border-gray-50">Set price and stock for each variant.</p>
-            
-            {variants.length === 0 ? (
-              <div className="text-center py-10 bg-gray-50 rounded-xl border border-gray-100">
-                <p className="text-gray-500">No variants generated. Please add options in the previous step.</p>
-              </div>
-            ) : (
-              <div className="space-y-6">
-                <div className="grid grid-cols-2 gap-6 p-4 bg-gray-50 rounded-xl border border-gray-100 mb-6">
-                  <div>
-                    <label className="block text-sm font-bold text-gray-700 mb-2">Delta Price for All (฿)</label>
-                    <div className="flex gap-2">
-                      <input 
-                        type="number" 
-                        value={bulkDeltaPrice}
-                        onChange={(e) => setBulkDeltaPrice(e.target.value)}
-                        className="flex-1 px-4 py-2.5 rounded-lg border border-gray-200 outline-none focus:border-[#ff5a36]"
-                        placeholder="0"
-                      />
-                      <button 
-                        onClick={() => {
-                          const delta = Number(bulkDeltaPrice)
-                          if (!isNaN(delta)) {
-                            setVariants(variants.map(v => ({ ...v, price_delta: delta })))
-                          }
-                        }}
-                        className="px-4 py-2.5 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 font-bold text-gray-700"
-                      >
-                        Apply All
-                      </button>
-                    </div>
-                  </div>
-                  <div>
-                    <label className="block text-sm font-bold text-gray-700 mb-2">Stock for All</label>
-                    <div className="flex gap-2">
-                       <input 
-                        type="number" 
-                        value={bulkStock}
-                        onChange={(e) => setBulkStock(e.target.value)}
-                        className="flex-1 px-4 py-2.5 rounded-lg border border-gray-200 outline-none focus:border-[#ff5a36]"
-                        placeholder="0"
-                      />
-                      <button 
-                        onClick={() => {
-                          const stock = Number(bulkStock)
-                          if (!isNaN(stock) && stock >= 0) {
-                            setVariants(variants.map(v => ({ ...v, stock_qty: stock })))
-                          }
-                        }}
-                        className="px-4 py-2.5 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 font-bold text-gray-700"
-                      >
-                        Apply All
-                      </button>
-                    </div>
-                  </div>
+          {productType !== "PREORDER" && (
+            <>
+              <div id="product-options" className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden p-6 md:p-10">
+                <h2 className="text-2xl font-bold text-gray-900 mb-2">Product Options</h2>
+                <p className="text-sm text-gray-500 mb-8 pb-4 border-b border-gray-50">Add product options like Color, Size (max 3 options).</p>
+                
+                <div className="space-y-6">
+                  {options.map((opt, idx) => (
+                    <OptionCard 
+                      key={opt.id} 
+                      option={opt} 
+                      index={idx} 
+                      updateOption={handleUpdateOption} 
+                      removeOption={handleRemoveOption} 
+                    />
+                  ))}
                 </div>
 
-                <div className="border border-gray-200 rounded-xl overflow-hidden">
-                  <table className="w-full text-left">
-                    <thead className="bg-gray-50 border-b border-gray-200 text-sm text-gray-600 font-bold">
-                      <tr>
-                        <th className="px-6 py-4">Variant</th>
-                        <th className="px-6 py-4">Delta Price (฿)</th>
-                        <th className="px-6 py-4">Stock</th>
-                        <th className="px-6 py-4">Total Price</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-gray-100">
-                      {variants.map((v, i) => (
-                        <tr key={v.id} className="hover:bg-orange-50/20 transition-colors">
-                          <td className="px-6 py-4">
-                             <span className="px-3 py-1 rounded-full bg-orange-100 text-[#ff5a36] text-sm font-bold border border-orange-200">
-                               {v.option_value_labels.join(" / ")}
-                             </span>
-                          </td>
-                          <td className="px-6 py-4">
-                             <input 
-                               type="number" 
-                               value={v.price_delta}
-                               onChange={(e) => {
-                                 const val = Number(e.target.value)
-                                 const newV = [...variants]
-                                 newV[i].price_delta = val
-                                 setVariants(newV)
-                               }}
-                               className="w-full max-w-[120px] px-3 py-2 border border-gray-200 rounded-lg outline-none focus:border-[#ff5a36]"
-                             />
-                          </td>
-                          <td className="px-6 py-4">
-                             <input 
-                               type="number" 
-                               value={v.stock_qty}
-                               onChange={(e) => {
-                                 const val = Number(e.target.value)
-                                 const newV = [...variants]
-                                 newV[i].stock_qty = val >= 0 ? val : 0
-                                 setVariants(newV)
-                               }}
-                               className="w-full max-w-[120px] px-3 py-2 border border-gray-200 rounded-lg outline-none focus:border-[#ff5a36]"
-                             />
-                          </td>
-                          <td className="px-6 py-4 font-bold text-gray-900 border-l border-gray-50 bg-gray-50/30">
-                            {(Number(price) || 0) + (v.price_delta || 0)} ฿
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
+                <button 
+                  onClick={handleAddOption}
+                  disabled={options.length >= 3}
+                  className="w-full py-4 mt-6 border-2 border-dashed border-[#ff5a36] text-[#ff5a36] rounded-xl font-bold hover:bg-orange-50 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  + Add Option (max 3 options)
+                </button>
               </div>
-            )}
 
+              <div id="product-variants" className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden p-6 md:p-10">
+                <h2 className="text-2xl font-bold text-gray-900 mb-2">Product Variants</h2>
+                <p className="text-sm text-gray-500 mb-8 pb-4 border-b border-gray-50">Set price and stock for each variant.</p>
+                
+                {variants.length === 0 ? (
+                  <div className="text-center py-10 bg-gray-50 rounded-xl border border-gray-100">
+                    <p className="text-gray-500">No variants generated. Please add options in the previous step.</p>
+                  </div>
+                ) : (
+                  <div className="space-y-6">
+                    <div className="grid grid-cols-2 gap-6 p-4 bg-gray-50 rounded-xl border border-gray-100 mb-6">
+                      <div>
+                        <label className="block text-sm font-bold text-gray-700 mb-2">Delta Price for All (฿)</label>
+                        <div className="flex gap-2">
+                          <input 
+                            type="number" 
+                            value={bulkDeltaPrice}
+                            onChange={(e) => setBulkDeltaPrice(e.target.value)}
+                            className="flex-1 px-4 py-2.5 rounded-lg border border-gray-200 outline-none focus:border-[#ff5a36]"
+                            placeholder="0"
+                          />
+                          <button 
+                            onClick={() => {
+                              const delta = Number(bulkDeltaPrice)
+                              if (!isNaN(delta)) {
+                                setVariants(variants.map(v => ({ ...v, price_delta: delta })))
+                              }
+                            }}
+                            className="px-4 py-2.5 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 font-bold text-gray-700"
+                          >
+                            Apply All
+                          </button>
+                        </div>
+                      </div>
+                      <div>
+                        <label className="block text-sm font-bold text-gray-700 mb-2">Stock for All</label>
+                        <div className="flex gap-2">
+                          <input 
+                            type="number" 
+                            value={bulkStock}
+                            onChange={(e) => setBulkStock(e.target.value)}
+                            className="flex-1 px-4 py-2.5 rounded-lg border border-gray-200 outline-none focus:border-[#ff5a36]"
+                            placeholder="0"
+                          />
+                          <button 
+                            onClick={() => {
+                              const stock = Number(bulkStock)
+                              if (!isNaN(stock) && stock >= 0) {
+                                setVariants(variants.map(v => ({ ...v, stock_qty: stock })))
+                              }
+                            }}
+                            className="px-4 py-2.5 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 font-bold text-gray-700"
+                          >
+                            Apply All
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="border border-gray-200 rounded-xl overflow-hidden">
+                      <table className="w-full text-left">
+                        <thead className="bg-gray-50 border-b border-gray-200 text-sm text-gray-600 font-bold">
+                          <tr>
+                            <th className="px-6 py-4">Variant</th>
+                            <th className="px-6 py-4">Delta Price (฿)</th>
+                            <th className="px-6 py-4">Stock</th>
+                            <th className="px-6 py-4">Total Price</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-100">
+                          {variants.map((v, i) => (
+                            <tr key={v.id} className="hover:bg-orange-50/20 transition-colors">
+                              <td className="px-6 py-4">
+                                <span className="px-3 py-1 rounded-full bg-orange-100 text-[#ff5a36] text-sm font-bold border border-orange-200">
+                                  {v.option_value_labels.join(" / ")}
+                                </span>
+                              </td>
+                              <td className="px-6 py-4">
+                                <input 
+                                  type="number" 
+                                  value={v.price_delta}
+                                  onChange={(e) => {
+                                    const val = Number(e.target.value)
+                                    const newV = [...variants]
+                                    newV[i].price_delta = val
+                                    setVariants(newV)
+                                  }}
+                                  className="w-full max-w-[120px] px-3 py-2 border border-gray-200 rounded-lg outline-none focus:border-[#ff5a36]"
+                                />
+                              </td>
+                              <td className="px-6 py-4">
+                                <input 
+                                  type="number" 
+                                  value={v.stock_qty}
+                                  onChange={(e) => {
+                                    const val = Number(e.target.value)
+                                    const newV = [...variants]
+                                    newV[i].stock_qty = val >= 0 ? val : 0
+                                    setVariants(newV)
+                                  }}
+                                  className="w-full max-w-[120px] px-3 py-2 border border-gray-200 rounded-lg outline-none focus:border-[#ff5a36]"
+                                />
+                              </td>
+                              <td className="px-6 py-4 font-bold text-gray-900 border-l border-gray-50 bg-gray-50/30">
+                                {(Number(price) || 0) + (v.price_delta || 0)} ฿
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </>
+          )}
             <div className="mt-12 pt-8 flex items-center justify-end gap-4">
               <button
                 type="button"
@@ -892,16 +929,14 @@ export function StoreAddEditTab() {
               </button>
             </div>
           </div>
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept={SUPPORTED_IMAGE_TYPES}
+          multiple
+          className="hidden"
+          onChange={handleFilesChange}
+        />
       </div>
-
-      <input
-        ref={fileInputRef}
-        type="file"
-        accept={SUPPORTED_IMAGE_TYPES}
-        multiple
-        className="hidden"
-        onChange={handleFilesChange}
-      />
-    </div>
   )
 }
