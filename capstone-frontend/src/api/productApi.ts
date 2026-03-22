@@ -19,14 +19,36 @@ export interface Product {
   category_name: string
   sold_count?: number
 }
+
+export interface ProductOptionValueRequest {
+  value_label: string;
+}
+
+export interface ProductOptionRequest {
+  key_name: string;
+  is_image_key?: boolean;
+  sort_order: number;
+  values: ProductOptionValueRequest[];
+}
+
+export interface ProductVariantRequest {
+  option_value_labels: string[];
+  price_delta: number;
+  stock_qty: number;
+  is_active: boolean;
+}
+
 export interface AddProductRequest {
   name: string
   description: string
   price: number
+  product_type: string
   image_url: string
   is_active: "YES" | "NO"
   store_id: number
   category_id: number
+  options?: ProductOptionRequest[]
+  variants?: ProductVariantRequest[]
 }
 
 export type ProductListResponse = PaginatedResponse<Product>

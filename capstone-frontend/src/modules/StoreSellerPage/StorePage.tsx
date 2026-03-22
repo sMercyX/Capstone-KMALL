@@ -21,8 +21,8 @@ export default function StorePage() {
   // ✅ ตรงนี้คือจุดสำคัญ — ดูจาก URL แล้วแมปเป็น key
   let activeKey: StoreTabKey = "store"
   if (pathname.startsWith("/store/me")) activeKey = "store"
+  else if (pathname.startsWith("/store/products/add")) activeKey = "add"
   else if (pathname.startsWith("/store/products")) activeKey = "products"
-  else if (pathname.startsWith("/store/add")) activeKey = "add"
   else if (pathname.startsWith("/store/orders")) activeKey = "orders"
   else if (pathname.startsWith("/store/settings")) activeKey = "settings"
   // ถ้าไม่ตรงอะไรเลย (เช่น /store) ก็เป็น "store"

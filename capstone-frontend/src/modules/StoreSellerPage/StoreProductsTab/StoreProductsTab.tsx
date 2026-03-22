@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef } from "react"
 import { useNavigate } from "react-router-dom"
-import { Pencil, Trash2, Plus, ChevronDown, Loader2 } from "lucide-react"
+import { Pencil, Trash2, Plus, Loader2 } from "lucide-react"
 import { FiSearch } from "react-icons/fi"
 import Pagination from "../../../components/Pagination/Pagination"
 import { useProductApi } from "../../../api/productApi"
@@ -13,93 +13,7 @@ import { toast } from "react-toastify"
 import { resolveImageUrl } from "../../../utils/resolve"
 import { handleApiError } from "../../../utils/handleApiError"
 import { useCatagoriesApi, type CatagoriesResponse } from "../../../api/catagoriesApi"
-import { useClickOutside } from "../../../hooks/useClickOutside"
-
-interface CategoryDropdownProps {
-  label: string
-  options: CatagoriesResponse[]
-  value: number | "ALL"
-  onChange: (val: number | "ALL") => void
-  disabled?: boolean
-  icon?: React.ReactNode
-}
-
-function CategoryDropdown({ label, options, value, onChange, disabled, icon }: CategoryDropdownProps) {
-  const [isOpen, setIsOpen] = useState(false)
-  const dropdownRef = useRef<HTMLDivElement>(null)
-
-  useClickOutside(dropdownRef, () => setIsOpen(false))
-
-  const selectedOption = options.find(opt => opt.id === value)
-  const displayLabel = value === "ALL" ? label : selectedOption?.name || label
-
-  return (
-    <div className="relative" ref={dropdownRef}>
-      <button
-        type="button"
-        disabled={disabled}
-        onClick={() => setIsOpen(!isOpen)}
-        className={`flex items-center justify-between w-[220px] px-4 py-3 rounded-xl border bg-white shadow-sm transition-all duration-300 text-sm font-medium cursor-pointer ${
-          disabled 
-            ? "opacity-50 cursor-not-allowed bg-gray-50 border-gray-100 text-gray-400" 
-            : "border-gray-100 text-gray-700 hover:border-[#ff5a36]/40 hover:shadow-md hover:shadow-orange-100/20"
-        } ${isOpen ? "border-[#ff5a36] ring-4 ring-orange-50/50 shadow-md shadow-orange-100/30" : ""}`}
-      >
-        <div className="flex items-center gap-3 truncate">
-          {icon && <span className={`${isOpen ? "text-[#ff5a36]" : "text-gray-400"} transition-colors duration-300`}>{icon}</span>}
-          <span className={`truncate ${value !== "ALL" ? "text-gray-900 font-bold" : ""}`}>{displayLabel}</span>
-        </div>
-        <ChevronDown className={`w-4 h-4 text-gray-400 transition-transform duration-300 ${isOpen ? "rotate-180 text-[#ff5a36]" : ""}`} />
-      </button>
-
-      {isOpen && (
-        <div className="absolute top-full left-0 mt-2 w-[260px] bg-white border border-gray-100 rounded-2xl shadow-2xl z-[100] py-2 overflow-hidden animate-in fade-in slide-in-from-top-2 duration-300 origin-top">
-          <div className="max-h-[320px] overflow-y-auto pr-1 mr-1 scrollbar-thin scrollbar-thumb-gray-200 scrollbar-track-transparent">
-            <button
-              onClick={() => {
-                onChange("ALL")
-                setIsOpen(false)
-              }}
-              className={`flex items-center justify-between w-full text-left px-4 py-3 text-sm transition-colors border-b border-gray-50/50 mb-1 hover:bg-orange-50/40 ${
-                value === "ALL" ? "text-[#ff5a36] font-bold bg-orange-50/30" : "text-gray-600"
-              }`}
-            >
-              <span>All {label}</span>
-              {value === "ALL" && <div className="w-1.5 h-1.5 rounded-full bg-[#ff5a36]" />}
-            </button>
-            <div className="px-1.5 space-y-0.5">
-              {options.map((opt) => (
-                <button
-                  key={opt.id}
-                  onClick={() => {
-                    onChange(opt.id)
-                    setIsOpen(false)
-                  }}
-                  className={`flex items-center justify-between w-full text-left px-3 py-2.5 text-sm transition-all rounded-lg hover:bg-orange-50/40 group ${
-                    value === opt.id ? "text-[#ff5a36] font-bold bg-orange-50/30 shadow-sm shadow-orange-100/10" : "text-gray-600"
-                  }`}
-                >
-                  <span className="truncate group-hover:translate-x-0.5 transition-transform duration-200">{opt.name}</span>
-                  {value === opt.id && (
-                    <div className="flex items-center">
-                       <div className="w-1.5 h-1.5 rounded-full bg-[#ff5a36]" />
-                    </div>
-                  )}
-                </button>
-              ))}
-            </div>
-            {options.length === 0 && (
-               <div className="px-4 py-8 text-center text-xs text-gray-400 italic">
-                  No sub categories found
-               </div>
-            )}
-          </div>
-        </div>
-      )}
-    </div>
-  )
-}
-
+import { Dropdown } from "../../../components/Dropdown"
 export default function StoreProductsTab() {
   const { getCatagoriesName } = useCatagoriesApi()
   const { deleteProduct, searchProducts } = useProductApi()
@@ -281,11 +195,13 @@ export default function StoreProductsTab() {
         </div>
 
         <div className="flex items-center gap-3">
-          <CategoryDropdown
+          <Dropdown
             label="Main Category"
+            placeholder="Main Category"
             options={mainCategories}
             value={selectedMainCategory}
             onChange={setSelectedMainCategory}
+            className="w-[220px]"
             icon={
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                 <path d="M4 6H20M4 12H20M4 18H20" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
@@ -293,12 +209,14 @@ export default function StoreProductsTab() {
             }
           />
 
-          <CategoryDropdown
+          <Dropdown
             label="Sub Category"
+            placeholder="Sub Category"
             options={subCategories}
             value={selectedSubCategory}
             onChange={setSelectedSubCategory}
             disabled={selectedMainCategory === "ALL"}
+            className="w-[220px]"
             icon={
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                 <path d="M10 5L10 12L15 12" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
@@ -310,7 +228,7 @@ export default function StoreProductsTab() {
         </div>
 
         <button
-          onClick={() => navigate("/store/add")}
+          onClick={() => navigate("/store/products/add")}
           className="flex items-center gap-2 px-6 py-3 bg-[#ff5a36] text-white rounded-xl text-sm font-bold hover:bg-[#e04e2d] transition-all shadow-lg shadow-orange-200 cursor-pointer whitespace-nowrap"
         >
           <Plus className="w-5 h-5" />
