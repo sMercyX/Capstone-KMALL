@@ -156,7 +156,8 @@ export function StoreAddEditTab() {
 
   const { addProduct, editProduct, getProductById, addImageProduct, editImageProduct, getProductImage, deleteProductImage } = useProductApi()
   const { store } = useStoreStore()
-  const { getCatagoriesName } = useCatagoriesApi()
+  const { getCatagoriesName, getCatagoriesDetail } = useCatagoriesApi()
+  const isProgrammaticChange = useRef(false)
 
   // ---------- Fetch Product Data (Edit Mode) ----------
   useEffect(() => {
@@ -175,8 +176,27 @@ export function StoreAddEditTab() {
         setDescription(p.description)
         setPrice(String(p.price))
         setProductType(p.product_type)
-        setMainCategoryId(p.category_id > 1000 ? Math.floor(p.category_id / 1000) : p.category_id)
-        setSubCategoryId(p.category_id)
+        
+        // Fetch category detail to get parent_id
+        try {
+          isProgrammaticChange.current = true
+          const catRes = await getCatagoriesDetail(p.category_id)
+          if (catRes.data.parent_id) {
+            setMainCategoryId(catRes.data.parent_id)
+          } else {
+            setMainCategoryId(p.category_id)
+          }
+          setSubCategoryId(p.category_id)
+          
+          // Reset after a short delay to ensure useEffects have read it
+          setTimeout(() => {
+            isProgrammaticChange.current = false
+          }, 500)
+        } catch (catErr) {
+          console.error("Failed to fetch category detail:", catErr)
+          // Fallback to previous logic if needed, or just set sub
+          setSubCategoryId(p.category_id)
+        }
 
         // 2. Options & Variants
         if (p.options && p.options.length > 0) {
@@ -281,7 +301,11 @@ export function StoreAddEditTab() {
       try {
         const res = await getCatagoriesName(mainCategoryId as number)
         setSubCategories(res.data || [])
-        setSubCategoryId("ALL")
+        
+        // Only reset sub-category if this was a manual change by the user
+        if (!isProgrammaticChange.current) {
+          setSubCategoryId("ALL")
+        }
       } catch (err) {
         console.error("Failed to load sub categories:", err)
       }
