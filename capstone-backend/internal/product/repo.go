@@ -358,7 +358,7 @@ WHERE p.store_id = $1
 
 	if q != "" {
 		base += " AND p.name ILIKE $" + strconv.Itoa(idx)
-		args = append(args, q+"%")
+		args = append(args, "%"+q+"%")
 		idx++
 	}
 
