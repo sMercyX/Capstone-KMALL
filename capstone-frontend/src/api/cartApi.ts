@@ -9,6 +9,7 @@ import type {
 export interface cartRequset {
   product_id: number
   quantity: number
+  variant_id?: number
 }
 export interface cartUpdatedRequset {
   quantity: number

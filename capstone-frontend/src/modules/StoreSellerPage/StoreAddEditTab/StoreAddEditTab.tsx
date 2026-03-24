@@ -7,6 +7,7 @@ import {
   ImageIcon,
 } from "lucide-react"
 import { toast } from "react-toastify"
+import { resolveImageUrl } from "../../../utils/resolve"
 
 import { handleApiError } from "../../../utils/handleApiError"
 import { useProductApi, type AddProductRequest, type productPictureResponse, type EditProductRequest, type EditVariantsConfigReq, type OptionKey, type OptionValue, type Variant } from "../../../api/productApi"
@@ -65,12 +66,6 @@ function OptionCard({
 
   return (
     <div className="border border-gray-200 rounded-xl p-6 bg-white mb-6 relative shadow-sm">
-      <button 
-        onClick={() => removeOption(index)}
-        className="absolute top-4 right-4 text-gray-400 hover:text-red-500"
-      >
-        <Trash2 className="w-5 h-5" />
-      </button>
       <div className="mb-4">
         <div className="flex items-center justify-between mb-2">
           <label className="block text-sm font-bold text-gray-700">Product Option {index + 1}</label>
@@ -132,7 +127,7 @@ function OptionCard({
               <div key={vIdx} className="flex items-center gap-3 p-3 border border-gray-100 rounded-lg bg-gray-50">
                 <div className="w-12 h-12 rounded bg-white border border-gray-200 flex-shrink-0 flex items-center justify-center overflow-hidden">
                   {option.value_images[val]?.url ? (
-                    <img src={option.value_images[val].url} alt={val} className="w-full h-full object-cover" />
+                    <img src={resolveImageUrl(option.value_images[val].url)} alt={val} className="w-full h-full object-cover" />
                   ) : (
                     <ImageIcon className="w-6 h-6 text-gray-300" />
                   )}
@@ -191,7 +186,6 @@ function OptionCard({
         )}
       </div>
       <div className="flex justify-end gap-3 mt-6">
-        <button onClick={() => {}} className="px-6 py-2.5 border border-gray-200 bg-white rounded-lg font-bold text-gray-600 hover:bg-gray-50 transition-all">Done</button>
         <button onClick={() => removeOption(index)} className="px-6 py-2.5 border border-red-200 bg-white rounded-lg font-bold text-red-500 hover:bg-red-50 transition-all">Delete</button>
       </div>
     </div>
@@ -917,7 +911,7 @@ export function StoreAddEditTab() {
                    <div className="mt-6 flex flex-wrap gap-4">
                       {images.map((img, idx) => (
                         <div key={idx} className={`relative w-24 h-24 rounded-2xl border-2 overflow-hidden group shadow-sm ${mainIndex === idx ? "border-[#ff5a36]" : "border-gray-100"}`}>
-                           <img src={img.url} className="w-full h-full object-cover" />
+                           <img src={resolveImageUrl(img.url)} className="w-full h-full object-cover" />
                            <button 
                              onClick={(e) => { e.stopPropagation(); handleDeleteImage(idx); }}
                              className="absolute top-1 right-1 w-6 h-6 rounded-full bg-white/90 shadow-md flex items-center justify-center text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"
