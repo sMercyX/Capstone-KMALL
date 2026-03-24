@@ -13,10 +13,20 @@ export interface UserResponse {
   LastLogin: string
 }
 
+export interface UserBan {
+  ban_type: "WARNING" | "TEMPORARY" | "PERMANENT"
+  banned_from: string
+  banned_until: string | null
+  is_active: boolean
+  reason: string
+  user_role: "BUYER" | "SELLER"
+}
+
 // data เฉพาะของ /api/users/me
 export interface MeData {
   roles: string[]
   user: UserResponse
+  bans: UserBan[] | null
 }
 
 // response ของ /api/users/me = wrapper + MeData
@@ -32,6 +42,7 @@ export interface User {
   createdAt: string
   updatedAt: string
   lastLogin: string
+  bans: UserBan[]
 }
 
 // map จาก GetUserResponse (BE) → User (FE)
@@ -47,6 +58,7 @@ export function mapUser(response: GetUserResponse): User {
     createdAt: u.CreatedAt,
     updatedAt: u.UpdatedAt,
     lastLogin: u.LastLogin,
+    bans: response.data.bans ?? [],
   }
 }
 

@@ -49,12 +49,14 @@ export default function SideNavbar({ title, menuItems, onClose }: SideNavbarProp
     <aside className="w-[280px] flex-shrink-0 bg-white border-r border-gray-200 flex flex-col h-full bg-white">
       {/* Header Logo & Badge */}
       <div className="flex flex-col items-center pt-8 pb-6 border-b border-gray-100">
-        <img src={kmallText} alt="KMALL" className={`h-10 ${title ? 'mb-6' : ''}`} />
-        {title && (
-          <div className="bg-orange-500 text-white px-6 py-2 rounded-md font-medium text-sm w-[200px] text-center shadow-sm">
-            {title}
-          </div>
-        )}
+        <NavLink to="/dashboard" className="flex flex-col items-center w-full transition-transform hover:scale-105 active:scale-95">
+          <img src={kmallText} alt="KMALL" className={`h-10 ${title ? 'mb-6' : ''}`} />
+          {title && (
+            <div className="bg-orange-500 text-white px-6 py-2 rounded-md font-medium text-sm w-[200px] text-center shadow-sm">
+              {title}
+            </div>
+          )}
+        </NavLink>
       </div>
 
       {/* Navigation Menu */}

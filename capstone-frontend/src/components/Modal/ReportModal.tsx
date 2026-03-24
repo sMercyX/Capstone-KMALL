@@ -3,29 +3,78 @@ import { createPortal } from "react-dom"
 import { X, ChevronLeft, Upload, CheckCircle } from "lucide-react"
 import { processImageFile } from "../../utils/imageProcessing"
 
-const REPORT_REASONS: { label: string; code: string }[] = [
+// Buyer reports Seller — reasons from screenshot 1
+const BUYER_REPORT_SELLER_REASONS: { label: string; code: string }[] = [
   {
-    label: "The product does not match the description/the description is incorrect.",
+    label: "The product does not match the description",
     code: "PRODUCT_MISMATCH",
   },
   {
-    label: "Ordered but not paid / Paid incorrectly according to the agreement.",
-    code: "PAYMENT_ISSUE",
+    label: "The product is damaged or defective",
+    code: "DAMAGED_PRODUCT",
   },
   {
-    label: "Inappropriate behavior (rude, threatening)",
+    label: "Late delivery or delivery not as promised",
+    code: "LATE_DELIVERY",
+  },
+  {
+    label: "Seller did not ship the product or canceled the order without notice",
+    code: "NO_SHIPMENT",
+  },
+  {
+    label: "Inappropriate customer service by the seller, e.g., rude, threatening, unhelpful",
     code: "INAPPROPRIATE_BEHAVIOR",
   },
   {
-    label: "Attempting to cheat / deceive.",
+    label: "Seller attempted to deceive or cheat",
     code: "FRAUD",
   },
   {
-    label: "Selling prohibited/illegal goods.",
+    label: "Selling prohibited or illegal products",
     code: "ILLEGAL_GOODS",
   },
   {
-    label: "Other",
+    label: "Payment processing issues, e.g., not receiving payment or payment issues",
+    code: "PAYMENT_ISSUE",
+  },
+  {
+    label: "Other – Please specify",
+    code: "OTHER",
+  },
+]
+
+// Seller reports Buyer — reasons from screenshot 2
+const SELLER_REPORT_BUYER_REASONS: { label: string; code: string }[] = [
+  {
+    label: "Buyer fails to show up / defaults on order",
+    code: "NO_SHOW",
+  },
+  {
+    label: "Order placed but not paid / payment not matching the agreed amount",
+    code: "PAYMENT_ISSUE",
+  },
+  {
+    label: "Inappropriate behavior by the buyer, e.g., rude, threatening, uncooperative",
+    code: "INAPPROPRIATE_BEHAVIOR",
+  },
+  {
+    label: "Attempted fraud / deception",
+    code: "FRAUD",
+  },
+  {
+    label: "Buyer refuses to accept delivery after order",
+    code: "REFUSE_DELIVERY",
+  },
+  {
+    label: "Request for refund or return without valid reason",
+    code: "INVALID_REFUND",
+  },
+  {
+    label: "Violation of the store's terms of service",
+    code: "TOS_VIOLATION",
+  },
+  {
+    label: "Other – Please specify",
     code: "OTHER",
   },
 ]
@@ -48,19 +97,29 @@ interface ReportModalProps {
     details: string
     files: File[]
   }) => Promise<void>
+  /** "SELLER" = buyer is reporting seller, "BUYER" = seller is reporting buyer */
+  reportType?: "SELLER" | "BUYER"
+  /** Name of the person/store being reported */
+  targetName?: string
 }
 
 export default function ReportModal({
   isOpen,
   onClose,
   onSubmit,
+  reportType = "SELLER",
+  targetName,
 }: ReportModalProps) {
   const [step, setStep] = useState<1 | 2 | 3>(1)
-  const [selectedReason, setSelectedReason] = useState<typeof REPORT_REASONS[number] | null>(null)
+
+  const reasons = reportType === "BUYER" ? SELLER_REPORT_BUYER_REASONS : BUYER_REPORT_SELLER_REASONS
+
+  const [selectedReason, setSelectedReason] = useState<typeof reasons[number] | null>(null)
   const [details, setDetails] = useState("")
   const [files, setFiles] = useState<File[]>([])
   const [dragOver, setDragOver] = useState(false)
   const [submitting, setSubmitting] = useState(false)
+  const [processingFiles, setProcessingFiles] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const reset = () => {
@@ -70,6 +129,7 @@ export default function ReportModal({
     setFiles([])
     setDragOver(false)
     setSubmitting(false)
+    setProcessingFiles(false)
   }
 
   const handleClose = () => {
@@ -115,12 +175,18 @@ export default function ReportModal({
         return true
       })
 
-      // Convert HEIC/HEIF → JPEG using processImageFile
-      const processed = await Promise.all(
-        raw.map((f) => processImageFile(f))
-      )
+      if (raw.length === 0) return
 
-      setFiles((prev) => [...prev, ...processed])
+      setProcessingFiles(true)
+      try {
+        // Convert HEIC/HEIF → JPEG using processImageFile
+        const processed = await Promise.all(
+          raw.map((f) => processImageFile(f))
+        )
+        setFiles((prev) => [...prev, ...processed])
+      } finally {
+        setProcessingFiles(false)
+      }
     },
     []
   )
@@ -140,6 +206,12 @@ export default function ReportModal({
 
   if (!isOpen) return null
 
+  const roleLabel = reportType === "BUYER" ? "Buyer" : "Seller"
+  const headerTitle = targetName 
+    ? <>Report {roleLabel} <span className="text-[#ff5a36]">[ {targetName} ]</span></>
+    : <>Report {roleLabel}</>
+  const headerDescription = `Please select a reason for reporting the ${roleLabel.toLowerCase()}. Your report will be reviewed by our admin team.`
+
   return createPortal(
     <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 backdrop-blur-sm px-4">
       <div className="w-full max-w-2xl transform overflow-hidden rounded-2xl bg-white shadow-xl">
@@ -147,13 +219,16 @@ export default function ReportModal({
         {step === 1 && (
           <>
             {/* Header */}
-            <div className="flex items-center justify-between px-6 pt-5 pb-3">
-              <h3 className="text-lg font-bold text-gray-900">
-                Choose a reason for reporting.
-              </h3>
+            <div className="flex items-start justify-between px-6 pt-5 pb-3">
+              <div>
+                <h3 className="text-lg font-bold text-gray-900">
+                  {headerTitle}
+                </h3>
+                <p className="text-sm text-gray-500 mt-1">{headerDescription}</p>
+              </div>
               <button
                 onClick={handleClose}
-                className="rounded-full p-1 hover:bg-gray-100 transition-colors cursor-pointer"
+                className="rounded-full p-1 hover:bg-gray-100 transition-colors cursor-pointer shrink-0 ml-4"
               >
                 <X className="h-5 w-5 text-gray-500" />
               </button>
@@ -163,7 +238,7 @@ export default function ReportModal({
 
             {/* Reason list */}
             <div className="px-6 py-4 space-y-3 max-h-[400px] overflow-y-auto">
-              {REPORT_REASONS.map((reason) => (
+              {reasons.map((reason) => (
                 <button
                   key={reason.code}
                   onClick={() => setSelectedReason(reason)}
@@ -243,7 +318,7 @@ export default function ReportModal({
               {/* Media Upload */}
               <div>
                 <label className="block text-sm font-semibold text-gray-800 mb-2">
-                  Media Upload<span className="text-red-500">*</span>
+                  Media Upload
                 </label>
                 <div className="rounded-xl bg-gray-50 p-4">
                   <div
@@ -253,23 +328,35 @@ export default function ReportModal({
                     }}
                     onDragLeave={() => setDragOver(false)}
                     onDrop={handleDrop}
-                    onClick={() => fileInputRef.current?.click()}
-                    className={`flex flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed py-8 cursor-pointer transition-colors ${
-                      dragOver
-                        ? "border-blue-500 bg-blue-50"
-                        : "border-blue-300 hover:border-blue-400"
+                    onClick={() => !processingFiles && fileInputRef.current?.click()}
+                    className={`relative flex flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed py-8 transition-colors ${
+                      processingFiles
+                        ? "border-gray-300 bg-gray-50 cursor-wait"
+                        : dragOver
+                        ? "border-blue-500 bg-blue-50 cursor-pointer"
+                        : "border-blue-300 hover:border-blue-400 cursor-pointer"
                     }`}
                   >
-                    <Upload className="h-8 w-8 text-blue-500" />
-                    <p className="text-sm text-gray-600">
-                      Drag your file(s) or{" "}
-                      <span className="font-semibold text-blue-600 underline">
-                        browse
-                      </span>
-                    </p>
-                    <p className="text-xs text-gray-400">
-                      Max 10 MB files are allowed
-                    </p>
+                    {processingFiles ? (
+                      <>
+                        <div className="w-8 h-8 border-3 border-blue-200 border-t-blue-500 rounded-full animate-spin" />
+                        <p className="text-sm text-gray-500 font-medium">Processing files...</p>
+                        <p className="text-xs text-gray-400">Please wait</p>
+                      </>
+                    ) : (
+                      <>
+                        <Upload className="h-8 w-8 text-blue-500" />
+                        <p className="text-sm text-gray-600">
+                          Drag your file(s) or{" "}
+                          <span className="font-semibold text-blue-600 underline">
+                            browse
+                          </span>
+                        </p>
+                        <p className="text-xs text-gray-400">
+                          Max 10 MB files are allowed
+                        </p>
+                      </>
+                    )}
                   </div>
                   <input
                     ref={fileInputRef}
@@ -292,19 +379,47 @@ export default function ReportModal({
                       {files.map((f, i) => (
                         <div
                           key={i}
-                          className="flex items-center justify-between rounded-lg bg-white border border-gray-200 px-3 py-2 text-sm"
+                          className="flex items-center justify-between rounded-xl bg-white border border-gray-200 px-3 py-2"
                         >
-                          <span className="truncate text-gray-700">
-                            {f.name}
-                          </span>
+                          <div className="flex items-center gap-3 min-w-0">
+                            {/* Thumbnail */}
+                            {f.type.startsWith("image/") ? (
+                              <img
+                                src={URL.createObjectURL(f)}
+                                alt={f.name}
+                                className="w-10 h-10 rounded-lg object-cover flex-shrink-0"
+                              />
+                            ) : (
+                              <div className="w-10 h-10 rounded-lg bg-gray-100 flex items-center justify-center flex-shrink-0">
+                                <span className="text-[10px] text-gray-400 font-semibold uppercase">
+                                  {f.name.split('.').pop()}
+                                </span>
+                              </div>
+                            )}
+                            {/* Name + Size */}
+                            <div className="min-w-0">
+                              <p className="text-sm text-gray-800 font-medium truncate">{f.name}</p>
+                              <p className="text-xs text-gray-400">
+                                {f.size < 1024
+                                  ? `${f.size} bytes`
+                                  : f.size < 1024 * 1024
+                                  ? `${(f.size / 1024).toFixed(0)}kb`
+                                  : `${(f.size / (1024 * 1024)).toFixed(1)}MB`}
+                              </p>
+                            </div>
+                          </div>
+                          {/* Remove button */}
                           <button
                             onClick={(e) => {
                               e.stopPropagation()
                               removeFile(i)
                             }}
-                            className="text-gray-400 hover:text-red-500 ml-2 cursor-pointer"
+                            className="text-red-400 hover:text-red-600 ml-3 cursor-pointer flex-shrink-0"
                           >
-                            <X className="h-4 w-4" />
+                            <svg className="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5}>
+                              <circle cx="12" cy="12" r="10" />
+                              <path d="M15 9l-6 6M9 9l6 6" strokeLinecap="round" />
+                            </svg>
                           </button>
                         </div>
                       ))}
@@ -318,9 +433,9 @@ export default function ReportModal({
             <div className="flex justify-end px-6 py-4 border-t border-gray-100">
               <button
                 onClick={handleSubmit}
-                disabled={details.length < 10 || submitting}
+                disabled={details.length < 10 || submitting || processingFiles}
                 className={`px-8 py-2.5 rounded-xl text-sm font-semibold text-white transition-colors ${
-                  details.length >= 10 && !submitting
+                  details.length >= 10 && !submitting && !processingFiles
                     ? "bg-orange-500 hover:bg-orange-600 cursor-pointer"
                     : "bg-gray-300 cursor-not-allowed"
                 }`}

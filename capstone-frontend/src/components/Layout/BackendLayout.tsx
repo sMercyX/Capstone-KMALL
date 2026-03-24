@@ -46,7 +46,7 @@ export default function BackendLayout({ title, menuItems }: SideNavbarProps) {
 
       {/* Main Content Area */}
       <main className="flex-1 w-full overflow-auto md:overflow-y-auto">
-        <Outlet />
+          <Outlet />
       </main>
     </div>
   )

@@ -5,6 +5,8 @@ import { Utensils, Shirt, Package } from "lucide-react"
 import { useCatagoriesApi, type CatagoriesResponse } from "../../api/catagoriesApi"
 
 
+import { resolveImageUrl } from "../../utils/resolve"
+
 // map slug -> Icon Component
 const CATEGORY_ICON_MAP: Record<string, React.ElementType> = {
   food: Utensils,
@@ -29,7 +31,15 @@ function SingleCategoryCard({ item }: { item: CatagoriesResponse }) {
       className="group w-full max-w-[240px] rounded-3xl border border-orange-200 bg-white shadow-[0_8px_20px_rgba(255,102,0,0.15)] px-8 py-6 text-center hover:-translate-y-1 transition duration-300"
     >
       <div className="mx-auto h-24 w-24 rounded-full bg-orange-50 grid place-items-center overflow-hidden mb-4">
-        <Icon className="h-12 w-12 text-orange-500" />
+        {item.icon_url ? (
+          <img
+            src={resolveImageUrl(item.icon_url)}
+            alt={displayName}
+            className="h-full w-full object-cover transition duration-300 group-hover:scale-105"
+          />
+        ) : (
+          <Icon className="h-12 w-12 text-orange-500" />
+        )}
       </div>
       <div className="font-semibold text-lg text-gray-800">{displayName}</div>
     </Link>

@@ -3,7 +3,10 @@ import { useState, useRef, useEffect } from "react"
 import ProductList from "../../../components/ProductList/ProductList"
 import { useReportApi, type ReportDetailResponse } from "../../../api/reportApi"
 import { Loader2, X, Maximize2, User } from "lucide-react"
-import { format } from "date-fns"
+import { format, addDays } from "date-fns"
+import { resolveImageUrl } from "../../../utils/resolve"
+import { toast } from "react-toastify"
+import ResolveReportModal, { type ResolveActionData } from "../../../components/Admin/ResolveReportModal"
 
 const formatChatDate = (dateString: string) => {
   const date = new Date(dateString)
@@ -19,9 +22,6 @@ const formatChatDate = (dateString: string) => {
     return format(date, "d MMM yyyy")
   }
 }
-import { resolveImageUrl } from "../../../utils/resolve"
-import ConfirmationModal from "../../../components/Modal/ConfirmationModal"
-import ResolveReportModal, { type ResolveActionData } from "../../../components/Admin/ResolveReportModal"
 
 export default function ReportDetailPage() {
   const { type, reportId } = useParams()
@@ -36,6 +36,7 @@ export default function ReportDetailPage() {
   const [isRejectModalOpen, setIsRejectModalOpen] = useState(false)
   const [isResolveModalOpen, setIsResolveModalOpen] = useState(false)
   const [submittingAction, setSubmittingAction] = useState(false)
+  const [rejectNote, setRejectNote] = useState("")
 
   const [selectedImage, setSelectedImage] = useState<string | null>(null)
 
@@ -59,18 +60,17 @@ export default function ReportDetailPage() {
       isScrolling.current = false
     }, 800)
   }
-
   const fetchReport = () => {
-    if (!reportId) return
+    const id = reportId
+    if (!id) return () => {}
     let isMounted = true
     setLoading(true)
     setError(null)
-    
-    getReportDetail(reportId)
-      .then(res => {
-        if (isMounted) {
-          setReportData(res.data)
-        }
+
+    getReportDetail(id)
+      .then(async (res) => {
+        if (!isMounted) return
+        setReportData(res.data)
       })
       .catch(err => {
         if (isMounted) {
@@ -121,14 +121,17 @@ export default function ReportDetailPage() {
   }, [reportId])
 
   const handleReject = async () => {
-    if (!reportId) return
+    if (!reportId || !rejectNote.trim()) return
     setSubmittingAction(true)
     try {
-      await actionReport(reportId, { action_type: "NO_ACTION" })
+      await actionReport(reportId, { action_type: "NO_ACTION", note: rejectNote.trim() })
+      setIsRejectModalOpen(false)
+      setRejectNote("")
+      toast.success("Report rejected successfully.")
       fetchReport() // Refresh data after reject
-    } catch (err) {
+    } catch (err: any) {
       console.error(err)
-      alert("Failed to reject report")
+      toast.error(err?.response?.data?.message || "Failed to reject report.")
     } finally {
       setSubmittingAction(false)
     }
@@ -138,17 +141,26 @@ export default function ReportDetailPage() {
     if (!reportId || !reportData) return
     setSubmittingAction(true)
     try {
-      await actionReport(reportId, {
+      const payload: any = {
         action_type: actionData.action_type,
         target_user_id: reportData.report.reported_user_id,
         user_role: reportData.report.reported_party_type,
         suspend_days: actionData.suspend_days,
-        is_permanent: actionData.is_permanent
-      })
+        is_permanent: actionData.is_permanent,
+        note: actionData.note
+      }
+      
+      // If resolving against a SELLER, pass the target_store_id
+      if (reportData.report.reported_party_type === "SELLER") {
+        payload.target_store_id = reportData.report.store_id
+      }
+
+      await actionReport(reportId, payload)
+      toast.success("Report resolved successfully.")
       fetchReport() // Refresh data
-    } catch (err) {
+    } catch (err: any) {
       console.error(err)
-      alert("Failed to resolve report")
+      toast.error(err?.response?.data?.message || "Failed to resolve report.")
     } finally {
       setSubmittingAction(false)
     }
@@ -180,7 +192,7 @@ export default function ReportDetailPage() {
   const { report, order_snapshot, chat_snapshots, evidences } = reportData
 
   return (
-    <div className="p-8 max-w-[1280px] mx-auto w-full h-screen flex flex-col overflow-hidden">
+    <div className="p-8 mx-auto w-full h-screen flex flex-col overflow-hidden">
       {/* Breadcrumb & Title Area */}
       <div className="mb-6 flex-shrink-0 flex justify-between items-end">
         <div>
@@ -248,6 +260,48 @@ export default function ReportDetailPage() {
       {/* Continous Content Sections */}
       <div ref={contentRef} className="flex-1 overflow-y-auto space-y-6 pb-8 pr-2 scroll-smooth">
         
+        {/* Penalty Information - Yellow Box */}
+        {report.status !== "PENDING" && reportData?.admin_actions && reportData.admin_actions.length > 0 && (
+          <div className="bg-[#fff9e6] border border-[#ffeb99] rounded-xl p-8 shadow-sm">
+            <div className="space-y-4">
+              {reportData.admin_actions.map((action, idx) => {
+                const actionDate = new Date(action.created_at)
+                let penaltyText = ""
+                let penaltyPeriod = ""
+
+                if (action.action_type === "WARN_USER") {
+                  penaltyText = "Warning"
+                } else if (action.action_type === "SUSPEND_USER") {
+                  penaltyText = `Suspend (${action.suspend_days} days)`
+                  if (action.suspend_days) {
+                    const endDate = addDays(actionDate, action.suspend_days)
+                    penaltyPeriod = `${format(actionDate, "MMM d")} - ${format(endDate, "MMM d")}`
+                  }
+                } else if (action.action_type === "BAN_USER") {
+                  penaltyText = "Permanent Ban"
+                } else if (action.action_type === "NO_ACTION") {
+                  penaltyText = "Rejected (No Action)"
+                }
+
+                return (
+                  <div key={idx} className="grid grid-cols-[140px_1fr] gap-4">
+                    <div className="space-y-4 font-semibold text-gray-800">
+                      <div>Penalty :</div>
+                      {penaltyPeriod && <div>Penalty Period :</div>}
+                      <div>note :</div>
+                    </div>
+                    <div className="space-y-4">
+                      <div className="text-[#ff5a36] font-bold text-xl">{penaltyText}</div>
+                      {penaltyPeriod && <div className="text-gray-700 font-medium">{penaltyPeriod}</div>}
+                      <div className="text-gray-600">{action.note || "-"}</div>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+        )}
+
         {/* Report Information */}
         <div id="Report Information" className="bg-white rounded-lg shadow-sm border border-gray-200 p-8 pt-10">
           <h2 className="text-2xl font-bold text-gray-900 mb-6">Report Information</h2>
@@ -270,12 +324,12 @@ export default function ReportDetailPage() {
             
             <div className="grid grid-cols-[140px_1fr]">
               <span className="font-semibold text-gray-800 text-[#63c063]">Reporter :</span>
-              <span className="text-[#63c063] font-medium">{report.reporter_display_name}</span>
+              <span className="text-[#63c063] font-medium">{type === "seller" ? (report.store_name || report.reporter_display_name) : report.reporter_display_name}</span>
             </div>
             
             <div className="grid grid-cols-[140px_1fr]">
               <span className="font-semibold text-gray-800 text-[#f05252]">Reported User :</span>
-              <span className="text-[#f05252] font-medium">{report.reported_display_name}</span>
+              <span className="text-[#f05252] font-medium">{type === "buyer" ? (report.store_name || report.reported_display_name) : report.reported_display_name}</span>
             </div>
             
             {/* Reason box */}
@@ -432,17 +486,60 @@ export default function ReportDetailPage() {
         
       </div>
 
-      <ConfirmationModal
-        isOpen={isRejectModalOpen}
-        onClose={() => setIsRejectModalOpen(false)}
-        onConfirm={handleReject}
-        title="Reject Report"
-        message="Are you sure you want to reject this report? No penalizing actions will be taken against the reported user."
-        confirmText={submittingAction ? "Rejecting..." : "Yes, Reject"}
-        cancelText="Cancel"
-        variant="warning"
-        confirmDisabled={submittingAction}
-      />
+      {/* Reject Report Modal */}
+      {isRejectModalOpen && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 backdrop-blur-sm px-4 animate-in fade-in duration-200">
+          <div className="w-full max-w-[600px] transform overflow-hidden rounded-2xl bg-white p-8 text-left shadow-xl transition-all animate-in zoom-in-95 duration-200 scale-100">
+            {/* Header */}
+            <div className="flex items-center justify-between mb-2">
+              <h3 className="text-xl font-bold text-gray-900">
+                Reject Report <span className="text-[#ff5a36]">[ #RPT-{report.report_id.toString().padStart(4, '0')} ]</span>
+              </h3>
+              <button
+                onClick={() => { setIsRejectModalOpen(false); setRejectNote(""); }}
+                className="rounded-full p-1 hover:bg-gray-100 transition-colors"
+              >
+                <X className="w-6 h-6 text-gray-500" />
+              </button>
+            </div>
+            <p className="text-sm text-gray-500 mb-6">
+              Please provide the reason for rejecting this report. This information will be recorded and shared with the reporter.
+            </p>
+
+            <hr className="border-gray-200 mb-5" />
+
+            {/* Note textarea */}
+            <div>
+              <label className="text-sm font-semibold text-gray-800">
+                note<span className="text-red-500">*</span>
+              </label>
+              <textarea
+                value={rejectNote}
+                onChange={(e) => setRejectNote(e.target.value)}
+                rows={4}
+                placeholder="หลักฐานที่แนบมาไม่ละเอียดและไม่ตรงกัน"
+                className="mt-1 w-full rounded-lg border border-gray-300 p-3 text-sm text-gray-700 focus:border-[#ff5a36] focus:outline-none focus:ring-1 focus:ring-[#ff5a36] resize-none"
+              />
+            </div>
+
+            {/* Button */}
+            <div className="mt-6 flex justify-end">
+              <button
+                type="button"
+                disabled={!rejectNote.trim() || submittingAction}
+                className={`px-8 py-2.5 rounded-lg text-sm font-semibold text-white shadow-sm transition-colors ${
+                  rejectNote.trim() && !submittingAction
+                    ? "bg-red-500 hover:bg-red-600" 
+                    : "bg-gray-300 cursor-not-allowed"
+                }`}
+                onClick={handleReject}
+              >
+                {submittingAction ? "Rejecting..." : "Rejected"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <ResolveReportModal
         isOpen={isResolveModalOpen}
@@ -450,6 +547,7 @@ export default function ReportDetailPage() {
         onConfirm={handleResolve}
         targetUserName={report.reported_display_name}
         targetUserRole={report.reported_party_type}
+        reportId={report.report_id}
       />
 
       {/* Fullscreen Image Viewer Modal */}

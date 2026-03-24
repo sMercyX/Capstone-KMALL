@@ -7,6 +7,7 @@ interface UserState {
   name: string
   email: string
   roles: string[]        // เก็บทุก role เช่น ["buyer", "seller"]
+  bans: any[]           // เก็บรายการโดนแบน
   isLoading: boolean
 
   setUser: (user: Partial<UserState>) => void
@@ -25,6 +26,7 @@ export const useUserStore = create<UserState>((set) => ({
   name: "",
   email: "",
   roles: [],
+  bans: [],
   isLoading: false,
 
   // เซ็ตทีละก้อน (ใช้เวลาดึงจาก AuthContext หรือหน้าอื่น)
@@ -62,6 +64,7 @@ export const useUserStore = create<UserState>((set) => ({
         name: data.name,
         email: data.email,
         roles: data.roles ?? [],
+        bans: data.bans ?? [],
         isLoading: false,
       })
     } catch (err) {
@@ -77,6 +80,7 @@ export const useUserStore = create<UserState>((set) => ({
       name: "",
       email: "",
       roles: [],
+      bans: [],
       isLoading: false,
     }),
 }))

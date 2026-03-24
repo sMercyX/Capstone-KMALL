@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react"
-import { useParams, useLocation } from "react-router-dom"
+import { useParams, useLocation, useNavigate } from "react-router-dom"
 import { useProductApi } from "../../api/productApi"
 import { useCatagoriesApi } from "../../api/catagoriesApi"
 import { useProductListStore } from "../../stores/catagoriesStore"
@@ -9,31 +9,18 @@ import SortBar, { type SortKey } from "./SortBar"
 import ProductGrid from "../../components/Product/ProductGrid"
 import Pagination from "../../components/Pagination/Pagination"
 
-// ====================== UTIL MAPPING ======================
-function mapCategoryId(category?: string) {
-  switch (category) {
-    case "food":
-      return 1
-    case "clothe":
-    case "clothes":
-    case "clothing":
-      return 2
-    case "handmade":
-    case "handmade-products":
-      return 3
-    default:
-      return 1
-  }
-}
-
 // ====================== MAIN PAGE ======================
 export default function CategoryPage() {
   const { category: routeCategory } = useParams()
   const location = useLocation()
+  const navigate = useNavigate()
   const searchParams = new URLSearchParams(location.search)
   const q = searchParams.get("q") || ""
+  const parentIdParam = searchParams.get("parent_id")
 
-  const apiCategoryId = mapCategoryId(routeCategory)
+  const [apiCategoryId, setApiCategoryId] = useState<number>(0)
+  const [categoryTitle, setCategoryTitle] = useState<string>("")
+  const [isResolving, setIsResolving] = useState(true)
 
   const [sort, setSort] = useState<SortKey>("latest")
   // filter is now number[] (category IDs)
@@ -61,9 +48,46 @@ export default function CategoryPage() {
     reset,
   } = useProductListStore()
 
-  // ใช้ getProductsByParentId แล้ว
   const { getProductsByParentId, searchProducts } = useProductApi()
   const { getCatagoriesName } = useCatagoriesApi()
+
+  // 1. Resolve Category ID and Title
+  useEffect(() => {
+    async function resolveCategory() {
+      try {
+        setIsResolving(true)
+        
+        // Priority 1: parent_id query param
+        const target = parentIdParam || routeCategory || "food"
+        
+        const isNumeric = /^\d+$/.test(target)
+        const res = await getCatagoriesName(0) // Get all main categories
+        
+        const foundCat = res.data?.find(c => 
+          isNumeric ? c.id === parseInt(target) : c.slug === target
+        )
+
+        if (foundCat) {
+          setApiCategoryId(foundCat.id)
+          setCategoryTitle(foundCat.name)
+          
+          // PRETTY URL: If they used numeric ID or query param, redirect to clean slug-based path
+          if ((isNumeric || parentIdParam) && foundCat.slug) {
+            navigate(`/categories/${foundCat.slug}${location.search ? '?' + location.search : ''}`, { replace: true })
+          }
+          setError(null)
+        } else {
+          setError("Category not found.")
+        }
+      } catch (err) {
+        console.error("Failed to resolve category:", err)
+        setError("Unable to load category information.")
+      } finally {
+        setIsResolving(false)
+      }
+    }
+    resolveCategory()
+  }, [parentIdParam, routeCategory, navigate, location.search])
 
   // reset เมื่อเปลี่ยนหมวด
   useEffect(() => {
@@ -72,10 +96,11 @@ export default function CategoryPage() {
     setFilter([])
     setSelectedMinPrice(undefined)
     setSelectedMaxPrice(undefined)
-  }, [routeCategory, reset, setPageIndex])
+  }, [apiCategoryId, reset, setPageIndex])
 
   // Fetch filter options (Sub-categories)
   useEffect(() => {
+    if (!apiCategoryId) return
     async function fetchCategories() {
       try {
         const res = await getCatagoriesName(apiCategoryId)
@@ -95,6 +120,7 @@ export default function CategoryPage() {
 
   // ดึงข้อมูลอัตโนมัติเมื่อเข้าเพจ / เปลี่ยนหน้า / เปลี่ยนหมวด / เปลี่ยน sort / เปลี่ยน filter
   useEffect(() => {
+    if (isResolving || !apiCategoryId) return
     let ignore = false
 
     async function fetchData() {
@@ -141,6 +167,7 @@ export default function CategoryPage() {
     }
   }, [
     apiCategoryId,
+    isResolving,
     pageIndex,
     pageSize,
     sort,
@@ -169,9 +196,17 @@ export default function CategoryPage() {
   const safeSize = typeof pageSize === "number" ? pageSize : 1
   const totalPages = Math.max(1, Math.ceil(safeTotal / safeSize))
 
+  if (isResolving) {
+    return (
+      <div className="flex h-[60vh] items-center justify-center">
+        <div className="h-8 w-8 animate-spin rounded-full border-4 border-orange-500 border-t-transparent"></div>
+      </div>
+    )
+  }
+
   return (
     <main className="mx-auto max-w-7xl py-8 md:py-12">
-      <PageHeader category={routeCategory || "food"} />
+      <PageHeader category={categoryTitle} />
 
       <div className="mt-10 grid grid-cols-1 gap-8 lg:grid-cols-[260px_1fr]">
         

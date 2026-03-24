@@ -4,6 +4,7 @@ import MainLayout from "../components/Layout/MainLayout"
 import LoadingSpinner from "../components/LoaingSpinner/LoadingSpinner"
 import ProductPage from "../modules/ProductPage/ProductPage"
 import ProtectedRoute from "../components/ProtectedRoute/ProtectedRoute"
+import ProtectedRoleRoute from "../components/ProtectedRoute/ProtectedRoleRoute"
 // import AllowedCategoryRoute from "../modules/CategoryPage/AllowedCategoryRoute"
 
 // function NotFound() {
@@ -26,7 +27,13 @@ const CheckoutPage = lazy(() => import("../modules/CheckoutPage/CheckoutPage"))
 const StoreOrderDetailPage = lazy(
   () => import("../modules/StoreOrderDetailPage/StoreOrderDetailPage")
 )
+const StoreReportStatusPage = lazy(
+  () => import("../modules/StoreSellerPage/StoreReportStatusPage")
+)
 const OrderPage = lazy(() => import("../modules/OrderPage/OrderPage"))
+const BuyerReportStatusPage = lazy(
+  () => import("../modules/ReportPage/BuyerReportStatusPage")
+)
 const ChatPage = lazy(() => import("../modules/ChatPage/ChatPage"))
 
 // --- Backend (Admin / Seller) Setup ---
@@ -43,10 +50,12 @@ import {
 import { PiWarningCircleBold } from "react-icons/pi"
 
 const AdminCategoryPage = lazy(() => import("../modules/AdminPage/CategoryPage/CategoryPage"))
+const AdminAddCategoryPage = lazy(() => import("../modules/AdminPage/CategoryPage/AddEditCategoryPage"))
 const AdminSellerReportPage = lazy(() => import("../modules/AdminPage/SellerReportPage/SellerReportPage"))
 const AdminBuyerReportPage = lazy(() => import("../modules/AdminPage/BuyerReportPage/BuyerReportPage"))
 const AdminReportDetailPage = lazy(() => import("../modules/AdminPage/ReportDetailPage/ReportDetailPage"))
-const AdminBlacklistPage = lazy(() => import("../modules/AdminPage/BlacklistPage/BlacklistPage"))
+const BlacklistedStoresPage = lazy(() => import("../modules/AdminPage/BlacklistPage/BlacklistedStoresPage"))
+const BlacklistedBuyersPage = lazy(() => import("../modules/AdminPage/BlacklistPage/BlacklistedBuyersPage"))
 
 const adminMenuItems = [
   {
@@ -65,7 +74,10 @@ const adminMenuItems = [
   {
     label: "Blacklist",
     icon: <FaUserLock />,
-    path: "/admin/blacklist"
+    subItems: [
+      { label: "Blacklisted Stores", path: "/admin/blacklist/stores" },
+      { label: "Blacklisted Buyers", path: "/admin/blacklist/buyers" }
+    ]
   }
 ]
 
@@ -198,6 +210,14 @@ export default function AppRoutes() {
                 </ProtectedRoute>
               }
             />
+            <Route
+              path="/reports"
+              element={
+                <ProtectedRoute>
+                  <BuyerReportStatusPage />
+                </ProtectedRoute>
+              }
+            />
           </>
 
           <Route path="*" element={<div>404</div>} />
@@ -207,25 +227,29 @@ export default function AppRoutes() {
         <Route
           path="/admin"
           element={
-            <ProtectedRoute>
+            <ProtectedRoleRoute allowedRoles={["ADMIN"]}>
               <BackendLayout title="Admin Panel" menuItems={adminMenuItems} />
-            </ProtectedRoute>
+            </ProtectedRoleRoute>
           }
         >
           {/* Admin Sub-routes */}
+          <Route path="" element={<Navigate to="/admin/category" replace />} />
           <Route path="category" element={<AdminCategoryPage />} />
+          <Route path="category/add" element={<AdminAddCategoryPage />} />
+          <Route path="category/edit/:categoryname" element={<AdminAddCategoryPage />} />
           <Route path="report/seller" element={<AdminSellerReportPage />} />
           <Route path="report/buyer" element={<AdminBuyerReportPage />} />
           <Route path="report/:type/:reportId" element={<AdminReportDetailPage />} />
-          <Route path="blacklist" element={<AdminBlacklistPage />} />
+          <Route path="blacklist/stores" element={<BlacklistedStoresPage />} />
+          <Route path="blacklist/buyers" element={<BlacklistedBuyersPage />} />
         </Route>
 
         {/* --- GLOBAL SELLER ROUTES (Store Layout) --- */}
         <Route
           element={
-            <ProtectedRoute>
+            <ProtectedRoleRoute allowedRoles={["SELLER"]}>
               <BackendLayout menuItems={sellerMenuItems} />
-            </ProtectedRoute>
+            </ProtectedRoleRoute>
           }
         >
           {/* Seller Sub-routes */}
@@ -236,6 +260,7 @@ export default function AppRoutes() {
           <Route path="/store/orders" element={<StoreSellerPage />} />
           <Route path="/store/orders/:orderId" element={<StoreOrderDetailPage />} />
           <Route path="/store/orders/:orderId/chat" element={<ChatPage />} />
+          <Route path="/store/report" element={<StoreReportStatusPage />} />
           <Route path="/store/settings" element={<StoreSellerPage />} />
         </Route>
       </Routes>

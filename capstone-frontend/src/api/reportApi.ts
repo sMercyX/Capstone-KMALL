@@ -21,17 +21,65 @@ export interface PaginatedReports {
   items: ReportResponse[]
 }
 
+export interface ReportStatusCounts {
+  pending: number
+  resolved: number
+  closed: number
+  total: number
+}
+
+export interface MyReportAdminAction {
+  action_id: number
+  report_id: number
+  admin_id: string
+  action_type: string
+  note?: string | null
+  target_user_id?: string | null
+  suspend_days?: number | null
+  is_permanent?: boolean
+  created_at: string
+  blacklist?: {
+    blacklist_id: number
+    user_id: string
+    user_role: string
+    report_id: number
+    order_id: number
+    reason: string
+    ban_type: string
+    banned_from: string
+    banned_until: string
+    is_active: boolean
+    created_by: string
+    created_at: string
+    display_name: string
+  } | null
+}
+
+export interface MyReportDetailResponse {
+  report_id: number
+  created_at: string
+  order_id: number
+  store_name: string
+  reported_user_id: string
+  reported_display_name: string
+  reported_party_type: "SELLER" | "BUYER"
+  reason_code: string
+  status: string
+  admin_actions: MyReportAdminAction[] | null
+}
+
 export interface ReportDetailResponse {
   report: ReportDetail
   order_snapshot: OrderSnapshot
   chat_snapshots: ChatSnapshot[]
   evidences: Evidence[]
-  admin_actions: any | null // adjust type later if needed
+  admin_actions: MyReportAdminAction[] | null
 }
 
 export interface ReportDetail {
   report_id: number
   order_id: number
+  store_id: number
   store_name: string
   reporter_id: string
   reporter_display_name: string
@@ -124,14 +172,31 @@ export function useReportApi() {
     status?: "PENDING" | "RESOLVED" | "CLOSED"
     limit?: number
     page?: number
+    q?: string
   }): Promise<{ code: number; data: PaginatedReports; status: string }> {
     const queryParams = new URLSearchParams()
     if (params.reported_party_type) queryParams.append("reported_party_type", params.reported_party_type)
     if (params.status) queryParams.append("status", params.status)
     if (params.limit) queryParams.append("limit", params.limit.toString())
     if (params.page) queryParams.append("page", params.page.toString())
+    if (params.q) queryParams.append("q", params.q)
     
     return http.getItems(`/reports?${queryParams.toString()}`)
+  }
+
+  async function getReportsMe(params: {
+    status?: string
+    limit?: number
+    page?: number
+    q?: string
+  }): Promise<{ code: number; data: PaginatedReports; status: string }> {
+    const queryParams = new URLSearchParams()
+    if (params.status) queryParams.append("status", params.status)
+    if (params.limit) queryParams.append("limit", params.limit.toString())
+    if (params.page) queryParams.append("page", params.page.toString())
+    if (params.q) queryParams.append("q", params.q)
+    
+    return http.getItems(`/reports/me?${queryParams.toString()}`)
   }
 
   async function getReportDetail(reportId: string | number): Promise<{ code: number; data: ReportDetailResponse; status: string }> {
@@ -143,13 +208,24 @@ export function useReportApi() {
     data: {
       action_type: "NO_ACTION" | "WARN_USER" | "SUSPEND_USER" | "BAN_USER"
       target_user_id?: string
+      target_store_id?: number
       user_role?: "SELLER" | "BUYER"
       suspend_days?: number
       is_permanent?: boolean
+      note?: string
     }
   ): Promise<{ code: number; data: any; status: string }> {
     return http.postItem(`/reports/${reportId}/action`, data)
   }
 
-  return { createOrderReport, getReports, getReportDetail, actionReport }
+  async function getMyReportDetail(reportId: string | number): Promise<{ code: number; data: MyReportDetailResponse; status: string }> {
+    return http.getItems(`/reports/me/${reportId}`)
+  }
+
+  async function getReportCountsByStatus(reportedPartyType?: string): Promise<{ code: number; data: ReportStatusCounts; status: string }> {
+    const query = reportedPartyType ? `?reported_party_type=${reportedPartyType}` : ""
+    return http.getItems(`/reports/counts-by-status${query}`)
+  }
+
+  return { createOrderReport, getReports, getReportsMe, getReportDetail, getMyReportDetail, actionReport, getReportCountsByStatus }
 }

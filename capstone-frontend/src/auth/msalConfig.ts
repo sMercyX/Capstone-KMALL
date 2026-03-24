@@ -13,7 +13,7 @@ const msalConfig: Configuration = {
     postLogoutRedirectUri: import.meta.env.VITE_FE_BASE,
   },
   cache: {
-    cacheLocation: "sessionStorage",
+    cacheLocation: "localStorage",
     storeAuthStateInCookie: true,
   },
 }

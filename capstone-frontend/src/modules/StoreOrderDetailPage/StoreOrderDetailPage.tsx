@@ -854,6 +854,8 @@ export default function StoreOrderDetailPage() {
       <ReportModal
         isOpen={isReportModalOpen}
         onClose={() => setIsReportModalOpen(false)}
+        reportType={isSellerPath ? "BUYER" : "SELLER"}
+        targetName={isSellerPath ? data?.buyer_name : store_name}
         onSubmit={async (reportData) => {
           const orderId = order?.id
           if (!orderId) return

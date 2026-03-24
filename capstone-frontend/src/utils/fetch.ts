@@ -150,7 +150,14 @@ export function useHttpClient(baseUrl: string) {
   const deleteItem = (url: string, opt: ExtraOptions = {}) =>
     fetchData(url, { method: "DELETE", ...opt })
 
-  return { getItems, postItem, putItem, deleteItem }
+  const patchItem = (url: string, item?: unknown, opt: ExtraOptions = {}) =>
+    fetchData(url, {
+      method: "PATCH",
+      body: isFormData(item) ? (item as any) : JSON.stringify(item ?? {}),
+      ...opt,
+    })
+
+  return { getItems, postItem, putItem, deleteItem, patchItem }
 }
 
 export function useCrudApi() {

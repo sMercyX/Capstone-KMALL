@@ -35,6 +35,7 @@ func (h *Handler) Register(r *gin.RouterGroup) {
 	admin := r.Group("/admin/categories", middleware.RequireRolesAny(h.roleSvc, "Admin"))
 	admin.GET("", h.listAdmin)
 	admin.POST("", h.create)
+	admin.POST("/:id", h.create)
 	admin.POST("/:id/icon/upload", h.uploadIcon)
 	admin.GET("/:id", h.get)
 	admin.PUT("/:id", h.update)

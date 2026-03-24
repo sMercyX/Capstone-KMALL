@@ -1,9 +1,8 @@
-import { useEffect, useState } from "react"
+import { useEffect, useState, useCallback, useRef } from "react"
 import { useReportApi, type ReportResponse } from "../../api/reportApi"
 import { format } from "date-fns"
 import { FaChevronLeft, FaChevronRight, FaCheck, FaTimes } from "react-icons/fa"
 import { FiSearch } from "react-icons/fi"
-import { Loader2 } from "lucide-react"
 import { useNavigate } from "react-router-dom"
 
 interface ReportManagerProps {
@@ -11,7 +10,7 @@ interface ReportManagerProps {
 }
 
 export default function ReportManager({ reportedPartyType }: ReportManagerProps) {
-  const { getReports } = useReportApi()
+  const { getReports, getReportCountsByStatus } = useReportApi()
   const navigate = useNavigate()
   
   const [pendingReports, setPendingReports] = useState<ReportResponse[]>([])
@@ -21,19 +20,84 @@ export default function ReportManager({ reportedPartyType }: ReportManagerProps)
   // Pagination State
   const [pendingPage, setPendingPage] = useState(1)
   const [pendingTotalPages, setPendingTotalPages] = useState(1)
-  const [pendingTotal, setPendingTotal] = useState(0)
 
   const [secondaryPage, setSecondaryPage] = useState(1)
   const [secondaryTotalPages, setSecondaryTotalPages] = useState(1)
-  const [secondaryTotal, setSecondaryTotal] = useState(0)
+
+  // Status Counts
+  const [counts, setCounts] = useState<{ pending: number; resolved: number; closed: number }>({
+    pending: 0,
+    resolved: 0,
+    closed: 0
+  })
+
+  // Search State
+  const [pendingSearch, setPendingSearch] = useState("")
+  const [pendingSearchDebounced, setPendingSearchDebounced] = useState("")
+  const [secondarySearch, setSecondarySearch] = useState("")
+  const [secondarySearchDebounced, setSecondarySearchDebounced] = useState("")
+
+  const pendingDebounceRef = useRef<ReturnType<typeof setTimeout>>(undefined)
+  const secondaryDebounceRef = useRef<ReturnType<typeof setTimeout>>(undefined)
+
+  const handlePendingSearch = useCallback((value: string) => {
+    setPendingSearch(value)
+    if (pendingDebounceRef.current) clearTimeout(pendingDebounceRef.current)
+    pendingDebounceRef.current = setTimeout(() => {
+      setPendingSearchDebounced(value)
+      setPendingPage(1)
+    }, 400)
+  }, [])
+
+  const handleSecondarySearch = useCallback((value: string) => {
+    setSecondarySearch(value)
+    if (secondaryDebounceRef.current) clearTimeout(secondaryDebounceRef.current)
+    secondaryDebounceRef.current = setTimeout(() => {
+      setSecondarySearchDebounced(value)
+      setSecondaryPage(1)
+    }, 400)
+  }, [])
+
+  const handlePendingKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "Enter") {
+      if (pendingDebounceRef.current) clearTimeout(pendingDebounceRef.current)
+      setPendingSearchDebounced(pendingSearch)
+      setPendingPage(1)
+    }
+  }
+
+  const handleSecondaryKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "Enter") {
+      if (secondaryDebounceRef.current) clearTimeout(secondaryDebounceRef.current)
+      setSecondarySearchDebounced(secondarySearch)
+      setSecondaryPage(1)
+    }
+  }
 
   useEffect(() => {
+    fetchCounts()
     fetchPending()
-  }, [pendingPage, reportedPartyType])
+  }, [pendingPage, reportedPartyType, pendingSearchDebounced])
 
   useEffect(() => {
+    fetchCounts()
     fetchSecondary()
-  }, [activeTab, secondaryPage, reportedPartyType])
+  }, [activeTab, secondaryPage, reportedPartyType, secondarySearchDebounced])
+
+  async function fetchCounts() {
+    try {
+      const res = await getReportCountsByStatus(reportedPartyType)
+      if (res.code === 200 && res.data) {
+        setCounts({
+          pending: res.data.pending,
+          resolved: res.data.resolved,
+          closed: res.data.closed
+        })
+      }
+    } catch (err) {
+      console.error("Failed to fetch counts:", err)
+    }
+  }
 
   async function fetchPending() {
     try {
@@ -41,11 +105,11 @@ export default function ReportManager({ reportedPartyType }: ReportManagerProps)
         reported_party_type: reportedPartyType,
         status: "PENDING",
         limit: 4,
-        page: pendingPage
+        page: pendingPage,
+        ...(pendingSearchDebounced ? { q: pendingSearchDebounced } : {})
       })
       if (res.code === 200 && res.data) {
         setPendingReports(res.data.items || [])
-        setPendingTotal(res.data.total || 0)
         setPendingTotalPages(Math.max(1, Math.ceil((res.data.total || 0) / (res.data.page_size || 4))))
       }
     } catch (err) {
@@ -59,11 +123,11 @@ export default function ReportManager({ reportedPartyType }: ReportManagerProps)
         reported_party_type: reportedPartyType,
         status: activeTab,
         limit: 4,
-        page: secondaryPage
+        page: secondaryPage,
+        ...(secondarySearchDebounced ? { q: secondarySearchDebounced } : {})
       })
       if (res.code === 200 && res.data) {
         setSecondaryReports(res.data.items || [])
-        setSecondaryTotal(res.data.total || 0)
         setSecondaryTotalPages(Math.max(1, Math.ceil((res.data.total || 0) / (res.data.page_size || 4))))
       }
     } catch (err) {
@@ -71,7 +135,9 @@ export default function ReportManager({ reportedPartyType }: ReportManagerProps)
     }
   }
 
-  const title = reportedPartyType === "SELLER" ? "Reported By Seller" : "Reported By Buyer"
+  const title = reportedPartyType === "SELLER" ? "Reported By Buyer" : "Reported By Seller"
+  // Route path is opposite of reportedPartyType (SELLER reported → buyer page route, BUYER reported → seller page route)
+  const routeParty = reportedPartyType === "SELLER" ? "buyer" : "seller"
 
   // Utility to format date
   const formatDate = (isoString: string) => {
@@ -105,7 +171,7 @@ export default function ReportManager({ reportedPartyType }: ReportManagerProps)
               items.map((r) => (
                 <div
                   key={r.report_id}
-                  onClick={() => navigate(`/admin/report/${reportedPartyType.toLowerCase()}/${r.report_id}`)}
+                  onClick={() => navigate(`/admin/report/${routeParty}/${r.report_id}`)}
                   className="cursor-pointer grid grid-cols-12 gap-4 items-center bg-white border border-gray-200 rounded-lg px-6 py-4 shadow-[0_1px_2px_rgba(0,0,0,0.02)] transition-colors hover:border-[#ff5a36]"
                 >
                   <div className="col-span-2 text-gray-800 text-sm font-medium">
@@ -118,18 +184,18 @@ export default function ReportManager({ reportedPartyType }: ReportManagerProps)
                   </div>
                   <div className="col-span-2 flex justify-end">
                     {isPending ? (
-                      <div className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-full text-[#8e7314] text-xs font-semibold bg-[#fad450] w-[160px] whitespace-nowrap">
-                        <Loader2 className="animate-spin flex-shrink-0" size={14} />
-                        Waiting for resolve
+                      <div className="inline-flex items-center gap-1.5 text-sm font-medium text-[#d97706] whitespace-nowrap">
+                        <span className="text-yellow-500">●</span>
+                        Pending Review
                       </div>
                     ) : activeTab === "RESOLVED" ? (
-                      <div className="inline-flex items-center justify-center gap-2 px-5 py-2 rounded-full text-white text-sm font-medium bg-[#63c063] w-[140px] whitespace-nowrap">
-                        <FaCheck size={12} />
+                      <div className="inline-flex items-center gap-1.5 text-sm font-medium text-green-600 whitespace-nowrap">
+                        <FaCheck className="text-green-500" size={12} />
                         Resolved
                       </div>
                     ) : (
-                      <div className="inline-flex items-center justify-center gap-2 px-5 py-2 rounded-full text-white text-sm font-medium bg-[#f05252] w-[140px] whitespace-nowrap">
-                        <FaTimes size={12} />
+                      <div className="inline-flex items-center gap-1.5 text-sm font-medium text-red-500 whitespace-nowrap">
+                        <span className="text-red-500">⊘</span>
                         Rejected
                       </div>
                     )}
@@ -144,40 +210,67 @@ export default function ReportManager({ reportedPartyType }: ReportManagerProps)
   }
 
   return (
-    <div className="p-8 max-w-[1280px] mx-auto w-full">
+    <div className="p-8 mx-auto w-full">
       {/* Breadcrumb & Title Area */}
       <div className="mb-8">
         <div className="text-gray-400 text-sm mb-2 font-medium">
           Reports &gt; <span className="text-gray-600">{title}</span>
         </div>
-        <div className="flex justify-between items-center">
-          <h1 className="text-3xl font-bold text-gray-900 flex items-center gap-3">
-            {title}
-            <span className="text-gray-400 text-xl font-normal">
-              ({pendingTotal} Pending)
-            </span>
-          </h1>
-          <div className="relative">
-            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">
-              <FiSearch size={18} />
-            </span>
-            <input
-              type="text"
-              placeholder="Enter Report ID to Search"
-              className="pl-10 pr-4 py-2 border border-white rounded-lg w-72 focus:outline-none focus:ring-1 focus:ring-primary shadow-sm text-sm"
-              style={{ background: "#ffffff" }}
-            />
+        <h1 className="text-3xl font-bold text-gray-900">
+          {title}
+        </h1>
+        <p className="text-gray-500 text-sm mt-1">Manage reports submitted by {reportedPartyType === "SELLER" ? "buyers" : "sellers"}. Review pending cases and take appropriate action.</p>
+      </div>
+
+      {/* Summary Cards */}
+      <div className="grid grid-cols-3 gap-4 mb-8">
+        <div className="bg-white rounded-xl border border-gray-200 p-5 flex items-center gap-4">
+          <div className="w-10 h-10 rounded-lg bg-[#FFF3E0] flex items-center justify-center text-lg">📋</div>
+          <div>
+            <div className="text-xl font-bold text-gray-800">{counts.pending} Pending Reports</div>
+            <div className="text-xs text-gray-400">(Action Required)</div>
           </div>
+        </div>
+        <div className="bg-white rounded-xl border border-gray-200 p-5 flex items-center gap-4">
+          <div className="w-10 h-10 rounded-lg bg-[#E8F5E9] flex items-center justify-center"><FaCheck className="text-green-500" size={18} /></div>
+          <div>
+            <div className="text-xl font-bold text-gray-800">{counts.resolved} Resolved</div>
+          </div>
+        </div>
+        <div className="bg-white rounded-xl border border-gray-200 p-5 flex items-center gap-4">
+          <div className="w-10 h-10 rounded-lg bg-[#FFEBEE] flex items-center justify-center"><FaTimes className="text-red-500" size={18} /></div>
+          <div>
+            <div className="text-xl font-bold text-gray-800">{counts.closed} Rejected</div>
+          </div>
+        </div>
+      </div>
+
+      {/* Search bar for Pending */}
+      <div className="flex justify-end mb-4">
+        <div className="relative">
+          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">
+            <FiSearch size={18} />
+          </span>
+          <input
+            type="text"
+            value={pendingSearch}
+            onChange={(e) => handlePendingSearch(e.target.value)}
+            onKeyDown={handlePendingKeyDown}
+            placeholder="Search by Report ID or Order ID"
+            className="pl-10 pr-4 py-2 border border-gray-200 rounded-lg w-80 focus:outline-none focus:ring-1 focus:ring-primary shadow-sm text-sm bg-white"
+          />
         </div>
       </div>
 
       {/* Pending Reports Section */}
       <div className="bg-white rounded-xl shadow-[0_2px_10px_rgba(0,0,0,0.04)] p-6 mb-8">
-        <div className="flex justify-between items-center mb-2 border-b border-gray-100 pb-3">
-          <div className="flex gap-6">
-            <button className="text-primary font-semibold border-b-2 border-primary pb-3 px-1 relative top-[13px]">
-              Pending Reports
-            </button>
+        <div className="flex justify-between items-start">
+          <div>
+            <div className="flex items-center gap-2 mb-1">
+              <span className="text-yellow-500 text-lg">🟡</span>
+              <h2 className="text-xl font-bold text-gray-900">Pending Reports</h2>
+            </div>
+            <p className="text-gray-400 text-sm">Reports waiting for admin review and action.</p>
           </div>
           <div className="flex items-center gap-4 text-sm font-medium text-gray-600">
             <span>{pendingTotalPages > 0 ? pendingPage : 0}/{pendingTotalPages}</span>
@@ -203,12 +296,29 @@ export default function ReportManager({ reportedPartyType }: ReportManagerProps)
         {renderTable(pendingReports, true)}
       </div>
 
+      {/* Search bar for Secondary */}
+      <div className="flex justify-end mb-4">
+        <div className="relative">
+          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">
+            <FiSearch size={18} />
+          </span>
+          <input
+            type="text"
+            value={secondarySearch}
+            onChange={(e) => handleSecondarySearch(e.target.value)}
+            onKeyDown={handleSecondaryKeyDown}
+            placeholder="Search by Report ID or Order ID"
+            className="pl-10 pr-4 py-2 border border-gray-200 rounded-lg w-80 focus:outline-none focus:ring-1 focus:ring-primary shadow-sm text-sm bg-white"
+          />
+        </div>
+      </div>
+
       {/* Secondary Reports Section (Tabs) */}
       <div className="bg-white rounded-xl shadow-[0_2px_10px_rgba(0,0,0,0.04)] p-6">
         <div className="flex justify-between items-center mb-2 border-b border-gray-100 pb-3">
           <div className="flex gap-6">
             <button
-              onClick={() => { setActiveTab("RESOLVED"); setSecondaryPage(1); }}
+              onClick={() => { setActiveTab("RESOLVED"); setSecondaryPage(1); setSecondarySearch(""); setSecondarySearchDebounced(""); }}
               className={`pb-3 px-1 relative top-[13px] font-semibold transition-colors ${
                 activeTab === "RESOLVED"
                   ? "text-primary border-b-2 border-primary"
@@ -218,7 +328,7 @@ export default function ReportManager({ reportedPartyType }: ReportManagerProps)
               Resolved Reports
             </button>
             <button
-              onClick={() => { setActiveTab("CLOSED"); setSecondaryPage(1); }}
+              onClick={() => { setActiveTab("CLOSED"); setSecondaryPage(1); setSecondarySearch(""); setSecondarySearchDebounced(""); }}
               className={`pb-3 px-1 relative top-[13px] font-semibold transition-colors ${
                 activeTab === "CLOSED"
                   ? "text-primary border-b-2 border-primary"
@@ -251,19 +361,20 @@ export default function ReportManager({ reportedPartyType }: ReportManagerProps)
         </div>
         
         {/* Tab content summary */}
-        {activeTab === "RESOLVED" && secondaryTotal > 0 && (
-          <div className="flex items-center gap-2 mt-6 mb-2">
+        {activeTab === "RESOLVED" && (
+          <div className="flex items-center gap-2 mt-6 mb-1">
             <FaCheck className="text-green-500" size={20} />
-            <span className="text-xl font-medium text-gray-800">{secondaryTotal} Resolved Reports</span>
+            <span className="text-xl font-bold text-gray-900">Resolved Reports</span>
           </div>
         )}
         
-        {activeTab === "CLOSED" && secondaryTotal > 0 && (
-          <div className="flex items-center gap-2 mt-6 mb-2">
+        {activeTab === "CLOSED" && (
+          <div className="flex items-center gap-2 mt-6 mb-1">
             <FaTimes className="text-red-500" size={20} />
-            <span className="text-xl font-medium text-gray-800">{secondaryTotal} Rejected Reports</span>
+            <span className="text-xl font-bold text-gray-900">Rejected Report</span>
           </div>
         )}
+        <p className="text-gray-400 text-sm mb-2">Reports that have been reviewed and finalized by the admin.</p>
         
         {renderTable(secondaryReports, false)}
       </div>

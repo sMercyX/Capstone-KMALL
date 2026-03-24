@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react"
-import { Pencil, Trash2 } from "lucide-react"
+import { useNavigate } from "react-router-dom"
+import { Pencil, Trash2, Plus } from "lucide-react"
 import Pagination from "../../../components/Pagination/Pagination"
 import { useProductApi } from "../../../api/productApi"
 import { useStoreApi, type storeProductDataRequset } from "../../../api/storeApi"
@@ -14,6 +15,7 @@ import { handleApiError } from "../../../utils/handleApiError"
 export default function StoreProductsTab() {
   const { getStoreProducts } = useStoreApi()
   const store = useStoreStore((s) => s.store)
+  const navigate = useNavigate()
 
   const {
     items,
@@ -155,7 +157,16 @@ export default function StoreProductsTab() {
   return (
     <>
       <div className="border border-[#e0e0e0] rounded-2xl p-6 bg-white">
-        <h2 className="font-semibold text-lg mb-4">All Products</h2>
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="font-semibold text-lg">All Products</h2>
+          <button
+            onClick={() => navigate("/store/add")}
+            className="flex items-center gap-2 px-4 py-2 bg-black text-white rounded-full text-sm font-medium hover:bg-gray-800 transition-colors"
+          >
+            <Plus className="w-4 h-4" />
+            Add Product
+          </button>
+        </div>
 
         {isLoading && !items.length && (
           <p className="text-center text-gray-500 py-4">Loading products...</p>
