@@ -243,7 +243,7 @@ export default function CheckoutPage() {
 
         <div className="grid items-start gap-16 lg:grid-cols-[0.6fr_0.4fr]">
           {/* LEFT FORM */}
-          <section className="space-y-10">
+          <section className="space-y-10 order-2 lg:order-1">
             {/* Delivery Method Selection */}
             <div>
               <h2 className="text-2xl font-bold mb-6">Delivery method</h2>
@@ -364,7 +364,7 @@ export default function CheckoutPage() {
           </section>
 
           {/* RIGHT SUMMARY */}
-          <section className="rounded-[28px] border border-gray-200 bg-[#f7f7f7] px-10 py-10 shadow-[0_18px_40px_rgba(0,0,0,0.06)]">
+          <section className="rounded-[28px] border border-gray-200 bg-[#f7f7f7] px-10 py-10 shadow-[0_18px_40px_rgba(0,0,0,0.06)] order-1 lg:order-2">
             {stores.length === 0 ? (
               <p className="text-center text-sm text-gray-400">
                 No items in your cart.
