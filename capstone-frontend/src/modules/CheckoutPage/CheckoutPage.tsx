@@ -1,7 +1,8 @@
 // src/pages/cart/CheckoutPage.tsx
 import { useEffect, useState } from "react"
 import { useNavigate } from "react-router-dom"
-import { AlertCircle, ShoppingCart, Store as StoreIcon, Truck, Package } from "lucide-react"
+import { AlertCircle, ShoppingCart, Store as StoreIcon, Truck, Package, Minus, Plus, Trash2 } from "lucide-react"
+import { toast } from "react-toastify"
 import BackButton from "../../components/Buttons/BackButton"
 import { useCartApi } from "../../api/cartApi"
 import { useCartStore } from "../../stores/cartStore"
@@ -24,6 +25,7 @@ type CheckoutItem = {
   quantity: number
   image: string
   subtotal: number
+  variantLabel?: string
 }
 
 type CheckoutStore = {
@@ -38,7 +40,7 @@ const formatPrice = (v: number) =>
 
 export default function CheckoutPage() {
   // ดึง cart (getCart) จาก cartApi
-  const { getCart } = useCartApi()
+  const { getCart, updateCart, deleteItemCart } = useCartApi()
   const {
     cart,
     isLoading,
@@ -62,9 +64,51 @@ export default function CheckoutPage() {
 
   const [submitting, setSubmitting] = useState(false)
   const [isConfirmModalOpen, setIsConfirmModalOpen] = useState(false)
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false)
+  const [itemToDeleteId, setItemToDeleteId] = useState<number | null>(null)
 
   function handleConfirmClick() {
     setIsConfirmModalOpen(true)
+  }
+
+  async function handleUpdateQuantity(id: number, newQty: number) {
+    if (newQty <= 0) {
+      handleDeleteClick(id)
+      return
+    }
+    if (newQty > 99) {
+      toast.warn("You can purchase up to 99 units per item.")
+      return
+    }
+    try {
+      await updateCart(id, { quantity: newQty })
+      const res = await getCart()
+      setCart(res.data)
+    } catch (err) {
+      console.error(err)
+      toast.error("Unable to update quantity.")
+    }
+  }
+
+  function handleDeleteClick(id: number) {
+    setItemToDeleteId(id)
+    setIsDeleteModalOpen(true)
+  }
+
+  async function handleConfirmDelete() {
+    if (!itemToDeleteId) return
+    try {
+      await deleteItemCart(itemToDeleteId)
+      const res = await getCart()
+      setCart(res.data)
+      toast.success("Item removed from your cart.")
+    } catch (err) {
+      console.error(err)
+      toast.error("Unable to remove item.")
+    } finally {
+      setIsDeleteModalOpen(false)
+      setItemToDeleteId(null)
+    }
   }
 
   // โหลด cart ถ้ายังไม่มี
@@ -101,6 +145,7 @@ export default function CheckoutPage() {
           it.product_image_url ||
           "https://via.placeholder.com/160?text=Product",
         subtotal: it.subtotal,
+        variantLabel: it.variant_label,
       }
 
       const existing = storeMap.get(it.store_id)
@@ -159,6 +204,7 @@ export default function CheckoutPage() {
       console.log("Order created:", res.data.order)
 
       reset()
+      toast.success("Order placed successfully!")
       
       // Redirect to order detail page
       navigate(`/orders/${res.data.order.id}`)
@@ -343,34 +389,62 @@ export default function CheckoutPage() {
                       {store.items.map((item) => (
                         <div
                           key={item.id}
-                          className="flex items-center justify-between"
+                          className="flex items-center justify-between gap-4"
                         >
-                          <div className="flex items-center gap-4">
-                            <div className="relative inline-block">
-                              <div className="rounded-[18px] bg-white shadow-[0_10px_25px_rgba(0,0,0,0.12)]">
-                                <div className="rounded-[18px] border border-orange-100 bg-white p-1">
-                                  <div className="overflow-hidden rounded-[14px]">
-                                    <img
-                                      src={resolveImageUrl(item.image)}
-                                      className="h-20 w-20 object-cover"
-                                      alt={item.name}
-                                    />
-                                  </div>
+                          <div className="flex items-center gap-4 flex-1">
+                            <div className="relative inline-block shrink-0">
+                                <div className="rounded-[18px] border border-orange-100 bg-white p-1 shadow-sm">
+                                    <div className="overflow-hidden rounded-[14px]">
+                                        <img
+                                        src={resolveImageUrl(item.image)}
+                                        className="h-20 w-20 object-cover"
+                                        alt={item.name}
+                                        />
+                                    </div>
                                 </div>
-                              </div>
-
-                              <span className="absolute -top-2 -right-2 flex h-7 w-7 items-center justify-center rounded-[8px] bg-[#ff5a1f] text-sm font-semibold text-white shadow-[0_6px_16px_rgba(255,90,31,0.6)]">
-                                {item.quantity}
-                              </span>
+                                <span className="absolute -top-2 -right-2 flex h-7 w-7 items-center justify-center rounded-[8px] bg-[#ff5a1f] text-sm font-semibold text-white shadow-md">
+                                    {item.quantity}
+                                </span>
                             </div>
 
-                            <p className="text-sm font-semibold">
-                              {item.name}
-                            </p>
+                            <div className="flex flex-col gap-1">
+                                <p className="text-sm font-semibold text-gray-900 line-clamp-1">{item.name}</p>
+                                {item.variantLabel && (
+                                    <p className="text-[10px] text-orange-600 font-medium bg-orange-50 px-2 py-0.5 rounded-full w-fit">
+                                        {item.variantLabel}
+                                    </p>
+                                )}
+                                <div className="flex items-center gap-3 mt-1">
+                                    <div className="inline-flex items-center rounded-full border border-gray-200 bg-white shadow-sm h-8">
+                                        <button 
+                                            type="button"
+                                            onClick={() => handleUpdateQuantity(item.id, item.quantity - 1)} 
+                                            className="px-2 hover:text-orange-500 transition-colors"
+                                        >
+                                            <Minus className="h-3 w-3" />
+                                        </button>
+                                        <span className="px-1 text-xs font-bold text-gray-900 w-4 text-center">{item.quantity}</span>
+                                        <button 
+                                            type="button"
+                                            onClick={() => handleUpdateQuantity(item.id, item.quantity + 1)} 
+                                            className="px-2 hover:text-orange-500 transition-colors"
+                                        >
+                                            <Plus className="h-3 w-3" />
+                                        </button>
+                                    </div>
+                                    <button 
+                                        type="button"
+                                        onClick={() => handleDeleteClick(item.id)} 
+                                        className="p-1.5 rounded-full bg-red-50 text-red-500 hover:bg-red-100 transition-all active:scale-95"
+                                    >
+                                        <Trash2 className="h-4 w-4" />
+                                    </button>
+                                </div>
+                            </div>
                           </div>
 
-                          <p className="text-sm font-semibold">
-                          ฿{formatPrice(item.price)}
+                          <p className="text-sm font-bold text-gray-900 whitespace-nowrap">
+                            ฿{formatPrice(item.subtotal)}
                           </p>
                         </div>
                       ))}
@@ -419,6 +493,20 @@ export default function CheckoutPage() {
         confirmText="Confirm"
         cancelText="Cancel"
         variant="info"
+      />
+
+      <ConfirmationModal
+        isOpen={isDeleteModalOpen}
+        onClose={() => {
+          setIsDeleteModalOpen(false)
+          setItemToDeleteId(null)
+        }}
+        onConfirm={handleConfirmDelete}
+        title="Remove item from cart?"
+        message="Are you sure you want to remove this item from your cart?"
+        confirmText="Remove"
+        cancelText="Cancel"
+        variant="danger"
       />
     </div>
   )

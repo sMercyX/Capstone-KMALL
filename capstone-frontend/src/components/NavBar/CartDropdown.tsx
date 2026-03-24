@@ -94,7 +94,7 @@ export default function CartDropdown({ isOpen, onToggle, onClose }: Props) {
 
   const handleGoToCart = () => {
     onClose()
-    navigate("/cart")
+    navigate("/checkout")
   }
 
   return (
@@ -218,9 +218,9 @@ export default function CartDropdown({ isOpen, onToggle, onClose }: Props) {
               (cart && cart.items.length > 0) && (
                 <button
               onClick={handleGoToCart}
-              className="w-full rounded-full bg-orange-500 py-2.5 text-sm font-semibold text-white shadow-md hover:bg-orange-600"
+              className="w-full rounded-full bg-orange-500 py-2.5 text-sm font-semibold text-white shadow-md hover:bg-orange-600 transition-all active:scale-95"
             >
-              View My Cart
+              Review & Checkout
             </button>
               )}
           </div>

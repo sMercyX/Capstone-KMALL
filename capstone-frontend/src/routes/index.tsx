@@ -22,7 +22,7 @@ const StoreSellerPage = lazy(
 const StoreRegisterPage = lazy(
   () => import("../modules/StoreRegisterPage/StoreRegisterPage")
 )
-const CartPage = lazy(() => import("../modules/CartPage/CartPage"))
+// const CartPage = lazy(() => import("../modules/CartPage/CartPage"))
 const CheckoutPage = lazy(() => import("../modules/CheckoutPage/CheckoutPage"))
 const StoreOrderDetailPage = lazy(
   () => import("../modules/StoreOrderDetailPage/StoreOrderDetailPage")
@@ -154,14 +154,14 @@ export default function AppRoutes() {
                 </ProtectedRoute>
               }
             />
-            <Route
+            {/* <Route
               path="/cart"
               element={
                 <ProtectedRoute>
                   <CartPage />
                 </ProtectedRoute>
               }
-            />
+            /> */}
             <Route
               path="/checkout"
               element={
