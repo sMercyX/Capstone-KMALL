@@ -3,11 +3,13 @@ import { useNavigate, useParams } from "react-router-dom"
 import {
   ImagePlus,
   Trash2,
+  Upload,
+  ImageIcon,
 } from "lucide-react"
 import { toast } from "react-toastify"
 
 import { handleApiError } from "../../../utils/handleApiError"
-import { useProductApi, type AddProductRequest, type productPictureResponse, type EditProductRequest, type OptionKey, type OptionValue, type Variant } from "../../../api/productApi"
+import { useProductApi, type AddProductRequest, type productPictureResponse, type EditProductRequest, type EditVariantsConfigReq, type OptionKey, type OptionValue, type Variant } from "../../../api/productApi"
 import { useStoreStore } from "../../../stores/storeStore"
 import { useCatagoriesApi, type CatagoriesResponse } from "../../../api/catagoriesApi"
 import { processImageFile, SUPPORTED_IMAGE_TYPES } from "../../../utils/imageProcessing"
@@ -18,6 +20,8 @@ export interface LocalOption {
   id: string;
   name: string;
   values: string[];
+  is_image_key: boolean;
+  value_images: Record<string, { file?: File; url?: string; valueId?: number }>;
 }
 
 export interface LocalVariant {
@@ -39,12 +43,15 @@ function OptionCard({
   option, 
   index, 
   updateOption, 
-  removeOption 
+  removeOption,
+  onDeleteValueImage
 }: { 
   option: LocalOption; 
   index: number; 
   updateOption: (idx: number, opt: LocalOption) => void; 
   removeOption: (idx: number) => void;
+  productId?: number;
+  onDeleteValueImage?: (keyId: number, valueId: number) => void;
 }) {
   const [inputValue, setInputValue] = useState("")
 
@@ -65,7 +72,16 @@ function OptionCard({
         <Trash2 className="w-5 h-5" />
       </button>
       <div className="mb-4">
-        <label className="block text-sm font-bold text-gray-700 mb-2">Product Option {index + 1}</label>
+        <div className="flex items-center justify-between mb-2">
+          <label className="block text-sm font-bold text-gray-700">Product Option {index + 1}</label>
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-gray-500 font-medium">Use Image</span>
+            <ToggleSwitch 
+              checked={option.is_image_key} 
+              onChange={() => updateOption(index, { ...option, is_image_key: !option.is_image_key })} 
+            />
+          </div>
+        </div>
         <input 
           type="text" 
           value={option.name} 
@@ -81,7 +97,15 @@ function OptionCard({
             {option.values.map((val, vIdx) => (
               <div key={vIdx} className="flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-orange-200 text-[#ff5a36] bg-orange-50 text-sm font-medium">
                 <span>{val}</span>
-                <button onClick={() => updateOption(index, { ...option, values: option.values.filter((_, i) => i !== vIdx) })} className="hover:text-red-500 flex items-center justify-center">
+                <button 
+                  onClick={() => {
+                    const newValues = option.values.filter((_, i) => i !== vIdx)
+                    const newValueImages = { ...option.value_images }
+                    delete newValueImages[val]
+                    updateOption(index, { ...option, values: newValues, value_images: newValueImages })
+                  }} 
+                  className="hover:text-red-500 flex items-center justify-center"
+                >
                   <span className="text-lg leading-none">&times;</span>
                 </button>
               </div>
@@ -101,6 +125,70 @@ function OptionCard({
             + Add
           </button>
         </div>
+
+        {option.is_image_key && option.values.length > 0 && (
+          <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-4">
+            {option.values.map((val, vIdx) => (
+              <div key={vIdx} className="flex items-center gap-3 p-3 border border-gray-100 rounded-lg bg-gray-50">
+                <div className="w-12 h-12 rounded bg-white border border-gray-200 flex-shrink-0 flex items-center justify-center overflow-hidden">
+                  {option.value_images[val]?.url ? (
+                    <img src={option.value_images[val].url} alt={val} className="w-full h-full object-cover" />
+                  ) : (
+                    <ImageIcon className="w-6 h-6 text-gray-300" />
+                  )}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-bold text-gray-700 truncate">{val}</p>
+                  <p className="text-xs text-gray-400">
+                    {option.value_images[val]?.file ? "File ready" : option.value_images[val]?.url ? "Uploaded" : "No image"}
+                  </p>
+                </div>
+                <button 
+                  onClick={() => {
+                    const input = document.createElement('input');
+                    input.type = 'file';
+                    input.accept = 'image/*';
+                    input.onchange = async (e: any) => {
+                      const file = e.target.files?.[0];
+                      if (file) {
+                        try {
+                          const processedFile = await processImageFile(file);
+                          const previewUrl = URL.createObjectURL(processedFile);
+                          const newImages = { ...option.value_images };
+                          newImages[val] = { file: processedFile, url: previewUrl };
+                          updateOption(index, { ...option, value_images: newImages });
+                        } catch (err) {
+                          toast.error("Failed to process image")
+                        }
+                      }
+                    };
+                    input.click();
+                  }}
+                  className="p-2 text-[#ff5a36] hover:bg-orange-100 rounded-lg transition-all"
+                >
+                  <Upload className="w-5 h-5" />
+                </button>
+                {(option.value_images[val]?.file || option.value_images[val]?.url) && (
+                  <button 
+                    onClick={() => {
+                      const imgData = option.value_images[val];
+                      if (imgData?.valueId && onDeleteValueImage) {
+                        onDeleteValueImage(Number(option.id ), imgData.valueId);
+                      }
+                      const newImages = { ...option.value_images };
+                      newImages[val] = { ...newImages[val], file: undefined, url: undefined };
+                      updateOption(index, { ...option, value_images: newImages });
+                    }}
+                    className="p-2 text-red-500 hover:bg-red-50 rounded-lg transition-all"
+                    title="Remove Image"
+                  >
+                    <Trash2 className="w-5 h-5" />
+                  </button>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
       </div>
       <div className="flex justify-end gap-3 mt-6">
         <button onClick={() => {}} className="px-6 py-2.5 border border-gray-200 bg-white rounded-lg font-bold text-gray-600 hover:bg-gray-50 transition-all">Done</button>
@@ -117,6 +205,7 @@ export function StoreAddEditTab() {
 
   const [images, setImages] = useState<ImageItem[]>([])
   const [deletedImageIds, setDeletedImageIds] = useState<number[]>([])
+  const [deletedOptionValueImageIds, setDeletedOptionValueImageIds] = useState<{ keyId: number; valueId: number }[]>([])
   const [mainIndex, setMainIndex] = useState(0)
   const fileInputRef = useRef<HTMLInputElement | null>(null)
   const contentRef = useRef<HTMLDivElement>(null)
@@ -164,7 +253,7 @@ export function StoreAddEditTab() {
   const [activeTab, setActiveTab] = useState("product-info")
   const isScrolling = useRef(false)
 
-  const { addProduct, editProduct, getProductById, addImageProduct, editImageProduct, getProductImage, deleteProductImage } = useProductApi()
+  const { addProduct, editProduct, editProductVariantsConfig, getProductById, bulkUploadProductImages, editImageProduct, getProductImage, deleteProductImage, deleteOptionValueImage } = useProductApi()
   const { store } = useStoreStore()
   const { getCatagoriesName, getCatagoriesDetail } = useCatagoriesApi()
   const isProgrammaticChange = useRef(false)
@@ -214,7 +303,15 @@ export function StoreAddEditTab() {
           setOptions(p.options.map((opt: OptionKey) => ({
             id: String(opt.id),
             name: opt.key_name,
-            values: opt.values.map((v: OptionValue) => v.value_label)
+            is_image_key: opt.is_image_key || false,
+            values: opt.values.map((v: OptionValue) => v.value_label),
+            value_images: opt.values.reduce((acc: any, v: OptionValue) => {
+              acc[v.value_label] = { 
+                url: v.image_url || undefined,
+                valueId: v.id 
+              }
+              return acc
+            }, {})
           })))
         }
 
@@ -385,14 +482,32 @@ export function StoreAddEditTab() {
   // ---------- options & variants handlers ----------
   const handleAddOption = () => {
     if (options.length < 3) {
-      setOptions([...options, { id: `opt_${Date.now()}`, name: "", values: [] }])
+      setOptions([...options, { 
+        id: `opt_${Date.now()}`, 
+        name: "", 
+        values: [],
+        is_image_key: false,
+        value_images: {}
+      }])
     }
   }
 
   const handleUpdateOption = (idx: number, opt: LocalOption) => {
-    const newOptions = [...options]
-    newOptions[idx] = opt
-    setOptions(newOptions)
+    setOptions(prev => {
+      let nextOptions = [...prev]
+      
+      // Rule: only one option can have is_image_key = true
+      if (opt.is_image_key && !prev[idx].is_image_key) {
+        nextOptions = nextOptions.map((o, i) => ({
+          ...o,
+          is_image_key: i === idx
+        }))
+      } else {
+        nextOptions[idx] = opt
+      }
+      
+      return nextOptions
+    })
   }
 
   const handleRemoveOption = (idx: number) => {
@@ -478,13 +593,15 @@ export function StoreAddEditTab() {
           category_id: subCategoryId as number,
         }
 
+        await editProduct(productId, editPayload)
+
         if (productType !== "PREORDER") {
-          editPayload.variants_config = {
+          const variantsConfigPayload: EditVariantsConfigReq = {
             options: options.map((opt, i) => ({
               key_name: opt.name,
               sort_order: i + 1,
-              is_image_key: i === 0,
-              values: opt.values
+              values: opt.values,
+              is_image_key: opt.is_image_key
             })),
             variants: variants.map(v => ({
               option_value_labels: v.option_value_labels,
@@ -493,28 +610,60 @@ export function StoreAddEditTab() {
               is_active: v.is_active
             }))
           }
+          await editProductVariantsConfig(productId, variantsConfigPayload)
         }
-
-        await editProduct(productId, editPayload)
 
         // Handle Image Deletions
         for (const imageId of deletedImageIds) {
           await deleteProductImage(imageId)
         }
 
-        // Handle New Image Uploads
-        const newFiles = images.filter(img => img.file).map(img => img.file!)
-        if (newFiles.length > 0) {
-          await addImageProduct(productId, newFiles)
+        // Handle Option Value Image Deletions
+        for (const del of deletedOptionValueImageIds) {
+            try {
+                await deleteOptionValueImage(productId, del.keyId, del.valueId)
+            } catch (err) {
+                console.error("Failed to delete option value image:", err)
+            }
+        }
+
+        // Handle New Image Uploads (Product + Options)
+        const productFiles = images.filter(img => img.file).map(img => img.file!)
+        const optionValueFiles: { optionName: string; valueLabel: string; file: File }[] = []
+        
+        options.forEach(opt => {
+          if (opt.is_image_key) {
+            Object.entries(opt.value_images).forEach(([label, data]) => {
+              if (data.file) {
+                optionValueFiles.push({
+                  optionName: opt.name,
+                  valueLabel: label,
+                  file: data.file
+                })
+              }
+            })
+          }
+        })
+
+        if (productFiles.length > 0 || optionValueFiles.length > 0) {
+          try {
+            await bulkUploadProductImages(productId, productFiles, optionValueFiles)
+          } catch (uploadErr) {
+            console.error("Bulk image upload failed:", uploadErr)
+            // Use handleApiError to show the specific error from backend, but don't re-throw
+            handleApiError(uploadErr)
+          }
         }
 
         // Update Primary Image if changed
-        // This is tricky because we need the IDs of newly uploaded images if they are set to primary.
-        // For simplicity, we might just re-fetch images and set primary based on mainIndex.
-        const freshImgsRes = await getProductImage(productId)
-        const freshImgs = freshImgsRes.data || []
-        if (freshImgs[mainIndex]) {
-          await editImageProduct(freshImgs[mainIndex].id, { is_primary: true })
+        try {
+          const freshImgsRes = await getProductImage(productId)
+          const freshImgs = freshImgsRes.data || []
+          if (freshImgs[mainIndex]) {
+            await editImageProduct(freshImgs[mainIndex].id, { is_primary: true })
+          }
+        } catch (imgErr) {
+          console.error("Failed to update primary image:", imgErr)
         }
 
         toast.success("Product updated successfully!")
@@ -537,8 +686,11 @@ export function StoreAddEditTab() {
           payload.options = options.map((opt, i) => ({
             key_name: opt.name,
             sort_order: i + 1,
-            is_image_key: i === 0,
-            values: opt.values.map((val, j) => ({ value_label: val, sort_order: j + 1 }))
+            is_image_key: opt.is_image_key,
+            values: opt.values.map((val, j) => ({ 
+              value_label: val, 
+              sort_order: j + 1 
+            }))
           }))
           payload.variants = variants.map(v => ({
             option_value_labels: v.option_value_labels,
@@ -551,13 +703,36 @@ export function StoreAddEditTab() {
         const res = await addProduct(payload)
         const newProductId = res.data.id
 
-        const newFiles = images.filter(img => img.file).map(img => img.file!)
-        if (newFiles.length > 0) {
-          const resImages = await addImageProduct(newProductId, newFiles)
-          const uploadedImages = resImages.data || []
+        // Handle New Image Uploads (Product + Options)
+        const productFiles = images.filter(img => img.file).map(img => img.file!)
+        const optionValueFiles: { optionName: string; valueLabel: string; file: File }[] = []
+        
+        options.forEach(opt => {
+          if (opt.is_image_key) {
+            Object.entries(opt.value_images).forEach(([label, data]) => {
+              if (data.file) {
+                optionValueFiles.push({
+                  optionName: opt.name,
+                  valueLabel: label,
+                  file: data.file
+                })
+              }
+            })
+          }
+        })
 
-          if (uploadedImages[mainIndex]) {
-            await editImageProduct(uploadedImages[mainIndex].id, { is_primary: true })
+        if (productFiles.length > 0 || optionValueFiles.length > 0) {
+          try {
+            const resImages = await bulkUploadProductImages(newProductId, productFiles, optionValueFiles)
+            const uploadedImages = resImages.data.product_images || []
+
+            if (uploadedImages[mainIndex]) {
+              await editImageProduct(uploadedImages[mainIndex].id, { is_primary: true })
+            }
+          } catch (uploadErr) {
+            console.error("Bulk image upload failed:", uploadErr)
+            // Use handleApiError to show the specific error from backend, but don't re-throw
+            handleApiError(uploadErr)
           }
         }
 
@@ -779,10 +954,14 @@ export function StoreAddEditTab() {
                   {options.map((opt, idx) => (
                     <OptionCard 
                       key={opt.id} 
-                      option={opt} 
-                      index={idx} 
-                      updateOption={handleUpdateOption} 
-                      removeOption={handleRemoveOption} 
+                      option={opt}
+                      index={idx}
+                      updateOption={handleUpdateOption}
+                      removeOption={handleRemoveOption}
+                      productId={id ? Number(id) : undefined}
+                      onDeleteValueImage={(keyId, valueId) => {
+                        setDeletedOptionValueImageIds(prev => [...prev, { keyId, valueId }])
+                      }}
                     />
                   ))}
                 </div>
