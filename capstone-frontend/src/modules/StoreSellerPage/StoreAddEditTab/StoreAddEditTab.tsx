@@ -610,7 +610,10 @@ export function StoreAddEditTab() {
             options: options.map((opt, i) => ({
               key_name: opt.name,
               sort_order: i + 1,
-              values: opt.values,
+              values: opt.values.map((val, j) => ({
+                value_label: val,
+                sort_order: j + 1
+              })),
               is_image_key: opt.is_image_key
             })),
             variants: variants.map(v => ({

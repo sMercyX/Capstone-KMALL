@@ -62,9 +62,16 @@ export default function ProductList({
                   </div>
                 )}
               </div>
-              <p className="text-sm font-medium text-gray-900">
-                {item.product_name}
-              </p>
+              <div className="flex flex-col">
+                <p className="text-sm font-medium text-gray-900 leading-tight">
+                  {item.product_name}
+                </p>
+                {item.variant_label && (
+                  <p className="text-xs text-orange-600 font-medium bg-orange-50 py-0.5 rounded-full w-fit mt-1">
+                    {item.variant_label}
+                  </p>
+                )}
+              </div>
             </div>
             <div className="col-span-2 flex justify-center">
               <span className="inline-flex items-center justify-center bg-orange-500 text-white text-xs font-bold rounded-md px-3 py-1 min-w-[2rem]">
