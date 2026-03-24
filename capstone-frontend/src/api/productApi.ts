@@ -117,10 +117,7 @@ export interface EditVariantsConfigReq {
   options: {
     key_name: string
     sort_order: number
-    values: {
-      value_label: string
-      sort_order: number
-    }[]
+    values: string[]
     is_image_key?: boolean
   }[]
   variants: {
