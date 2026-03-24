@@ -584,7 +584,8 @@ export function StoreAddEditTab() {
       const productId = isEditMode ? Number(id) : null
 
       if (isEditMode && productId) {
-        // ---------- EDIT MODE ----------
+      
+
         const editPayload: EditProductRequest = {
           name,
           description,
@@ -595,6 +596,21 @@ export function StoreAddEditTab() {
 
         await editProduct(productId, editPayload)
 
+
+          // Handle Image Deletions
+        for (const imageId of deletedImageIds) {
+          await deleteProductImage(imageId)
+        }
+
+        // Handle Option Value Image Deletions
+        for (const del of deletedOptionValueImageIds) {
+            try {
+                await deleteOptionValueImage(productId, del.keyId, del.valueId)
+            } catch (err) {
+                console.error("Failed to delete option value image:", err)
+            }
+        }
+        
         if (productType !== "PREORDER") {
           const variantsConfigPayload: EditVariantsConfigReq = {
             options: options.map((opt, i) => ({
@@ -611,20 +627,6 @@ export function StoreAddEditTab() {
             }))
           }
           await editProductVariantsConfig(productId, variantsConfigPayload)
-        }
-
-        // Handle Image Deletions
-        for (const imageId of deletedImageIds) {
-          await deleteProductImage(imageId)
-        }
-
-        // Handle Option Value Image Deletions
-        for (const del of deletedOptionValueImageIds) {
-            try {
-                await deleteOptionValueImage(productId, del.keyId, del.valueId)
-            } catch (err) {
-                console.error("Failed to delete option value image:", err)
-            }
         }
 
         // Handle New Image Uploads (Product + Options)
