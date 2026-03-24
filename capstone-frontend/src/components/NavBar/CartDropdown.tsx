@@ -180,6 +180,11 @@ export default function CartDropdown({ isOpen, onToggle, onClose }: Props) {
                     <p className="font-medium text-gray-900 line-clamp-1">
                       {item.product_name || `สินค้า #${item.product_id}`}
                     </p>
+                    {item.variant_label && (
+                      <p className="text-[10px] text-orange-600 font-medium bg-orange-50 px-1.5 py-0.5 rounded-full w-fit mt-0.5">
+                        {item.variant_label}
+                      </p>
+                    )}
                     <p className="text-xs text-gray-500 mt-0.5">
                       Quantity: {item.quantity}
                     </p>

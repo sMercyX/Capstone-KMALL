@@ -24,6 +24,7 @@ type CartItem = {
   quantity: number
   image: string
   subtotal: number
+  variantLabel?: string
 }
 
 type CartStore = {
@@ -63,7 +64,12 @@ function CartItemRow({
 
         <div className="flex flex-col">
           <p className="text-base font-semibold text-gray-900">{item.name}</p>
-          <p className="text-sm text-gray-500">
+          {item.variantLabel && (
+            <p className="text-xs text-orange-600 font-medium bg-orange-100 px-2 py-0.5 rounded-full w-fit mt-1">
+                {item.variantLabel}
+            </p>
+          )}
+          <p className="text-sm text-gray-500 mt-1">
           {item.price > 0 ? `฿ ${formatPrice(item.price)}` : "—"}
           </p>
         </div>
@@ -249,6 +255,7 @@ export default function CartPage() {
         quantity: it.quantity,
         image: it.product_image_url ? resolveImageUrl(it.product_image_url) : "/images/default-product.png",
         subtotal: it.subtotal,
+        variantLabel: it.variant_label,
       }
 
       if (!existing) {

@@ -24,6 +24,7 @@ export interface cartResponse {
   cart_id: number
   id: number
   product_id: number
+  variant_id?: number
   product_image_url: string
   product_name: string
   product_price: number
@@ -31,6 +32,9 @@ export interface cartResponse {
   store_id: number
   store_name: string
   subtotal: number
+  variant_label?: string
+  stock_qty?: number
+  is_available?: boolean
 }
 
 export interface cartResponse2{
