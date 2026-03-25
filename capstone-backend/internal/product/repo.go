@@ -820,12 +820,14 @@ func (r *repo) GetPublic(ctx context.Context, id int64) (Product, error) {
 	var p Product
 	err := r.db.QueryRow(ctx, `
 		SELECT
-		    p.product_id, p.name, p.product_desc, p.price, p.image_url,
-		    p.product_type, p.created_at, p.updated_at, p.is_active,
-		    p.store_id, p.category_id,
-		    s.store_name,
-		    c.name AS category_name,
-		    COALESCE(SUM(CASE WHEN o.order_id IS NOT NULL THEN oi.quantity ELSE 0 END), 0) AS sold_count
+    		p.product_id, p.name, p.product_desc, p.price, p.image_url,
+    		p.product_type, p.created_at, p.updated_at, p.is_active,
+    		p.store_id, p.category_id,
+    		s.store_name,
+    		s.delivery_round_university_enabled,
+    		s.round_uni_base_fee,
+    		c.name AS category_name,
+    		COALESCE(SUM(CASE WHEN o.order_id IS NOT NULL THEN oi.quantity ELSE 0 END), 0) AS sold_count
 		FROM products p
 		JOIN stores s     ON p.store_id    = s.store_id
 		JOIN categories c ON c.category_id = p.category_id
@@ -838,13 +840,22 @@ func (r *repo) GetPublic(ctx context.Context, id int64) (Product, error) {
 		  AND s.is_active  = 'YES'
 		  AND c.is_active  = 'YES'
 		GROUP BY
-		    p.product_id, p.name, p.product_desc, p.price, p.image_url,
-		    p.product_type, p.created_at, p.updated_at, p.is_active,
-		    p.store_id, p.category_id, s.store_name, c.name;
+    		p.product_id, p.name, p.product_desc, p.price, p.image_url,
+    		p.product_type, p.created_at, p.updated_at, p.is_active,
+    		p.store_id, p.category_id,
+    		s.store_name,
+    		s.delivery_round_university_enabled,
+    		s.round_uni_base_fee,
+    		c.name;
 	`, id).Scan(
 		&p.ID, &p.Name, &p.Description, &p.Price, &p.ImageURL,
 		&p.ProductType, &p.CreatedAt, &p.UpdatedAt, &p.IsActive,
-		&p.StoreID, &p.CategoryID, &p.StoreName, &p.CategoryName, &p.SoldCount,
+		&p.StoreID, &p.CategoryID,
+		&p.StoreName,
+		&p.DeliveryRoundUniversityEnabled,
+		&p.RoundUniBaseFee,
+		&p.CategoryName,
+		&p.SoldCount,
 	)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
