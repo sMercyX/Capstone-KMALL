@@ -22,7 +22,7 @@ const StoreSellerPage = lazy(
 const StoreRegisterPage = lazy(
   () => import("../modules/StoreRegisterPage/StoreRegisterPage")
 )
-const CartPage = lazy(() => import("../modules/CartPage/CartPage"))
+// const CartPage = lazy(() => import("../modules/CartPage/CartPage"))
 const CheckoutPage = lazy(() => import("../modules/CheckoutPage/CheckoutPage"))
 const StoreOrderDetailPage = lazy(
   () => import("../modules/StoreOrderDetailPage/StoreOrderDetailPage")
@@ -154,14 +154,14 @@ export default function AppRoutes() {
                 </ProtectedRoute>
               }
             />
-            <Route
+            {/* <Route
               path="/cart"
               element={
                 <ProtectedRoute>
                   <CartPage />
                 </ProtectedRoute>
               }
-            />
+            /> */}
             <Route
               path="/checkout"
               element={
@@ -256,7 +256,8 @@ export default function AppRoutes() {
           <Route path="/store" element={<Navigate to="/store/me" replace />} />
           <Route path="/store/me" element={<StoreSellerPage />} />
           <Route path="/store/products" element={<StoreSellerPage />} />
-          <Route path="/store/add" element={<StoreSellerPage />} />
+          <Route path="/store/products/add" element={<StoreSellerPage />} />
+          <Route path="/store/products/edit/:id" element={<StoreSellerPage />} />
           <Route path="/store/orders" element={<StoreSellerPage />} />
           <Route path="/store/orders/:orderId" element={<StoreOrderDetailPage />} />
           <Route path="/store/orders/:orderId/chat" element={<ChatPage />} />

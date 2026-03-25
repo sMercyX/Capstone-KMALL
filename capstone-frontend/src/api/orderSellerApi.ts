@@ -55,6 +55,7 @@ export interface OrderItemDetail {
   product_id: number
   product_name: string
   product_image_url?: string
+  variant_label?: string
 }
 
 export interface OrderBuyerDetail {

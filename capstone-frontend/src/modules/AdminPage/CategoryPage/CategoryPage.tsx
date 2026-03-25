@@ -148,7 +148,7 @@ export default function CategoryPage() {
                   <Folder className="w-6 h-6 text-gray-800 shrink-0" strokeWidth={2.5} />
                   <h3 className="text-2xl font-bold text-gray-900 leading-none">{group.main.name}</h3>
                 </div>
-                <p className="text-[15px] text-gray-800 mb-5">{group.subs.length} Subcategories</p>
+                <p className="text-[15px] text-gray-800 mb-5">{group.main.sub_category_count ?? group.subs.length} Subcategories</p>
                 
                 {/* Divider */}
                 <div className="h-[1px] bg-gray-300 w-full mb-5"></div>

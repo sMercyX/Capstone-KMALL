@@ -18,15 +18,66 @@ export interface Product {
   category_id: number
   category_name: string
   sold_count?: number
+  product_type: "STOCK" | "PREORDER"
+  options?: OptionKey[]
+  variants?: Variant[]
 }
+
+export interface OptionKey {
+  id: number
+  product_id: number
+  key_name: string
+  sort_order: number
+  is_image_key: boolean
+  values: OptionValue[]
+}
+
+export interface OptionValue {
+  id: number
+  option_key_id: number
+  value_label: string
+  sort_order: number
+  image_url?: string
+}
+
+export interface Variant {
+  id: number
+  product_id: number
+  sku?: string
+  price_delta: number
+  final_price: number
+  stock_qty: number
+  is_active: boolean
+  selections: {
+    key: string
+    value: string
+  }[]
+}
+
 export interface AddProductRequest {
   name: string
   description: string
   price: number
+  product_type: string
   image_url: string
   is_active: "YES" | "NO"
   store_id: number
   category_id: number
+  options?: {
+    key_name: string
+    sort_order: number
+    is_image_key?: boolean
+    values: {
+      value_label: string
+      sort_order: number
+    }[]
+  }[]
+  variants?: {
+    option_value_labels: string[]
+    price_delta: number
+    stock_qty: number
+    is_active: boolean
+  }[]
 }
 
 export type ProductListResponse = PaginatedResponse<Product>
@@ -47,13 +98,34 @@ export interface productPictureEditRequest {
   is_primary: boolean
 }
 
+export interface BulkUploadResponse {
+  option_value_images: OptionValue[]
+  product_images: productPictureResponse[]
+}
+
 export interface EditProductRequest {
-  name: string
-  description: string
-  price: number
-  image_url: string
-  is_active: "YES" | "NO"
-  category_id: number
+  name?: string
+  description?: string
+  price?: number
+  image_url?: string
+  is_active?: "YES" | "NO"
+  category_id?: number
+  product_type?: string
+}
+
+export interface EditVariantsConfigReq {
+  options: {
+    key_name: string
+    sort_order: number
+    values: string[]
+    is_image_key?: boolean
+  }[]
+  variants: {
+    option_value_labels: string[]
+    price_delta: number
+    stock_qty: number
+    is_active?: boolean
+  }[]
 }
 
 // Recommendation API types
@@ -194,12 +266,23 @@ export function useProductApi() {
   async function getProduct(store_id: number) {
     return http.getItems(`/products/${store_id}/public`)
   }
+
+  async function getProductById(id: number): Promise<ApiResponse<Product>> {
+    return http.getItems(`/products/${id}`)
+  }
   
   async function editProduct(
     product_id: number,
     data: EditProductRequest
   ): Promise<ApiUpdatedResponse<Product>> {
     return http.putItem(`/products/${product_id}`, data)
+  }
+
+  async function editProductVariantsConfig(
+    product_id: number,
+    data: EditVariantsConfigReq
+  ): Promise<ApiUpdatedResponse<Product>> {
+    return http.putItem(`/products/${product_id}/variants-config`, data)
   }
   
   async function deleteProduct(product_id: number) {
@@ -246,6 +329,28 @@ export function useProductApi() {
     return http.getItems(`/recommendation/orders/${orderId}?context=cancellation&limit=${limit}`)
   }
 
+  async function bulkUploadProductImages(
+    product_id: number,
+    files: File[],
+    optionValueImages: { optionName: string; valueLabel: string; file: File }[]
+  ): Promise<ApiCreateResponse<BulkUploadResponse>> {
+    const formData = new FormData()
+    files.forEach((file) => {
+      formData.append("images", file)
+    })
+    optionValueImages.forEach((item) => {
+      formData.append(`option_value_image[${item.optionName}:${item.valueLabel}]`, item.file)
+    })
+    return http.postItem(
+      `/products/${product_id}/images/bulk-upload`,
+      formData
+    )
+  }
+
+  async function deleteOptionValueImage(productId: number, keyId: number, valueId: number): Promise<ApiResponse<any>> {
+    return http.deleteItem(`/products/${productId}/options/${keyId}/values/${valueId}/image`)
+  }
+
   return {
     getProductsByCategory,
     getProductBySlug,
@@ -255,12 +360,16 @@ export function useProductApi() {
     getProductsStoreByStoreId,
     addProduct,
     getProduct,
+    getProductById,
     editProduct,
+    editProductVariantsConfig,
     deleteProduct,
     addImageProduct,
     editImageProduct,
     getProductImage,
     deleteProductImage,
     getCancellationRecommendations,
+    bulkUploadProductImages,
+    deleteOptionValueImage,
   }
 }

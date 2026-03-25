@@ -1,19 +1,21 @@
-import { useEffect, useState } from "react"
+import { useEffect, useState, useRef } from "react"
 import { useNavigate } from "react-router-dom"
-import { Pencil, Trash2, Plus } from "lucide-react"
+import { Pencil, Trash2, Plus, Loader2 } from "lucide-react"
+import { FiSearch } from "react-icons/fi"
 import Pagination from "../../../components/Pagination/Pagination"
 import { useProductApi } from "../../../api/productApi"
-import { useStoreApi, type storeProductDataRequset } from "../../../api/storeApi"
+import { type storeProductDataRequset } from "../../../api/storeApi"
 import { useStoreStore } from "../../../stores/storeStore"
 import { useStoreProductStore } from "./storeProductStore"
-import StoreEditProductModal from "./StoreEditProductModal"
 import ConfirmationModal from "../../../components/Modal/ConfirmationModal"
 import { toast } from "react-toastify"
 import { resolveImageUrl } from "../../../utils/resolve"
 import { handleApiError } from "../../../utils/handleApiError"
-
+import { useCatagoriesApi, type CatagoriesResponse } from "../../../api/catagoriesApi"
+import { Dropdown } from "../../../components/Dropdown"
 export default function StoreProductsTab() {
-  const { getStoreProducts } = useStoreApi()
+  const { getCatagoriesName } = useCatagoriesApi()
+  const { deleteProduct, searchProducts } = useProductApi()
   const store = useStoreStore((s) => s.store)
   const navigate = useNavigate()
 
@@ -31,12 +33,54 @@ export default function StoreProductsTab() {
     reset,
   } = useStoreProductStore()
 
-  const [isEditOpen, setIsEditOpen] = useState(false)
-  const [editProduct, setEditProduct] = useState<storeProductDataRequset | null>(
-    null
-  )
-
   const [refreshKey, setRefreshKey] = useState(0)
+
+  const [searchQuery, setSearchQuery] = useState("")
+  const [searchQueryDebounced, setSearchQueryDebounced] = useState("")
+  
+  const [mainCategories, setMainCategories] = useState<CatagoriesResponse[]>([])
+  const [subCategories, setSubCategories] = useState<CatagoriesResponse[]>([])
+  const [selectedMainCategory, setSelectedMainCategory] = useState<number | "ALL">("ALL")
+  const [selectedSubCategory, setSelectedSubCategory] = useState<number | "ALL">("ALL")
+  
+  const debounceRef = useRef<ReturnType<typeof setTimeout>>(undefined)
+
+  const [deleteId, setDeleteId] = useState<number | null>(null)
+
+  // Load Main Categories
+  useEffect(() => {
+    const loadMainCats = async () => {
+      try {
+        const res = await getCatagoriesName(0) // Assuming 0 is top-level
+        setMainCategories(res.data || [])
+      } catch (err) {
+        console.error("Failed to load main categories:", err)
+      }
+    }
+    loadMainCats()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  // Load Sub Categories when Main Category changes
+  useEffect(() => {
+    if (selectedMainCategory === "ALL") {
+      setSubCategories([])
+      setSelectedSubCategory("ALL")
+      return
+    }
+
+    const loadSubCats = async () => {
+      try {
+        const res = await getCatagoriesName(Number(selectedMainCategory))
+        setSubCategories(res.data || [])
+        setSelectedSubCategory("ALL")
+      } catch (err) {
+        console.error("Failed to load sub categories:", err)
+      }
+    }
+    loadSubCats()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedMainCategory])
 
   // เปลี่ยนร้าน → รีเซ็ต pagination
   useEffect(() => {
@@ -45,7 +89,7 @@ export default function StoreProductsTab() {
     setPageIndex(1)
   }, [store?.id, reset, setPageIndex])
 
-  // โหลดสินค้าของร้าน (มี pagination)
+  // โหลดสินค้าของร้าน (มี pagination + search + filter)
   useEffect(() => {
     if (!store?.id) return
 
@@ -54,9 +98,17 @@ export default function StoreProductsTab() {
     async function load() {
       try {
         startLoading()
-        const res = await getStoreProducts(store!.id, pageIndex, pageSize)
+        const res = await searchProducts({
+          storeId: store?.id,
+          q: searchQueryDebounced,
+          parentCategoryId: selectedMainCategory === "ALL" ? undefined : Number(selectedMainCategory),
+          categoryIds: selectedSubCategory === "ALL" ? undefined : [Number(selectedSubCategory)],
+          page: pageIndex,
+          limit: pageSize
+        })
+        
         if (!cancelled) {
-          setPageData(res.data)
+          setPageData(res.data as any)
         }
       } catch (err) {
         console.error("load store products failed:", err)
@@ -71,72 +123,14 @@ export default function StoreProductsTab() {
     return () => {
       cancelled = true
     }
-
-    // ❗ อย่าใส่ getStoreProducts / startLoading / setPageData / setError
-    //    เพราะเป็นฟังก์ชันจาก hook ที่ reference เปลี่ยนทุก render
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [store?.id, pageIndex, pageSize, refreshKey])
+  }, [store?.id, pageIndex, pageSize, refreshKey, searchQueryDebounced, selectedMainCategory, selectedSubCategory])
 
   const totalPages = Math.max(1, Math.ceil(total / pageSize))
 
-  const { editProduct: updateProduct, deleteProduct } = useProductApi()
-
-  const toggleActive = async (id: number, current: "YES" | "NO") => {
-    const product = items.find((p) => p.id === id)
-    if (!product) return
-
-    const newStatus = current === "YES" ? "NO" : "YES"
-
-    try {
-      // Optimistic update
-      const nextItems = items.map((p) =>
-        p.id === id ? { ...p, is_active: newStatus } : p
-      )
-      setPageData({
-        items: nextItems,
-        pageIndex,
-        pageSize,
-        total,
-      })
-
-      await updateProduct(id, {
-        name: product.name!,
-        description: product.description!,
-        price: product.price!,
-        image_url: product.image_url!,
-        category_id: Number(product.category_id),
-        is_active: newStatus,
-      })
-    } catch (err) {
-      console.error("Failed to toggle active status:", err)
-      // Revert on error
-      const revertedItems = items.map((p) =>
-        p.id === id ? { ...p, is_active: current } : p
-      )
-      setPageData({
-        items: revertedItems,
-        pageIndex,
-        pageSize,
-        total,
-      })
-    }
-  }
-
   const handleOpenEdit = (product: storeProductDataRequset) => {
-    setEditProduct(product)
-    setIsEditOpen(true)
+    navigate(`/store/products/edit/${product.id}`)
   }
-
-  const handleCloseEdit = () => {
-    setIsEditOpen(false)
-    setEditProduct(null)
-  }
-
-  const handleEditSuccess = () => {
-    setRefreshKey((prev) => prev + 1)
-  }
-
-  const [deleteId, setDeleteId] = useState<number | null>(null)
 
   const handleDeleteClick = (id: number) => {
     setDeleteId(id)
@@ -155,139 +149,193 @@ export default function StoreProductsTab() {
   }
 
   return (
-    <>
-      <div className="border border-[#e0e0e0] rounded-2xl p-6 bg-white">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="font-semibold text-lg">All Products</h2>
-          <button
-            onClick={() => navigate("/store/add")}
-            className="flex items-center gap-2 px-4 py-2 bg-black text-white rounded-full text-sm font-medium hover:bg-gray-800 transition-colors"
-          >
-            <Plus className="w-4 h-4" />
-            Add Product
-          </button>
+    <div className="p-0">
+      {/* Breadcrumb & Title */}
+      <div className="mb-8">
+        <p className="text-sm text-gray-400 mb-2">
+          Products &gt; <span className="font-semibold text-gray-600">Product Management</span>
+        </p>
+        <h1 className="text-3xl font-bold text-gray-900 mb-2">Product Management</h1>
+        <p className="text-sm text-gray-500 max-w-2xl">
+          Manage your products including adding, editing, updating stock, and organizing product information.
+        </p>
+      </div>
+
+      {/* Search, Filter, Add button */}
+      <div className="flex flex-wrap items-center gap-4 mb-8">
+        <div className="relative flex-1 min-w-[300px]">
+          <FiSearch className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 text-lg" />
+          <input
+            type="text"
+            placeholder="Search products by name or SKU..."
+            className="w-full pl-12 pr-4 py-3 rounded-xl border border-gray-100 bg-white shadow-sm focus:outline-none focus:border-[#ff5a36] transition-all"
+            value={searchQuery}
+            onChange={(e) => {
+              const val = e.target.value
+              setSearchQuery(val)
+              if (debounceRef.current) clearTimeout(debounceRef.current)
+              debounceRef.current = setTimeout(() => {
+                setSearchQueryDebounced(val)
+              }, 400)
+            }}
+          />
         </div>
 
-        {isLoading && !items.length && (
-          <p className="text-center text-gray-500 py-4">Loading products...</p>
-        )}
-
-        {error && (
-          <p className="text-center text-red-500 py-4">{error}</p>
-        )}
-
-        {!isLoading && !error && !items.length && (
-          <p className="text-center text-gray-500 py-4">
-             You don't have any products yet.
-          </p>
-        )}
-
-        <div className="space-y-6">
-          {items.map((product) => {
-            const isActive = product.is_active === "YES"
-
-            return (
-              <div
-                key={product.id}
-                className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between"
-              >
-                {/* รูป + รายละเอียด */}
-                <div className="flex items-start gap-4">
-                  {/* <img
-                    src={
-                      product.image_url ||
-                      "https://via.placeholder.com/150?text=Product"
-                    }
-                    alt={product.name}
-                    className="w-20 h-20 md:w-24 md:h-24 rounded-lg object-cover flex-shrink-0"
-                  /> */}
-                  <img
-            src={
-              product.image_url
-                ? resolveImageUrl(product.image_url)
-                : "/images/default-store.png"
+        <div className="flex items-center gap-3">
+          <Dropdown
+            label="Main Category"
+            placeholder="Main Category"
+            options={mainCategories}
+            value={selectedMainCategory}
+            onChange={setSelectedMainCategory}
+            className="w-[220px]"
+            icon={
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M4 6H20M4 12H20M4 18H20" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
             }
-            alt={product.name}
-            className="w-20 h-20 md:w-24 md:h-24 rounded-lg object-cover flex-shrink-0"
           />
 
-                  <div className="space-y-1">
-                    <p className="font-semibold text-sm md:text-base">
-                      {product.name}
-                    </p>
-                    <p className="text-xs md:text-sm text-gray-500">
-                      {product.description}
-                    </p>
-                    <p className="text-sm md:text-base mt-1">
-                      ฿{product.price}
-                    </p>
-                  </div>
-                </div>
+          <Dropdown
+            label="Sub Category"
+            placeholder="Sub Category"
+            options={subCategories}
+            value={selectedSubCategory}
+            onChange={setSelectedSubCategory}
+            disabled={selectedMainCategory === "ALL"}
+            className="w-[220px]"
+            icon={
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M10 5L10 12L15 12" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                <path d="M15 9L18 12L15 15" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                <rect x="3" y="3" width="6" height="6" rx="1" stroke="currentColor" strokeWidth="2"/>
+              </svg>
+            }
+          />
+        </div>
 
-                {/* ปุ่ม + Toggle */}
-                <div className="flex items-center justify-between md:justify-end gap-6 md:min-w-[220px]">
-                  <div className="flex items-center gap-3">
-                    <button
-                      onClick={() => handleOpenEdit(product)}
-                      className="w-9 h-9 rounded-full bg-gray-100 flex items-center justify-center hover:bg-gray-200"
-                    >
-                      <Pencil className="w-4 h-4 text-gray-700" />
-                    </button>
-                    <button
-                      onClick={() => handleDeleteClick(product.id)}
-                      className="w-9 h-9 rounded-full bg-gray-100 flex items-center justify-center hover:bg-red-100"
-                    >
-                      <Trash2 className="w-4 h-4 text-gray-700" />
-                    </button>
-                  </div>
+        <button
+          onClick={() => navigate("/store/products/add")}
+          className="flex items-center gap-2 px-6 py-3 bg-[#ff5a36] text-white rounded-xl text-sm font-bold hover:bg-[#e04e2d] transition-all shadow-lg shadow-orange-200 cursor-pointer whitespace-nowrap"
+        >
+          <Plus className="w-5 h-5" />
+          Add Product
+        </button>
+      </div>
 
-                  <div className="flex items-center gap-2">
-                    <span
-                      className={`text-sm font-medium ${
-                        isActive ? "text-sky-600" : "text-red-500"
-                      }`}
-                    >
-                      {isActive ? "Visible" : "Hidden"}
-                    </span>
+      <div className="mb-4">
+        <h2 className="text-xl font-bold text-gray-900">Products</h2>
+      </div>
 
-                    <button
-                      type="button"
-                      onClick={() =>
-                        toggleActive(product.id, product.is_active)
-                      }
-                      className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                        isActive ? "bg-sky-500" : "bg-gray-300"
-                      }`}
-                    >
-                      <span
-                        className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform ${
-                          isActive ? "translate-x-5" : "translate-x-1"
-                        }`}
-                      />
-                    </button>
-                  </div>
-                </div>
+      {/* Table Section */}
+      <div className="overflow-x-auto min-h-[400px]">
+        <div className="min-w-[1100px] mb-4">
+          {/* Header Row */}
+          <div className="grid grid-cols-12 gap-4 bg-white border border-gray-100 rounded-t-xl px-6 py-4 text-[11px] uppercase tracking-wider font-bold text-gray-400 border-b-2">
+            <div className="col-span-4">Product Name</div>
+            <div className="col-span-3">Product Description</div>
+            <div className="col-span-1">Quantity</div>
+            <div className="col-span-1">Status</div>
+            <div className="col-span-1 text-right">Price</div>
+            <div className="col-span-2 text-right">Action</div>
+          </div>
+
+          {/* List of Products */}
+          <div className="space-y-3 mt-3">
+            {isLoading && !items.length ? (
+              <div className="flex items-center justify-center py-20 bg-white rounded-xl border border-gray-100">
+                <Loader2 className="w-8 h-8 animate-spin text-[#ff5a36]" />
               </div>
-            )
-          })}
+            ) : error ? (
+              <div className="flex flex-col items-center justify-center py-20 bg-white rounded-xl border border-red-100 text-red-500">
+                <p>{error}</p>
+                <button onClick={() => setRefreshKey(k => k + 1)} className="mt-4 text-sm font-bold text-[#ff5a36] hover:underline">Try again</button>
+              </div>
+            ) : items.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-20 bg-white rounded-xl border border-gray-100 text-gray-400">
+                <p>No products found.</p>
+              </div>
+            ) : (
+              items.map((product) => {
+                const isActive = product.is_active === "YES"
+                return (
+                  <div
+                    key={product.id}
+                    className="grid grid-cols-12 gap-4 items-center bg-white border border-gray-100 rounded-xl px-6 py-5 shadow-[0_2px_8px_rgba(0,0,0,0.02)] transition-all hover:shadow-md hover:border-[#ff5a36]/30 group"
+                  >
+                    {/* Product Name & Image */}
+                    <div className="col-span-4 flex items-center gap-4">
+                      <div className="w-12 h-12 rounded-lg bg-gray-50 overflow-hidden flex-shrink-0 border border-gray-100">
+                        <img
+                          src={product.image_url ? resolveImageUrl(product.image_url) : "/images/default-store.png"}
+                          alt={product.name}
+                          className="w-full h-full object-cover"
+                        />
+                      </div>
+                      <span className="font-bold text-gray-800 text-sm truncate" title={product.name}>
+                        {product.name}
+                      </span>
+                    </div>
+
+                    {/* Description */}
+                    <div className="col-span-3 text-xs text-gray-500 truncate" title={product.description}>
+                      {product.description || "—"}
+                    </div>
+
+                    {/* Quantity - Mocked */}
+                    <div className="col-span-1 text-sm text-gray-700 font-semibold pl-4">
+                      1
+                    </div>
+
+                    {/* Status */}
+                    <div className="col-span-1">
+                      <span className={`text-[10px] font-bold uppercase tracking-tight flex items-center gap-1 ${isActive ? "text-green-500" : "text-gray-400"}`}>
+                         <div className={`w-1.5 h-1.5 rounded-full ${isActive ? "bg-green-500" : "bg-gray-300"}`}></div>
+                         {isActive ? "Active" : "Inactive"}
+                      </span>
+                    </div>
+
+                    {/* Price */}
+                    <div className="col-span-1 text-right font-bold text-gray-900">
+                      {product.price} ฿
+                    </div>
+
+                    {/* Actions */}
+                    <div className="col-span-2 flex justify-end gap-2">
+                      <button
+                        onClick={() => handleOpenEdit(product)}
+                        className="w-9 h-9 flex items-center justify-center rounded-lg bg-white border border-gray-100 text-gray-400 hover:text-[#ff5a36] hover:border-[#ff5a36]/20 hover:shadow-sm transition-all cursor-pointer"
+                        title="Edit Product"
+                      >
+                        <Pencil className="w-4 h-4" />
+                      </button>
+                      <button
+                        onClick={() => handleDeleteClick(product.id)}
+                        className="w-9 h-9 flex items-center justify-center rounded-lg bg-white border border-gray-100 text-gray-400 hover:text-red-500 hover:border-red-100 hover:shadow-sm transition-all cursor-pointer"
+                        title="Delete Product"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </div>
+                )
+              })
+            )}
+          </div>
         </div>
       </div>
 
-      <Pagination
-        currentPage={pageIndex}
-        totalPages={totalPages}
-        onPageChange={setPageIndex}
-        className="mt-6"
-      />
-
-      {isEditOpen && editProduct && (
-        <StoreEditProductModal
-          isOpen={isEditOpen}
-          onClose={handleCloseEdit}
-          product={editProduct}
-          onSuccess={handleEditSuccess}
-        />
+      {/* Pagination */}
+      {totalPages > 1 && (
+        <div className="flex justify-center mt-10">
+           <Pagination
+            currentPage={pageIndex}
+            totalPages={totalPages}
+            onPageChange={setPageIndex}
+          />
+        </div>
       )}
+
 
       <ConfirmationModal
         isOpen={!!deleteId}
@@ -298,6 +346,6 @@ export default function StoreProductsTab() {
         confirmText="Delete Product"
         variant="danger"
       />
-    </>
+    </div>
   )
 }
