@@ -113,6 +113,7 @@ func (h *Handler) getCart(c *gin.Context) {
 
 	respond.OK(c, apperr.OK, gin.H{
 		"cart":          cw.Cart,
+		"store":         cw.Store,
 		"pageSize":      limit,
 		"pageIndex":     page,
 		"total":         int64(total),
