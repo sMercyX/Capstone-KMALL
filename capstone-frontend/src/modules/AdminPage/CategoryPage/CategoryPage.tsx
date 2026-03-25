@@ -75,11 +75,11 @@ export default function CategoryPage() {
   }
 
   return (
-    <div className=" p-6 md:p-8 space-y-6 text-[#2D2D2D] ">
+    <div className="space-y-6 text-[#2D2D2D]">
       {/* Header */}
       <div>
-        <p className="text-gray-500 text-sm mb-1">
-          Category &gt; <span className="text-gray-800">Category Management</span>
+        <p className="text-gray-400 text-sm mb-1">
+          Category &gt; <span className="text-gray-600 font-semibold">Category Management</span>
         </p>
         <h1 className="text-2xl font-bold">Category Management</h1>
         <p className="text-gray-500 text-sm">

@@ -126,7 +126,7 @@ export default function BlacklistedStoresPage() {
   }
 
   return (
-    <div className="p-8">
+    <div>
       {/* Breadcrumb */}
       <p className="text-sm text-gray-400 mb-1">
         Blacklist &gt; <span className="font-semibold text-gray-600">Blacklisted Stores</span>

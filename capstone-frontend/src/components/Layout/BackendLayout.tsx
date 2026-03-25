@@ -14,7 +14,7 @@ export default function BackendLayout({ title, menuItems }: SideNavbarProps) {
   }, [location.pathname])
 
   return (
-    <div className="min-h-screen flex flex-col md:flex-row bg-[#fbfaf8] text-gray-800">
+    <div className="h-screen flex flex-col md:flex-row bg-[#fbfaf8] text-gray-800 overflow-hidden">
       
       {/* Mobile Top Header */}
       <div className="md:hidden flex items-center justify-between bg-white border-b border-gray-200 px-4 py-3 sticky top-0 z-20 shadow-sm flex-shrink-0">
@@ -45,7 +45,7 @@ export default function BackendLayout({ title, menuItems }: SideNavbarProps) {
       </div>
 
       {/* Main Content Area */}
-      <main className="flex-1 w-full overflow-auto md:overflow-y-auto">
+      <main className="flex-1 w-full h-full overflow-y-auto overflow-x-hidden p-4 md:p-8">
           <Outlet />
       </main>
     </div>

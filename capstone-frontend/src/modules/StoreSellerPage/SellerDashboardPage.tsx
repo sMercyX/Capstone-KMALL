@@ -211,14 +211,19 @@ export default function SellerDashboardPage() {
   const topProducts = summary?.top_products || []
 
   return (
-    <div className="min-h-screen bg-[#F8F9FA] p-6 sm:p-8 lg:p-10 space-y-8">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-gray-900">Dashboard</h1>
+    <div className="p-0">
+      <div className="mb-8">
+        <p className="text-sm text-gray-400 mb-2">
+          Store &gt; <span className="font-semibold text-gray-600">Dashboard</span>
+        </p>
+        <h1 className="text-3xl font-bold text-gray-900 mb-2">Dashboard</h1>
+        <p className="text-sm text-gray-500 max-w-2xl">
+          Overview your store sales information.
+        </p>
       </div>
 
       {/* --- Stat Cards --- */}
       <div>
-        <p className="mb-3 text-sm text-gray-500">Store overview information</p>
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
           <StatCard
             title="Total Customers"

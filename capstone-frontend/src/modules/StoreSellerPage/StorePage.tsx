@@ -1,15 +1,16 @@
 import { useLocation, useNavigate } from "react-router-dom"
-import Card from "../../components/Card/Card"
 import StoreInfoTab from "./StoreInfoTab/StoreInfoTab"
 import StoreOrdersTab from "./storeOrderTab/StoreOrdersTab"
 import StoreSettingsTab from "./StoreSettingTab"
+import SellerDashboardPage from "./SellerDashboardPage"
 import { StoreAddEditTab } from "./StoreAddEditTab/StoreAddEditTab"
 import StoreProductsTab from "./StoreProductsTab/StoreProductsTab"
+import StoreReportStatusPage from "./StoreReportStatusPage"
 import { useUserStore } from "../../stores/userStore"
 import { useStoreStore } from "../../stores/storeStore"
 import { useEffect } from "react"
 
-type StoreTabKey = "store" | "products" | "add" | "edit" | "orders" | "settings"
+type StoreTabKey = "dashboard" | "store" | "products" | "add" | "edit" | "orders" | "settings" | "report"
 
 export default function StorePage() {
   const location = useLocation()
@@ -21,11 +22,13 @@ export default function StorePage() {
   // ✅ ตรงนี้คือจุดสำคัญ — ดูจาก URL แล้วแมปเป็น key
   let activeKey: StoreTabKey = "store"
   if (pathname.startsWith("/store/me")) activeKey = "store"
+  else if (pathname.startsWith("/store/dashboard")) activeKey = "dashboard"
   else if (pathname.startsWith("/store/products/add")) activeKey = "add"
   else if (pathname.match(/^\/store\/products\/edit\/\d+$/)) activeKey = "edit"
   else if (pathname.startsWith("/store/products")) activeKey = "products"
   else if (pathname.startsWith("/store/orders")) activeKey = "orders"
   else if (pathname.startsWith("/store/settings")) activeKey = "settings"
+  else if (pathname.startsWith("/store/report")) activeKey = "report"
   // ถ้าไม่ตรงอะไรเลย (เช่น /store) ก็เป็น "store"
 
   // let activeLabel = "My Store"
@@ -54,18 +57,18 @@ export default function StorePage() {
   }, [store?.id, fetchStore])
 
   return (
-    <div className="mx-auto h-full">
-        <Card className="space-y-5 h-full">
+    <div className="mx-auto min-h-full space-y-5">
         {/* <h1 className="text-center text-3xl font-bold  text-black">
             {activeLabel}
           </h1> */}
 
+          {activeKey === "dashboard" && <SellerDashboardPage />}
           {activeKey === "store" && <StoreInfoTab />}
           {activeKey === "products" && <StoreProductsTab />}
           {(activeKey === "add" || activeKey === "edit") && <StoreAddEditTab />}
           {activeKey === "orders" && <StoreOrdersTab />}
           {activeKey === "settings" && <StoreSettingsTab />}
-        </Card>
+          {activeKey === "report" && <StoreReportStatusPage />}
     </div>
   )
 }

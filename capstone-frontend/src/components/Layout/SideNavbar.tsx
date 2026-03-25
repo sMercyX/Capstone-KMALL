@@ -52,7 +52,7 @@ export default function SideNavbar({ title, menuItems, onClose }: SideNavbarProp
         <NavLink to="/dashboard" className="flex flex-col items-center w-full transition-transform hover:scale-105 active:scale-95">
           <img src={kmallText} alt="KMALL" className={`h-10 ${title ? 'mb-6' : ''}`} />
           {title && (
-            <div className="bg-orange-500 text-white px-6 py-2 rounded-md font-medium text-sm w-[200px] text-center shadow-sm">
+            <div className="bg-orange-500 text-white px-6 py-2 rounded-md font-medium text-xs w-[200px] text-center shadow-sm">
               {title}
             </div>
           )}
@@ -82,7 +82,7 @@ export default function SideNavbar({ title, menuItems, onClose }: SideNavbarProp
                   )}
                   <div className="flex items-center gap-4">
                     <span
-                      className={`text-2xl ${
+                      className={`text-xl ${
                         item.subItems.some((sub) => location.pathname.startsWith(sub.path))
                           ? "text-primary"
                           : "text-gray-400 group-hover:text-gray-600"
@@ -90,10 +90,10 @@ export default function SideNavbar({ title, menuItems, onClose }: SideNavbarProp
                     >
                       {item.icon}
                     </span>
-                    <span className="text-lg">{item.label}</span>
+                    <span className="text-md">{item.label}</span>
                   </div>
                   <span
-                    className={`text-xl transition-transform duration-200 ${
+                    className={`text-sm transition-transform duration-200 ${
                       item.subItems.some((sub) => location.pathname.startsWith(sub.path))
                         ? "text-primary"
                         : "text-gray-400 group-hover:text-gray-600"
@@ -115,9 +115,9 @@ export default function SideNavbar({ title, menuItems, onClose }: SideNavbarProp
                         to={subItem.path}
                         onClick={() => onClose?.()}
                         className={({ isActive }) =>
-                          `block py-2 text-lg transition-colors relative ${
+                          `block py-2 text-md transition-colors relative ${
                             isActive
-                              ? "text-primary font-semibold"
+                              ? "text-primary "
                               : "text-secondary hover:text-gray-800"
                           }`
                         }
@@ -125,7 +125,7 @@ export default function SideNavbar({ title, menuItems, onClose }: SideNavbarProp
                         <>
                           {/* Horizontal connector dot */}
                           <div className="absolute left-[-1.5rem] top-1/2 -translate-y-1/2 w-3 h-px bg-gray-200"></div>
-                          <span className="flex items-center text-lg">
+                          <span className="flex items-center text-md">
                             <span className="w-1.5 h-1.5 rounded-full bg-gray-300 mr-2 opacity-0"></span>
                             {subItem.label}
                           </span>
@@ -157,13 +157,13 @@ export default function SideNavbar({ title, menuItems, onClose }: SideNavbarProp
                       <div className="absolute -left-4 top-0 bottom-0 w-1.5 bg-[var(--color-primary)] rounded-r-md"></div>
                     )}
                     <span
-                      className={`text-2xl ${
+                      className={`text-xl ${
                         isActive ? "text-primary" : "text-gray-400 group-hover:text-gray-600"
                       }`}
                     >
                       {item.icon}
                     </span>
-                    <span className="text-lg">{item.label}</span>
+                    <span className="text-md">{item.label}</span>
                   </>
                 )}
               </NavLink>

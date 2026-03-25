@@ -124,12 +124,12 @@ export default function StoreReportStatusPage() {
   }
 
   return (
-    <div className="max-w-[1280px] mx-auto w-full p-4 md:p-8">
+    <div className="w-full">
       {/* Header */}
       <div className="mb-6 flex flex-col md:flex-row md:items-start justify-between gap-4">
         <div>
           <div className="text-gray-400 text-sm mb-2 font-medium">
-            Reports &gt; <span className="text-gray-600">My Report Status</span>
+            Store &gt; <span className="text-gray-600">My Report Status</span>
           </div>
           <h1 className="text-3xl font-bold text-gray-900">
             My Report Status

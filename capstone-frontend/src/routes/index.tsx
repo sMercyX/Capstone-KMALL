@@ -11,7 +11,8 @@ import ProtectedRoleRoute from "../components/ProtectedRoute/ProtectedRoleRoute"
 //   return <div style={{ padding: 24 }}>404 — Page not found</div>
 // }
 const Dashboard = lazy(() => import("../modules/DashBoard/Dashboard"))
-const SellerDashboardPage = lazy(() => import("../modules/StoreSellerPage/SellerDashboardPage"))
+// Unused import after routing change
+// const SellerDashboardPage = lazy(() => import("../modules/StoreSellerPage/SellerDashboardPage"))
 const LandingPage = lazy(() => import("../modules/LandingPage/LandingPage"))
 const CategoryPage = lazy(() => import("../modules/CategoryPage/CategoryPage"))
 const SearchPage = lazy(() => import("../modules/SearchPage/SearchPage"))
@@ -28,9 +29,10 @@ const CheckoutPage = lazy(() => import("../modules/CheckoutPage/CheckoutPage"))
 const StoreOrderDetailPage = lazy(
   () => import("../modules/StoreOrderDetailPage/StoreOrderDetailPage")
 )
-const StoreReportStatusPage = lazy(
-  () => import("../modules/StoreSellerPage/StoreReportStatusPage")
-)
+// Unused after moving into StorePage wrapper
+// const StoreReportStatusPage = lazy(
+//   () => import("../modules/StoreSellerPage/StoreReportStatusPage")
+// )
 const OrderPage = lazy(() => import("../modules/OrderPage/OrderPage"))
 const BuyerReportStatusPage = lazy(
   () => import("../modules/ReportPage/BuyerReportStatusPage")
@@ -264,7 +266,7 @@ export default function AppRoutes() {
         >
           {/* Seller Sub-routes */}
           <Route path="/store" element={<Navigate to="/store/me" replace />} />
-          <Route path="/store/dashboard" element={<SellerDashboardPage />} />
+          <Route path="/store/dashboard" element={<StoreSellerPage />} />
           <Route path="/store/me" element={<StoreSellerPage />} />
           <Route path="/store/products" element={<StoreSellerPage />} />
           <Route path="/store/products/add" element={<StoreSellerPage />} />
@@ -272,7 +274,7 @@ export default function AppRoutes() {
           <Route path="/store/orders" element={<StoreSellerPage />} />
           <Route path="/store/orders/:orderId" element={<StoreOrderDetailPage />} />
           <Route path="/store/orders/:orderId/chat" element={<ChatPage />} />
-          <Route path="/store/report" element={<StoreReportStatusPage />} />
+          <Route path="/store/report" element={<StoreSellerPage />} />
           <Route path="/store/settings" element={<StoreSellerPage />} />
         </Route>
       </Routes>

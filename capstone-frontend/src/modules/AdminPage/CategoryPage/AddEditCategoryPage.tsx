@@ -79,7 +79,7 @@ export default function AddCategoryPage() {
   };
 
   useEffect(() => {
-    const root = contentRef.current
+    const root = contentRef.current?.closest('main') || null
     if (!root) return
 
     const handleScroll = () => {
@@ -488,13 +488,13 @@ export default function AddCategoryPage() {
     (mainIsActive === "YES" && activeSubCount > 0)
 
   return (
-    <div className="p-6 md:p-8 text-[#2D2D2D] mx-auto h-[calc(100vh-60px)] flex flex-col overflow-hidden">
+    <div className="text-[#2D2D2D] mx-auto min-h-full">
       {/* Header */}
       <div className="mb-6 flex-shrink-0">
         <div className="flex justify-between items-start">
             <div>
-                <p className="text-gray-500 text-sm mb-1 cursor-pointer hover:underline" onClick={() => navigate("/admin/category")}>
-                Category &gt; Category Management &gt; <span className="text-gray-800">{isEditMode ? "Edit Category" : "Add Category"}</span>
+                <p className="text-gray-400 text-sm mb-1 cursor-pointer hover:underline" onClick={() => navigate("/admin/category")}>
+                Category &gt; Category Management &gt; <span className="text-gray-600 font-semibold">{isEditMode ? "Edit Category" : "Add Category"}</span>
                 </p>
                 <h1 className="text-2xl font-bold flex items-center gap-4">
                   {isEditMode ? "Edit Main Category" : "Add Main Category"}
@@ -548,7 +548,7 @@ export default function AddCategoryPage() {
       </div>
 
       {/* Continuous Content Sections */}
-      <div ref={contentRef} className="flex-1 overflow-y-auto space-y-6 pb-32 pr-2 scroll-smooth">
+      <div ref={contentRef} className="space-y-6 pb-40 pr-2">
         
         {/* Main Category Component */}
         <div id="MAIN" className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 pt-8">
@@ -736,8 +736,8 @@ export default function AddCategoryPage() {
       </div>
 
       {/* Floating Footer Toolbar */}
-      <div className="fixed bottom-0 left-0 right-0 bg-[#F9F9F9] border-t border-gray-200 p-4 md:pl-64 flex justify-end gap-4 z-50">
-        <div className="max-w-5xl w-full mx-auto flex justify-end gap-4 pr-6">
+      <div className="fixed bottom-0 left-0 right-0 md:left-[280px] bg-[#F9F9F9] border-t border-gray-200 p-4 flex justify-end gap-4 z-50">
+        <div className="w-full flex justify-end gap-4">
           <button 
             onClick={() => setIsCancelModalOpen(true)}
             disabled={isLoading}
