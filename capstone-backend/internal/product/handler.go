@@ -470,7 +470,15 @@ func (h *Handler) listByStore(c *gin.Context) {
 		page = 1
 	}
 
-	items, total, err := h.svc.ListByStoreID(c.Request.Context(), storeID, strings.TrimSpace(c.Query("q")), limit, page)
+	categoryID := parseInt64Query(c, "category_id")
+	parentCategoryID := parseInt64Query(c, "parent_category_id")
+
+	items, total, err := h.svc.ListByStoreID(
+		c.Request.Context(), storeID,
+		strings.TrimSpace(c.Query("q")),
+		categoryID, parentCategoryID,
+		limit, page,
+	)
 	if err != nil {
 		c.Error(err)
 		return

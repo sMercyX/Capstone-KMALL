@@ -17,7 +17,7 @@ import (
 type Repo interface {
 	Create(ctx context.Context, in CreateParams) (Product, error)
 	Get(ctx context.Context, id int64) (Product, error)
-	ListByStoreID(ctx context.Context, storeID int64, q string, limit, page int) ([]Product, int64, error)
+	ListByStoreID(ctx context.Context, storeID int64, q string, categoryID *int64, parentCategoryID *int64, limit, page int) ([]Product, int64, error)
 	Update(ctx context.Context, id int64, in UpdateParams) (Product, error)
 	Delete(ctx context.Context, id int64) error
 
@@ -337,7 +337,7 @@ func (r *repo) Get(ctx context.Context, id int64) (Product, error) {
 
 // ===== ListByStoreID =====
 
-func (r *repo) ListByStoreID(ctx context.Context, storeID int64, q string, limit, page int) ([]Product, int64, error) {
+func (r *repo) ListByStoreID(ctx context.Context, storeID int64, q string, categoryID *int64, parentCategoryID *int64, limit, page int) ([]Product, int64, error) {
 	if limit <= 0 {
 		limit = 20
 	}
@@ -362,13 +362,24 @@ WHERE p.store_id = $1
 		idx++
 	}
 
+	if categoryID != nil {
+		base += " AND p.category_id = $" + strconv.Itoa(idx)
+		args = append(args, *categoryID)
+		idx++
+	}
+
+	if parentCategoryID != nil {
+		base += ` AND p.category_id IN (
+            SELECT category_id FROM categories WHERE parent_id = $` + strconv.Itoa(idx) + `
+        )`
+		args = append(args, *parentCategoryID)
+		idx++
+	}
+
 	var total int64
 	if err := r.db.QueryRow(ctx, `SELECT COUNT(*) `+base, args...).Scan(&total); err != nil {
 		return nil, 0, apperr.Wrap(apperr.Internal, err, "count products by store failed")
 	}
-
-	limitIdx := idx
-	offsetIdx := idx + 1
 
 	query := `
 SELECT
@@ -379,7 +390,7 @@ SELECT
   0            AS sold_count
 ` + base + `
 ORDER BY p.created_at DESC
-LIMIT $` + strconv.Itoa(limitIdx) + ` OFFSET $` + strconv.Itoa(offsetIdx)
+LIMIT $` + strconv.Itoa(idx) + ` OFFSET $` + strconv.Itoa(idx+1)
 
 	args = append(args, limit, offset)
 
