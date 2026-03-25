@@ -13,9 +13,11 @@ export interface AddResponse {
   description: string
   profile_url: string
   is_active: "YES" | "NO"
+  user_id: string
+  delivery_round_university_enabled: boolean
+  round_uni_base_fee: number
   created_at: string
   updated_at: string
-  user_id: string
 }
 
 export interface addStoreData {
@@ -23,6 +25,8 @@ export interface addStoreData {
   description: string
   profile_url: string
   is_active: "YES" | "NO"
+  delivery_round_university_enabled: boolean
+  round_uni_base_fee: number
 }
 
 export interface updatedStoreData {
@@ -30,6 +34,8 @@ export interface updatedStoreData {
   description?: string
   profile_url?: string
   is_active?: "YES" | "NO"
+  delivery_round_university_enabled?: boolean
+  round_uni_base_fee?: number
 }
 
 export interface storeProductDataRequset {
@@ -64,6 +70,8 @@ export interface storeResponse {
   is_active: "YES" | "NO"
   user_id: string
   profile_url: string
+  delivery_round_university_enabled: boolean
+  round_uni_base_fee: number
   created_at: string
   updated_at: string
 }

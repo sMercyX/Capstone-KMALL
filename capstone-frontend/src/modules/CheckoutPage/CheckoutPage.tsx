@@ -220,7 +220,8 @@ export default function CheckoutPage() {
     merchandiseTotal = stores.reduce((sum, s) => sum + s.subtotal, 0)
   }
 
-  const grandTotal = merchandiseTotal
+  const deliveryFee = deliveryMethod === "ROUND_UNIVERSITY" ? (cart?.store?.round_uni_base_fee ?? 0) : 0
+  const grandTotal = merchandiseTotal + deliveryFee
 
   async function handleSubmit() {
     if (!cart) return
@@ -490,11 +491,21 @@ export default function CheckoutPage() {
 
 
 
-                <div className="mt-5 flex justify-between text-base font-semibold">
-                  <span>Total</span>
-                  <span className="text-xl font-bold text-[#d73c30]">
-                    ฿{formatPrice(grandTotal)}
-                  </span>
+                <div className="mt-5 space-y-3">
+                  <div className="flex justify-between text-sm text-gray-600">
+                    <span>Merchandise Subtotal</span>
+                    <span>฿{formatPrice(merchandiseTotal)}</span>
+                  </div>
+                  <div className="flex justify-between text-sm text-gray-600">
+                    <span>Delivery Fee</span>
+                    <span>{deliveryFee > 0 ? `฿${formatPrice(deliveryFee)}` : "FREE"}</span>
+                  </div>
+                  <div className="pt-4 mt-2 border-t border-gray-200 flex justify-between text-base font-bold">
+                    <span className="text-gray-900">Total</span>
+                    <span className="text-xl text-[#d73c30]">
+                      ฿{formatPrice(grandTotal)}
+                    </span>
+                  </div>
                 </div>
               </>
             )}

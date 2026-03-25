@@ -192,6 +192,11 @@ export default function CartDropdown({ isOpen, onToggle, onClose }: Props) {
                     <p className="text-xs text-gray-500 mt-0.5">
                       Quantity: {item.quantity}
                     </p>
+                    {item.note && (
+                      <p className="text-[10px] text-gray-400 mt-0.5 line-clamp-1 italic">
+                        Note: {item.note}
+                      </p>
+                    )}
                   </div>
 
                   <button

@@ -35,22 +35,31 @@ export interface cartResponse {
   variant_label?: string
   stock_qty?: number
   is_available?: boolean
+  note?: string
 }
 
-export interface cartResponse2{
-    id: number,
-    user_id: number,
-    created_at: string,
-    updated_at: string
+export interface cartResponse2 {
+  id: number
+  user_id: string
+  created_at: string
+  updated_at: string
+}
+
+export interface CartStoreInfo {
+  id: number
+  name: string
+  delivery_round_university_enabled: boolean
+  round_uni_base_fee: number
 }
 
 export interface PaginatedCartData {
-  items: cartResponse[];
-  pageIndex: number;
-  pageSize: number;
-  total: number;
-  totalQuantity:number;
+  items: cartResponse[]
+  pageIndex: number
+  pageSize: number
+  total: number
+  totalQuantity: number
   cart: cartResponse2
+  store: CartStoreInfo
 }
 
 export interface deleteItemResponse{

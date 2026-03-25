@@ -62,6 +62,8 @@ export default function StoreInfoTab() {
         description: data.description,
         profile_url: primaryImageUrl,
         is_active: "YES",
+        delivery_round_university_enabled: data.delivery_round_university_enabled,
+        round_uni_base_fee: data.round_uni_base_fee,
       })
 
       const updatedStore = (res as any).data as {
@@ -76,6 +78,8 @@ export default function StoreInfoTab() {
         description: updatedStore?.description ?? data.description,
         profile_url:
           updatedStore?.profile_url ?? primaryImageUrl ?? store!.profile_url,
+        delivery_round_university_enabled: data.delivery_round_university_enabled,
+        round_uni_base_fee: data.round_uni_base_fee,
       })
 
       if (!imageError) {
@@ -164,6 +168,39 @@ return (
               className="mt-4 w-full rounded-2xl border border-gray-200 bg-gray-50 px-4 py-3 h-36 text-gray-800 resize-none focus:outline-none"
             />
           </div>
+
+          {/* Delivery Settings Display */}
+          <div className="rounded-3xl border border-gray-200 bg-white p-5 md:p-6">
+            <div className="flex items-start justify-between gap-3 mb-4">
+              <div>
+                <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                  Delivery Configuration
+                </label>
+                <p className="mt-1 text-sm text-gray-600">
+                  Settings for how you deliver products to university customers.
+                </p>
+              </div>
+            </div>
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="p-4 rounded-2xl bg-gray-50 border border-gray-100">
+                <p className="text-xs text-gray-400 font-medium mb-1">Method: Round University</p>
+                <div className="flex items-center gap-2">
+                  <div className={`h-2.5 w-2.5 rounded-full ${store.delivery_round_university_enabled ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.4)]' : 'bg-gray-300'}`} />
+                  <span className="text-sm font-bold text-gray-900">
+                    {store.delivery_round_university_enabled ? 'Active' : 'Disabled'}
+                  </span>
+                </div>
+              </div>
+              
+              <div className="p-4 rounded-2xl bg-gray-50 border border-gray-100">
+                <p className="text-xs text-gray-400 font-medium mb-1">Base Delivery Fee</p>
+                <p className="text-sm font-bold text-gray-900">
+                  {store.delivery_round_university_enabled ? `฿${(store.round_uni_base_fee ?? 0).toLocaleString()}` : '-'}
+                </p>
+              </div>
+            </div>
+          </div>
         </div>
 
         {/* RIGHT: Logo */}
@@ -221,6 +258,8 @@ return (
       initialName={store.name}
       initialDescription={store.description}
       initialProfileUrl={store.profile_url}
+      initialDeliveryEnabled={store.delivery_round_university_enabled}
+      initialDeliveryFee={store.round_uni_base_fee}
       onClose={() => setIsModalOpen(false)}
       onSubmit={handleSubmitEdit}
     />

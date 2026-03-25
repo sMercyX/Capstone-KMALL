@@ -3,6 +3,7 @@ import { useEffect, useState } from "react"
 import { Upload, X } from "lucide-react"
 import * as yup from "yup"
 import { toast } from "react-toastify"
+import ToggleSwitch from "../../../../components/Toggle/ToggleSwitch"
 import { Input } from "../../../../components/Input/Input"
 import { Textarea } from "../../../../components/Input/Textarea"
 import { resolveImageUrl } from "../../../../utils/resolve"
@@ -11,6 +12,8 @@ export type StoreEditForm = {
   name: string
   description: string
   profile_url: string
+  delivery_round_university_enabled: boolean
+  round_uni_base_fee: number
 }
 
 import { processImageFile, SUPPORTED_IMAGE_TYPES } from "../../../../utils/imageProcessing"
@@ -20,6 +23,8 @@ interface StoreEditModalProps {
   initialName: string
   initialDescription: string
   initialProfileUrl: string
+  initialDeliveryEnabled: boolean
+  initialDeliveryFee: number
   onClose: () => void
   // ส่งทั้ง data + logoFile ออกไปให้ parent จัดการ
   onSubmit: (data: StoreEditForm, file: File | null) => void | Promise<void>
@@ -44,6 +49,8 @@ export default function StoreEditModal({
   initialName,
   initialDescription,
   initialProfileUrl,
+  initialDeliveryEnabled,
+  initialDeliveryFee,
   onClose,
   onSubmit,
 }: StoreEditModalProps) {
@@ -53,6 +60,8 @@ export default function StoreEditModal({
   const [fileName, setFileName] = useState("No file selected.")
   const [logoFile, setLogoFile] = useState<File | null>(null)
   const [previewUrl, setPreviewUrl] = useState<string | null>(null)
+  const [deliveryEnabled, setDeliveryEnabled] = useState(false)
+  const [deliveryFee, setDeliveryFee] = useState(0)
   const [errors, setErrors] = useState<{ name?: boolean; description?: boolean }>({})
 
   // lock scroll ตอน modal เปิด
@@ -72,8 +81,10 @@ export default function StoreEditModal({
     setDescription(initialDescription || "")
     setProfileUrl(initialProfileUrl || "")
     setFileName(initialProfileUrl || "No file selected.")
+    setDeliveryEnabled(!!initialDeliveryEnabled)
+    setDeliveryFee(initialDeliveryFee || 0)
     setLogoFile(null)
-  }, [isOpen, initialName, initialDescription, initialProfileUrl])
+  }, [isOpen, initialName, initialDescription, initialProfileUrl, initialDeliveryEnabled, initialDeliveryFee])
 
   // Cleanup preview URL on unmount
   useEffect(() => {
@@ -167,6 +178,8 @@ export default function StoreEditModal({
         name: name.trim(),
         description: description.trim(),
         profile_url: profileUrl,
+        delivery_round_university_enabled: deliveryEnabled,
+        round_uni_base_fee: deliveryFee,
       },
       logoFile
     )
@@ -253,6 +266,33 @@ export default function StoreEditModal({
               </label>
 
               <p className="text-xs text-gray-500">{fileName}</p>
+            </div>
+
+            {/* การตั้งค่าการจัดส่ง */}
+            <div className="pt-4 border-t border-gray-100">
+               <h3 className="text-sm font-bold text-gray-900 mb-4">Delivery Settings</h3>
+               <div className="space-y-4">
+                  <div className="flex items-center justify-between p-4 bg-gray-50 rounded-2xl">
+                     <div>
+                        <p className="text-sm font-semibold text-gray-900">Round University Delivery</p>
+                        <p className="text-xs text-gray-500">Enable delivery service around the university campus.</p>
+                     </div>
+                     <ToggleSwitch checked={deliveryEnabled} onChange={setDeliveryEnabled} />
+                  </div>
+
+                  {deliveryEnabled && (
+                    <div className="space-y-1 animate-in fade-in slide-in-from-top-1 duration-200">
+                      <Input
+                        label="Delivery Fee (฿)"
+                        type="number"
+                        value={deliveryFee.toString()}
+                        onChange={(e) => setDeliveryFee(Number(e.target.value))}
+                        placeholder="e.g. 10"
+                      />
+                      <p className="text-[11px] text-gray-400 ml-1">Set the fixed delivery fee for university-area orders.</p>
+                    </div>
+                  )}
+               </div>
             </div>
 
             <div className="pt-2 flex justify-center">

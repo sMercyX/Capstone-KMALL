@@ -8,6 +8,8 @@ export interface StoreData {
   description: string
   profile_url: string
   is_active: "YES" | "NO"
+  delivery_round_university_enabled: boolean
+  round_uni_base_fee: number
   created_at?: string
   updated_at?: string
   user_id?: string
