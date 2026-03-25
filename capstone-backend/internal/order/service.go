@@ -39,7 +39,7 @@ type Service interface {
 	CancelOrdersByUserRole(ctx context.Context, actorUserID, userID, role, reason string) ([]int64, error)
 	CancelOrdersByStore(ctx context.Context, actorUserID string, storeID int64, reason string) ([]int64, error)
 
-	AcceptRoundUniversity(ctx context.Context, actorUserID string, id int64, in AcceptRoundUniversityInput) (Order, error)
+	AcceptRoundUniversity(ctx context.Context, actorUserID string, id int64, in AcceptRoundUniversityInput) (OrderWithItems, error)
 }
 
 // ============================================================================
@@ -423,7 +423,7 @@ func (s *service) CreateFromCart(ctx context.Context, userID string, in Checkout
 			FulfillmentType:  in.FulfillmentType,
 			Subtotal:         sub,
 			DepositAmount:    in.DepositAmount,
-			PromisedShipDate: time.Time{},
+			PromisedShipDate: nil,
 			ProductID:        ci.ProductID,
 			VariantID:        ci.VariantID, // nil = PREORDER, not nil = STOCK (repo จะ deduct stock)
 			Note:             ci.Note,
@@ -985,54 +985,54 @@ func (s *service) updateOrderStatusNotiBestEffort(ctx context.Context, ord Order
 	return nil
 }
 
-func (s *service) AcceptRoundUniversity(ctx context.Context, actorUserID string, id int64, in AcceptRoundUniversityInput) (Order, error) {
+func (s *service) AcceptRoundUniversity(ctx context.Context, actorUserID string, id int64, in AcceptRoundUniversityInput) (OrderWithItems, error) {
 	actorUserID = strings.TrimSpace(actorUserID)
 	if actorUserID == "" {
-		return Order{}, apperr.New(apperr.BadRequest, "invalid actor_user_id")
+		return OrderWithItems{}, apperr.New(apperr.BadRequest, "invalid actor_user_id")
 	}
 	if id <= 0 {
-		return Order{}, apperr.New(apperr.BadRequest, "invalid order_id")
+		return OrderWithItems{}, apperr.New(apperr.BadRequest, "invalid order_id")
 	}
 	if in.PromisedShipDate.IsZero() {
-		return Order{}, apperr.New(apperr.BadRequest, "promised_ship_date is required")
+		return OrderWithItems{}, apperr.New(apperr.BadRequest, "promised_ship_date is required")
 	}
 
 	ord, err := s.repo.GetOrder(ctx, id)
 	if err != nil {
-		return Order{}, err
+		return OrderWithItems{}, err
 	}
 
 	if strings.ToUpper(strings.TrimSpace(ord.DeliveryMethod)) != "ROUND_UNIVERSITY" {
-		return Order{}, apperr.New(apperr.BadRequest, "this action is only available for ROUND_UNIVERSITY orders")
+		return OrderWithItems{}, apperr.New(apperr.BadRequest, "this action is only available for ROUND_UNIVERSITY orders")
 	}
 	if ord.Status != "Pending" {
-		return Order{}, apperr.New(apperr.BadRequest, "can accept only when status is Pending")
+		return OrderWithItems{}, apperr.New(apperr.BadRequest, "can accept only when status is Pending")
 	}
 
 	isSeller, err := s.isStoreOwner(ctx, ord, actorUserID)
 	if err != nil {
-		return Order{}, err
+		return OrderWithItems{}, err
 	}
 	if !isSeller {
-		return Order{}, apperr.New(apperr.Forbidden, "only store owner can accept ROUND_UNIVERSITY order")
-	}
-
-	if b, err := s.getBlockingBanByRole(ctx, actorUserID, "SELLER"); err != nil {
-		return Order{}, err
-	} else if b != nil {
-		_, _ = s.repo.BulkCancelActiveOrdersByStoreID(ctx, int64(ord.StoreID), banCancelReason(b))
-		_, _ = s.repo.GetOrder(ctx, id)
-		s.notifyUpdate(ctx, id)
-		return Order{}, apperr.New(apperr.Forbidden, "seller is banned, cannot accept order")
+		return OrderWithItems{}, apperr.New(apperr.Forbidden, "only store owner can accept ROUND_UNIVERSITY order")
 	}
 
 	from := ord.Status
 	ord, err = s.repo.AcceptRoundUniversity(ctx, id, in.PromisedShipDate)
 	if err != nil {
-		return Order{}, err
+		return OrderWithItems{}, err
+	}
+
+	items, err := s.repo.ListItemsByOrderID(ctx, id)
+	if err != nil {
+		return OrderWithItems{}, err
 	}
 
 	s.notifyUpdate(ctx, id)
 	s.updateOrderStatusNotiBestEffort(ctx, ord, actorUserID, from, "Accepted")
-	return ord, nil
+
+	return OrderWithItems{
+		Order: ord,
+		Items: items,
+	}, nil
 }

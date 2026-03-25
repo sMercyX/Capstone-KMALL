@@ -360,7 +360,7 @@ CREATE TABLE IF NOT EXISTS order_items (
     CHECK (fulfillment_type IN ('STANDARD', 'EXPRESS')),
   subtotal DECIMAL(10,2) NOT NULL,
   deposit_amount DECIMAL(10,2) NULL,
-  promised_ship_date TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  promised_ship_date TIMESTAMPTZ NULL,
   order_id INT NOT NULL,
   product_id INT NOT NULL,
 

@@ -67,7 +67,7 @@ type OrderItemCreateParams struct {
 	FulfillmentType  string
 	Subtotal         float64
 	DepositAmount    *float64
-	PromisedShipDate time.Time
+	PromisedShipDate *time.Time
 	ProductID        int
 	VariantID        *int // nil = PREORDER, not nil = STOCK (ต้อง deduct stock)
 	Note             *string
@@ -197,10 +197,6 @@ func (r *repo) CreateOrderWithItems(
 
 	// ===== INSERT order_items + deduct stock =====
 	for _, it := range items {
-		var promised any
-		if !it.PromisedShipDate.IsZero() {
-			promised = it.PromisedShipDate
-		}
 
 		var oi OrderItem
 		err = scanOrderItem(tx.QueryRow(ctx, `
@@ -209,14 +205,14 @@ func (r *repo) CreateOrderWithItems(
         deposit_amount, promised_ship_date,
         order_id, product_id, variant_id, note
     )
-    VALUES ($1,$2,$3,$4,$5,COALESCE($6::timestamptz,CURRENT_TIMESTAMP),$7,$8,$9,$10)
+    VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
     RETURNING
         order_item_id, quantity, unit_price, fulfillment_type,
         subtotal, deposit_amount, promised_ship_date,
         order_id, product_id, variant_id, note;
 `,
 			it.Quantity, it.UnitPrice, it.FulfillmentType, it.Subtotal,
-			it.DepositAmount, promised,
+			it.DepositAmount, it.PromisedShipDate,
 			ord.ID, it.ProductID, it.VariantID, it.Note,
 		), &oi)
 		if err != nil {

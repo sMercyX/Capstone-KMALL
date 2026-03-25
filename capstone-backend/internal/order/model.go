@@ -33,17 +33,17 @@ type Order struct {
 }
 
 type OrderItem struct {
-	ID               int       `json:"order_item_id"`
-	Quantity         int       `json:"quantity"`
-	UnitPrice        float64   `json:"unit_price"`
-	FulfillmentType  string    `json:"fulfillment_type"`
-	Subtotal         float64   `json:"subtotal"`
-	DepositAmount    *float64  `json:"deposit_amount,omitempty"`
-	PromisedShipDate time.Time `json:"promised_ship_date"`
-	OrderID          int       `json:"order_id"`
-	ProductID        int       `json:"product_id"`
-	VariantID        *int      `json:"variant_id,omitempty"` // NULL = PREORDER, NOT NULL = STOCK
-	Note             *string   `json:"note,omitempty"`
+	ID               int        `json:"order_item_id"`
+	Quantity         int        `json:"quantity"`
+	UnitPrice        float64    `json:"unit_price"`
+	FulfillmentType  string     `json:"fulfillment_type"`
+	Subtotal         float64    `json:"subtotal"`
+	DepositAmount    *float64   `json:"deposit_amount,omitempty"`
+	PromisedShipDate *time.Time `json:"promised_ship_date,omitempty"`
+	OrderID          int        `json:"order_id"`
+	ProductID        int        `json:"product_id"`
+	VariantID        *int       `json:"variant_id,omitempty"`
+	Note             *string    `json:"note,omitempty"`
 }
 
 type OrderItemWithProduct struct {
