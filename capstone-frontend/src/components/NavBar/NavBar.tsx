@@ -24,7 +24,7 @@ export default function Navbar() {
 
   const { roles } = useUserStore()
   const hasSellerRole = roles?.some((r) => r.toLowerCase() === "seller")
-  const storeLink = hasSellerRole ? "/store/me" : "/store/register"
+  const storeLink = hasSellerRole ? "/store/dashboard" : "/store/register"
 
   const { getCart } = useCartApi()
   const { setCart } = useCartStore()
