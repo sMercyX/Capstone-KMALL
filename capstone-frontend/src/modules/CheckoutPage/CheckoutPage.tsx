@@ -8,14 +8,10 @@ import { useCartApi } from "../../api/cartApi"
 import { useCartStore } from "../../stores/cartStore"
 import { useCheckkOutApi, type orderCreatedRequest } from "../../api/checkOutApi"
 import DeliveryAddressDropdown from "../../components/Dropdown/DeliveryAddressDropdown"
+import { useAddressApi, type UserAddress } from "../../api/addressApi"
 import { resolveImageUrl } from "../../utils/resolve"
 import ConfirmationModal from "../../components/Modal/ConfirmationModal"
 
-const MOCK_ADDRESSES = [
-  { id: 1, detail: "Address 1 - 123 Sukhumvit Rd." },
-  { id: 2, detail: "Address 2 - 456 Rama II Rd." },
-  { id: 3, detail: "Address 3 - University dormitory" },
-]
 
 
 type CheckoutItem = {
@@ -41,6 +37,7 @@ const formatPrice = (v: number) =>
 export default function CheckoutPage() {
   // ดึง cart (getCart) จาก cartApi
   const { getCart, updateCart, deleteItemCart } = useCartApi()
+  const { getAddresses } = useAddressApi()
   const {
     cart,
     isLoading,
@@ -59,7 +56,8 @@ export default function CheckoutPage() {
 
   const [deliveryMethod, setDeliveryMethod] = useState<"CAMPUS" | "ROUND_UNIVERSITY">("CAMPUS")
   const [campusLocationId] = useState<number>(1) // Default campus location
-  const [deliveryAddressId, setDeliveryAddressId] = useState<number>(1) // Default delivery address
+  const [addresses, setAddresses] = useState<UserAddress[]>([])
+  const [deliveryAddressId, setDeliveryAddressId] = useState<number | null>(null)
   const [addressExtra, setAddressExtra] = useState("")
 
   const [submitting, setSubmitting] = useState(false)
@@ -131,6 +129,52 @@ export default function CheckoutPage() {
   let totalItems = 0
   let merchandiseTotal = 0
 
+  // Fetch addresses on mount
+  useEffect(() => {
+    ;(async () => {
+      try {
+        const res = await getAddresses()
+        const data = res.data
+        let addrList: UserAddress[] = []
+        if (Array.isArray(data)) {
+          addrList = data
+        } else if (data && typeof data === "object" && Array.isArray((data as any).items)) {
+          addrList = (data as any).items
+        }
+        setAddresses(addrList)
+        
+        // Set default address if available
+        const def = addrList.find(a => a.is_default) || addrList[0]
+        if (def) setDeliveryAddressId(def.id)
+      } catch (err) {
+        console.error("Failed to load addresses", err)
+      }
+    })()
+  }, [])
+
+  // Fetch addresses on mount
+  useEffect(() => {
+    ;(async () => {
+      try {
+        const res = await getAddresses()
+        const data = res.data
+        let addrList: UserAddress[] = []
+        if (Array.isArray(data)) {
+          addrList = data
+        } else if (data && typeof data === "object" && Array.isArray((data as any).items)) {
+          addrList = (data as any).items
+        }
+        setAddresses(addrList)
+        
+        // Set default address if available
+        const def = addrList.find(a => a.is_default) || addrList[0]
+        if (def) setDeliveryAddressId(def.id)
+      } catch (err) {
+        console.error("Failed to load addresses", err)
+      }
+    })()
+  }, [])
+
 
   if (cart) {
     const storeMap = new Map<number, CheckoutStore>()
@@ -196,7 +240,8 @@ export default function CheckoutPage() {
       if (deliveryMethod === "CAMPUS") {
         payload.campus_location_id = campusLocationId
       } else if (deliveryMethod === "ROUND_UNIVERSITY") {
-        payload.delivery_address_id = deliveryAddressId
+        payload.delivery_address_id = deliveryAddressId || undefined
+        payload.campus_detail_note = addressExtra
       }
 
       const res = await checkOutOrder(payload)
@@ -246,9 +291,9 @@ export default function CheckoutPage() {
           <section className="space-y-10 order-2 lg:order-1">
             {/* Delivery Method Selection */}
             <div>
-              <h2 className="text-2xl font-bold mb-6">Delivery method</h2>
+              <h2 className="text-2xl font-bold mb-6">Delivery Method</h2>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {/* Card 1: Campus Pickup */}
+                {/* Card 1: Pickup (นัดรับ) */}
                 <div 
                   onClick={() => setDeliveryMethod("CAMPUS")}
                   className={`
@@ -256,35 +301,35 @@ export default function CheckoutPage() {
                     flex flex-col gap-4 text-left relative overflow-hidden group hover:shadow-md
                     ${deliveryMethod === "CAMPUS" 
                       ? "border-green-500 bg-white ring-1 ring-green-500" 
-                      : "border-gray-200 bg-white hover:border-gray-300"}
+                      : "border-gray-100 bg-white hover:border-gray-200"}
                   `}
                 >
-                  <div className="text-gray-900">
+                  <div className="text-gray-900 bg-gray-50 p-3 rounded-lg w-fit group-hover:bg-gray-100 transition-colors">
                     <Truck className="h-8 w-8" strokeWidth={1.5} />
                   </div>
                   <div>
-                    <h3 className="font-semibold text-base mb-1">Campus pickup</h3>
+                    <h3 className="font-bold text-lg text-gray-900 mb-1">Pickup</h3>
                     <p className="text-sm text-gray-500">Wait for the seller to confirm the date and time.</p>
                   </div>
                 </div>
 
-                {/* Card 2: Round University (Disabled) */}
+                {/* Card 2: Round University Delivery (ส่งรอบมหาวิทยาลัย) */}
                 <div 
+                  onClick={() => setDeliveryMethod("ROUND_UNIVERSITY")}
                   className={`
-                    rounded-xl border-2 p-6 transition-all duration-200
-                    flex flex-col gap-4 text-left relative overflow-hidden
-                    border-gray-200 bg-gray-50 opacity-50 grayscale cursor-not-allowed
+                    cursor-pointer rounded-xl border-2 p-6 transition-all duration-200
+                    flex flex-col gap-4 text-left relative overflow-hidden group hover:shadow-md
+                    ${deliveryMethod === "ROUND_UNIVERSITY" 
+                      ? "border-green-500 bg-white ring-1 ring-green-500" 
+                      : "border-gray-100 bg-white hover:border-gray-200"}
                   `}
                 >
-                  <div className="absolute top-3 right-3 bg-gray-200 text-gray-500 text-xs px-2 py-1 rounded-full font-medium">
-                    Coming Soon
-                  </div>
-                  <div className="text-gray-900">
+                  <div className="text-gray-900 bg-gray-50 p-3 rounded-lg w-fit group-hover:bg-gray-100 transition-colors">
                     <Package className="h-8 w-8" strokeWidth={1.5} />
                   </div>
                   <div>
-                    <h3 className="font-semibold text-base mb-1">Round University Delivery</h3>
-                    <p className="text-sm text-gray-500">Choose a saved delivery address.</p>
+                    <h3 className="font-bold text-lg text-gray-900 mb-1">Round University Delivery</h3>
+                    <p className="text-sm text-gray-500">Choose from your saved addresses.</p>
                   </div>
                 </div>
 
@@ -314,47 +359,31 @@ export default function CheckoutPage() {
                     </ul>
                   </div>
                 )}
-
-                {/* Card 2: Round University */}
-                {/* <div 
-                  onClick={() => setDeliveryMethod("ROUND_UNIVERSITY")}
-                  className={`
-                    cursor-pointer rounded-xl border-2 p-6 transition-all duration-200
-                    flex flex-col gap-4 text-left relative overflow-hidden group hover:shadow-md
-                    ${deliveryMethod === "ROUND_UNIVERSITY" 
-                      ? "border-green-500 bg-white ring-1 ring-green-500" 
-                      : "border-gray-200 bg-white hover:border-gray-300"}
-                  `}
-                >
-                  <div className="text-gray-900">
-                    <Package className="h-8 w-8" strokeWidth={1.5} />
-                  </div>
-                  <div>
-                    <h3 className="font-semibold text-base mb-1">ส่งรอบมหาวิทยาลัย</h3>
-                    <p className="text-sm text-gray-500">เลือกที่จัดส่งที่ตนเองบันทึกไว้</p>
-                  </div>
-                </div> */}
-
               </div>
             </div>
 
             {/* Conditional Fields Based on Delivery Method */}
-            {deliveryMethod === "CAMPUS" ? (
-              <></>
-            ) : (
-              <div className="space-y-4">
-                <DeliveryAddressDropdown
-                  value={deliveryAddressId}
-                  onChange={(val) => setDeliveryAddressId(val || 1)}
-                  addresses={MOCK_ADDRESSES}
-                />
-                <input
-                  type="text"
-                  placeholder="Additional delivery details"
-                  value={addressExtra}
-                  onChange={(e) => setAddressExtra(e.target.value)}
-                  className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm shadow-sm focus:border-orange-400 focus:ring-2 focus:ring-orange-100 outline-none transition-all placeholder:text-gray-400"
-                />
+            {deliveryMethod === "ROUND_UNIVERSITY" && (
+              <div className="space-y-6 pt-4 border-t border-gray-100 mt-6">
+                <h2 className="text-lg font-bold text-gray-900">Delivery Address Details</h2>
+                <div className="space-y-4">
+                  <DeliveryAddressDropdown
+                    label="Address"
+                    value={deliveryAddressId}
+                    onChange={(val) => setDeliveryAddressId(val)}
+                    addresses={addresses}
+                  />
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium text-gray-600 ml-1">Note (Optional)</label>
+                    <input
+                      type="text"
+                      placeholder="e.g. Building, Room, or Landmark"
+                      value={addressExtra}
+                      onChange={(e) => setAddressExtra(e.target.value)}
+                      className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-base shadow-sm focus:border-orange-400 focus:ring-2 focus:ring-orange-100 outline-none transition-all placeholder:text-gray-300"
+                    />
+                  </div>
+                </div>
               </div>
             )}
 

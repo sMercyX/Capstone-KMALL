@@ -1,6 +1,6 @@
 import { useRef, useEffect } from "react"
 import { Link } from "react-router-dom"
-import { ChevronDown, User, Image, Check } from "lucide-react"
+import { ChevronDown, User, Image, Check, MapPin } from "lucide-react"
 // import { useTheme } from "../../theme/ThemeContext"
 import { useUserStore } from "../../stores/userStore"
 import { useAuth } from "../../auth/AuthContext"
@@ -14,6 +14,7 @@ type Props = {
   isStoreActive: boolean
   isCartActive: boolean
   isReportActive: boolean
+  isAddressActive: boolean
 }
 
 export default function UserDropdown({
@@ -24,6 +25,7 @@ export default function UserDropdown({
   isStoreActive,
   isCartActive,
   isReportActive,
+  isAddressActive,
 }: Props) {
   const dropdownRef = useRef<HTMLDivElement | null>(null)
 
@@ -187,6 +189,27 @@ export default function UserDropdown({
               </div>
 
               {isReportActive && <Check className="h-4 w-4 text-orange-500" />}
+            </Link>
+            
+            <Link
+              to="/addresses"
+              className={`flex w-full items-center justify-between gap-2 rounded-xl px-2 py-2 text-sm
+                ${
+                  isAddressActive
+                    ? "bg-white text-black font-medium"
+                    : "text-gray-500 hover:bg-white"
+                }
+              `}
+              onClick={onClose}
+            >
+              <div className={`flex items-center gap-2 text-gray-500 ${isAddressActive ? "text-orange-500" : "" }`}>
+                <span className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-gray-100">
+                  <MapPin className="h-4 w-4 text-gray-400" />
+                </span>
+                My Addresses
+              </div>
+
+              {isAddressActive && <Check className="h-4 w-4 text-orange-500" />}
             </Link>
 
             <button
