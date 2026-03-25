@@ -1,6 +1,6 @@
 // src/modules/AddressPage/AddressModal.tsx
 import React, { useEffect, useState } from "react"
-import { X, ChevronLeft, MapPin, AlertCircle } from "lucide-react"
+import { X, MapPin, AlertCircle } from "lucide-react"
 import * as yup from "yup"
 import { Input } from "../../components/Input/Input"
 import type { UserAddress } from "../../api/addressApi"
