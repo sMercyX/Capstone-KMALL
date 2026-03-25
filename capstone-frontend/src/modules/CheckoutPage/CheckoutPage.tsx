@@ -45,16 +45,28 @@ export default function CheckoutPage() {
     startLoading,
     setCart,
     setError,
+    reset,
   } = useCartStore()
 
   // ยิง checkout (checkOutOrder) จาก storeApi
   const { checkOutOrder } = useCheckkOutApi()
-
-
-  const { reset } = useCartStore()
   const navigate = useNavigate()
 
-  const [deliveryMethod, setDeliveryMethod] = useState<"CAMPUS" | "ROUND_UNIVERSITY">("CAMPUS")
+  const [deliveryMethod, setDeliveryMethod] = useState<
+    "CAMPUS" | "ROUND_UNIVERSITY"
+  >("CAMPUS") // Default to CAMPUS initially, will adjust after cart loads
+
+  // Adjust delivery method based on store capability
+  useEffect(() => {
+    if (cart?.store) {
+      if (!cart.store.delivery_round_university_enabled) {
+        setDeliveryMethod("CAMPUS")
+      } else {
+        setDeliveryMethod("ROUND_UNIVERSITY")
+      }
+    }
+  }, [cart?.store?.id, cart?.store?.delivery_round_university_enabled])
+
   const [campusLocationId] = useState<number>(1) // Default campus location
   const [addresses, setAddresses] = useState<UserAddress[]>([])
   const [deliveryAddressId, setDeliveryAddressId] = useState<number | null>(null)
@@ -152,29 +164,6 @@ export default function CheckoutPage() {
     })()
   }, [])
 
-  // Fetch addresses on mount
-  useEffect(() => {
-    ;(async () => {
-      try {
-        const res = await getAddresses()
-        const data = res.data
-        let addrList: UserAddress[] = []
-        if (Array.isArray(data)) {
-          addrList = data
-        } else if (data && typeof data === "object" && Array.isArray((data as any).items)) {
-          addrList = (data as any).items
-        }
-        setAddresses(addrList)
-        
-        // Set default address if available
-        const def = addrList.find(a => a.is_default) || addrList[0]
-        if (def) setDeliveryAddressId(def.id)
-      } catch (err) {
-        console.error("Failed to load addresses", err)
-      }
-    })()
-  }, [])
-
 
   if (cart) {
     const storeMap = new Map<number, CheckoutStore>()
@@ -220,7 +209,10 @@ export default function CheckoutPage() {
     merchandiseTotal = stores.reduce((sum, s) => sum + s.subtotal, 0)
   }
 
-  const deliveryFee = deliveryMethod === "ROUND_UNIVERSITY" ? (cart?.store?.round_uni_base_fee ?? 0) : 0
+  // Calculate fees and totals
+  const isDeliveryEnabled = !!cart?.store?.delivery_round_university_enabled
+  const storeDeliveryFee = cart?.store?.round_uni_base_fee ?? 0
+  const deliveryFee = (deliveryMethod === "ROUND_UNIVERSITY" && isDeliveryEnabled) ? storeDeliveryFee : 0
   const grandTotal = merchandiseTotal + deliveryFee
 
   async function handleSubmit() {
@@ -316,21 +308,28 @@ export default function CheckoutPage() {
 
                 {/* Card 2: Round University Delivery (ส่งรอบมหาวิทยาลัย) */}
                 <div 
-                  onClick={() => setDeliveryMethod("ROUND_UNIVERSITY")}
+                  onClick={() => {
+                    if (isDeliveryEnabled) setDeliveryMethod("ROUND_UNIVERSITY")
+                  }}
                   className={`
                     cursor-pointer rounded-xl border-2 p-6 transition-all duration-200
-                    flex flex-col gap-4 text-left relative overflow-hidden group hover:shadow-md
-                    ${deliveryMethod === "ROUND_UNIVERSITY" 
+                    flex flex-col gap-4 text-left relative overflow-hidden group
+                    ${!isDeliveryEnabled ? "opacity-50 cursor-not-allowed bg-gray-50 border-gray-100" : "hover:shadow-md"}
+                    ${deliveryMethod === "ROUND_UNIVERSITY" && isDeliveryEnabled
                       ? "border-green-500 bg-white ring-1 ring-green-500" 
-                      : "border-gray-100 bg-white hover:border-gray-200"}
+                      : isDeliveryEnabled ? "border-gray-100 bg-white hover:border-gray-200" : ""}
                   `}
                 >
-                  <div className="text-gray-900 bg-gray-50 p-3 rounded-lg w-fit group-hover:bg-gray-100 transition-colors">
+                  <div className={`p-3 rounded-lg w-fit transition-colors ${!isDeliveryEnabled ? "text-gray-400 bg-gray-100" : "text-gray-900 bg-gray-50 group-hover:bg-gray-100"}`}>
                     <Package className="h-8 w-8" strokeWidth={1.5} />
                   </div>
                   <div>
-                    <h3 className="font-bold text-lg text-gray-900 mb-1">Round University Delivery</h3>
-                    <p className="text-sm text-gray-500">Choose from your saved addresses.</p>
+                    <h3 className={`font-bold text-lg mb-1 ${!isDeliveryEnabled ? "text-gray-400" : "text-gray-900"}`}>
+                        Round University Delivery
+                    </h3>
+                    <p className="text-sm text-gray-500">
+                        {isDeliveryEnabled ? "Choose from your saved addresses." : "This store currently does not support delivery."}
+                    </p>
                   </div>
                 </div>
 
