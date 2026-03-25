@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react"
 import { useNavigate } from "react-router-dom"
-import { Bell, MessageCircle, Trash2 } from "lucide-react"
+import { Bell, MessageCircle, Trash2, Megaphone } from "lucide-react"
 import {
   useNotificationApi,
   type Notification,
@@ -177,6 +177,12 @@ export default function NotificationDropdown({
     // ถ้า store_id ของ noti ตรงกับ store ของเรา → เราเป็น seller
     const isSeller = !!myStoreId && !!n.store_id && n.store_id === myStoreId
     const isChat = n.type === "CHAT_NEW_MESSAGE"
+    const isAnnouncement = n.type === "ANNOUNCEMENT"
+
+    if (isAnnouncement) {
+      // System announcements don't navigate
+      return
+    }
 
     if (isSeller) {
       // Seller paths
@@ -265,23 +271,28 @@ export default function NotificationDropdown({
             {!loading &&
               notifications.map((n) => {
                 const isChat = n.type === "CHAT_NEW_MESSAGE"
+                const isAnnouncement = n.type === "ANNOUNCEMENT"
                 return (
                   <div
                     key={n.notification_id}
                     className={`px-5 py-4 border-b border-gray-50 ${
-                      !n.is_read ? "bg-orange-50/60" : ""
+                      !n.is_read ? (isAnnouncement ? "bg-red-50/40" : "bg-orange-50/60") : ""
                     }`}
                   >
                     <div className="flex gap-3">
                       {/* Icon */}
                       <div
                         className={`mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full ${
-                          isChat
+                          isAnnouncement
+                            ? "bg-gradient-to-br from-red-500 to-[#FF4C24] text-white shadow-sm"
+                            : isChat
                             ? "bg-orange-500 text-white"
                             : "bg-gray-200 text-gray-500"
                         }`}
                       >
-                        {isChat ? (
+                        {isAnnouncement ? (
+                          <Megaphone className="h-4 w-4" />
+                        ) : isChat ? (
                           <MessageCircle className="h-4 w-4" />
                         ) : (
                           <Bell className="h-4 w-4" />
@@ -290,14 +301,25 @@ export default function NotificationDropdown({
 
                       {/* Content */}
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm font-semibold text-gray-900">
-                          {isChat ? "💬" : "🛒"} {n.title} – ORDER #{n.order_id}
+                        <p className={`text-[13px] ${isAnnouncement ? 'font-bold text-[#FF4C24]' : 'font-semibold text-gray-900'}`}>
+                          {isAnnouncement ? "📢 System Announcement" : isChat ? "💬 " : "🛒 "}
+                          {!isAnnouncement && n.title}
+                          {!isAnnouncement && ` – ORDER #${n.order_id}`}
                         </p>
-                        <p className="text-xs text-gray-500 mt-0.5">{n.body}</p>
+                        
+                        {isAnnouncement && (
+                          <p className="text-[13.5px] font-bold text-gray-800 mt-1 leading-tight">{n.title}</p>
+                        )}
+                        
+                        <div className={`mt-1.5 ${isAnnouncement ? 'bg-white rounded-[6px] border border-red-100 p-2.5 shadow-[0_1px_2px_rgba(255,76,36,0.05)]' : ''}`}>
+                          <p className={`text-xs ${isAnnouncement ? 'text-gray-700 leading-relaxed' : 'text-gray-500'}`}>
+                            {n.body}
+                          </p>
+                        </div>
 
                         {/* Chat preview */}
                         {isChat && n.data?.message_preview && (
-                          <div className="mt-1.5 border-l-2 border-gray-300 pl-2 text-xs text-gray-600">
+                          <div className="mt-1.5 border-l-2 border-orange-300 pl-2 text-xs text-gray-600">
                             <p>{n.data.message_preview}</p>
                             {n.data.message_type === "IMAGE" && (
                               <p className="text-gray-400">
@@ -310,20 +332,24 @@ export default function NotificationDropdown({
                         {/* Action button */}
                         <button
                           onClick={() => handleAction(n)}
-                          className="mt-2 inline-block rounded-full bg-orange-500 px-4 py-1 text-xs font-semibold text-white hover:bg-orange-600 cursor-pointer"
+                          className={`mt-2.5 inline-block rounded-full px-4 py-1.5 text-[11px] font-semibold cursor-pointer transition-colors ${
+                            isAnnouncement 
+                              ? "bg-white border border-[#FF4C24] text-[#FF4C24] hover:bg-red-50" 
+                              : "bg-orange-500 text-white hover:bg-orange-600"
+                          }`}
                         >
-                          {isChat ? "Chat" : "View details"}
+                          {isAnnouncement ? "Acknowledge" : isChat ? "Chat" : "View details"}
                         </button>
 
                         {/* Timestamp */}
-                        <p className="mt-1.5 text-[11px] text-gray-400">
+                        <p className="mt-2.5 text-[10px] text-gray-400 font-medium tracking-wide uppercase">
                           {formatRelativeTime(n.created_at)}
                         </p>
                       </div>
 
                       {/* Unread dot */}
                       {!n.is_read && (
-                        <span className="mt-1 h-2.5 w-2.5 shrink-0 rounded-full bg-orange-500" />
+                        <span className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-[#FF4C24]" />
                       )}
                     </div>
                   </div>

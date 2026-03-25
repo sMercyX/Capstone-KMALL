@@ -14,7 +14,7 @@ export default function BackendLayout({ title, menuItems }: SideNavbarProps) {
   }, [location.pathname])
 
   return (
-    <div className="h-screen flex flex-col md:flex-row bg-[#fbfaf8] text-gray-800 overflow-hidden">
+    <div className="h-screen flex flex-col md:flex-row bg-[#f9f9f9] text-gray-800 overflow-hidden">
       
       {/* Mobile Top Header */}
       <div className="md:hidden flex items-center justify-between bg-white border-b border-gray-200 px-4 py-3 sticky top-0 z-20 shadow-sm flex-shrink-0">

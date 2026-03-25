@@ -11,7 +11,7 @@ export interface NotificationData {
 export interface Notification {
   notification_id: number
   user_id: string
-  type: "CHAT_NEW_MESSAGE" | "ORDER_STATUS_CHANGED"
+  type: "CHAT_NEW_MESSAGE" | "ORDER_STATUS_CHANGED" | "ANNOUNCEMENT"
   order_id: number
   thread_id?: number
   message_id?: number
@@ -37,7 +37,7 @@ export function useNotificationApi() {
 
   async function getNotifications(
     limit: number = 5,
-    type?: "CHAT_NEW_MESSAGE" | "ORDER_STATUS_CHANGED"
+    type?: "CHAT_NEW_MESSAGE" | "ORDER_STATUS_CHANGED" | "ANNOUNCEMENT"
   ): Promise<NotificationsData> {
     let url = `/notifications?limit=${limit}`
     if (type) url += `&type=${type}`
