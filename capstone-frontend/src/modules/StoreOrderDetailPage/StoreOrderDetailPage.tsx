@@ -35,7 +35,26 @@ const STEPS: { key: StepKey; label: string }[] = [
   { key: "DONE", label: "COMPLETED" },
 ]
 
-function getStepIndex(status: string): number {
+function getStepIndex(status: string, deliveryMethod?: string): number {
+  if (deliveryMethod === "ROUND_UNIVERSITY") {
+    switch (status) {
+      case "Pending Seller Confirmation":
+      case "Pending":
+        return 0
+      case "Accepted":
+        return 1
+      case "Out For Delivery":
+        return 2
+      case "Arrived":
+        return 3
+      case "Completed":
+      case "Cancelled":
+        return 4
+      default:
+        return 0
+    }
+  }
+
   switch (status) {
     case "Pending Seller Confirmation":
     case "Pending":
@@ -95,7 +114,7 @@ function formatThaiDateTime(date: Date | string | null | undefined): string {
 
 export default function StoreOrderDetailPage() {
   const { orderId } = useParams<{ orderId: string }>()
-  const { getOrderDetail, updateOrderStatus, cancelledOrder, proposeOrder, acceptOrder } =
+  const { getOrderDetail, updateOrderStatus, cancelledOrder, proposeOrder, acceptOrder, acceptRoundUniOrder } =
     useOrderSellerApi()
   const { createOrderReport } = useReportApi()
   const { name: userName } = useUserStore()
@@ -112,6 +131,11 @@ export default function StoreOrderDetailPage() {
   const [isAcceptModalOpen, setIsAcceptModalOpen] = useState(false)
   const [cancelReason, setCancelReason] = useState("")
   const [isReportModalOpen, setIsReportModalOpen] = useState(false)
+
+  // Round University Delivery state
+  const [promisedShipDate, setPromisedShipDate] = useState<Date | null>(null)
+  const [promisedShipTime, setPromisedShipTime] = useState<string>("10:00 AM")
+  const [promisedShipError, setPromisedShipError] = useState(false)
 
   // Handle chat button click
   const handleChatClick = () => {
@@ -387,7 +411,11 @@ export default function StoreOrderDetailPage() {
   const store_name = data?.store_name
   const store_profile_url = data?.store_profile_url
 
-  const currentStep = order ? getStepIndex(order.status) : 0
+  const displayedSteps = order?.delivery_method === "ROUND_UNIVERSITY"
+    ? STEPS.filter(s => s.key !== "PROPOSED")
+    : STEPS
+
+  const currentStep = order ? getStepIndex(order.status, order.delivery_method) : 0
   const isSellerPath = typeof window !== 'undefined' && window.location.pathname.includes('/store/orders/')
   const isBuyer = !isSellerPath  // Buyer view is /orders/:id, Seller view is /store/orders/:id
   const isFinished = order?.status === "Completed" || order?.status === "Cancelled"
@@ -446,58 +474,85 @@ export default function StoreOrderDetailPage() {
     if (!order || !orderId || !canAccept) return
     // If status is PENDING, validate fields first before showing modal
     if (order.status === "Pending") {
-      const errors: { zone?: boolean; building?: boolean; dateTime?: boolean } = {}
-      if (!selectedZone) errors.zone = true
-      if (!selectedBuilding) errors.building = true
-      if (!selectedDateTime) errors.dateTime = true
-      
-      if (Object.keys(errors).length > 0) {
-        setValidationErrors(errors)
-        toast.error("Please select a zone, building, and meeting time.")
-        // Scroll to the meeting section
-        meetingSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
-        return
+      if (order.delivery_method === "ROUND_UNIVERSITY") {
+        if (!promisedShipDate) {
+          setPromisedShipError(true)
+          toast.error("Please select a promised shipping date.")
+          return
+        }
+      } else {
+        const errors: { zone?: boolean; building?: boolean; dateTime?: boolean } = {}
+        if (!selectedZone) errors.zone = true
+        if (!selectedBuilding) errors.building = true
+        if (!selectedDateTime) errors.dateTime = true
+        
+        if (Object.keys(errors).length > 0) {
+          setValidationErrors(errors)
+          toast.error("Please select a zone, building, and meeting time.")
+          // Scroll to the meeting section
+          meetingSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+          return
+        }
       }
     }
     setIsAcceptModalOpen(true)
+  }
+
+  const handlePromisedShipDateChange = (date: Date | null, time: string) => {
+    setPromisedShipDate(date)
+    setPromisedShipTime(time)
+    if (date) setPromisedShipError(false)
   }
 
   const handleAccept = async () => {
     if (!order || !orderId || !canAccept) return
     setIsAcceptModalOpen(false)
     
-    // If status is PENDING, call proposeOrder to move to PROPOSED
+    // If status is PENDING, call appropriate accept API
     if (order.status === "Pending") {
-      // Fields already validated in handleAcceptClick
       setActionLoading("accept")
       setError(null)
       
       try {
-        // Parse time and combine with date
-        const dateTime = new Date(selectedDateTime!)
-        const timeParts = selectedTime.match(/(\d+):(\d+)\s*(AM|PM)/i)
-        if (timeParts) {
-          let hours = parseInt(timeParts[1])
-          const minutes = parseInt(timeParts[2])
-          const isPM = timeParts[3].toUpperCase() === "PM"
+        if (order.delivery_method === "ROUND_UNIVERSITY") {
+          // ROUND_UNIVERSITY Acceptance Flow
+          const shipDate = new Date(promisedShipDate!)
+          const timeParts = promisedShipTime.match(/(\d+):(\d+)\s*(AM|PM)/i)
+          if (timeParts) {
+            let hours = parseInt(timeParts[1])
+            const minutes = parseInt(timeParts[2])
+            const isPM = timeParts[3].toUpperCase() === "PM"
+            if (isPM && hours !== 12) hours += 12
+            if (!isPM && hours === 12) hours = 0
+            shipDate.setHours(hours, minutes, 0, 0)
+          }
+
+          await acceptRoundUniOrder(parseInt(orderId), shipDate.toISOString())
+          toast.success("Order accepted successfully! Delivery scheduled.")
+        } else {
+          // Standard Meeting Flow (Pending -> Proposed)
+          const dateTime = new Date(selectedDateTime!)
+          const timeParts = selectedTime.match(/(\d+):(\d+)\s*(AM|PM)/i)
+          if (timeParts) {
+            let hours = parseInt(timeParts[1])
+            const minutes = parseInt(timeParts[2])
+            const isPM = timeParts[3].toUpperCase() === "PM"
+            if (isPM && hours !== 12) hours += 12
+            if (!isPM && hours === 12) hours = 0
+            dateTime.setHours(hours, minutes, 0, 0)
+          }
           
-          if (isPM && hours !== 12) hours += 12
-          if (!isPM && hours === 12) hours = 0
-          
-          dateTime.setHours(hours, minutes, 0, 0)
+          await proposeOrder(
+            parseInt(orderId),
+            dateTime.toISOString(),
+            selectedBuilding ?? undefined
+          )
+          toast.success("Meeting details proposed successfully!")
         }
-        
-        await proposeOrder(
-          parseInt(orderId),
-          dateTime.toISOString(),
-          selectedBuilding ?? undefined
-        )
         
         // Refresh data
         const res = await getOrderDetail(parseInt(orderId))
         setData(res.data)
-        
-        toast.success("Meeting details proposed successfully!")
       } catch (e) {
         handleApiError(e)
       } finally {
@@ -570,7 +625,7 @@ export default function StoreOrderDetailPage() {
 
   // Calculate totals
   const subtotal = items.reduce((sum, item) => sum + item.subtotal, 0)
-  const deliveryFee = 0
+  const deliveryFee = order?.delivery_fee || 0
   const total = subtotal + deliveryFee
 
   return (
@@ -597,14 +652,22 @@ export default function StoreOrderDetailPage() {
       <div className="mb-8 flex justify-center">
         <div className="w-full max-w-4xl rounded-3xl bg-white border border-gray-200 px-6 md:px-8 py-6">
           <div className="relative">
-            <div className="absolute top-4 left-[8.33%] right-[8.33%] h-[2px] bg-gray-300">
+            {/* Progress Bar Line */}
+            <div 
+              className="absolute top-4 h-[2px] bg-gray-300"
+              style={{ 
+                left: `${100 / (displayedSteps.length * 2)}%`, 
+                right: `${100 / (displayedSteps.length * 2)}%` 
+              }}
+            >
               <div 
                 className="h-full bg-green-500 transition-all duration-500 ease-in-out"
-                style={{ width: `${Math.min((currentStep / (STEPS.length - 1)) * 100, 100)}%` }}
+                style={{ width: `${Math.min((currentStep / (displayedSteps.length - 1)) * 100, 100)}%` }}
               />
             </div>
+
             <div className="relative flex justify-between">
-              {STEPS.map((step, idx) => {
+              {displayedSteps.map((step, idx) => {
                 const isActive = idx === currentStep
                 const isPassed = idx < currentStep
                 // If order is completed/cancelled, treat the active step (last one) like a passed step
@@ -732,29 +795,68 @@ export default function StoreOrderDetailPage() {
                 onBuildingChange={handleBuildingChange}
                 onDateTimeChange={handleDateTimeChange}
                 onProposeOrder={handleProposeOrder}
+                // Round Uni Props
+                deliveryAddress={data?.delivery_address}
+                promisedShipDate={promisedShipDate}
+                promisedShipTime={promisedShipTime}
+                onPromisedShipDateChange={handlePromisedShipDateChange}
+                promisedShipError={promisedShipError}
               />
               </div>
             )}
 
             {/* Accepted Status Page */}
             {order.status === "Accepted" && (
-              <AcceptedPage order={order} items={items} subtotal={subtotal} deliveryFee={deliveryFee} total={total} locationName={meetingLocationName} viewMode={isBuyer ? "buyer" : "seller"} />
+              <AcceptedPage 
+                order={order} 
+                items={items} 
+                subtotal={subtotal} 
+                deliveryFee={deliveryFee} 
+                total={total} 
+                locationName={meetingLocationName} 
+                viewMode={isBuyer ? "buyer" : "seller"}
+                deliveryAddress={data?.delivery_address}
+              />
             )}
             
 
             {/* Out for Delivery Page */}
             {order.status === "Out For Delivery" && (
-              <OutOfDeliveryPage order={order} items={items} subtotal={subtotal} deliveryFee={deliveryFee} total={total} locationName={meetingLocationName} viewMode={isBuyer ? "buyer" : "seller"} />
+              <OutOfDeliveryPage 
+                order={order} 
+                items={items} 
+                subtotal={subtotal} 
+                deliveryFee={deliveryFee} 
+                total={total} 
+                locationName={meetingLocationName} 
+                viewMode={isBuyer ? "buyer" : "seller"}
+                deliveryAddress={data?.delivery_address}
+              />
             )}
 
             {/* Arrived Page */}
             {order.status === "Arrived" && (
-              <ArrivedPage order={order} items={items} subtotal={subtotal} deliveryFee={deliveryFee} total={total} locationName={meetingLocationName} viewMode={isBuyer ? "buyer" : "seller"} />
+              <ArrivedPage 
+                order={order} 
+                items={items} 
+                subtotal={subtotal} 
+                deliveryFee={deliveryFee} 
+                total={total} 
+                locationName={meetingLocationName} 
+                viewMode={isBuyer ? "buyer" : "seller"}
+                deliveryAddress={data?.delivery_address}
+              />
             )}
 
             {/* Completed/Cancelled Page */}
             {(order.status === "Completed" || order.status === "Cancelled") && (
-              <CompletedCanceledPage order={order} items={items} total={total} isBuyer={isBuyer} />
+              <CompletedCanceledPage 
+                order={order} 
+                items={items} 
+                total={total} 
+                isBuyer={isBuyer}
+                deliveryAddress={data?.delivery_address}
+              />
             )}
           </>
         )}

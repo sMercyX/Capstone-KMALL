@@ -23,6 +23,7 @@ export interface orderSellerData {
   
   // Delivery fields
   delivery_method: string
+  delivery_fee: number
   delivery_address_id?: number
   campus_location_id?: number
   campus_detail_note?: string
@@ -64,6 +65,21 @@ export interface OrderBuyerDetail {
   email: string
 }
 
+export interface OrderDeliveryAddress {
+  id: number
+  user_id: string
+  label: string
+  address_line1: string
+  district: string
+  province: string
+  postal_code: string
+  phone: string
+  is_default: boolean
+  is_active: boolean
+  created_at: string
+  updated_at: string
+}
+
 // ---------------------------
 export type OrderStatus =
   | "Pending Seller Confirmation"
@@ -77,11 +93,12 @@ export interface OrderDetailResponse {
   order: orderSellerData
   items: OrderItemDetail[]
   buyer: OrderBuyerDetail
-  buyer_name:string
-  seller_name:string
-  seller_user_id:string
-  store_name:string
-  store_profile_url:string
+  buyer_name: string
+  seller_name: string
+  seller_user_id: string
+  store_name: string
+  store_profile_url: string
+  delivery_address?: OrderDeliveryAddress
 }
 export interface OrderStatusResquest {
   status: OrderStatus
@@ -179,6 +196,15 @@ export function useOrderSellerApi() {
     return http.postItem(`/orders/${orderId}/accept`, { accept: true })
   }
 
+  async function acceptRoundUniOrder(
+    orderId: number,
+    promisedShipDate: string
+  ): Promise<ApiUpdatedResponse<orderSellerData>> {
+    return http.putItem(`/orders/${orderId}/round-uni/accept`, {
+      promised_ship_date: promisedShipDate
+    })
+  }
+
   async function getOrderSummaries(
     storeId: number,
     granularity: "daily" | "monthly" | "yearly" | "all_time",
@@ -199,6 +225,7 @@ export function useOrderSellerApi() {
     cancelledOrder,
     proposeOrder,
     acceptOrder,
+    acceptRoundUniOrder,
     getOrderSummaries,
   }
 }

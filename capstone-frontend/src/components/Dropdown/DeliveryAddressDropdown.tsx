@@ -32,13 +32,12 @@ export default function DeliveryAddressDropdown({
   useClickOutside(containerRef, () => setIsOpen(false))
 
   const selectedAddress = addresses.find(a => a.id === value)
-  const selectedIndex = addresses.findIndex(a => a.id === value)
   
-  const formatAddress = (addr: UserAddress, idx: number) => {
-    return `Address ${idx + 1}. ${addr.address_line1} ${addr.address_line2 ? `| ${addr.address_line2}` : ""} ${addr.district} ${addr.province} ${addr.postal_code}`
+  const formatAddress = (addr: UserAddress) => {
+    return `${addr.label}: ${addr.address_line1} ${addr.district} ${addr.province} ${addr.postal_code}`
   }
 
-  const displayText = selectedAddress ? formatAddress(selectedAddress, selectedIndex) : placeholder
+  const displayText = selectedAddress ? formatAddress(selectedAddress) : placeholder
 
   const handleSelect = (id: number) => {
     setTempValue(id)
@@ -79,7 +78,7 @@ export default function DeliveryAddressDropdown({
         
         {isOpen && !disabled && (
           <div className="absolute z-20 w-full mt-2 bg-white border-2 border-gray-200 rounded-xl shadow-lg max-h-80 overflow-auto">
-            {addresses.map((addr, idx) => (
+            {addresses.map((addr) => (
               <button
                 key={addr.id}
                 type="button"
@@ -89,7 +88,7 @@ export default function DeliveryAddressDropdown({
                     ? "bg-orange-50 text-[#f0532c] border-[#f0532c] font-semibold" 
                     : "border-transparent text-gray-600"}`}
               >
-                {formatAddress(addr, idx)}
+                {formatAddress(addr)}
               </button>
             ))}
             {addresses.length === 0 && (

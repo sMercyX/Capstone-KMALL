@@ -84,7 +84,7 @@ export default function AddressPage() {
     }
   }
 
-  const handleSaveAddress = async (formData: Omit<UserAddress, "id" | "user_id" | "is_default" | "is_active" | "created_at" | "updated_at">) => {
+  const handleSaveAddress = async (formData: Omit<UserAddress, "id" | "user_id" | "is_active" | "created_at" | "updated_at">) => {
     try {
       if (editingAddress) {
         await updateAddress(editingAddress.id, formData)
@@ -130,11 +130,11 @@ export default function AddressPage() {
             <div className="p-10 text-center text-xs text-gray-400">No addresses.</div>
           ) : (
             <div className="divide-y divide-gray-50">
-              {addresses.map((addr, index) => (
+              {addresses.map((addr) => (
                 <div key={addr.id} className="p-5 hover:bg-gray-50 transition-colors group relative">
-                  <div className="flex items-start justify-between mb-2">
+                  <div className="flex items-start justify-between">
                     <div className="flex items-center gap-2">
-                      <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Address {index + 1}</p>
+                       <p className="text-sm font-bold text-gray-900 uppercase tracking-tight">{addr.label}</p>
                       {addr.is_default && (
                         <div className="bg-[#FFF1F0] text-[#FF4D00] text-[11px] font-bold px-3 py-1 rounded-full flex items-center gap-1.5 border border-[#FFD8D6]">
                           <Star className="w-3.5 h-3.5 fill-[#FF4D00]" />
@@ -150,11 +150,13 @@ export default function AddressPage() {
                     </button>
                   </div>
 
-                  <div className="text-sm text-gray-700 leading-snug space-y-0.5">
-                    <p className="font-medium text-gray-900">{addr.address_line1}</p>
-                    {addr.address_line2 && <p className="text-gray-500">{addr.address_line2}</p>}
+                  <div className="text-sm text-gray-700 leading-snug space-y-1 mt-1">
+                    <p className="text-gray-600 font-medium">{addr.address_line1}</p>
                     <p className="text-gray-500 text-xs">
                       {addr.district}, {addr.province} {addr.postal_code}
+                    </p>
+                    <p className="text-gray-500 text-xs font-semibold pt-1">
+                       {addr.phone}
                     </p>
                   </div>
 

@@ -16,6 +16,7 @@ export interface Product {
   store_id: number
   store_name: string
   category_id: number
+  category_name: string
   variant_label?: string
   sold_count?: number
   product_type: "STOCK" | "PREORDER"

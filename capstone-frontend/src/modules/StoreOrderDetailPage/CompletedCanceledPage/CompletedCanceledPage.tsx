@@ -1,19 +1,20 @@
-// src/modules/StoreOrderDetailPage/CompletedCanceledPage/CompletedCanceledPage.tsx
 import { useEffect, useState } from "react"
 import { Link } from "react-router-dom"
-import type { OrderItemDetail, orderSellerData } from "../../../api/orderSellerApi"
+import type { OrderItemDetail, orderSellerData, OrderDeliveryAddress } from "../../../api/orderSellerApi"
 import { useProductApi, type RecommendationProduct } from "../../../api/productApi"
 import { resolveImageUrl } from "../../../utils/resolve"
 import ProductList from "../../../components/ProductList/ProductList"
+import { MapPin, Calendar, CheckCircle2, XCircle } from "lucide-react"
 
 interface CompletedCanceledPageProps {
   order: orderSellerData
   items: OrderItemDetail[]
   total: number
   isBuyer: boolean
+  deliveryAddress?: OrderDeliveryAddress
 }
 
-export default function CompletedCanceledPage({ order, items, total, isBuyer }: CompletedCanceledPageProps) {
+export default function CompletedCanceledPage({ order, items, total, isBuyer, deliveryAddress }: CompletedCanceledPageProps) {
   const isCancelled = order.status === "Cancelled"
   const { getCancellationRecommendations } = useProductApi()
 
@@ -40,8 +41,48 @@ export default function CompletedCanceledPage({ order, items, total, isBuyer }: 
 
   return (
     <div className="flex flex-col gap-6">
-      {/* Completed Icon */}
-      {!isCancelled && (
+      {/* Delivery Info Box (for ROUND_UNIVERSITY) */}
+      {order.delivery_method === "ROUND_UNIVERSITY" && (
+        <div className="bg-white rounded-2xl p-6 border border-gray-200 flex flex-col md:flex-row items-center justify-between gap-6 shadow-sm">
+          
+          <div className="flex items-start gap-4 flex-1">
+             <div className="bg-gray-50 p-3 rounded-xl shadow-sm border border-gray-100">
+                {isCancelled ? <XCircle className="h-6 w-6 text-red-500" /> : <CheckCircle2 className="h-6 w-6 text-green-500" />}
+             </div>
+             <div>
+                <h4 className="text-xl font-bold text-gray-900 mb-1">
+                  Delivery Address
+                </h4>
+                <p className={`text-sm font-bold uppercase tracking-wider mb-2 ${isCancelled ? 'text-red-600' : 'text-green-600'}`}>
+                   {isCancelled ? "Order Cancelled" : "Order Delivered"}
+                </p>
+                {deliveryAddress && (
+                   <div className="flex items-center gap-2 text-sm text-gray-600 font-medium">
+                      <MapPin className="h-4 w-4 text-gray-400" />
+                      <span>{deliveryAddress.label}: {deliveryAddress.address_line1}</span>
+                   </div>
+                )}
+             </div>
+          </div>
+
+          {!isCancelled && items[0]?.promised_ship_date && (
+            <div className="bg-white/60 px-6 py-4 rounded-xl border border-white flex flex-col items-center md:items-end">
+               <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Delivered on</p>
+               <div className="flex items-center gap-2 text-gray-900 font-bold">
+                  <Calendar className="h-5 w-5 text-gray-400" />
+                  <span>
+                    {new Date(items[0].promised_ship_date).toLocaleString('th-TH', { 
+                      day: '2-digit', month: 'short', year: 'numeric'
+                    })}
+                  </span>
+               </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Standard Completed Icon (for Meeting Method) */}
+      {!isCancelled && order.delivery_method !== "ROUND_UNIVERSITY" && (
         <div className="flex flex-col items-center mb-2">
           <div className="relative w-48 h-48 mb-4">
             <div className="w-full h-full rounded-full flex flex-col items-center justify-center bg-gradient-to-b from-cyan-400 to-cyan-500">
@@ -70,7 +111,7 @@ export default function CompletedCanceledPage({ order, items, total, isBuyer }: 
       )}
 
       {/* Product Details Table */}
-      <ProductList items={items} total={total} />
+      <ProductList items={items} total={total} notes={order.notes} />
 
       {/* Recommendation Section — only for Cancelled orders AND Buyer */}
       {isCancelled && isBuyer && (

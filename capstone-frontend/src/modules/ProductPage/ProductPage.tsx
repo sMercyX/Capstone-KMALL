@@ -353,6 +353,31 @@ export default function ProductPage() {
               </div>
             )}
 
+
+            {/* Availability & Delivery Status Line (Single Line) */}
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm pt-4 border-t border-gray-100 mb-2">
+              <div className="flex items-center gap-2">
+                {isAllOptionsSelected && matchedVariant ? (
+                  <span className={`font-semibold ${matchedVariant.stock_qty > 0 ? "text-gray-900" : "text-red-500"}`}>
+                    Stock: {matchedVariant.stock_qty > 0 ? `${matchedVariant.stock_qty} units` : "Out of Stock"}
+                  </span>
+                ) : (
+                  <span className="text-gray-400 font-medium italic">Select options to see stock</span>
+                )}
+              </div>
+              
+              <div className="h-4 w-px bg-gray-200 hidden sm:block" />
+              
+              <div className="flex items-center gap-2">
+                <Truck className="h-4 w-4 text-gray-400" />
+                <span className={`font-semibold ${product.delivery_round_university_enabled ? "text-gray-900" : "text-gray-400"}`}>
+                  {product.delivery_round_university_enabled 
+                    ? `Delivery available ฿${product.round_uni_base_fee || 0}`
+                    : "No delivery service"}
+                </span>
+              </div>
+            </div>
+
             <div className="flex flex-wrap items-center gap-4 pt-4">
               <div className="inline-flex items-center rounded-full border border-gray-300 bg-white px-3 py-2">
                 <button type="button" onClick={handleDecreaseQty} className="px-2 text-lg leading-none text-gray-600 hover:text-gray-900">–</button>

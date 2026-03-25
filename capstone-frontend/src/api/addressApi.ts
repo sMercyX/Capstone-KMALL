@@ -5,11 +5,12 @@ import type { ApiResponse, ApiCreateResponse, ApiUpdatedResponse } from "./respo
 export interface UserAddress {
   id: number
   user_id: string
+  label: string
   address_line1: string
-  address_line2: string
   district: string
   province: string
   postal_code: string
+  phone: string
   is_default: boolean
   is_active: boolean
   created_at: string
@@ -23,7 +24,7 @@ export function useAddressApi() {
     return http.getItems("/addresses") as Promise<ApiResponse<UserAddress[]>>
   }
 
-  async function createAddress(data: Omit<UserAddress, "id" | "user_id" | "is_default" | "is_active" | "created_at" | "updated_at">): Promise<ApiCreateResponse<UserAddress>> {
+  async function createAddress(data: Omit<UserAddress, "id" | "user_id" | "is_active" | "created_at" | "updated_at">): Promise<ApiCreateResponse<UserAddress>> {
     return http.postItem("/addresses", data) as Promise<ApiCreateResponse<UserAddress>>
   }
 

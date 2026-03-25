@@ -1,24 +1,26 @@
 // src/modules/AddressPage/AddressModal.tsx
 import React, { useEffect, useState } from "react"
-import { X, MapPin, AlertCircle } from "lucide-react"
+import { X, MapPin, Box } from "lucide-react"
 import * as yup from "yup"
+import { toast } from "react-toastify"
 import { Input } from "../../components/Input/Input"
 import type { UserAddress } from "../../api/addressApi"
 
 interface AddressModalProps {
   isOpen: boolean
   onClose: () => void
-  onSave: (data: Omit<UserAddress, "id" | "user_id" | "is_default" | "is_active" | "created_at" | "updated_at">) => Promise<void>
+  onSave: (data: Omit<UserAddress, "id" | "user_id" | "is_active" | "created_at" | "updated_at">) => Promise<void>
   initialData?: UserAddress | null
   title?: string
 }
 
 const addressSchema = yup.object().shape({
+  label: yup.string().required("Please enter recipient name"),
+  phone: yup.string().required("Please enter phone number").matches(/^[0-9]{10}$/, "Phone number must be exactly 10 digits"),
   address_line1: yup.string().required("Please enter address"),
-  address_line2: yup.string().optional(),
   district: yup.string().required("Please enter district"),
-  postal_code: yup.string().required("Please enter postal code").matches(/^[0-9]{5}$/, "Please enter a valid postal code"),
-  province: yup.string().required("Please select province"),
+  postal_code: yup.string().optional(),
+  province: yup.string().optional(),
 })
 
 export default function AddressModal({
@@ -28,12 +30,14 @@ export default function AddressModal({
   initialData,
   title = "Add New Delivery Address"
 }: AddressModalProps) {
-  const [formData, setFormData] = useState<Omit<UserAddress, "id" | "user_id" | "is_default" | "is_active" | "created_at" | "updated_at">>({
+  const [formData, setFormData] = useState<Omit<UserAddress, "id" | "user_id" | "is_active" | "created_at" | "updated_at">>({
+    label: "",
+    phone: "",
     address_line1: "",
-    address_line2: "",
     district: "",
-    province: "",
-    postal_code: "",
+    province: "Bangkok",
+    postal_code: "10140",
+    is_default: false,
   })
 
   const [errors, setErrors] = useState<Record<string, string>>({})
@@ -42,19 +46,23 @@ export default function AddressModal({
   useEffect(() => {
     if (initialData) {
       setFormData({
+        label: initialData.label,
+        phone: initialData.phone,
         address_line1: initialData.address_line1,
-        address_line2: initialData.address_line2 || "",
         district: initialData.district,
         province: initialData.province,
         postal_code: initialData.postal_code,
+        is_default: initialData.is_default,
       })
     } else {
       setFormData({
+        label: "",
+        phone: "",
         address_line1: "",
-        address_line2: "",
         district: "",
-        province: "",
-        postal_code: "",
+        province: "Bangkok",
+        postal_code: "10140",
+        is_default: false,
       })
     }
     setErrors({})
@@ -64,7 +72,14 @@ export default function AddressModal({
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target
-    setFormData(prev => ({ ...prev, [name]: value }))
+    
+    if (name === "phone") {
+        const numericValue = value.replace(/[^0-9]/g, "").slice(0, 10)
+        setFormData(prev => ({ ...prev, [name]: numericValue }))
+    } else {
+        setFormData(prev => ({ ...prev, [name]: value }))
+    }
+    
     if (errors[name]) {
       setErrors(prev => {
         const newErrors = { ...prev }
@@ -88,6 +103,7 @@ export default function AddressModal({
           if (error.path) validationErrors[error.path] = error.message
         })
         setErrors(validationErrors)
+        toast.error("Please fill in all required fields")
       }
     } finally {
       setIsSubmitting(false)
@@ -118,21 +134,56 @@ export default function AddressModal({
 
         {/* Content - Compact */}
         <div className="flex-1 overflow-y-auto p-4 space-y-4">
-          <div className="bg-blue-50/50 border border-blue-100 rounded-xl p-3 flex gap-3">
-             <div className="shrink-0">
-                <AlertCircle className="w-4 h-4 text-blue-500" />
-             </div>
-             <p className="text-xs text-blue-600 leading-tight">
-                Please add your address for delivery within KMUTT. 
-                <span className="block mt-1 font-semibold opacity-70 italic font-normal">💡 Profiles → Addresses</span>
-             </p>
+          <div className="bg-[#EBF5FF] border border-[#BADAFF] rounded-2xl p-4 flex gap-3 transition-all hover:shadow-sm items-start">
+            <Box className="w-5 h-5 text-[#0066FF] shrink-0 mt-0.5" />
+            <div className="flex flex-col gap-1">
+              <h3 className="text-sm font-bold text-[#0066FF] leading-none mb-0.5">Campus Delivery Service</h3>
+              <p className="text-[11px] text-[#0066FF] leading-relaxed font-medium">
+                Please add your address to receive products from sellers within the university. 
+                This address will be used for delivery within KMUTT. 
+              </p>
+            </div>
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-3">
             <div className="space-y-1">
               <Input
-                label="Address *"
+                label="Recipient Name"
+                name="label"
+                required
+                value={formData.label}
+                onChange={handleChange}
+                placeholder="Fullname"
+                error={!!errors.label}
+                className="text-xs py-2"
+              />
+              {errors.label && (
+                <p className="text-[10px] text-red-500 font-medium ml-1">{errors.label}</p>
+              )}
+            </div>
+
+            <div className="space-y-1">
+              <Input
+                label="Phone Number"
+                name="phone"
+                required
+                value={formData.phone}
+                onChange={handleChange}
+                placeholder="0910402800"
+                maxLength={10}
+                error={!!errors.phone}
+                className="text-xs py-2"
+              />
+              {errors.phone && (
+                <p className="text-[10px] text-red-500 font-medium ml-1">{errors.phone}</p>
+              )}
+            </div>
+
+            <div className="space-y-1">
+              <Input
+                label="Address"
                 name="address_line1"
+                required
                 value={formData.address_line1}
                 onChange={handleChange}
                 placeholder="House number, Street, Dormitory"
@@ -144,22 +195,12 @@ export default function AddressModal({
               )}
             </div>
 
-            <div className="space-y-1">
-              <Input
-                label="Additional Address (Optional)"
-                name="address_line2"
-                value={formData.address_line2}
-                onChange={handleChange}
-                placeholder="District, Facilty, Building"
-                className="text-xs py-2"
-              />
-            </div>
-
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1">
                 <Input
-                  label="District *"
+                  label="District"
                   name="district"
+                  required
                   value={formData.district}
                   onChange={handleChange}
                   placeholder="District, Facilty, Building"
@@ -172,43 +213,23 @@ export default function AddressModal({
               </div>
               <div className="space-y-1">
                 <Input
-                  label="Postal Code *"
+                  label="Postal Code (Fixed)"
                   name="postal_code"
                   value={formData.postal_code}
-                  onChange={handleChange}
-                  placeholder="10110"
-                  error={!!errors.postal_code}
-                  className="text-xs py-2"
+                  readOnly
+                  className="text-xs py-2 bg-gray-50 text-gray-900 cursor-default"
                 />
-                {errors.postal_code && (
-                  <p className="text-[10px] text-red-500 font-medium ml-1">{errors.postal_code}</p>
-                )}
               </div>
             </div>
 
             <div className="space-y-1">
-              <label className="block mb-1 text-[11px] font-semibold text-gray-800">
-                Province *
-              </label>
-              <select
+              <Input
+                label="Province (Fixed)"
                 name="province"
                 value={formData.province}
-                onChange={handleChange}
-                className={`w-full bg-white rounded-lg border px-3 py-2 text-xs focus:outline-none focus:ring-2 appearance-none 
-                  ${errors.province 
-                    ? "border-red-500 focus:ring-red-400 text-red-500" 
-                    : "border-gray-300 focus:ring-orange-400 text-gray-900"
-                }`}
-              >
-                <option value="" disabled>Select Province</option>
-                <option value="Bangkok">Bangkok</option>
-                <option value="Nonthaburi">Nonthaburi</option>
-                <option value="Samut Prakan">Samut Prakan</option>
-                <option value="Pathum Thani">Pathum Thani</option>
-              </select>
-              {errors.province && (
-                <p className="text-[10px] text-red-500 font-medium ml-1 mt-0.5">{errors.province}</p>
-              )}
+                readOnly
+                className="text-xs py-2 bg-gray-50 text-gray-900 cursor-default"
+              />
             </div>
           </form>
         </div>
