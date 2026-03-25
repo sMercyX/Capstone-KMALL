@@ -35,6 +35,7 @@ const BuyerReportStatusPage = lazy(
   () => import("../modules/ReportPage/BuyerReportStatusPage")
 )
 const ChatPage = lazy(() => import("../modules/ChatPage/ChatPage"))
+const AddressPage = lazy(() => import("../modules/AddressPage/AddressPage"))
 
 // --- Backend (Admin / Seller) Setup ---
 import BackendLayout from "../components/Layout/BackendLayout"
@@ -215,6 +216,14 @@ export default function AppRoutes() {
               element={
                 <ProtectedRoute>
                   <BuyerReportStatusPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/addresses"
+              element={
+                <ProtectedRoute>
+                  <AddressPage />
                 </ProtectedRoute>
               }
             />
