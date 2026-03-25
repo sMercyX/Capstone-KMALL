@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react"
-import { FiSearch } from "react-icons/fi"
 import { Loader2 } from "lucide-react"
+import SearchInput from "../../../components/Admin/SearchInput"
 import { useBlacklistApi, type BlacklistItem } from "../../../api/blacklistApi"
 import { format } from "date-fns"
 import { MdBlockFlipped } from "react-icons/md"
@@ -136,27 +136,21 @@ export default function BlacklistedStoresPage() {
         Sellers or stores that received enforcement actions after being reported by buyers.
       </p>
 
-      {/* Search */}
       <div className="flex justify-end mb-4">
-        <div className="relative w-[280px]">
-          <FiSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-          <input
-            type="text"
-            placeholder="Search by Name and Report ID"
-            className="w-full pl-10 pr-4 py-2 rounded-lg border border-gray-200 text-sm focus:outline-none focus:border-[#ff5a36]"
-            value={searchQuery}
-            onChange={(e) => {
-              const val = e.target.value
-              setSearchQuery(val)
-              if (debounceRef.current) clearTimeout(debounceRef.current)
-              debounceRef.current = setTimeout(() => {
-                setSearchQueryDebounced(val)
-                setPage(1)
-              }, 400)
-            }}
-            onKeyDown={handleSearch}
-          />
-        </div>
+        <SearchInput
+          containerClassName="w-[280px]"
+          placeholder="Search by Name and Report ID"
+          value={searchQuery}
+          onChange={(e) => {
+            setSearchQuery(e.target.value)
+            if (debounceRef.current) clearTimeout(debounceRef.current)
+            debounceRef.current = setTimeout(() => {
+              setSearchQueryDebounced(e.target.value)
+              setPage(1)
+            }, 400)
+          }}
+          onKeyDown={handleSearch}
+        />
       </div>
 
       {/* White container */}

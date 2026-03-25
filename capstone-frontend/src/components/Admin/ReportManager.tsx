@@ -2,7 +2,7 @@ import { useEffect, useState, useCallback, useRef } from "react"
 import { useReportApi, type ReportResponse } from "../../api/reportApi"
 import { format } from "date-fns"
 import { FaChevronLeft, FaChevronRight, FaCheck, FaTimes } from "react-icons/fa"
-import { FiSearch } from "react-icons/fi"
+import SearchInput from './SearchInput'
 import { useNavigate } from "react-router-dom"
 
 interface ReportManagerProps {
@@ -247,19 +247,13 @@ export default function ReportManager({ reportedPartyType }: ReportManagerProps)
 
       {/* Search bar for Pending */}
       <div className="flex justify-end mb-4">
-        <div className="relative">
-          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">
-            <FiSearch size={18} />
-          </span>
-          <input
-            type="text"
-            value={pendingSearch}
-            onChange={(e) => handlePendingSearch(e.target.value)}
-            onKeyDown={handlePendingKeyDown}
-            placeholder="Search by Report ID or Order ID"
-            className="pl-10 pr-4 py-2 border border-gray-200 rounded-lg w-80 focus:outline-none focus:ring-1 focus:ring-primary shadow-sm text-sm bg-white"
-          />
-        </div>
+        <SearchInput
+          placeholder="Search by Report ID or Order ID"
+          value={pendingSearch}
+          onChange={(e) => handlePendingSearch(e.target.value)}
+          onKeyDown={handlePendingKeyDown}
+          containerClassName="w-80"
+        />
       </div>
 
       {/* Pending Reports Section */}
@@ -298,19 +292,13 @@ export default function ReportManager({ reportedPartyType }: ReportManagerProps)
 
       {/* Search bar for Secondary */}
       <div className="flex justify-end mb-4">
-        <div className="relative">
-          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">
-            <FiSearch size={18} />
-          </span>
-          <input
-            type="text"
-            value={secondarySearch}
-            onChange={(e) => handleSecondarySearch(e.target.value)}
-            onKeyDown={handleSecondaryKeyDown}
-            placeholder="Search by Report ID or Order ID"
-            className="pl-10 pr-4 py-2 border border-gray-200 rounded-lg w-80 focus:outline-none focus:ring-1 focus:ring-primary shadow-sm text-sm bg-white"
-          />
-        </div>
+        <SearchInput
+          placeholder="Search by ID or Store/Buyer Name"
+          value={secondarySearch}
+          onChange={(e) => handleSecondarySearch(e.target.value)}
+          onKeyDown={handleSecondaryKeyDown}
+          containerClassName="w-80"
+        />
       </div>
 
       {/* Secondary Reports Section (Tabs) */}

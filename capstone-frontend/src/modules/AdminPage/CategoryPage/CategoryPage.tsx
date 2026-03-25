@@ -1,9 +1,10 @@
 import { useEffect, useState, useRef } from "react"
 import { useNavigate } from "react-router-dom"
-import { Search, Plus, Folder, Pencil, Loader2 } from "lucide-react"
+import { Plus, Folder, Pencil } from "lucide-react"
 import { useCatagoriesApi, type CatagoriesResponse } from "../../../api/catagoriesApi"
 import LoadingSpinner from "../../../components/LoaingSpinner/LoadingSpinner"
 import { resolveImageUrl } from "../../../utils/resolve"
+import SearchInput from "../../../components/Admin/SearchInput"
 
 interface CategoryData {
   main: CatagoriesResponse
@@ -21,14 +22,7 @@ export default function CategoryPage() {
   const [isSearching, setIsSearching] = useState(false)
   const debounceTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined)
 
-  const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const val = e.target.value
-    setSearchTerm(val)
-    if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current)
-    debounceTimerRef.current = setTimeout(() => {
-      setSearchTermDebounced(val)
-    }, 400)
-  }
+
 
   useEffect(() => {
     async function loadData() {
@@ -94,20 +88,19 @@ export default function CategoryPage() {
         </h2>
         
         <div className="flex flex-col sm:flex-row gap-4 w-full md:w-auto">
-          <div className="relative w-full sm:w-auto">
-            {isSearching ? (
-              <Loader2 className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-orange-500 animate-spin" />
-            ) : (
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-            )}
-            <input 
-              type="text" 
-              placeholder="Search categories" 
-              className="pl-10 pr-4 py-2 rounded-lg border border-gray-200 outline-none focus:ring-2 focus:ring-orange-500 w-full sm:w-[300px] h-10"
-              value={searchTerm}
-              onChange={handleSearchChange}
-            />
-          </div>
+          <SearchInput
+            value={searchTerm}
+            onChange={(e) => {
+              const val = e.target.value
+              setSearchTerm(val)
+              if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current)
+              debounceTimerRef.current = setTimeout(() => {
+                setSearchTermDebounced(val)
+              }, 400)
+            }}
+            placeholder="Search categories"
+            isSearching={isSearching}
+          />
           
           <button 
             onClick={() => navigate("/admin/category/add")}
