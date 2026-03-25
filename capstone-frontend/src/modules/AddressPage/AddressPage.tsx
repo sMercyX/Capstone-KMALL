@@ -1,6 +1,6 @@
 // src/modules/AddressPage/AddressPage.tsx
 import { useEffect, useState } from "react"
-import { Plus, Trash2, Star, Info, Box } from "lucide-react"
+import { Plus, Trash2, Star, Box } from "lucide-react"
 import { toast } from "react-toastify"
 import BackButton from "../../components/Buttons/BackButton"
 import ConfirmationModal from "../../components/Modal/ConfirmationModal"
