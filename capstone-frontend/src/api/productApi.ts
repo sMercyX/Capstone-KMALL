@@ -16,9 +16,11 @@ export interface Product {
   store_id: number
   store_name: string
   category_id: number
-  category_name: string
+  variant_label?: string
   sold_count?: number
   product_type: "STOCK" | "PREORDER"
+  delivery_round_university_enabled: boolean
+  round_uni_base_fee: number
   options?: OptionKey[]
   variants?: Variant[]
 }

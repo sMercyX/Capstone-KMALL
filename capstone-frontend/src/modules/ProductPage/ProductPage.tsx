@@ -1,7 +1,7 @@
 // src/pages/product/ProductPage.tsx
 import { useEffect, useState, useRef } from "react"
 import { useParams } from "react-router-dom"
-import { ChevronLeft, ChevronRight, ShoppingCart, Star } from "lucide-react"
+import { ChevronLeft, ChevronRight, ShoppingCart, Star, Truck, Package } from "lucide-react"
 import { toast } from "react-toastify"
 import BackButton from "../../components/Buttons/BackButton"
 import { useProductApi, type productPictureResponse, type Product, type Variant } from "../../api/productApi"
@@ -286,6 +286,7 @@ export default function ProductPage() {
             <p className="text-2xl md:text-3xl font-bold text-gray-900">
               {matchedVariant ? `฿ ${matchedVariant.final_price}` : product.price ? `฿ ${product.price}` : "—"}
             </p>
+
             <p className="text-sm text-gray-600 leading-relaxed">{product.description || "No product description."}</p>
 
             {/* Options Selection (STOCK Only) */}
