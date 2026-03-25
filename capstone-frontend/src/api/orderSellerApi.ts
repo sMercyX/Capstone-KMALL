@@ -87,6 +87,45 @@ export interface OrderStatusResquest {
   status: OrderStatus
 }
 
+export interface StoreSummaryCards {
+  total_orders: number
+  total_revenue: number
+  pending_orders: number
+  cancelled_orders: number
+  completed_orders: number
+  average_order_value: number
+  total_customers: number
+  total_items_sold: number
+}
+
+export interface RevenueDataPoint {
+  date: string
+  revenue: number
+  orders: number
+}
+
+export interface StatusCount {
+  status: string
+  count: number
+}
+
+export interface TopProduct {
+  product_id: number
+  product_name: string
+  total_sold: number
+  revenue: number
+}
+
+export interface StoreSummaryResponse {
+  cards: StoreSummaryCards
+  revenue_by_period: RevenueDataPoint[]
+  status_distribution: StatusCount[]
+  top_products: TopProduct[]
+  period_from: string
+  period_to: string
+}
+
+
 export function useOrderSellerApi() {
   const http = useCrudApi()
 
@@ -140,6 +179,19 @@ export function useOrderSellerApi() {
     return http.postItem(`/orders/${orderId}/accept`, { accept: true })
   }
 
+  async function getOrderSummaries(
+    storeId: number,
+    granularity: "daily" | "monthly" | "yearly" | "all_time",
+    from?: string,
+    to?: string
+  ): Promise<ApiResponse<StoreSummaryResponse>> {
+    let url = `/stores/${storeId}/orders/summaries?granularity=${granularity}`
+    if (from) url += `&from=${from}`
+    if (to) url += `&to=${to}`
+    return http.getItems(url)
+  }
+
+
   return {
     getOrdersSellerByStatus,
     getOrderDetail,
@@ -147,5 +199,6 @@ export function useOrderSellerApi() {
     cancelledOrder,
     proposeOrder,
     acceptOrder,
+    getOrderSummaries,
   }
 }

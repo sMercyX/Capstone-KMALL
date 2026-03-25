@@ -11,6 +11,7 @@ import ProtectedRoleRoute from "../components/ProtectedRoute/ProtectedRoleRoute"
 //   return <div style={{ padding: 24 }}>404 — Page not found</div>
 // }
 const Dashboard = lazy(() => import("../modules/DashBoard/Dashboard"))
+const SellerDashboardPage = lazy(() => import("../modules/StoreSellerPage/SellerDashboardPage"))
 const LandingPage = lazy(() => import("../modules/LandingPage/LandingPage"))
 const CategoryPage = lazy(() => import("../modules/CategoryPage/CategoryPage"))
 const SearchPage = lazy(() => import("../modules/SearchPage/SearchPage"))
@@ -254,6 +255,7 @@ export default function AppRoutes() {
         >
           {/* Seller Sub-routes */}
           <Route path="/store" element={<Navigate to="/store/me" replace />} />
+          <Route path="/store/dashboard" element={<SellerDashboardPage />} />
           <Route path="/store/me" element={<StoreSellerPage />} />
           <Route path="/store/products" element={<StoreSellerPage />} />
           <Route path="/store/products/add" element={<StoreSellerPage />} />
