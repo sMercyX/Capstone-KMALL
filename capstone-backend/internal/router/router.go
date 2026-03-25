@@ -139,6 +139,7 @@ func Attach(r *gin.Engine, db *pgxpool.Pool, cfg config.Config) {
 		cartSvc,
 		pSvc,
 		sSvc,
+		addrSvc,
 		hub,
 		notiSvc,
 		orderBanProvider,
@@ -258,7 +259,7 @@ func Attach(r *gin.Engine, db *pgxpool.Pool, cfg config.Config) {
 	cartHdl.Register(v1)
 
 	// orders
-	oHdl := order.NewHandler(oSvc, oSummarySvc, rSvc, uSvc, sSvc, notiSvc)
+	oHdl := order.NewHandler(oSvc, oSummarySvc, rSvc, uSvc, sSvc, notiSvc, addrSvc)
 	oHdl.Register(v1)
 
 	//search history

@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Perpasit/Capstone-KMALL/internal/address"
 	apperr "github.com/Perpasit/Capstone-KMALL/internal/apperr"
 	"github.com/Perpasit/Capstone-KMALL/internal/cart"
 	notification "github.com/Perpasit/Capstone-KMALL/internal/notification"
@@ -57,6 +58,7 @@ type service struct {
 	cartSvc    cart.Service
 	productSvc product.Service
 	storeSvc   store.Service
+	addrSvc    address.Service
 	notifier   Notifier
 	noti       notification.Service
 	banSvc     BanProvider
@@ -80,13 +82,20 @@ func NewService(
 	c cart.Service,
 	p product.Service,
 	st store.Service,
+	ads address.Service,
 	n Notifier,
 	noti notification.Service,
 	ban BanProvider,
 ) Service {
 	return &service{
-		repo: r, cartSvc: c, productSvc: p, storeSvc: st,
-		notifier: n, noti: noti, banSvc: ban,
+		repo:       r,
+		cartSvc:    c,
+		productSvc: p,
+		storeSvc:   st,
+		addrSvc:    ads,
+		notifier:   n,
+		noti:       noti,
+		banSvc:     ban,
 	}
 }
 
@@ -317,6 +326,25 @@ func (s *service) CreateFromCart(ctx context.Context, userID string, in Checkout
 	}
 	if err := validateDelivery(&in); err != nil {
 		return OrderWithItems{}, err
+	}
+
+	if strings.EqualFold(in.DeliveryMethod, "ROUND_UNIVERSITY") {
+		if s.addrSvc == nil {
+			return OrderWithItems{}, apperr.New(apperr.Internal, "address service is not configured")
+		}
+
+		addr, err := s.addrSvc.Get(ctx, *in.DeliveryAddressID)
+		if err != nil {
+			return OrderWithItems{}, err
+		}
+
+		if addr.UserID != userID {
+			return OrderWithItems{}, apperr.New(apperr.Forbidden, "delivery address does not belong to buyer")
+		}
+
+		if !addr.IsActive {
+			return OrderWithItems{}, apperr.New(apperr.BadRequest, "delivery address is inactive")
+		}
 	}
 
 	// Buyer ban check
