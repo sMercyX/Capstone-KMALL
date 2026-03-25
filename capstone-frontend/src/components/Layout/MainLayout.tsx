@@ -5,7 +5,7 @@ import { FaInstagram, FaFacebookF, FaFigma, FaGoogle, FaGithub } from "react-ico
 
 export default function MainLayout() {
   return (
-    <div className="min-h-screen flex flex-col">
+    <div className="min-h-screen flex flex-col bg-[#f9f9f9]">
       <Navbar />
 
       <main className="flex-1 mx-auto w-full px-[48px] py-10">

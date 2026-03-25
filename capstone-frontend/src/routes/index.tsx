@@ -49,7 +49,8 @@ import {
   FaBox,
   FaHandHoldingUsd,
   FaCog,
-  FaHome
+  FaHome,
+  FaBullhorn
 } from "react-icons/fa"
 import { PiWarningCircleBold } from "react-icons/pi"
 
@@ -60,6 +61,7 @@ const AdminBuyerReportPage = lazy(() => import("../modules/AdminPage/BuyerReport
 const AdminReportDetailPage = lazy(() => import("../modules/AdminPage/ReportDetailPage/ReportDetailPage"))
 const BlacklistedStoresPage = lazy(() => import("../modules/AdminPage/BlacklistPage/BlacklistedStoresPage"))
 const BlacklistedBuyersPage = lazy(() => import("../modules/AdminPage/BlacklistPage/BlacklistedBuyersPage"))
+const AdminAnnouncementPage = lazy(() => import("../modules/AdminPage/AnnouncementPage/AnnouncementPage"))
 
 const adminMenuItems = [
   {
@@ -82,6 +84,11 @@ const adminMenuItems = [
       { label: "Blacklisted Stores", path: "/admin/blacklist/stores" },
       { label: "Blacklisted Buyers", path: "/admin/blacklist/buyers" }
     ]
+  },
+  {
+    label: "Announcements",
+    icon: <FaBullhorn />,
+    path: "/admin/announcements"
   }
 ]
 
@@ -254,6 +261,7 @@ export default function AppRoutes() {
           <Route path="report/:type/:reportId" element={<AdminReportDetailPage />} />
           <Route path="blacklist/stores" element={<BlacklistedStoresPage />} />
           <Route path="blacklist/buyers" element={<BlacklistedBuyersPage />} />
+          <Route path="announcements" element={<AdminAnnouncementPage />} />
         </Route>
 
         {/* --- GLOBAL SELLER ROUTES (Store Layout) --- */}
