@@ -64,8 +64,11 @@ export function useNotificationWebSocket(
         }
       }
 
-      socket.onclose = () => {
-        console.log('[WS-Notification] Disconnected')
+      socket.onclose = (event) => {
+        // If it was a normal closure or we nullified onclose, don't reconnect
+        if (!ws.current) return
+
+        console.log('[WS-Notification] Disconnected', event.reason)
         // Reconnect with exponential backoff (max 30s)
         const delay = Math.min(1000 * 2 ** retryCount.current, 30000)
         retryCount.current++
@@ -73,7 +76,14 @@ export function useNotificationWebSocket(
       }
 
       socket.onerror = (error) => {
-        console.error('[WS-Notification] Error:', error)
+        // Only log error if not in closing/closed state to avoid StrictMode noise
+        if (socket.readyState === WebSocket.OPEN || socket.readyState === WebSocket.CONNECTING) {
+          // If we are about to close it intentionally in cleanup, the browser might still fire error
+          // We can check if the socket is still the "current" one
+          if (ws.current === socket) {
+            console.error('[WS-Notification] Error (Handled):', error)
+          }
+        }
       }
     }
 

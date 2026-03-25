@@ -164,7 +164,7 @@ export default function SearchBar() {
   }
 
   return (
-    <div ref={wrapperRef} className="relative w-[70%]">
+    <div ref={wrapperRef} className="relative w-full text-gray-700">
       {/* Search Input */}
       <div className="relative">
         <input

@@ -113,7 +113,11 @@ export default function CartDropdown({ isOpen, onToggle, onClose }: Props) {
       </button>
 
       {isOpen && (
-        <div ref={dropdownRef} className="absolute right-0 mt-3 w-[360px] rounded-3xl bg-white shadow-xl border border-orange-200 p-5 z-50">
+        <div 
+          ref={dropdownRef} 
+          className="fixed inset-x-4 top-24 bg-white shadow-2xl p-5 z-50 rounded-2xl animate-in fade-in slide-in-from-top-2 duration-200
+                     md:absolute md:inset-auto md:right-0 md:top-full md:mt-3 md:w-[360px] md:rounded-3xl md:border md:border-orange-200 md:shadow-xl md:bg-white md:animate-none"
+        >
           {/* Header */}
           <div className="flex items-center justify-between mb-3">
             <div className="flex items-center gap-2">

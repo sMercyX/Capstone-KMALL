@@ -211,7 +211,8 @@ export default function NotificationDropdown({
       {isOpen && (
         <div
           ref={dropdownRef}
-          className="absolute right-0 mt-3 w-[380px] rounded-2xl bg-white shadow-xl border border-gray-200 z-50 overflow-hidden"
+          className="fixed inset-x-4 top-24 bg-white shadow-2xl z-50 overflow-hidden rounded-2xl animate-in fade-in slide-in-from-top-2 duration-200
+                     md:absolute md:inset-auto md:right-0 md:top-full md:mt-3 md:w-[380px] md:rounded-2xl md:border md:border-gray-200 md:shadow-xl md:bg-white md:animate-none"
         >
           {/* Header */}
           <div className="flex items-center justify-between px-5 pt-4 pb-2">
