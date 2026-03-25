@@ -113,3 +113,7 @@ type StoreOrderListResponse struct {
 	Total     int64           `json:"total"`
 	Items     []storeOrderDTO `json:"items"`
 }
+
+type AcceptRoundUniversityInput struct {
+	PromisedShipDate time.Time `json:"promised_ship_date"`
+}

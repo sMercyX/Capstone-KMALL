@@ -67,6 +67,7 @@ func (h *Handler) Register(r *gin.RouterGroup) {
 		{
 			sellerAdmin.PUT("/:id/status", h.updateStatus)
 			sellerAdmin.PUT("/:id/propose", h.propose)
+			sellerAdmin.PUT("/:id/round-uni/accept", h.acceptRoundUniversity)
 		}
 
 		// ยกเลิกออเดอร์ (Buyer/Admin)
@@ -614,4 +615,30 @@ func (h *Handler) getStoreSummary(c *gin.Context) {
 	}
 
 	respond.OK(c, apperr.OK, result)
+}
+
+func (h *Handler) acceptRoundUniversity(c *gin.Context) {
+	userID, ok := h.resolveCurrentUserID(c)
+	if !ok {
+		return
+	}
+
+	id, ok := parsePathID(c, "id")
+	if !ok {
+		return
+	}
+
+	var in AcceptRoundUniversityInput
+	if err := c.ShouldBindJSON(&in); err != nil {
+		c.Error(apperr.New(apperr.BadRequest, "bad json"))
+		return
+	}
+
+	updated, err := h.svc.AcceptRoundUniversity(c.Request.Context(), userID, id, in)
+	if err != nil {
+		c.Error(err)
+		return
+	}
+
+	respond.Updated(c, apperr.Updated, updated)
 }

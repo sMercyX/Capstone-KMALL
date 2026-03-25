@@ -38,6 +38,8 @@ type Service interface {
 	ListStoreOrders(ctx context.Context, storeID int64, statusGroup string, q string, limit, page int) ([]Order, int64, error)
 	CancelOrdersByUserRole(ctx context.Context, actorUserID, userID, role, reason string) ([]int64, error)
 	CancelOrdersByStore(ctx context.Context, actorUserID string, storeID int64, reason string) ([]int64, error)
+
+	AcceptRoundUniversity(ctx context.Context, actorUserID string, id int64, in AcceptRoundUniversityInput) (Order, error)
 }
 
 // ============================================================================
@@ -525,17 +527,17 @@ func (s *service) UpdateStatus(ctx context.Context, actorUserID string, id int64
 			return Order{}, apperr.New(apperr.Forbidden, "seller is banned, cannot update order")
 		}
 
-		if from == "Pending" && strings.ToUpper(strings.TrimSpace(ord.DeliveryMethod)) == "ROUND_UNIVERSITY" {
-			if to != "Accepted" {
-				return Order{}, apperr.New(apperr.BadRequest, "ROUND_UNIVERSITY seller can only move Pending -> Accepted")
-			}
-			ord, err = s.repo.UpdateOrderStatus(ctx, id, to)
-			if err == nil {
-				s.notifyUpdate(ctx, id)
-				s.updateOrderStatusNotiBestEffort(ctx, ord, actorUserID, from, to)
-			}
-			return ord, err
-		}
+		// if from == "Pending" && strings.ToUpper(strings.TrimSpace(ord.DeliveryMethod)) == "ROUND_UNIVERSITY" {
+		// 	if to != "Accepted" {
+		// 		return Order{}, apperr.New(apperr.BadRequest, "ROUND_UNIVERSITY seller can only move Pending -> Accepted")
+		// 	}
+		// 	ord, err = s.repo.UpdateOrderStatus(ctx, id, to)
+		// 	if err == nil {
+		// 		s.notifyUpdate(ctx, id)
+		// 		s.updateOrderStatusNotiBestEffort(ctx, ord, actorUserID, from, to)
+		// 	}
+		// 	return ord, err
+		// }
 
 		if !allowedSellerTransition(from, to) {
 			return Order{}, apperr.New(apperr.BadRequest, "seller cannot change status like this")
@@ -981,4 +983,56 @@ func (s *service) updateOrderStatusNotiBestEffort(ctx context.Context, ord Order
 		NewStatus:       to,
 	})
 	return nil
+}
+
+func (s *service) AcceptRoundUniversity(ctx context.Context, actorUserID string, id int64, in AcceptRoundUniversityInput) (Order, error) {
+	actorUserID = strings.TrimSpace(actorUserID)
+	if actorUserID == "" {
+		return Order{}, apperr.New(apperr.BadRequest, "invalid actor_user_id")
+	}
+	if id <= 0 {
+		return Order{}, apperr.New(apperr.BadRequest, "invalid order_id")
+	}
+	if in.PromisedShipDate.IsZero() {
+		return Order{}, apperr.New(apperr.BadRequest, "promised_ship_date is required")
+	}
+
+	ord, err := s.repo.GetOrder(ctx, id)
+	if err != nil {
+		return Order{}, err
+	}
+
+	if strings.ToUpper(strings.TrimSpace(ord.DeliveryMethod)) != "ROUND_UNIVERSITY" {
+		return Order{}, apperr.New(apperr.BadRequest, "this action is only available for ROUND_UNIVERSITY orders")
+	}
+	if ord.Status != "Pending" {
+		return Order{}, apperr.New(apperr.BadRequest, "can accept only when status is Pending")
+	}
+
+	isSeller, err := s.isStoreOwner(ctx, ord, actorUserID)
+	if err != nil {
+		return Order{}, err
+	}
+	if !isSeller {
+		return Order{}, apperr.New(apperr.Forbidden, "only store owner can accept ROUND_UNIVERSITY order")
+	}
+
+	if b, err := s.getBlockingBanByRole(ctx, actorUserID, "SELLER"); err != nil {
+		return Order{}, err
+	} else if b != nil {
+		_, _ = s.repo.BulkCancelActiveOrdersByStoreID(ctx, int64(ord.StoreID), banCancelReason(b))
+		_, _ = s.repo.GetOrder(ctx, id)
+		s.notifyUpdate(ctx, id)
+		return Order{}, apperr.New(apperr.Forbidden, "seller is banned, cannot accept order")
+	}
+
+	from := ord.Status
+	ord, err = s.repo.AcceptRoundUniversity(ctx, id, in.PromisedShipDate)
+	if err != nil {
+		return Order{}, err
+	}
+
+	s.notifyUpdate(ctx, id)
+	s.updateOrderStatusNotiBestEffort(ctx, ord, actorUserID, from, "Accepted")
+	return ord, nil
 }
