@@ -37,7 +37,7 @@ type Repo interface {
 
 	CreateAnnouncement(ctx context.Context, in CreateAnnouncementInput) (Announcement, error)
 	FanOutAnnouncement(ctx context.Context, announcementID int64, adminID string, title, body string, targetRoles []string) (int64, error)
-	ListAnnouncements(ctx context.Context, in ListAnnouncementsParams) ([]Announcement, error)
+	ListAnnouncements(ctx context.Context, in ListAnnouncementsParams) ([]Announcement, int64, error)
 	DeleteAnnouncement(ctx context.Context, announcementID int64) error
 }
 
@@ -48,6 +48,8 @@ type repo struct {
 type ListAnnouncementsParams struct {
 	BeforeID *int64
 	Limit    int
+	Page     int
+	Q        string
 }
 
 func NewRepo(db *pgxpool.Pool) Repo {
@@ -668,7 +670,6 @@ func (r *repo) FanOutAnnouncement(
 	title, body string,
 	targetRoles []string,
 ) (int64, error) {
-
 	lowerRoles := make([]string, len(targetRoles))
 	for i, role := range targetRoles {
 		lowerRoles[i] = strings.ToLower(role)
@@ -694,70 +695,14 @@ SELECT
 FROM user_roles ur
 JOIN roles r ON r.role_id = ur.role_id
 WHERE LOWER(r.role_name) = ANY($5::text[])
+  AND ur.user_id <> $2::uuid
 GROUP BY ur.user_id
-HAVING ur.user_id <> $2::uuid
 ON CONFLICT DO NOTHING
 `, announcementID, adminID, title, body, lowerRoles)
 	if err != nil {
 		return 0, apperr.Wrap(apperr.Internal, err, "fan-out announcement failed")
 	}
 	return tag.RowsAffected(), nil
-}
-
-func (r *repo) ListAnnouncements(ctx context.Context, in ListAnnouncementsParams) ([]Announcement, error) {
-	if in.Limit <= 0 || in.Limit > 100 {
-		in.Limit = 30
-	}
-
-	q := `
-SELECT
-  a.announcement_id,
-  a.admin_id,
-  u.display_name,
-  a.title,
-  a.body,
-  a.target_roles,
-  a.created_at,
-  a.updated_at
-FROM announcements a
-JOIN users u ON u.user_id = a.admin_id
-`
-	args := []any{}
-	argPos := 1
-
-	if in.BeforeID != nil && *in.BeforeID > 0 {
-		q += " WHERE a.announcement_id < $" + itoa(argPos)
-		args = append(args, *in.BeforeID)
-		argPos++
-	}
-
-	q += " ORDER BY a.announcement_id DESC LIMIT $" + itoa(argPos)
-	args = append(args, in.Limit)
-
-	rows, err := r.db.Query(ctx, q, args...)
-	if err != nil {
-		return nil, apperr.Wrap(apperr.Internal, err, "list announcements failed")
-	}
-	defer rows.Close()
-
-	out := make([]Announcement, 0, in.Limit)
-	for rows.Next() {
-		var a Announcement
-		var rolesJSON []byte
-		if err := rows.Scan(
-			&a.ID, &a.AdminID, &a.AdminName,
-			&a.Title, &a.Body,
-			&rolesJSON,
-			&a.CreatedAt, &a.UpdatedAt,
-		); err != nil {
-			return nil, apperr.Wrap(apperr.Internal, err, "scan announcement failed")
-		}
-		if e := json.Unmarshal(rolesJSON, &a.TargetRoles); e != nil {
-			return nil, apperr.Wrap(apperr.Internal, e, "decode target_roles failed")
-		}
-		out = append(out, a)
-	}
-	return out, nil
 }
 
 func (r *repo) DeleteAnnouncement(ctx context.Context, announcementID int64) error {
@@ -775,4 +720,97 @@ DELETE FROM announcements WHERE announcement_id = $1
 		return apperr.New(apperr.NotFound, "announcement not found")
 	}
 	return nil
+}
+
+func (r *repo) ListAnnouncements(ctx context.Context, in ListAnnouncementsParams) ([]Announcement, int64, error) {
+	if in.Limit <= 0 || in.Limit > 100 {
+		in.Limit = 30
+	}
+	if in.Page <= 0 {
+		in.Page = 1
+	}
+
+	offset := (in.Page - 1) * in.Limit
+	in.Q = strings.TrimSpace(in.Q)
+
+	baseFrom := `
+FROM announcements a
+JOIN users u ON u.user_id = a.admin_id
+`
+	where := ` WHERE 1=1 `
+	args := []any{}
+	argPos := 1
+
+	if in.Q != "" {
+		where += `
+AND (
+	a.title ILIKE $` + itoa(argPos) + `
+	OR a.body ILIKE $` + itoa(argPos) + `
+	OR u.display_name ILIKE $` + itoa(argPos) + `
+)
+`
+		args = append(args, "%"+in.Q+"%")
+		argPos++
+	}
+
+	// total count
+	countQ := `SELECT COUNT(*) ` + baseFrom + where
+	var total int64
+	if err := r.db.QueryRow(ctx, countQ, args...).Scan(&total); err != nil {
+		return nil, 0, apperr.Wrap(apperr.Internal, err, "count announcements failed")
+	}
+
+	// list items
+	listQ := `
+SELECT
+  a.announcement_id,
+  a.admin_id,
+  u.display_name,
+  a.title,
+  a.body,
+  a.target_roles,
+  a.created_at,
+  a.updated_at
+` + baseFrom + where + `
+ORDER BY a.created_at DESC, a.announcement_id DESC
+LIMIT $` + itoa(argPos) + ` OFFSET $` + itoa(argPos+1)
+
+	listArgs := append(args, in.Limit, offset)
+
+	rows, err := r.db.Query(ctx, listQ, listArgs...)
+	if err != nil {
+		return nil, 0, apperr.Wrap(apperr.Internal, err, "list announcements failed")
+	}
+	defer rows.Close()
+
+	out := make([]Announcement, 0, in.Limit)
+	for rows.Next() {
+		var a Announcement
+		var rolesJSON []byte
+
+		if err := rows.Scan(
+			&a.ID,
+			&a.AdminID,
+			&a.AdminName,
+			&a.Title,
+			&a.Body,
+			&rolesJSON,
+			&a.CreatedAt,
+			&a.UpdatedAt,
+		); err != nil {
+			return nil, 0, apperr.Wrap(apperr.Internal, err, "scan announcement failed")
+		}
+
+		if e := json.Unmarshal(rolesJSON, &a.TargetRoles); e != nil {
+			return nil, 0, apperr.Wrap(apperr.Internal, e, "decode target_roles failed")
+		}
+
+		out = append(out, a)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, 0, apperr.Wrap(apperr.Internal, err, "rows error")
+	}
+
+	return out, total, nil
 }

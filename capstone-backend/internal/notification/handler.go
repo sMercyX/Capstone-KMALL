@@ -292,30 +292,21 @@ func (h *Handler) createAnnouncement(c *gin.Context) {
 }
 
 func (h *Handler) listAnnouncements(c *gin.Context) {
-	var beforeID *int64
-	limit := 30
-
-	if v := strings.TrimSpace(c.Query("before_id")); v != "" {
-		id, err := parseInt64(v)
-		if err != nil || id <= 0 {
-			c.Error(apperr.New(apperr.BadRequest, "invalid before_id"))
-			return
-		}
-		beforeID = &id
+	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "30"))
+	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
+	if limit <= 0 || limit > 100 {
+		limit = 30
+	}
+	if page <= 0 {
+		page = 1
 	}
 
-	if v := strings.TrimSpace(c.Query("limit")); v != "" {
-		n, err := strconv.Atoi(v)
-		if err != nil || n <= 0 || n > 100 {
-			c.Error(apperr.New(apperr.BadRequest, "invalid limit"))
-			return
-		}
-		limit = n
-	}
+	q := strings.TrimSpace(c.Query("q"))
 
-	items, err := h.svc.ListAnnouncements(c.Request.Context(), ListAnnouncementsParams{
-		BeforeID: beforeID,
-		Limit:    limit,
+	items, total, err := h.svc.ListAnnouncements(c.Request.Context(), ListAnnouncementsParams{
+		Limit: limit,
+		Page:  page,
+		Q:     q,
 	})
 	if err != nil {
 		c.Error(err)
@@ -324,7 +315,9 @@ func (h *Handler) listAnnouncements(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{
 		"announcements": items,
-		"before_id":     beforeID,
+		"total":         total,
+		"pageSize":      limit,
+		"pageIndex":     page,
 	})
 }
 
