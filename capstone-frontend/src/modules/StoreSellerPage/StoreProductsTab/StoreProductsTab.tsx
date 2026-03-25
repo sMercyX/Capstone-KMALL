@@ -15,7 +15,7 @@ import { useCatagoriesApi, type CatagoriesResponse } from "../../../api/catagori
 import { Dropdown } from "../../../components/Dropdown"
 export default function StoreProductsTab() {
   const { getCatagoriesName } = useCatagoriesApi()
-  const { deleteProduct, searchProducts } = useProductApi()
+  const { deleteProduct, listStoreProducts } = useProductApi()
   const store = useStoreStore((s) => s.store)
   const navigate = useNavigate()
 
@@ -98,11 +98,11 @@ export default function StoreProductsTab() {
     async function load() {
       try {
         startLoading()
-        const res = await searchProducts({
-          storeId: store?.id,
-          q: searchQueryDebounced,
+        const res = await listStoreProducts({
+          storeId: store!.id,
+          q: searchQueryDebounced || undefined,
           parentCategoryId: selectedMainCategory === "ALL" ? undefined : Number(selectedMainCategory),
-          categoryIds: selectedSubCategory === "ALL" ? undefined : [Number(selectedSubCategory)],
+          categoryId: selectedSubCategory === "ALL" ? undefined : Number(selectedSubCategory),
           page: pageIndex,
           limit: pageSize
         })
@@ -167,7 +167,7 @@ export default function StoreProductsTab() {
           <FiSearch className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 text-lg" />
           <input
             type="text"
-            placeholder="Search products by name or SKU..."
+            placeholder="Search products by name..."
             className="w-full pl-12 pr-4 py-3 rounded-xl border border-gray-100 bg-white shadow-sm focus:outline-none focus:border-[#ff5a36] transition-all"
             value={searchQuery}
             onChange={(e) => {

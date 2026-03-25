@@ -80,6 +80,16 @@ export interface AddProductRequest {
   }[]
 }
 
+export interface ListStoreProductsParams {
+  storeId: number
+  q?: string
+  categoryId?: number
+  parentCategoryId?: number
+  limit?: number
+  page?: number
+}
+
+
 export type ProductListResponse = PaginatedResponse<Product>
 
 export type CategoryListResponse = PaginatedResponse<Product>
@@ -351,6 +361,18 @@ export function useProductApi() {
     return http.deleteItem(`/products/${productId}/options/${keyId}/values/${valueId}/image`)
   }
 
+  async function listStoreProducts(params: ListStoreProductsParams): Promise<ProductListResponse> {
+    const { storeId, q, categoryId, parentCategoryId, limit = 20, page = 1 } = params
+
+    let url = `/stores/${storeId}/products?limit=${limit}&page=${page}`
+
+    if (q) url += `&q=${encodeURIComponent(q)}`
+    if (categoryId) url += `&category_id=${categoryId}`
+    if (parentCategoryId) url += `&parent_category_id=${parentCategoryId}`
+
+    return http.getItems(url)
+  }
+
   return {
     getProductsByCategory,
     getProductBySlug,
@@ -371,5 +393,6 @@ export function useProductApi() {
     getCancellationRecommendations,
     bulkUploadProductImages,
     deleteOptionValueImage,
+    listStoreProducts,
   }
 }
