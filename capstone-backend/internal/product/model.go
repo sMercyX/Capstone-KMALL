@@ -23,6 +23,9 @@ type Product struct {
 	CategoryName string `db:"category_name" json:"category_name"`
 	SoldCount    int64  `db:"sold_count"    json:"sold_count"`
 
+	DeliveryRoundUniversityEnabled bool     `db:"delivery_round_university_enabled" json:"delivery_round_university_enabled"`
+	RoundUniBaseFee                *float64 `db:"round_uni_base_fee"                json:"round_uni_base_fee,omitempty"`
+
 	// STOCK only — populated by GetPublic / GetVariants
 	Options  []OptionKey `db:"-" json:"options,omitempty"`
 	Variants []Variant   `db:"-" json:"variants,omitempty"`

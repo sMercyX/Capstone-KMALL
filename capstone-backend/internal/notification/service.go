@@ -92,7 +92,7 @@ type Service interface {
 	CreateAdminAction(ctx context.Context, in CreateAdminActionNotificationInput) (Notification, error)
 
 	CreateAnnouncement(ctx context.Context, in CreateAnnouncementInput) (Announcement, error)
-	ListAnnouncements(ctx context.Context, in ListAnnouncementsParams) ([]Announcement, error)
+	ListAnnouncements(ctx context.Context, in ListAnnouncementsParams) ([]Announcement, int64, error)
 	DeleteAnnouncement(ctx context.Context, announcementID int64) error
 }
 
@@ -546,7 +546,7 @@ func (s *service) CreateAnnouncement(ctx context.Context, in CreateAnnouncementI
 	return ann, nil
 }
 
-func (s *service) ListAnnouncements(ctx context.Context, in ListAnnouncementsParams) ([]Announcement, error) {
+func (s *service) ListAnnouncements(ctx context.Context, in ListAnnouncementsParams) ([]Announcement, int64, error) {
 	return s.repo.ListAnnouncements(ctx, in)
 }
 

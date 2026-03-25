@@ -56,3 +56,10 @@ type CartItemUpdateParams struct {
 	Quantity *int
 	Note     *string
 }
+
+type CartStoreInfo struct {
+	ID                             int      `json:"id"`
+	Name                           string   `json:"name"`
+	DeliveryRoundUniversityEnabled bool     `json:"delivery_round_university_enabled"`
+	RoundUniBaseFee                *float64 `json:"round_uni_base_fee,omitempty"`
+}

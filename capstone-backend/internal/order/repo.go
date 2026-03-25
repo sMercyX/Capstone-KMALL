@@ -32,6 +32,8 @@ type Repo interface {
 
 	BulkCancelActiveOrdersByStoreID(ctx context.Context, storeID int64, reason string) ([]BulkCancelledOrder, error)
 	BulkCancelActiveOrdersByBuyer(ctx context.Context, buyerID string, reason string) ([]BulkCancelledOrder, error)
+
+	AcceptRoundUniversity(ctx context.Context, id int64, promisedShipDate time.Time) (Order, error)
 }
 
 type repo struct {
@@ -65,7 +67,7 @@ type OrderItemCreateParams struct {
 	FulfillmentType  string
 	Subtotal         float64
 	DepositAmount    *float64
-	PromisedShipDate time.Time
+	PromisedShipDate *time.Time
 	ProductID        int
 	VariantID        *int // nil = PREORDER, not nil = STOCK (ต้อง deduct stock)
 	Note             *string
@@ -195,10 +197,6 @@ func (r *repo) CreateOrderWithItems(
 
 	// ===== INSERT order_items + deduct stock =====
 	for _, it := range items {
-		var promised any
-		if !it.PromisedShipDate.IsZero() {
-			promised = it.PromisedShipDate
-		}
 
 		var oi OrderItem
 		err = scanOrderItem(tx.QueryRow(ctx, `
@@ -207,14 +205,14 @@ func (r *repo) CreateOrderWithItems(
         deposit_amount, promised_ship_date,
         order_id, product_id, variant_id, note
     )
-    VALUES ($1,$2,$3,$4,$5,COALESCE($6::timestamptz,CURRENT_TIMESTAMP),$7,$8,$9,$10)
+    VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
     RETURNING
         order_item_id, quantity, unit_price, fulfillment_type,
         subtotal, deposit_amount, promised_ship_date,
         order_id, product_id, variant_id, note;
 `,
 			it.Quantity, it.UnitPrice, it.FulfillmentType, it.Subtotal,
-			it.DepositAmount, promised,
+			it.DepositAmount, it.PromisedShipDate,
 			ord.ID, it.ProductID, it.VariantID, it.Note,
 		), &oi)
 		if err != nil {
@@ -693,4 +691,52 @@ func (r *repo) BulkCancelActiveOrdersByStoreID(ctx context.Context, storeID int6
 		return nil, apperr.Wrap(apperr.Internal, err, "rows error")
 	}
 	return out, nil
+}
+
+func (r *repo) AcceptRoundUniversity(ctx context.Context, id int64, promisedShipDate time.Time) (Order, error) {
+	tx, err := r.db.BeginTx(ctx, pgx.TxOptions{})
+	if err != nil {
+		return Order{}, apperr.Wrap(apperr.Internal, err, "begin tx failed")
+	}
+	defer tx.Rollback(ctx)
+
+	tag, err := tx.Exec(ctx, `
+		UPDATE order_items
+		SET promised_ship_date = $2
+		WHERE order_id = $1
+	`, id, promisedShipDate)
+	if err != nil {
+		return Order{}, apperr.Wrap(apperr.Internal, err, "update promised_ship_date failed")
+	}
+	if tag.RowsAffected() == 0 {
+		return Order{}, apperr.New(apperr.NotFound, "order items not found")
+	}
+
+	var ord Order
+	err = scanOrder(tx.QueryRow(ctx, `
+		UPDATE orders
+		SET
+			status = 'Accepted',
+			updated_at = NOW()
+		WHERE order_id = $1
+		  AND status = 'Pending'
+		  AND delivery_method = 'ROUND_UNIVERSITY'
+		RETURNING
+			order_id, status, total_price, delivery_fee, order_date, updated_at,
+			cancelled_at, cancelled_by, cancelled_reason,
+			user_id, store_id,
+			delivery_method, delivery_address_id, campus_location_id, campus_detail_note,
+			proposed_at, meeting_location_id, meeting_note
+	`, id), &ord)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return Order{}, apperr.New(apperr.Conflict, "can accept only pending ROUND_UNIVERSITY order")
+		}
+		return Order{}, apperr.Wrap(apperr.Internal, err, "accept round university order failed")
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return Order{}, apperr.Wrap(apperr.Internal, err, "commit tx failed")
+	}
+	return ord, nil
 }

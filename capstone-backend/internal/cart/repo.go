@@ -34,6 +34,8 @@ type Repo interface {
 	// ดึง product_type + validate variant
 	GetProductType(ctx context.Context, productID int) (string, error)
 	GetVariantInfo(ctx context.Context, variantID int) (productID int, isActive bool, stockQty int, err error)
+
+	GetCartStoreInfo(ctx context.Context, cartID int64) (*CartStoreInfo, error)
 }
 
 type repo struct {
@@ -391,4 +393,35 @@ func (r *repo) GetVariantInfo(ctx context.Context, variantID int) (productID int
 		return 0, false, 0, apperr.Wrap(apperr.Internal, err, "get variant info failed")
 	}
 	return productID, isActive, stockQty, nil
+}
+
+func (r *repo) GetCartStoreInfo(ctx context.Context, cartID int64) (*CartStoreInfo, error) {
+	var s CartStoreInfo
+
+	err := r.db.QueryRow(ctx, `
+		SELECT
+			st.store_id,
+			st.store_name,
+			st.delivery_round_university_enabled,
+			st.round_uni_base_fee
+		FROM cart_items ci
+		JOIN products p ON ci.product_id = p.product_id
+		JOIN stores st ON p.store_id = st.store_id
+		WHERE ci.cart_id = $1
+		ORDER BY ci.cart_item_id ASC
+		LIMIT 1;
+	`, cartID).Scan(
+		&s.ID,
+		&s.Name,
+		&s.DeliveryRoundUniversityEnabled,
+		&s.RoundUniBaseFee,
+	)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, nil
+		}
+		return nil, apperr.Wrap(apperr.Internal, err, "get cart store info failed")
+	}
+
+	return &s, nil
 }

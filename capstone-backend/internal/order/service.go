@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Perpasit/Capstone-KMALL/internal/address"
 	apperr "github.com/Perpasit/Capstone-KMALL/internal/apperr"
 	"github.com/Perpasit/Capstone-KMALL/internal/cart"
 	notification "github.com/Perpasit/Capstone-KMALL/internal/notification"
@@ -37,6 +38,8 @@ type Service interface {
 	ListStoreOrders(ctx context.Context, storeID int64, statusGroup string, q string, limit, page int) ([]Order, int64, error)
 	CancelOrdersByUserRole(ctx context.Context, actorUserID, userID, role, reason string) ([]int64, error)
 	CancelOrdersByStore(ctx context.Context, actorUserID string, storeID int64, reason string) ([]int64, error)
+
+	AcceptRoundUniversity(ctx context.Context, actorUserID string, id int64, in AcceptRoundUniversityInput) (OrderWithItems, error)
 }
 
 // ============================================================================
@@ -57,6 +60,7 @@ type service struct {
 	cartSvc    cart.Service
 	productSvc product.Service
 	storeSvc   store.Service
+	addrSvc    address.Service
 	notifier   Notifier
 	noti       notification.Service
 	banSvc     BanProvider
@@ -80,13 +84,20 @@ func NewService(
 	c cart.Service,
 	p product.Service,
 	st store.Service,
+	ads address.Service,
 	n Notifier,
 	noti notification.Service,
 	ban BanProvider,
 ) Service {
 	return &service{
-		repo: r, cartSvc: c, productSvc: p, storeSvc: st,
-		notifier: n, noti: noti, banSvc: ban,
+		repo:       r,
+		cartSvc:    c,
+		productSvc: p,
+		storeSvc:   st,
+		addrSvc:    ads,
+		notifier:   n,
+		noti:       noti,
+		banSvc:     ban,
 	}
 }
 
@@ -319,6 +330,25 @@ func (s *service) CreateFromCart(ctx context.Context, userID string, in Checkout
 		return OrderWithItems{}, err
 	}
 
+	if strings.EqualFold(in.DeliveryMethod, "ROUND_UNIVERSITY") {
+		if s.addrSvc == nil {
+			return OrderWithItems{}, apperr.New(apperr.Internal, "address service is not configured")
+		}
+
+		addr, err := s.addrSvc.Get(ctx, *in.DeliveryAddressID)
+		if err != nil {
+			return OrderWithItems{}, err
+		}
+
+		if addr.UserID != userID {
+			return OrderWithItems{}, apperr.New(apperr.Forbidden, "delivery address does not belong to buyer")
+		}
+
+		if !addr.IsActive {
+			return OrderWithItems{}, apperr.New(apperr.BadRequest, "delivery address is inactive")
+		}
+	}
+
 	// Buyer ban check
 	if b, err := s.getBlockingBanByRole(ctx, userID, "BUYER"); err != nil {
 		return OrderWithItems{}, err
@@ -393,7 +423,7 @@ func (s *service) CreateFromCart(ctx context.Context, userID string, in Checkout
 			FulfillmentType:  in.FulfillmentType,
 			Subtotal:         sub,
 			DepositAmount:    in.DepositAmount,
-			PromisedShipDate: time.Time{},
+			PromisedShipDate: nil,
 			ProductID:        ci.ProductID,
 			VariantID:        ci.VariantID, // nil = PREORDER, not nil = STOCK (repo จะ deduct stock)
 			Note:             ci.Note,
@@ -497,17 +527,17 @@ func (s *service) UpdateStatus(ctx context.Context, actorUserID string, id int64
 			return Order{}, apperr.New(apperr.Forbidden, "seller is banned, cannot update order")
 		}
 
-		if from == "Pending" && strings.ToUpper(strings.TrimSpace(ord.DeliveryMethod)) == "ROUND_UNIVERSITY" {
-			if to != "Accepted" {
-				return Order{}, apperr.New(apperr.BadRequest, "ROUND_UNIVERSITY seller can only move Pending -> Accepted")
-			}
-			ord, err = s.repo.UpdateOrderStatus(ctx, id, to)
-			if err == nil {
-				s.notifyUpdate(ctx, id)
-				s.updateOrderStatusNotiBestEffort(ctx, ord, actorUserID, from, to)
-			}
-			return ord, err
-		}
+		// if from == "Pending" && strings.ToUpper(strings.TrimSpace(ord.DeliveryMethod)) == "ROUND_UNIVERSITY" {
+		// 	if to != "Accepted" {
+		// 		return Order{}, apperr.New(apperr.BadRequest, "ROUND_UNIVERSITY seller can only move Pending -> Accepted")
+		// 	}
+		// 	ord, err = s.repo.UpdateOrderStatus(ctx, id, to)
+		// 	if err == nil {
+		// 		s.notifyUpdate(ctx, id)
+		// 		s.updateOrderStatusNotiBestEffort(ctx, ord, actorUserID, from, to)
+		// 	}
+		// 	return ord, err
+		// }
 
 		if !allowedSellerTransition(from, to) {
 			return Order{}, apperr.New(apperr.BadRequest, "seller cannot change status like this")
@@ -953,4 +983,56 @@ func (s *service) updateOrderStatusNotiBestEffort(ctx context.Context, ord Order
 		NewStatus:       to,
 	})
 	return nil
+}
+
+func (s *service) AcceptRoundUniversity(ctx context.Context, actorUserID string, id int64, in AcceptRoundUniversityInput) (OrderWithItems, error) {
+	actorUserID = strings.TrimSpace(actorUserID)
+	if actorUserID == "" {
+		return OrderWithItems{}, apperr.New(apperr.BadRequest, "invalid actor_user_id")
+	}
+	if id <= 0 {
+		return OrderWithItems{}, apperr.New(apperr.BadRequest, "invalid order_id")
+	}
+	if in.PromisedShipDate.IsZero() {
+		return OrderWithItems{}, apperr.New(apperr.BadRequest, "promised_ship_date is required")
+	}
+
+	ord, err := s.repo.GetOrder(ctx, id)
+	if err != nil {
+		return OrderWithItems{}, err
+	}
+
+	if strings.ToUpper(strings.TrimSpace(ord.DeliveryMethod)) != "ROUND_UNIVERSITY" {
+		return OrderWithItems{}, apperr.New(apperr.BadRequest, "this action is only available for ROUND_UNIVERSITY orders")
+	}
+	if ord.Status != "Pending" {
+		return OrderWithItems{}, apperr.New(apperr.BadRequest, "can accept only when status is Pending")
+	}
+
+	isSeller, err := s.isStoreOwner(ctx, ord, actorUserID)
+	if err != nil {
+		return OrderWithItems{}, err
+	}
+	if !isSeller {
+		return OrderWithItems{}, apperr.New(apperr.Forbidden, "only store owner can accept ROUND_UNIVERSITY order")
+	}
+
+	from := ord.Status
+	ord, err = s.repo.AcceptRoundUniversity(ctx, id, in.PromisedShipDate)
+	if err != nil {
+		return OrderWithItems{}, err
+	}
+
+	items, err := s.repo.ListItemsByOrderID(ctx, id)
+	if err != nil {
+		return OrderWithItems{}, err
+	}
+
+	s.notifyUpdate(ctx, id)
+	s.updateOrderStatusNotiBestEffort(ctx, ord, actorUserID, from, "Accepted")
+
+	return OrderWithItems{
+		Order: ord,
+		Items: items,
+	}, nil
 }

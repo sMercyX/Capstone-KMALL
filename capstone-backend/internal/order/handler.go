@@ -8,6 +8,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 
+	"github.com/Perpasit/Capstone-KMALL/internal/address"
 	apperr "github.com/Perpasit/Capstone-KMALL/internal/apperr"
 	"github.com/Perpasit/Capstone-KMALL/internal/middleware"
 	"github.com/Perpasit/Capstone-KMALL/internal/notification"
@@ -27,6 +28,7 @@ type Handler struct {
 	userSvc    user.Service
 	storeSvc   store.Service
 	notiSvc    notification.Service
+	addrSvc    address.Service
 }
 
 func NewHandler(
@@ -36,6 +38,7 @@ func NewHandler(
 	us user.Service,
 	ss store.Service,
 	noti notification.Service,
+	ads address.Service,
 ) *Handler {
 	return &Handler{
 		svc:        s,
@@ -44,6 +47,7 @@ func NewHandler(
 		userSvc:    us,
 		storeSvc:   ss,
 		notiSvc:    noti,
+		addrSvc:    ads,
 	}
 }
 
@@ -63,6 +67,7 @@ func (h *Handler) Register(r *gin.RouterGroup) {
 		{
 			sellerAdmin.PUT("/:id/status", h.updateStatus)
 			sellerAdmin.PUT("/:id/propose", h.propose)
+			sellerAdmin.PUT("/:id/round-uni/accept", h.acceptRoundUniversity)
 		}
 
 		// ยกเลิกออเดอร์ (Buyer/Admin)
@@ -104,22 +109,23 @@ type statusUpdateReq struct {
 	Status string `json:"status"`
 }
 
-type orderBuyerDTO struct {
-	ID          string `json:"id"`
-	DisplayName string `json:"display_name"`
-	Email       string `json:"email"`
-}
+// type orderBuyerDTO struct {
+// 	ID          string `json:"id"`
+// 	DisplayName string `json:"display_name"`
+// 	Email       string `json:"email"`
+// }
 
-type orderDetailResp struct {
-	Order           Order                  `json:"order"`
-	Items           []OrderItemWithProduct `json:"items"`
-	StoreName       string                 `json:"store_name"`
-	StoreProfileURL *string                `json:"store_profile_url,omitempty"`
-	SellerName      string                 `json:"seller_name"`
-	SellerUserID    string                 `json:"seller_user_id"`
-	BuyerName       string                 `json:"buyer_name"`
-	Buyer           *orderBuyerDTO         `json:"buyer,omitempty"`
-}
+// type OrderDetailResp struct {
+// 	Order           Order                  `json:"order"`
+// 	Items           []OrderItemWithProduct `json:"items"`
+// 	StoreName       string                 `json:"store_name"`
+// 	StoreProfileURL *string                `json:"store_profile_url,omitempty"`
+// 	SellerName      string                 `json:"seller_name"`
+// 	SellerUserID    string                 `json:"seller_user_id"`
+// 	BuyerName       string                 `json:"buyer_name"`
+// 	Buyer           *OrderBuyerDTO         `json:"buyer,omitempty"`
+// 	DeliveryAddress *address.Address       `json:"delivery_address,omitempty"`
+// }
 
 type buyerOrderDTO struct {
 	Order     Order  `json:"order"`
@@ -293,16 +299,36 @@ func (h *Handler) getOrder(c *gin.Context) {
 		return
 	}
 
-	var buyerDTO *orderBuyerDTO
+	var buyerDTO *OrderBuyerDTO
 	if isStoreOwner || isAdmin {
-		buyerDTO = &orderBuyerDTO{
+		buyerDTO = &OrderBuyerDTO{
 			ID:          buyerUser.ID,
 			DisplayName: buyerUser.DisplayName,
 			Email:       buyerUser.Email,
 		}
 	}
 
-	resp := orderDetailResp{
+	var deliveryAddress *address.Address
+	if strings.EqualFold(order.DeliveryMethod, "ROUND_UNIVERSITY") && order.DeliveryAddressID != nil {
+		if h.addrSvc == nil {
+			c.Error(apperr.New(apperr.Internal, "address service is not configured"))
+			return
+		}
+
+		addr, err := h.addrSvc.Get(ctx, *order.DeliveryAddressID)
+		if err != nil {
+			c.Error(err)
+			return
+		}
+
+		if addr.UserID != order.UserID {
+			c.Error(apperr.New(apperr.Forbidden, "address does not belong to buyer"))
+			return
+		}
+		deliveryAddress = &addr
+	}
+
+	resp := OrderDetailResp{
 		Order:           result.Order,
 		Items:           result.Items,
 		StoreName:       st.Name,
@@ -311,6 +337,7 @@ func (h *Handler) getOrder(c *gin.Context) {
 		SellerUserID:    sellerUser.ID,
 		BuyerName:       buyerUser.DisplayName,
 		Buyer:           buyerDTO,
+		DeliveryAddress: deliveryAddress,
 	}
 
 	respond.OK(c, apperr.OK, resp)
@@ -588,4 +615,30 @@ func (h *Handler) getStoreSummary(c *gin.Context) {
 	}
 
 	respond.OK(c, apperr.OK, result)
+}
+
+func (h *Handler) acceptRoundUniversity(c *gin.Context) {
+	userID, ok := h.resolveCurrentUserID(c)
+	if !ok {
+		return
+	}
+
+	id, ok := parsePathID(c, "id")
+	if !ok {
+		return
+	}
+
+	var in AcceptRoundUniversityInput
+	if err := c.ShouldBindJSON(&in); err != nil {
+		c.Error(apperr.New(apperr.BadRequest, "bad json"))
+		return
+	}
+
+	updated, err := h.svc.AcceptRoundUniversity(c.Request.Context(), userID, id, in)
+	if err != nil {
+		c.Error(err)
+		return
+	}
+
+	respond.Updated(c, apperr.Updated, updated)
 }

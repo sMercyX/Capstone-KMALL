@@ -12,6 +12,7 @@ import (
 
 type CartWithItems struct {
 	Cart  Cart           `json:"cart"`
+	Store *CartStoreInfo `json:"store,omitempty"`
 	Items []CartItemView `json:"items"`
 }
 
@@ -90,7 +91,16 @@ func (s *service) GetCart(ctx context.Context, userID string) (CartWithItems, er
 		return CartWithItems{}, err
 	}
 
-	return CartWithItems{Cart: cart, Items: items}, nil
+	store, err := s.repo.GetCartStoreInfo(ctx, int64(cart.ID))
+	if err != nil {
+		return CartWithItems{}, err
+	}
+
+	return CartWithItems{
+		Cart:  cart,
+		Store: store,
+		Items: items,
+	}, nil
 }
 
 // ============================================================================
