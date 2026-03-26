@@ -965,13 +965,20 @@ export default function StoreOrderDetailPage() {
             ? data?.buyer?.id ?? data?.order?.user_id ?? ""
             : data?.seller_user_id ?? ""
           const reported_party_type = isSellerPath ? "BUYER" as const : "SELLER" as const
-          await createOrderReport(orderId, {
-            reported_user_id,
-            reported_party_type,
-            reason_code: reportData.reasonCode,
-            description: reportData.details,
-            files: reportData.files.length > 0 ? reportData.files : undefined,
-          })
+          
+          try {
+            await createOrderReport(orderId, {
+              reported_user_id,
+              reported_party_type,
+              reason_code: reportData.reasonCode,
+              description: reportData.details,
+              files: reportData.files.length > 0 ? reportData.files : undefined,
+            })
+            toast.success("Report submitted successfully.")
+          } catch (err) {
+            handleApiError(err)
+            throw err // Re-throw to prevent modal from closing if handled by modal logic (though we want modal to stay open on error)
+          }
         }}
       />
     </div>

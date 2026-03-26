@@ -1,6 +1,6 @@
 import { useState, useRef, useCallback } from "react"
 import { createPortal } from "react-dom"
-import { X, ChevronLeft, Upload, CheckCircle } from "lucide-react"
+import { X, ChevronLeft, Upload } from "lucide-react"
 import { processImageFile } from "../../utils/imageProcessing"
 
 // Buyer reports Seller — reasons from screenshot 1
@@ -110,7 +110,7 @@ export default function ReportModal({
   reportType = "SELLER",
   targetName,
 }: ReportModalProps) {
-  const [step, setStep] = useState<1 | 2 | 3>(1)
+  const [step, setStep] = useState<1 | 2>(1)
 
   const reasons = reportType === "BUYER" ? SELLER_REPORT_BUYER_REASONS : BUYER_REPORT_SELLER_REASONS
 
@@ -155,7 +155,7 @@ export default function ReportModal({
         details,
         files,
       })
-      setStep(3) // Show success
+      handleClose() // Close modal on success
     } catch {
       // error handled by caller (toast etc.)
     } finally {
@@ -446,26 +446,6 @@ export default function ReportModal({
           </>
         )}
 
-        {/* ===== STEP 3: Success ===== */}
-        {step === 3 && (
-          <div className="flex flex-col items-center justify-center px-8 py-16">
-            <CheckCircle className="h-16 w-16 text-emerald-500 mb-4" />
-            <h3 className="text-xl font-bold text-emerald-500 mb-4">
-              SUCCESS
-            </h3>
-            <p className="text-gray-600 text-center leading-relaxed">
-              The report has been submitted successfully.
-              <br />
-              The system administrator will review it soon.
-            </p>
-            <button
-              onClick={handleClose}
-              className="mt-8 px-16 py-3 rounded-xl text-base font-semibold text-white bg-emerald-400 hover:bg-emerald-500 transition-colors cursor-pointer"
-            >
-              Continue
-            </button>
-          </div>
-        )}
       </div>
     </div>,
     document.body
