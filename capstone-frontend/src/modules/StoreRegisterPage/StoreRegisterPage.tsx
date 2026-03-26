@@ -169,6 +169,8 @@ export default function StoreRegisterPage() {
         description,
         profile_url:  "", // หรือจะส่ง "" ตรง ๆ ไปเลยก็ได้
         is_active: "YES",
+        delivery_round_university_enabled: false,
+        round_uni_base_fee: 0,
       })
 
       console.log("STORE CREATED:", res)
