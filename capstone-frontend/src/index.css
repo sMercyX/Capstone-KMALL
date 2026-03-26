@@ -218,3 +218,22 @@ a:hover {
 .animate-pulse-slow {
   animation: pulse-slow 3s cubic-bezier(0.4, 0, 0.6, 1) infinite;
 }
+/* ===============================
+   TYPOGRAPHY UTILS
+   =============================== */
+@layer utilities {
+  /* Header: Desktop 2xl, Mobile xl */
+  .text-header {
+    @apply text-xl sm:text-2xl font-bold;
+  }
+  
+  /* Normal: Desktop base, Mobile sm */
+  .text-text {
+    @apply text-sm sm:text-base;
+  }
+  
+  /* Description: Desktop sm, Mobile xs */
+  .text-description {
+    @apply text-xs sm:text-sm text-gray-500;
+  }
+}
