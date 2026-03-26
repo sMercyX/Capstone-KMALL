@@ -1,7 +1,7 @@
 // src/pages/product/ProductPage.tsx
 import { useEffect, useState, useRef } from "react"
 import { useParams } from "react-router-dom"
-import { ChevronLeft, ChevronRight, ShoppingCart, Star, Truck, Package } from "lucide-react"
+import { ChevronLeft, ChevronRight, ShoppingCart, Star, Truck } from "lucide-react"
 import { toast } from "react-toastify"
 import BackButton from "../../components/Buttons/BackButton"
 import { useProductApi, type productPictureResponse, type Product, type Variant } from "../../api/productApi"
