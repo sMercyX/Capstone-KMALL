@@ -420,9 +420,7 @@ CREATE TABLE IF NOT EXISTS cart_items (
   CONSTRAINT fk_cart_items_variant FOREIGN KEY (variant_id)
     REFERENCES product_variants (variant_id)
     ON DELETE SET NULL
-    ON UPDATE CASCADE,
-
-  CONSTRAINT uq_cart_items_cart_product_variant UNIQUE (cart_id, product_id, variant_id)
+    ON UPDATE CASCADE
 );
 
 -- ========= STORE_IMAGES =========

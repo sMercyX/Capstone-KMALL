@@ -36,6 +36,7 @@ type Repo interface {
 	GetVariantInfo(ctx context.Context, variantID int) (productID int, isActive bool, stockQty int, err error)
 
 	GetCartStoreInfo(ctx context.Context, cartID int64) (*CartStoreInfo, error)
+	GetExistingCartItemQty(ctx context.Context, cartID int, productID int, variantID *int) (int, error)
 }
 
 type repo struct {
@@ -153,17 +154,36 @@ func (r *repo) GetItem(ctx context.Context, id int64) (CartItem, error) {
 
 func (r *repo) CreateItem(ctx context.Context, in CartItemCreateParams) (CartItem, error) {
 	var item CartItem
-	// CreateItem — เพิ่ม note
-	err := r.db.QueryRow(ctx, `
-    INSERT INTO cart_items (cart_id, product_id, variant_id, quantity, note)
-    VALUES ($1, $2, $3, $4, $5)
-    ON CONFLICT (cart_id, product_id, variant_id)
-    DO UPDATE SET
-        quantity = cart_items.quantity + EXCLUDED.quantity,
-        note     = EXCLUDED.note
-    RETURNING cart_item_id, cart_id, product_id, variant_id, quantity, note;
-`, in.CartID, in.ProductID, in.VariantID, in.Quantity, in.Note,
-	).Scan(&item.ID, &item.CartID, &item.ProductID, &item.VariantID, &item.Quantity, &item.Note)
+	var err error
+
+	if in.VariantID != nil {
+		// STOCK — conflict บน partial index ที่ variant_id NOT NULL
+		err = r.db.QueryRow(ctx, `
+            INSERT INTO cart_items (cart_id, product_id, variant_id, quantity, note)
+            VALUES ($1, $2, $3, $4, $5)
+            ON CONFLICT (cart_id, product_id, variant_id)
+                WHERE variant_id IS NOT NULL
+            DO UPDATE SET
+                quantity = cart_items.quantity + EXCLUDED.quantity,
+                note     = EXCLUDED.note
+            RETURNING cart_item_id, cart_id, product_id, variant_id, quantity, note;
+        `, in.CartID, in.ProductID, in.VariantID, in.Quantity, in.Note,
+		).Scan(&item.ID, &item.CartID, &item.ProductID, &item.VariantID, &item.Quantity, &item.Note)
+	} else {
+		// PREORDER — conflict บน partial index ที่ variant_id IS NULL
+		err = r.db.QueryRow(ctx, `
+            INSERT INTO cart_items (cart_id, product_id, variant_id, quantity, note)
+            VALUES ($1, $2, NULL, $3, $4)
+            ON CONFLICT (cart_id, product_id)
+                WHERE variant_id IS NULL
+            DO UPDATE SET
+                quantity = cart_items.quantity + EXCLUDED.quantity,
+                note     = EXCLUDED.note
+            RETURNING cart_item_id, cart_id, product_id, variant_id, quantity, note;
+        `, in.CartID, in.ProductID, in.Quantity, in.Note,
+		).Scan(&item.ID, &item.CartID, &item.ProductID, &item.VariantID, &item.Quantity, &item.Note)
+	}
+
 	if err != nil {
 		return CartItem{}, apperr.Wrap(apperr.Internal, err, "create or update cart item failed")
 	}
@@ -424,4 +444,22 @@ func (r *repo) GetCartStoreInfo(ctx context.Context, cartID int64) (*CartStoreIn
 	}
 
 	return &s, nil
+}
+
+func (r *repo) GetExistingCartItemQty(ctx context.Context, cartID int, productID int, variantID *int) (int, error) {
+	var qty int
+	err := r.db.QueryRow(ctx, `
+        SELECT COALESCE(quantity, 0)
+        FROM cart_items
+        WHERE cart_id = $1 AND product_id = $2
+          AND (variant_id = $3 OR ($3 IS NULL AND variant_id IS NULL))
+        LIMIT 1;
+    `, cartID, productID, variantID).Scan(&qty)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return 0, nil // ยังไม่มีใน cart
+		}
+		return 0, apperr.Wrap(apperr.Internal, err, "get existing cart item qty failed")
+	}
+	return qty, nil
 }
