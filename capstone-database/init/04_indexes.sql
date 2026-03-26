@@ -297,3 +297,12 @@ DROP INDEX IF EXISTS uq_one_image_key_per_product;
 CREATE UNIQUE INDEX uq_one_image_key_per_product
   ON product_option_keys (product_id)
   WHERE is_image_key = TRUE;
+
+CREATE UNIQUE INDEX uq_cart_items_stock
+    ON cart_items (cart_id, product_id, variant_id)
+    WHERE variant_id IS NOT NULL;
+
+-- PREORDER: unique เฉพาะแถวที่ variant_id IS NULL
+CREATE UNIQUE INDEX uq_cart_items_preorder
+    ON cart_items (cart_id, product_id)
+    WHERE variant_id IS NULL;

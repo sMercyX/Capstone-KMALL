@@ -115,7 +115,6 @@ func (s *service) AddItem(ctx context.Context, userID string, in CartItemCreateI
 		return CartItem{}, err
 	}
 
-	// ===== ห้าม seller เพิ่มของตัวเองลงตะกร้า =====
 	ownerID, err := s.repo.GetProductOwnerID(ctx, in.ProductID)
 	if err != nil {
 		return CartItem{}, err
@@ -124,7 +123,6 @@ func (s *service) AddItem(ctx context.Context, userID string, in CartItemCreateI
 		return CartItem{}, apperr.New(apperr.Forbidden, "cannot add your own product to cart")
 	}
 
-	// ===== validate store active =====
 	newStoreID, isActive, err := s.repo.GetStoreInfoByProductID(ctx, in.ProductID)
 	if err != nil {
 		return CartItem{}, err
@@ -133,19 +131,21 @@ func (s *service) AddItem(ctx context.Context, userID string, in CartItemCreateI
 		return CartItem{}, apperr.New(apperr.BadRequest, "store is not active")
 	}
 
-	// ===== validate product_type vs variant_id =====
 	productType, err := s.repo.GetProductType(ctx, in.ProductID)
+	if err != nil {
+		return CartItem{}, err
+	}
+
+	cart, err := s.repo.GetOrCreateCartByUserID(ctx, userID)
 	if err != nil {
 		return CartItem{}, err
 	}
 
 	switch productType {
 	case "STOCK":
-		// STOCK ต้องมี variant_id เสมอ
 		if in.VariantID == nil {
 			return CartItem{}, apperr.New(apperr.BadRequest, "variant_id is required for STOCK products")
 		}
-		// validate variant: ต้อง belong to product นี้, active, และมี stock
 		variantProductID, variantActive, stockQty, err := s.repo.GetVariantInfo(ctx, *in.VariantID)
 		if err != nil {
 			return CartItem{}, err
@@ -156,21 +156,18 @@ func (s *service) AddItem(ctx context.Context, userID string, in CartItemCreateI
 		if !variantActive {
 			return CartItem{}, apperr.New(apperr.BadRequest, "variant is not active")
 		}
-		if stockQty < in.Quantity {
+		existingQty, err := s.repo.GetExistingCartItemQty(ctx, cart.ID, in.ProductID, in.VariantID)
+		if err != nil {
+			return CartItem{}, err
+		}
+		if stockQty < existingQty+in.Quantity {
 			return CartItem{}, apperr.New(apperr.BadRequest, "insufficient stock")
 		}
 
 	case "PREORDER":
-		// PREORDER ห้ามส่ง variant_id มา
 		if in.VariantID != nil {
 			return CartItem{}, apperr.New(apperr.BadRequest, "variant_id must not be provided for PREORDER products")
 		}
-	}
-
-	// ===== ถ้า cart มีสินค้าจาก store อื่น → clear ก่อน =====
-	cart, err := s.repo.GetOrCreateCartByUserID(ctx, userID)
-	if err != nil {
-		return CartItem{}, err
 	}
 
 	existingStoreID, err := s.repo.GetCartStoreID(ctx, int64(cart.ID))
