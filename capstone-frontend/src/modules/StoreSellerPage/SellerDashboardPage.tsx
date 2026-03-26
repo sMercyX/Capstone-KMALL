@@ -475,7 +475,6 @@ export default function SellerDashboardPage() {
               <tr>
                 <th className="p-4 font-bold text-center w-16"></th>
                 <th className="p-4 font-bold text-center">Product Name</th>
-                <th className="p-4 font-bold text-center">ได้เริด</th>
                 <th className="p-4 font-bold text-center">Sold</th>
                 <th className="p-4 font-bold text-center">Revenue</th>
               </tr>
@@ -483,7 +482,7 @@ export default function SellerDashboardPage() {
             <tbody className="divide-y divide-gray-50 bg-white">
               {topProducts.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="p-8 text-center text-gray-400">
+                  <td colSpan={4} className="p-8 text-center text-gray-400">
                     No products sold in this period
                   </td>
                 </tr>
@@ -506,9 +505,6 @@ export default function SellerDashboardPage() {
                         <div className="h-8 w-8 rounded bg-gray-100 flex-shrink-0"></div>
                         <span className="font-semibold text-gray-700 text-xs sm:text-sm">{p.product_name}</span>
                       </div>
-                    </td>
-                    <td className="p-4 text-center">
-                      <span className="text-gray-400 text-xs">-</span>
                     </td>
                     <td className="p-4 text-center text-gray-600 font-medium text-xs sm:text-sm">{p.total_sold.toLocaleString()}</td>
                     <td className="p-4 text-center font-bold text-gray-800 text-xs sm:text-sm">฿{p.revenue.toLocaleString()}</td>
