@@ -8,7 +8,7 @@ export default function MainLayout() {
     <div className="min-h-screen flex flex-col bg-[#f9f9f9]">
       <Navbar />
 
-      <main className="flex-1 mx-auto w-full px-[48px] py-10">
+      <main className="flex-1 mx-auto w-full max-w-[1440px] px-4 sm:px-6 md:px-[48px] py-4 sm:py-10">
         <Outlet />
       </main>
 
@@ -16,7 +16,7 @@ export default function MainLayout() {
         <div className="max-w-4xl mx-auto flex flex-col items-center gap-4">
           <img src={kmallText} alt="KMALL" className="h-8 w-auto" />
 
-          <nav className="flex gap-6 text-sm font-semibold text-gray-700">
+          <nav className="flex gap-6 text-n font-semibold text-gray-700">
             <button className="hover:text-orange-500">Service</button>
             <button className="hover:text-orange-500">Support</button>
             <button className="hover:text-orange-500">Company</button>
@@ -42,7 +42,7 @@ export default function MainLayout() {
             </div>
           </div>
 
-          <p className="mt-2 text-xs text-orange-500 font-medium tracking-wide">
+          <p className="mt-2 text-d text-orange-500 font-medium tracking-wide">
             KMALL - KMUTT Marketplace
           </p>
         </div>

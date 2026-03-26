@@ -493,8 +493,8 @@ export default function AddCategoryPage() {
       <div className="mb-6 flex-shrink-0">
         <div className="flex justify-between items-start">
             <div>
-                <p className="text-gray-400 text-sm mb-1 cursor-pointer hover:underline" onClick={() => navigate("/admin/category")}>
-                Category &gt; Category Management &gt; <span className="text-gray-600 font-semibold">{isEditMode ? "Edit Category" : "Add Category"}</span>
+                <p className="text-gray-400 text-sm mb-1 ">
+                Category &gt; <span className="hover:text-orange-500 cursor-pointer" onClick={() => navigate("/admin/category")}>Category Management</span> &gt; <span className="text-gray-600 font-semibold">{isEditMode ? "Edit Category" : "Add Category"}</span>
                 </p>
                 <h1 className="text-2xl font-bold flex items-center gap-4">
                   {isEditMode ? "Edit Main Category" : "Add Main Category"}
@@ -508,7 +508,7 @@ export default function AddCategoryPage() {
                      </button>
                   )}
                 </h1>
-                <p className="text-gray-500 text-sm mt-1">
+                <p className="text-gray-500 text-xs mt-1">
                 {isEditMode ? "Update the main category information and subcategories." : "Enter the main category information and add at least one subcategory."}
                 </p>
             </div>

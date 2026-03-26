@@ -57,15 +57,15 @@ export default function CheckoutPage() {
   >("CAMPUS") // Default to CAMPUS initially, will adjust after cart loads
 
   // Adjust delivery method based on store capability
-  useEffect(() => {
-    if (cart?.store) {
-      if (!cart.store.delivery_round_university_enabled) {
-        setDeliveryMethod("CAMPUS")
-      } else {
-        setDeliveryMethod("ROUND_UNIVERSITY")
-      }
-    }
-  }, [cart?.store?.id, cart?.store?.delivery_round_university_enabled])
+  // useEffect(() => {
+  //   if (cart?.store) {
+  //     if (!cart.store.delivery_round_university_enabled) {
+  //       setDeliveryMethod("CAMPUS")
+  //     } else {
+  //       setDeliveryMethod("ROUND_UNIVERSITY")
+  //     }
+  //   }
+  // }, [cart?.store?.id, cart?.store?.delivery_round_university_enabled])
 
   const [campusLocationId] = useState<number>(1) // Default campus location
   const [addresses, setAddresses] = useState<UserAddress[]>([])
@@ -271,38 +271,36 @@ export default function CheckoutPage() {
   }
 
   return (
-    <div className="min-h-screen bg-white">
-      <div className="mx-auto w-full max-w-[calc(100%-110px)] pt-16 pb-24">
-        <div className="mb-10 flex items-center gap-3 text-gray-900">
-          <BackButton className="mr-2" />
-          <ShoppingCart className="h-7 w-7" />
-          <h1 className="text-2xl font-semibold">Checkout</h1>
+    <div className="min-h-screen">
+      <div className="mx-auto w-full max-w-7xl px-0 sm:px-6 lg:px-8 pt-6 pb-16 sm:pt-16 sm:pb-24">
+        <div className="mb-10 flex items-center justify-center gap-3 text-gray-900">
+          <h1 className="text-h font-semibold">Checkout</h1>
         </div>
 
-        <div className="grid items-start gap-16 lg:grid-cols-[0.6fr_0.4fr]">
+        <div className="grid items-start gap-8 lg:gap-16 lg:grid-cols-[0.6fr_0.4fr]">
           {/* LEFT FORM */}
-          <section className="space-y-10 order-2 lg:order-1">
+          <section className="space-y-10 order-2 lg:order-1 px-4 sm:px-0">
             {/* Delivery Method Selection */}
             <div>
-              <h2 className="text-2xl font-bold mb-6">Delivery Method</h2>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <h2 className="text-h font-bold mb-6 text-center sm:text-left">Delivery Method</h2>
+              <div className="grid grid-cols-2 gap-3 sm:gap-4">
                 {/* Card 1: Pickup (นัดรับ) */}
                 <div 
                   onClick={() => setDeliveryMethod("CAMPUS")}
                   className={`
-                    cursor-pointer rounded-xl border-2 p-6 transition-all duration-200
-                    flex flex-col gap-4 text-left relative overflow-hidden group hover:shadow-md
+                    cursor-pointer rounded-xl border-2 p-3 sm:p-6 transition-all duration-200
+                    flex flex-col gap-2 sm:gap-4 text-left relative overflow-hidden group hover:shadow-md
                     ${deliveryMethod === "CAMPUS" 
-                      ? "border-green-500 bg-white ring-1 ring-green-500" 
-                      : "border-gray-100 bg-white hover:border-gray-200"}
+                      ? "border-orange-500 bg-white ring-1 ring-orange-500" 
+                      : "border-gray-100 bg-white hover:border-orange-200"}
                   `}
                 >
-                  <div className="text-gray-900 bg-gray-50 p-3 rounded-lg w-fit group-hover:bg-gray-100 transition-colors">
-                    <Truck className="h-8 w-8" strokeWidth={1.5} />
+                  <div className="text-gray-900 bg-gray-50 p-2 sm:p-3 rounded-lg w-fit group-hover:bg-gray-100 transition-colors">
+                    <Package className="h-6 w-6 sm:h-8 w-8" strokeWidth={1.5} />
                   </div>
                   <div>
-                    <h3 className="font-bold text-lg text-gray-900 mb-1">Pickup</h3>
-                    <p className="text-sm text-gray-500">Wait for the seller to confirm the date and time.</p>
+                    <h3 className="text-n font-bold text-gray-900 mb-0.5 sm:mb-1">Pickup Location</h3>
+                    <p className="text-d text-gray-500 line-clamp-2 sm:line-clamp-none">Seller will confirm the date and time.</p>
                   </div>
                 </div>
 
@@ -312,38 +310,38 @@ export default function CheckoutPage() {
                     if (isDeliveryEnabled) setDeliveryMethod("ROUND_UNIVERSITY")
                   }}
                   className={`
-                    cursor-pointer rounded-xl border-2 p-6 transition-all duration-200
-                    flex flex-col gap-4 text-left relative overflow-hidden group
+                    cursor-pointer rounded-xl border-2 p-3 sm:p-6 transition-all duration-200
+                    flex flex-col gap-2 sm:gap-4 text-left relative overflow-hidden group
                     ${!isDeliveryEnabled ? "opacity-50 cursor-not-allowed bg-gray-50 border-gray-100" : "hover:shadow-md"}
                     ${deliveryMethod === "ROUND_UNIVERSITY" && isDeliveryEnabled
-                      ? "border-green-500 bg-white ring-1 ring-green-500" 
-                      : isDeliveryEnabled ? "border-gray-100 bg-white hover:border-gray-200" : ""}
+                      ? "border-orange-500 bg-white ring-1 ring-orange-500" 
+                      : isDeliveryEnabled ? "border-gray-100 bg-white hover:border-orange-200" : ""}
                   `}
                 >
-                  <div className={`p-3 rounded-lg w-fit transition-colors ${!isDeliveryEnabled ? "text-gray-400 bg-gray-100" : "text-gray-900 bg-gray-50 group-hover:bg-gray-100"}`}>
-                    <Package className="h-8 w-8" strokeWidth={1.5} />
+                  <div className={`p-2 sm:p-3 rounded-lg w-fit transition-colors ${!isDeliveryEnabled ? "text-gray-400 bg-gray-100" : "text-gray-900 bg-gray-50 group-hover:bg-gray-100"}`}>
+                    <Truck className="h-6 w-6 sm:h-8 w-8" strokeWidth={1.5} />
                   </div>
                   <div>
-                    <h3 className={`font-bold text-lg mb-1 ${!isDeliveryEnabled ? "text-gray-400" : "text-gray-900"}`}>
+                    <h3 className={`text-n font-bold mb-0.5 sm:mb-1 ${!isDeliveryEnabled ? "text-gray-400" : "text-gray-900"}`}>
                         Round University Delivery
                     </h3>
-                    <p className="text-sm text-gray-500">
-                        {isDeliveryEnabled ? "Choose from your saved addresses." : "This store currently does not support delivery."}
+                    <p className="text-d text-gray-500 line-clamp-2 sm:line-clamp-none">
+                        {isDeliveryEnabled ? "Seller will deliver to your saved addresses." : "This store currently does not support delivery."}
                     </p>
                   </div>
                 </div>
 
                 {/* Pickup Instructions Warning */}
                 {deliveryMethod === "CAMPUS" && (
-                  <div className="col-span-1 md:col-span-2 mt-4 rounded-xl border border-yellow-400 bg-yellow-50 p-6 relative">
+                  <div className="col-span-2 mt-4 rounded-xl border border-yellow-400 bg-yellow-50 p-4 sm:p-6 relative">
                     <div className="flex gap-3 mb-3">
                       <AlertCircle className="h-6 w-6 text-yellow-700 shrink-0" />
-                      <h3 className="font-bold text-lg text-yellow-800">
+                      <h3 className="text-n font-bold text-yellow-800">
                         Please Note: Pickup Instructions
                       </h3>
                     </div>
                     
-                    <ul className="space-y-2 text-yellow-900 ml-9 text-sm">
+                    <ul className="space-y-2 text-yellow-900 ml-9 text-d">
                       <li className="list-disc">
                         For pickup orders, the seller will specify the location, date, and time for pickup.
                       </li>
@@ -365,7 +363,15 @@ export default function CheckoutPage() {
             {/* Conditional Fields Based on Delivery Method */}
             {deliveryMethod === "ROUND_UNIVERSITY" && (
               <div className="space-y-6 pt-4 border-t border-gray-100 mt-6">
-                <h2 className="text-lg font-bold text-gray-900">Delivery Address Details</h2>
+                <div className="flex items-center justify-between gap-4">
+                  <h2 className="text-h font-bold text-gray-900">Delivery Address Details</h2>
+                  <button
+                    onClick={() => navigate("/addresses")}
+                    className="flex items-center gap-1 text-sm font-semibold text-orange-500 hover:text-orange-600 transition-colors cursor-pointer whitespace-nowrap"
+                  >
+                    <Plus className="h-4 w-4" /> Add Address
+                  </button>
+                </div>
                 <div className="space-y-4">
                   <DeliveryAddressDropdown
                     label="Address"
@@ -373,16 +379,6 @@ export default function CheckoutPage() {
                     onChange={(val) => setDeliveryAddressId(val)}
                     addresses={addresses}
                   />
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium text-gray-600 ml-1">Note (Optional)</label>
-                    <input
-                      type="text"
-                      placeholder="e.g. Building, Room, or Landmark"
-                      value={addressExtra}
-                      onChange={(e) => setAddressExtra(e.target.value)}
-                      className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-base shadow-sm focus:border-orange-400 focus:ring-2 focus:ring-orange-100 outline-none transition-all placeholder:text-gray-300"
-                    />
-                  </div>
                 </div>
               </div>
             )}
@@ -393,7 +389,7 @@ export default function CheckoutPage() {
           </section>
 
           {/* RIGHT SUMMARY */}
-          <section className="rounded-[28px] border border-gray-200 bg-[#f7f7f7] px-10 py-10 shadow-[0_18px_40px_rgba(0,0,0,0.06)] order-1 lg:order-2">
+          <section className="sm:rounded-[28px] border-y sm:border border-gray-100 sm:border-gray-200 bg-white p-4 sm:p-10 shadow-none sm:shadow-[0_18px_40px_rgba(0,0,0,0.06)] order-1 lg:order-2">
             {stores.length === 0 ? (
               <p className="text-center text-sm text-gray-400">
                 No items in your cart.
@@ -512,12 +508,12 @@ export default function CheckoutPage() {
         </div>
       </div>
       
-      <div className="mt-12 flex justify-center w-full">
+      <div className="mt-12 flex justify-center w-full px-4 sm:px-0">
         <button
           type="button"
           onClick={handleConfirmClick}
           disabled={submitting || !cart || totalItems === 0}
-          className="rounded-xl bg-[#f0532c] px-20 py-4 text-base font-semibold text-white shadow-lg hover:bg-[#e24420] disabled:opacity-60 disabled:cursor-not-allowed transition-all transform hover:scale-105"
+          className="w-full sm:w-auto rounded-xl bg-[#f0532c] sm:px-20 py-4 text-base font-semibold text-white shadow-lg hover:bg-[#e24420] disabled:opacity-60 disabled:cursor-not-allowed transition-all transform hover:scale-105"
         >
           Confirm Order
         </button>

@@ -18,7 +18,7 @@ export default function BackendLayout({ title, menuItems }: SideNavbarProps) {
       
       {/* Mobile Top Header */}
       <div className="md:hidden flex items-center justify-between bg-white border-b border-gray-200 px-4 py-3 sticky top-0 z-20 shadow-sm flex-shrink-0">
-        <span className="font-bold text-lg text-[#ff5a36]">{title || "KMALL"}</span>
+        <span className="font-bold text-n text-[#ff5a36]">{title || "KMALL"}</span>
         <button 
           onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
           className="p-2 text-gray-600 hover:text-[#ff5a36] transition-colors focus:outline-none"
