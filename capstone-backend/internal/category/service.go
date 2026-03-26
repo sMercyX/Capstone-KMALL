@@ -508,15 +508,19 @@ func (s *service) DeleteCategory(ctx context.Context, id int64) error {
 		return err
 	}
 
+	// if cur.ParentID == nil {
+	// 	cnt, err := s.repo.CountSubcategories(ctx, id)
+	// 	if err != nil {
+	// 		return err
+	// 	}
+	// 	if cnt > 0 {
+	// 		return apperr.New(apperr.BadRequest, "cannot delete main category while it still has sub categories")
+	// 	}
+	// 	return s.repo.DeleteCategoryHard(ctx, id)
+	// }
+
 	if cur.ParentID == nil {
-		cnt, err := s.repo.CountSubcategories(ctx, id)
-		if err != nil {
-			return err
-		}
-		if cnt > 0 {
-			return apperr.New(apperr.BadRequest, "cannot delete main category while it still has sub categories")
-		}
-		return s.repo.DeleteCategoryHard(ctx, id)
+		return s.repo.DeleteMainIfNoProductsInSubs(ctx, id)
 	}
 
 	if strings.ToUpper(strings.TrimSpace(cur.IsActive)) != "NO" {
