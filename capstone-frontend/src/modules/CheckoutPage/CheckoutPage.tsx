@@ -248,7 +248,7 @@ export default function CheckoutPage() {
       navigate(`/orders/${res.data.order.id}`)
     } catch (err) {
       console.error(err)
-      toast.error( {err} ?? "Unable to place order.")
+      toast.error("Unable to place order. Please try again.")
     } finally {
       setSubmitting(false)
     }

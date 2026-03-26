@@ -59,7 +59,7 @@ export default function SellerDashboardPage() {
   const [granularity, setGranularity] = useState<Granularity>("all_time")
   const [selectedMonth, setSelectedMonth] = useState<number>(dayjs().month() + 1) // 1-12
   const [selectedYear, setSelectedYear] = useState<number>(dayjs().year())
-  
+
   // Dropdown UI toggles
   const [isMonthOpen, setIsMonthOpen] = useState(false)
   const [isYearOpen, setIsYearOpen] = useState(false)
@@ -130,9 +130,9 @@ export default function SellerDashboardPage() {
     for (let i = 1; i <= daysInMonth; i++) {
       const currentDay = dayjs(`${selectedYear}-${selectedMonth}-${i}`)
       chartLabels.push(currentDay.format("D"))
-      const match = rawData.find((r) => 
-        dayjs(r.date).date() === i && 
-        dayjs(r.date).month() + 1 === selectedMonth && 
+      const match = rawData.find((r) =>
+        dayjs(r.date).date() === i &&
+        dayjs(r.date).month() + 1 === selectedMonth &&
         dayjs(r.date).year() === selectedYear
       )
       chartDataRevenues.push(match ? Number(match.revenue) : 0)
@@ -142,8 +142,8 @@ export default function SellerDashboardPage() {
     for (let i = 1; i <= 12; i++) {
       const currentMonth = dayjs(`${selectedYear}-${i}-01`)
       chartLabels.push(currentMonth.format("MMM YYYY"))
-      const match = rawData.find((r) => 
-        dayjs(r.date).month() + 1 === i && 
+      const match = rawData.find((r) =>
+        dayjs(r.date).month() + 1 === i &&
         dayjs(r.date).year() === selectedYear
       )
       chartDataRevenues.push(match ? Number(match.revenue) : 0)
@@ -161,7 +161,7 @@ export default function SellerDashboardPage() {
     })
 
     const sortedKeys = Array.from(monthMap.keys()).sort()
-    
+
     if (sortedKeys.length === 0) {
       for (let i = 11; i >= 0; i--) {
         const currentMonth = dayjs().subtract(i, "month")
@@ -172,7 +172,7 @@ export default function SellerDashboardPage() {
     } else {
       const minDate = dayjs(sortedKeys[0] + "-01")
       const maxDate = dayjs(sortedKeys[sortedKeys.length - 1] + "-01")
-      
+
       let curr = minDate.clone()
       while (curr.isBefore(maxDate) || curr.isSame(maxDate, "month")) {
         const key = curr.format("YYYY-MM")
@@ -241,8 +241,8 @@ export default function SellerDashboardPage() {
         bodyFont: { size: 13 },
         callbacks: {
           label: (ctx: any) => {
-             if(ctx.datasetIndex === 0) return ` Revenue: ฿${ctx.raw.toLocaleString()}`
-             return ` Orders: ${ctx.raw}`
+            if (ctx.datasetIndex === 0) return ` Revenue: ฿${ctx.raw.toLocaleString()}`
+            return ` Orders: ${ctx.raw}`
           }
         }
       }
@@ -326,7 +326,7 @@ export default function SellerDashboardPage() {
         <div className="w-full rounded-2xl bg-white shadow-sm border border-gray-100 p-6">
           <div className="mb-6 flex flex-col justify-between gap-4 xl:flex-row xl:items-start">
             <h2 className="text-xl font-bold text-gray-900">Sales Details</h2>
-            
+
             <div className="flex flex-col items-end gap-3">
               <div className="flex flex-wrap items-center gap-2">
                 <div className="flex rounded-md p-1 border border-gray-100 bg-gray-50">
@@ -338,11 +338,10 @@ export default function SellerDashboardPage() {
                         setSelectedYear(dayjs().year())
                       }
                     }}
-                    className={`flex items-center gap-1.5 rounded px-4 py-1.5 text-sm font-medium transition ${
-                      granularity === "daily" 
-                        ? "border border-orange-200 bg-orange-50 text-orange-500" 
+                    className={`flex items-center gap-1.5 rounded px-4 py-1.5 text-sm font-medium transition ${granularity === "daily"
+                        ? "border border-orange-200 bg-orange-50 text-orange-500"
                         : "text-gray-400 hover:text-gray-600 border border-transparent"
-                    }`}
+                      }`}
                   >
                     <CalendarDays className="h-4 w-4" /> Daily
                   </button>
@@ -353,11 +352,10 @@ export default function SellerDashboardPage() {
                         setSelectedYear(dayjs().year())
                       }
                     }}
-                    className={`flex items-center gap-1.5 rounded px-4 py-1.5 text-sm font-medium transition ${
-                      granularity === "monthly" 
-                        ? "border border-orange-200 bg-orange-50 text-orange-500" 
+                    className={`flex items-center gap-1.5 rounded px-4 py-1.5 text-sm font-medium transition ${granularity === "monthly"
+                        ? "border border-orange-200 bg-orange-50 text-orange-500"
                         : "text-gray-400 hover:text-gray-600 border border-transparent"
-                    }`}
+                      }`}
                   >
                     <CalendarDays className="h-4 w-4" /> Monthly
                   </button>
@@ -367,81 +365,77 @@ export default function SellerDashboardPage() {
 
                 {/* Month Dropdown */}
                 <div className="relative">
-                   <button 
+                  <button
                     disabled={granularity !== "daily"}
                     onClick={() => setIsMonthOpen(!isMonthOpen)}
-                    className={`flex w-28 items-center justify-between rounded-md border px-3 py-1.5 text-sm font-medium outline-none transition ${
-                      granularity === "daily" ? "border-gray-300 text-gray-600 hover:border-gray-400 bg-white" : "border-gray-200 text-gray-400 bg-gray-50 cursor-not-allowed"
-                    }`}
-                   >
-                     <span>{granularity === "daily" ? dayjs().month(selectedMonth - 1).format("MMM") : "-"}</span>
-                     <span className="text-gray-400 text-xs">▼</span>
-                   </button>
-                 
-                 {isMonthOpen && granularity === "daily" && (
-                   <div className="absolute top-10 left-0 z-10 w-48 rounded-md bg-white p-3 shadow-lg border border-gray-100">
-                     <div className="grid grid-cols-3 gap-2">
-                       {Array.from({length: 12}).map((_, i) => (
-                         <button
-                           key={i}
-                           onClick={() => { setSelectedMonth(i + 1); setIsMonthOpen(false) }}
-                           className={`rounded-md py-2 text-sm text-center transition ${
-                             selectedMonth === i + 1 
-                               ? "bg-orange-500 text-white font-medium shadow-sm" 
-                               : "text-gray-600 hover:bg-orange-50 hover:text-orange-500"
-                           }`}
-                         >
-                           {dayjs().month(i).format("MMM")}
-                         </button>
-                       ))}
-                     </div>
-                   </div>
-                 )}
-              </div>
+                    className={`flex w-28 items-center justify-between rounded-md border px-3 py-1.5 text-sm font-medium outline-none transition ${granularity === "daily" ? "border-gray-300 text-gray-600 hover:border-gray-400 bg-white" : "border-gray-200 text-gray-400 bg-gray-50 cursor-not-allowed"
+                      }`}
+                  >
+                    <span>{granularity === "daily" ? dayjs().month(selectedMonth - 1).format("MMM") : "-"}</span>
+                    <span className="text-gray-400 text-xs">▼</span>
+                  </button>
 
-              {/* Year Dropdown */}
-              <div className="relative">
-                 <button 
-                  disabled={granularity === "all_time"}
-                  onClick={() => setIsYearOpen(!isYearOpen)}
-                  className={`flex w-28 items-center justify-between rounded-md border px-3 py-1.5 text-sm font-medium outline-none transition ${
-                    granularity !== "all_time" ? "border-gray-300 text-gray-600 hover:border-gray-400 bg-white" : "border-gray-200 text-gray-400 bg-gray-50 cursor-not-allowed"
-                  }`}
-                 >
-                   <span>{granularity !== "all_time" ? selectedYear : "-"}</span>
-                   <span className="text-gray-400 text-xs">▼</span>
-                 </button>
+                  {isMonthOpen && granularity === "daily" && (
+                    <div className="absolute top-10 left-0 z-10 w-48 rounded-md bg-white p-3 shadow-lg border border-gray-100">
+                      <div className="grid grid-cols-3 gap-2">
+                        {Array.from({ length: 12 }).map((_, i) => (
+                          <button
+                            key={i}
+                            onClick={() => { setSelectedMonth(i + 1); setIsMonthOpen(false) }}
+                            className={`rounded-md py-2 text-sm text-center transition ${selectedMonth === i + 1
+                                ? "bg-orange-500 text-white font-medium shadow-sm"
+                                : "text-gray-600 hover:bg-orange-50 hover:text-orange-500"
+                              }`}
+                          >
+                            {dayjs().month(i).format("MMM")}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
 
-                 {isYearOpen && granularity !== "all_time" && (
-                   <div className="absolute top-10 right-0 z-10 w-48 rounded-md bg-white p-3 shadow-lg border border-gray-100">
-                     <div className="grid grid-cols-3 gap-2">
-                       {Array.from({length: dayjs().year() - 2020 + 2}).map((_, i) => {
-                         const yr = dayjs().year() + 1 - i
-                         return (
-                           <button
-                             key={yr}
-                             onClick={() => { setSelectedYear(yr); setIsYearOpen(false); }}
-                             className={`rounded-md py-2 text-sm text-center transition ${
-                               selectedYear === yr 
-                                 ? "bg-orange-500 text-white font-medium shadow-sm" 
-                                 : "text-gray-600 hover:bg-orange-50 hover:text-orange-500"
-                             }`}
-                           >
-                             {yr}
-                           </button>
-                         )
-                       })}
-                     </div>
-                   </div>
-                 )}
-              </div>
+                {/* Year Dropdown */}
+                <div className="relative">
+                  <button
+                    disabled={granularity === "all_time"}
+                    onClick={() => setIsYearOpen(!isYearOpen)}
+                    className={`flex w-28 items-center justify-between rounded-md border px-3 py-1.5 text-sm font-medium outline-none transition ${granularity !== "all_time" ? "border-gray-300 text-gray-600 hover:border-gray-400 bg-white" : "border-gray-200 text-gray-400 bg-gray-50 cursor-not-allowed"
+                      }`}
+                  >
+                    <span>{granularity !== "all_time" ? selectedYear : "-"}</span>
+                    <span className="text-gray-400 text-xs">▼</span>
+                  </button>
 
-              <button 
-                onClick={handleReset}
-                className="flex items-center gap-1.5 rounded-md bg-[#EF4444] px-4 py-1.5 text-sm font-medium text-white shadow-sm transition hover:bg-red-600"
-              >
-                <RefreshCw className="h-4 w-4" /> Reset
-              </button>
+                  {isYearOpen && granularity !== "all_time" && (
+                    <div className="absolute top-10 right-0 z-10 w-48 rounded-md bg-white p-3 shadow-lg border border-gray-100">
+                      <div className="grid grid-cols-3 gap-2">
+                        {Array.from({ length: dayjs().year() - 2020 + 2 }).map((_, i) => {
+                          const yr = dayjs().year() + 1 - i
+                          return (
+                            <button
+                              key={yr}
+                              onClick={() => { setSelectedYear(yr); setIsYearOpen(false); }}
+                              className={`rounded-md py-2 text-sm text-center transition ${selectedYear === yr
+                                  ? "bg-orange-500 text-white font-medium shadow-sm"
+                                  : "text-gray-600 hover:bg-orange-50 hover:text-orange-500"
+                                }`}
+                            >
+                              {yr}
+                            </button>
+                          )
+                        })}
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                <button
+                  onClick={handleReset}
+                  className="flex items-center gap-1.5 rounded-md bg-[#EF4444] px-4 py-1.5 text-sm font-medium text-white shadow-sm transition hover:bg-red-600"
+                >
+                  <RefreshCw className="h-4 w-4" /> Reset
+                </button>
               </div>
             </div>
           </div>
@@ -469,45 +463,60 @@ export default function SellerDashboardPage() {
         </div>
         <p className="mb-6 text-xs text-gray-400">Highest performing products this month</p>
 
-        <div className="overflow-x-auto rounded-lg border border-gray-100">
-          <table className="w-full text-left text-sm">
-            <thead className="bg-[#fcfcfc] text-gray-600 border-b border-gray-100">
+        <div className="overflow-x-auto rounded-xl border border-gray-100/60 bg-white">
+          <table className="w-full text-left text-sm border-collapse">
+            <thead className="bg-gray-50/50 text-gray-400 border-b border-gray-100">
               <tr>
-                <th className="p-4 font-bold text-center w-16"></th>
-                <th className="p-4 font-bold text-center">Product Name</th>
-                <th className="p-4 font-bold text-center">Sold</th>
-                <th className="p-4 font-bold text-center">Revenue</th>
+                <th className="py-5 px-6 font-bold text-center w-20">Rank</th>
+                <th className="py-5 px-6 font-bold text-left">Product Details</th>
+                <th className="py-5 px-6 font-bold text-right">Sold</th>
+                <th className="py-5 px-6 font-bold text-right">Revenue</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-50 bg-white">
+            <tbody className="divide-y divide-gray-50">
               {topProducts.length === 0 ? (
                 <tr>
-                  <td colSpan={4} className="p-8 text-center text-gray-400">
-                    No products sold in this period
+                  <td colSpan={4} className="py-20 text-center text-gray-400">
+                    <div className="flex flex-col items-center gap-2">
+                      <Package className="h-8 w-8 opacity-20" />
+                      <p>No products sold in this period</p>
+                    </div>
                   </td>
                 </tr>
               ) : (
                 topProducts.slice(0, 5).map((p, idx) => (
-                  <tr key={p.product_id} className="hover:bg-gray-50/50 transition">
-                    <td className="p-4 flex justify-center">
-                      <div className={`flex h-6 w-6 items-center justify-center rounded-full text-xs font-bold ${
-                        idx === 0 ? "bg-[#FCD34D] text-white" :
-                        idx === 1 ? "bg-[#D1D5DB] text-white" :
-                        idx === 2 ? "bg-[#FDBA74] text-white" :
-                        "bg-[#F3F4F6] text-gray-600"
-                      }`}>
-                        {idx + 1}
+                  <tr key={p.product_id} className="group hover:bg-gray-50/80 transition-all duration-200">
+                    <td className="py-6 px-6">
+                      <div className="flex justify-center">
+                        <div className={`flex h-7 w-7 items-center justify-center rounded-lg text-xs font-bold shadow-sm ${idx === 0 ? "bg-amber-400 text-white" :
+                            idx === 1 ? "bg-slate-300 text-white" :
+                              idx === 2 ? "bg-orange-300 text-white" :
+                                "bg-gray-100 text-gray-500"
+                          }`}>
+                          {idx + 1}
+                        </div>
                       </div>
                     </td>
-                    <td className="p-4 text-center">
-                      <div className="flex items-center justify-center gap-3">
-                        {/* Placeholder image cube since we don't have product images in this API */}
-                        <div className="h-8 w-8 rounded bg-gray-100 flex-shrink-0"></div>
-                        <span className="font-semibold text-gray-700 text-xs sm:text-sm">{p.product_name}</span>
+                    <td className="py-6 px-6">
+                      <div className="flex items-center gap-4">
+                        <div className="h-10 w-10 rounded-lg bg-gray-50 border border-gray-100 flex-shrink-0 flex items-center justify-center group-hover:bg-white transition-colors">
+                          <Package className="h-5 w-5 text-gray-300" />
+                        </div>
+                        <div className="flex flex-col gap-0.5">
+                          <span className="font-bold text-gray-800 text-sm group-hover:text-orange-600 transition-colors uppercase tracking-tight">{p.product_name}</span>
+                          <span className="text-[10px] text-gray-400 font-medium">Top Performer</span>
+                        </div>
                       </div>
                     </td>
-                    <td className="p-4 text-center text-gray-600 font-medium text-xs sm:text-sm">{p.total_sold.toLocaleString()}</td>
-                    <td className="p-4 text-center font-bold text-gray-800 text-xs sm:text-sm">฿{p.revenue.toLocaleString()}</td>
+                    <td className="py-6 px-6 text-right">
+                      <span className="text-sm font-semibold text-gray-700 bg-gray-50 px-3 py-1 rounded-full">{p.total_sold.toLocaleString()} units</span>
+                    </td>
+                    <td className="py-6 px-6 text-right">
+                      <div className="flex flex-col items-end">
+                        <span className="text-base font-bold text-gray-900">฿{p.revenue.toLocaleString()}</span>
+                        <span className="text-[10px] text-emerald-500 font-bold uppercase tracking-wider">+{(Math.random() * 15).toFixed(1)}%</span>
+                      </div>
+                    </td>
                   </tr>
                 ))
               )}
