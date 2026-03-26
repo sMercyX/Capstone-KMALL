@@ -1,12 +1,9 @@
 // src/components/Store/StoreEditModal.tsx
 import { useEffect, useState } from "react"
-import { Upload, X } from "lucide-react"
+import { X } from "lucide-react"
 import * as yup from "yup"
 import { toast } from "react-toastify"
 import ToggleSwitch from "../../../../components/Toggle/ToggleSwitch"
-import { Input } from "../../../../components/Input/Input"
-import { Textarea } from "../../../../components/Input/Textarea"
-import { resolveImageUrl } from "../../../../utils/resolve"
 
 export type StoreEditForm = {
   name: string
@@ -191,118 +188,149 @@ export default function StoreEditModal({
     <div className="fixed inset-0 z-50 flex items-center justify-center">
       <div className="absolute inset-0 bg-black/40" onClick={onClose} />
 
-      <div className="relative z-10 w-full max-w-2xl mx-4">
-        <div className="max-h-[85vh] overflow-y-auto rounded-3xl bg-white p-8 shadow-xl">
-          {/* close */}
-          <button
-            type="button"
-            className="absolute top-4 right-4 h-8 w-8 rounded-full bg-red-500 text-white flex items-center justify-center hover:bg-red-600"
-            onClick={onClose}
-          >
-            <X className="h-4 w-4" />
-          </button>
-
-          <h2 className="text-center text-lg font-semibold mb-6">
-            Edit Store Information
-          </h2>
-
-          <form onSubmit={handleFormSubmit} className="space-y-6">
-            {/* ชื่อร้าน */}
-            <div className="space-y-1">
-              <Input
-                label="Store Name"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                maxLength={100}
-                error={errors.name}
-              />
-              <p className="text-xs text-gray-500 text-right">
-                {name.length} / 100 characters
-              </p>
+      <div className="relative z-10 w-full max-w-3xl mx-4">
+        <div className="max-h-[85vh] overflow-y-auto rounded-[1.25rem] bg-white shadow-xl scrollbar-hide">
+          
+          {/* Header */}
+          <div className="sticky top-0 z-20 bg-white px-8 py-6 border-b border-gray-200 flex items-start justify-between">
+            <div className="flex items-center gap-4">
+              <div className="flex h-12 w-12 items-center justify-center rounded-full border border-orange-200">
+                <svg className="h-6 w-6 text-orange-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L6.832 19.82a4.5 4.5 0 01-1.897 1.13l-2.685.8.8-2.685a4.5 4.5 0 011.13-1.897L16.863 4.487zm0 0L19.5 7.125" />
+                </svg>
+              </div>
+              <div>
+                <h2 className="text-xl font-bold text-gray-900">Edit Store Information</h2>
+                <p className="text-[13px] text-gray-500 mt-1">Update your store details and delivery configuration.</p>
+              </div>
             </div>
+            <button
+              type="button"
+              className="mt-1 h-8 w-8 rounded-md text-gray-500 flex items-center justify-center hover:bg-gray-100 hover:text-gray-900 transition-colors"
+              onClick={onClose}
+            >
+              <X className="h-5 w-5" />
+            </button>
+          </div>
 
-            {/* คำอธิบายร้าน */}
-            <div className="space-y-1">
-              <Textarea
-                label="Store Description"
-                rows={3}
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-                maxLength={255}
-                error={errors.description}
-                className="resize-none"
-              />
-              <p className="text-xs text-gray-500 text-right">
-                {description.length} / 255 characters
-              </p>
-            </div>
-
-            {/* โลโก้ร้าน */}
-            <div className="space-y-1">
-              <label className="font-medium flex items-center gap-1">
-                Store Logo
-              </label>
-
-              <label className="flex flex-col bg-white items-center justify-center cursor-pointer border border-dashed rounded-xl py-6 hover:bg-gray-50 transition relative overflow-hidden">
-                {previewUrl || profileUrl ? (
-                  <img 
-                    src={previewUrl || resolveImageUrl(profileUrl)} 
-                    alt="Preview" 
-                    className="h-32 w-32 object-cover rounded-full mb-2 border"
+          <form onSubmit={handleFormSubmit} className="p-8 space-y-8">
+            
+            {/* General Information Section */}
+            <div>
+              <h3 className="text-[17px] font-bold text-gray-900 mb-5">General Information</h3>
+              
+              <div className="space-y-6">
+                {/* Store Name */}
+                <div>
+                  <label className="block text-[13px] font-bold text-gray-900 mb-2">Store Name :</label>
+                  <input
+                    type="text"
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    maxLength={100}
+                    className={`w-full rounded-[0.5rem] bg-[#f8fafc] border ${errors.name ? 'border-red-500' : 'border-gray-300'} px-4 py-3 text-sm text-gray-900 focus:outline-none focus:ring-1 focus:ring-orange-500`}
                   />
-                ) : (
-                  <Upload className="h-6 w-6 text-gray-500" />
-                )}
-                <span className="mt-1 text-sm text-gray-600">
-                  {previewUrl || profileUrl ? "Change Image" : "Upload Image"}
-                </span>
-                <input
-                  type="file"
-                  className="hidden"
-                  accept={SUPPORTED_IMAGE_TYPES}   // ✅ เฉพาะไฟล์ภาพ
-                  multiple={false}   // ✅ เลือกได้รูปเดียว
-                  onChange={handleFileChange}
-                />
-              </label>
+                  {errors.name && <p className="text-xs text-red-500 mt-1">Please enter a valid store name.</p>}
+                </div>
 
-              <p className="text-xs text-gray-500">{fileName}</p>
-            </div>
-
-            {/* การตั้งค่าการจัดส่ง */}
-            <div className="pt-4 border-t border-gray-100">
-               <h3 className="text-sm font-bold text-gray-900 mb-4">Delivery Settings</h3>
-               <div className="space-y-4">
-                  <div className="flex items-center justify-between p-4 bg-gray-50 rounded-2xl">
-                     <div>
-                        <p className="text-sm font-semibold text-gray-900">Round University Delivery</p>
-                        <p className="text-xs text-gray-500">Enable delivery service around the university campus.</p>
-                     </div>
-                     <ToggleSwitch checked={deliveryEnabled} onChange={setDeliveryEnabled} />
+                {/* Shop Logo */}
+                <div>
+                  <label className="block text-[13px] font-bold text-gray-900 mb-2">Shop Logo :</label>
+                  
+                  <div className="flex items-center gap-3 w-full rounded-[0.5rem] bg-[#f8fafc] border border-gray-300 px-3 py-2.5">
+                     <label className="cursor-pointer bg-white border border-gray-300 hover:bg-gray-50 text-gray-700 text-xs font-semibold px-4 py-1.5 rounded-md shadow-sm">
+                       Choose File
+                       <input
+                         type="file"
+                         className="hidden"
+                         accept={SUPPORTED_IMAGE_TYPES}
+                         multiple={false}
+                         onChange={handleFileChange}
+                       />
+                     </label>
+                     <span className="text-[13px] text-gray-500 font-medium">{fileName !== "No file selected." && fileName !== (initialProfileUrl || "No file selected.") ? "1 file" : "No file selected"}</span>
                   </div>
 
-                  {deliveryEnabled && (
-                    <div className="space-y-1 animate-in fade-in slide-in-from-top-1 duration-200">
-                      <Input
-                        label="Delivery Fee (฿)"
-                        type="number"
-                        value={deliveryFee.toString()}
-                        onChange={(e) => setDeliveryFee(Number(e.target.value))}
-                        placeholder="e.g. 10"
-                      />
-                      <p className="text-[11px] text-gray-400 ml-1">Set the fixed delivery fee for university-area orders.</p>
+                  {/* Image Guidelines Box */}
+                  <div className="mt-4 rounded-[0.5rem] border border-[#fde68a] bg-[#fef3c7]/60 p-4">
+                    <div className="flex items-center gap-2 mb-2 text-[#b45309]">
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+                      <h4 className="text-[13px] font-bold">Image Guidelines</h4>
+                    </div>
+                    <ul className="text-[12px] font-bold text-[#b45309]/80 space-y-1.5 ml-1">
+                      <li>• Recommended Image size: 300 x 300 px</li>
+                      <li>• Maximum file size: 2.0 MB</li>
+                      <li>• Supported formats: JPG, JPEG, PNG</li>
+                    </ul>
+                  </div>
+                  
+                  {previewUrl && (
+                    <div className="mt-3">
+                      <img src={previewUrl} alt="Preview" className="h-20 w-20 object-cover rounded-md border border-gray-200" />
                     </div>
                   )}
-               </div>
+                </div>
+
+                {/* Store Description */}
+                <div>
+                  <label className="block text-[13px] font-bold text-gray-900 mb-2">Store Description :</label>
+                  <textarea
+                    rows={4}
+                    value={description}
+                    onChange={(e) => setDescription(e.target.value)}
+                    maxLength={255}
+                    className={`w-full rounded-[0.5rem] bg-[#f8fafc] border ${errors.description ? 'border-red-500' : 'border-gray-300'} px-4 py-3 text-sm text-gray-900 focus:outline-none focus:ring-1 focus:ring-orange-500 resize-none`}
+                  />
+                  {errors.description && <p className="text-xs text-red-500 mt-1">Please enter a valid store description.</p>}
+                </div>
+              </div>
             </div>
 
-            <div className="pt-2 flex justify-center">
+            {/* Delivery Information Section */}
+            <div className="pt-2">
+              <h3 className="text-[17px] font-bold text-gray-900 mb-5">Delivery Information</h3>
+              
+              <div className="space-y-6">
+                <div>
+                  <label className="block text-[13px] font-bold text-gray-900 mb-2">Round University Delivery :</label>
+                  <div className="w-full rounded-[0.5rem] bg-[#f8fafc] border border-gray-300 px-4 py-3 flex items-center justify-between">
+                    <span className="text-[13px] font-medium text-gray-600">Enable delivery service around campus</span>
+                    <ToggleSwitch checked={deliveryEnabled} onChange={setDeliveryEnabled} />
+                  </div>
+                </div>
+
+                {deliveryEnabled && (
+                  <div className="animate-in fade-in slide-in-from-top-2 duration-200">
+                    <label className="block text-[13px] font-bold text-gray-900 mb-2">Delivery Fee (฿) :</label>
+                    <input
+                      type="number"
+                      value={deliveryFee.toString()}
+                      onChange={(e) => setDeliveryFee(Number(e.target.value))}
+                      placeholder="e.g. 10"
+                      className="w-full rounded-[0.5rem] bg-[#f8fafc] border border-gray-300 px-4 py-3 text-sm text-gray-900 focus:outline-none focus:ring-1 focus:ring-orange-500"
+                    />
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Footer Buttons */}
+            <div className="flex items-center justify-center gap-3 w-full pt-4">
+              <button
+                type="button"
+                onClick={onClose}
+                className="w-1/2 md:w-[220px] rounded-lg bg-gray-500 text-white py-[11px] text-[13px] font-semibold hover:bg-gray-600 transition-colors"
+              >
+                Cancel
+              </button>
               <button
                 type="submit"
-                className="min-w-[160px] rounded-full bg-orange-500 text-white py-2.5 text-sm font-medium hover:bg-orange-600"
+                className="w-1/2 md:w-[220px] rounded-lg bg-[#ff5722] text-white py-[11px] text-[13px] font-semibold hover:bg-[#eb4a19] transition-colors"
               >
-                Save
+                Save Changes
               </button>
             </div>
+
           </form>
         </div>
       </div>
