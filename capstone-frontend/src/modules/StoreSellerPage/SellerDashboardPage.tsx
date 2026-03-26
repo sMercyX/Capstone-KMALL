@@ -118,14 +118,76 @@ export default function SellerDashboardPage() {
   }
 
   // ---- Chart Data Generation ----
-  const chartLabels = (summary?.revenue_by_period || []).map((r) => {
-    if (granularity === "daily") return dayjs(r.date).format("DD MMM")
-    if (granularity === "monthly") return dayjs(r.date).format("MMM YYYY")
-    return dayjs(r.date).format("DD MMM YYYY")
-  })
+  const rawData = summary?.revenue_by_period || []
 
-  const chartDataRevenues = (summary?.revenue_by_period || []).map((r) => r.revenue)
-  const chartDataOrders = (summary?.revenue_by_period || []).map((r) => r.orders)
+  // Generate labels and padding based on granularity
+  const chartLabels: string[] = []
+  const chartDataRevenues: number[] = []
+  const chartDataOrders: number[] = []
+
+  if (granularity === "daily") {
+    const daysInMonth = dayjs(`${selectedYear}-${selectedMonth}-01`).daysInMonth()
+    for (let i = 1; i <= daysInMonth; i++) {
+      const currentDay = dayjs(`${selectedYear}-${selectedMonth}-${i}`)
+      chartLabels.push(currentDay.format("D"))
+      const match = rawData.find((r) => 
+        dayjs(r.date).date() === i && 
+        dayjs(r.date).month() + 1 === selectedMonth && 
+        dayjs(r.date).year() === selectedYear
+      )
+      chartDataRevenues.push(match ? Number(match.revenue) : 0)
+      chartDataOrders.push(match ? Number(match.orders) : 0)
+    }
+  } else if (granularity === "monthly") {
+    for (let i = 1; i <= 12; i++) {
+      const currentMonth = dayjs(`${selectedYear}-${i}-01`)
+      chartLabels.push(currentMonth.format("MMM YYYY"))
+      const match = rawData.find((r) => 
+        dayjs(r.date).month() + 1 === i && 
+        dayjs(r.date).year() === selectedYear
+      )
+      chartDataRevenues.push(match ? Number(match.revenue) : 0)
+      chartDataOrders.push(match ? Number(match.orders) : 0)
+    }
+  } else {
+    // all_time (dynamic based on actual data)
+    const monthMap = new Map<string, { rev: number; ord: number }>()
+    rawData.forEach((r) => {
+      const ym = dayjs(r.date).format("YYYY-MM")
+      if (!monthMap.has(ym)) monthMap.set(ym, { rev: 0, ord: 0 })
+      const data = monthMap.get(ym)!
+      data.rev += Number(r.revenue || 0)
+      data.ord += Number(r.orders || 0)
+    })
+
+    const sortedKeys = Array.from(monthMap.keys()).sort()
+    
+    if (sortedKeys.length === 0) {
+      for (let i = 11; i >= 0; i--) {
+        const currentMonth = dayjs().subtract(i, "month")
+        chartLabels.push(currentMonth.format("MMM YYYY"))
+        chartDataRevenues.push(0)
+        chartDataOrders.push(0)
+      }
+    } else {
+      const minDate = dayjs(sortedKeys[0] + "-01")
+      const maxDate = dayjs(sortedKeys[sortedKeys.length - 1] + "-01")
+      
+      let curr = minDate.clone()
+      while (curr.isBefore(maxDate) || curr.isSame(maxDate, "month")) {
+        const key = curr.format("YYYY-MM")
+        chartLabels.push(curr.format("MMM YYYY"))
+        if (monthMap.has(key)) {
+          chartDataRevenues.push(monthMap.get(key)!.rev)
+          chartDataOrders.push(monthMap.get(key)!.ord)
+        } else {
+          chartDataRevenues.push(0)
+          chartDataOrders.push(0)
+        }
+        curr = curr.add(1, "month")
+      }
+    }
+  }
 
   const lineChartData = {
     labels: chartLabels,
