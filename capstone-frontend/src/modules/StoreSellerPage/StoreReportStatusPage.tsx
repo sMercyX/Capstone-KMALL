@@ -158,7 +158,7 @@ export default function StoreReportStatusPage() {
       {/* Main Card */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-100 mt-4 overflow-hidden">
         {/* Tabs inside Card */}
-        <div className="flex gap-6 px-6 pt-4 border-b border-gray-100 overflow-x-auto custom-scrollbar">
+        <div className="flex gap-6 px-6 pt-4 border-b border-gray-100">
           {tabs.map((tab) => (
             <button
               key={tab.key}
