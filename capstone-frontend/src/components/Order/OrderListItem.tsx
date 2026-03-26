@@ -115,7 +115,7 @@ export default function OrderListItem({
     >
       {/* 1. Index & Icon */}
       <div className="flex items-center gap-3 w-[10%] min-w-[60px]">
-        <div className="font-medium text-gray-500 text-sm">{index + 1}</div>
+        <div className="font-medium text-gray-500 text-sm">{orderId}</div>
         <div className="relative">
           <div className="flex h-8 w-8 items-center justify-center rounded bg-orange-100 text-orange-500">
             <FileText className="h-4 w-4" />
