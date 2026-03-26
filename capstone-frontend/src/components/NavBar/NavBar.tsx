@@ -9,7 +9,7 @@ import NotificationDropdown from "./NotificationDropdown"
 import UserDropdown from "./UserDropdown"
 import MobileMenu from "./MobileMenu"
 import SearchBar from "./SearchBar"
-import { Menu } from "lucide-react"
+import { Menu, Search } from "lucide-react"
 import kmallLogo from "../../assets/kmutt.svg"
 import kmallText from "../../assets/kmutt-text.svg"
 import { useNotificationApi } from "../../api/notificationApi"
@@ -24,7 +24,7 @@ export default function Navbar() {
   const [isNotiOpen, setIsNotiOpen] = useState(false)
   const [isMobileSearchOpen, setIsMobileSearchOpen] = useState(false)
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
-
+ 
   const location = useLocation()
   const isStoreActive = location.pathname.startsWith("/store")
   const isCartActive = location.pathname.startsWith("/orders")
@@ -110,9 +110,7 @@ export default function Navbar() {
             }}
             className="md:hidden p-2 text-gray-500 hover:text-orange-500 transition-colors"
           >
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-            </svg>
+            <Search className="h-6 w-6" />
           </button>
 
           <div className="md:block">
@@ -161,9 +159,11 @@ export default function Navbar() {
 
           <button
             onClick={() => {
-              setIsMobileMenuOpen(true)
+              setIsMobileMenuOpen((prev) => !prev)
               setIsMobileSearchOpen(false)
               setIsCartOpen(false)
+              setIsNotiOpen(false)
+              setIsUserOpen(false)
             }}
             className="md:hidden p-2 text-gray-500 hover:text-orange-500 transition-colors relative"
           >

@@ -14,16 +14,6 @@ import StoreInfoCard from "../../components/Card/StoreInfoCard"
 import { handleApiError } from "../../utils/handleApiError"
 import ConfirmationModal from "../../components/Modal/ConfirmationModal"
 
-// ====== UI Helpers ======
-function RatingStars() {
-  return (
-    <div className="flex items-center gap-0.5 text-amber-500">
-      {[...Array(5)].map((_, i) => (
-        <Star key={i} className={`h-4 w-4 ${i < 4 ? "fill-current" : ""}`} />
-      ))}
-    </div>
-  )
-}
 
 export default function ProductPage() {
   const { id } = useParams<{ id: string }>()
@@ -278,10 +268,6 @@ export default function ProductPage() {
             <h1 className="text-2xl md:text-3xl font-bold leading-tight">{product.name}</h1>
             <div className="flex items-center gap-3 text-gray-700">
               <span className="text-md font-semibold text-orange-500">{product.category_name}</span>
-            </div>
-            <div className="flex items-center gap-3 text-gray-700">
-               <RatingStars />
-               <span className="text-xs text-gray-400">({product.sold_count || 0} sold)</span>
             </div>
             <p className="text-2xl md:text-3xl font-bold text-gray-900">
               {matchedVariant ? `฿ ${matchedVariant.final_price}` : product.price ? `฿ ${product.price}` : "—"}

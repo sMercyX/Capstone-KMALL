@@ -1,4 +1,4 @@
-// src/api/notificationApi.ts
+import { useCallback, useMemo } from "react"
 import { useCrudApi } from "../utils/fetch"
 
 export interface NotificationData {
@@ -35,22 +35,34 @@ export interface NotificationsData {
 export function useNotificationApi() {
   const http = useCrudApi()
 
-  async function getNotifications(
-    limit: number = 5,
-    type?: "CHAT_NEW_MESSAGE" | "ORDER_STATUS_CHANGED" | "ANNOUNCEMENT"
-  ): Promise<NotificationsData> {
-    let url = `/notifications?limit=${limit}`
-    if (type) url += `&type=${type}`
-    return http.getItems(url)
-  }
+  const getNotifications = useCallback(
+    async (
+      limit: number = 5,
+      type?: "CHAT_NEW_MESSAGE" | "ORDER_STATUS_CHANGED" | "ANNOUNCEMENT"
+    ): Promise<NotificationsData> => {
+      let url = `/notifications?limit=${limit}`
+      if (type) url += `&type=${type}`
+      return http.getItems(url)
+    },
+    [http]
+  )
 
-  async function markAsRead(notificationId: number): Promise<Notification> {
-    return http.postItem(`/notifications/${notificationId}/read`, {})
-  }
+  const markAsRead = useCallback(
+    async (notificationId: number): Promise<Notification> => {
+      return http.postItem(`/notifications/${notificationId}/read`, {})
+    },
+    [http]
+  )
 
-  async function deleteAllNotifications(): Promise<{ deleted: boolean; deleted_rows: number }> {
-    return http.deleteItem(`/notifications`)
-  }
+  const deleteAllNotifications = useCallback(
+    async (): Promise<{ deleted: boolean; deleted_rows: number }> => {
+      return http.deleteItem(`/notifications`)
+    },
+    [http]
+  )
 
-  return { getNotifications, markAsRead, deleteAllNotifications }
+  return useMemo(
+    () => ({ getNotifications, markAsRead, deleteAllNotifications }),
+    [getNotifications, markAsRead, deleteAllNotifications]
+  )
 }
