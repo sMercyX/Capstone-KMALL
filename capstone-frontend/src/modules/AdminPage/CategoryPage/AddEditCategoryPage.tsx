@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from "react"
 import { useNavigate, useParams } from "react-router-dom"
-import { Plus, Trash2, Image as ImageIcon } from "lucide-react"
+import { Plus, Trash2, Image as ImageIcon, Package } from "lucide-react"
 import { useCatagoriesApi } from "../../../api/catagoriesApi"
 import { toast } from "react-toastify"
 import { resolveImageUrl } from "../../../utils/resolve"
@@ -332,10 +332,6 @@ export default function AddCategoryPage() {
     }
     
     const validSubs = subCategories.filter(s => s.name.trim() !== "")
-    if (validSubs.length === 0) {
-      toast.error("At least 1 subcategory is required")
-      return
-    }
 
     if (isEditMode) {
       const activeSubCount = validSubs.filter(s => s.is_active === "YES").length
@@ -496,7 +492,7 @@ export default function AddCategoryPage() {
                 <p className="text-gray-400 text-sm mb-1 ">
                 Category &gt; <span className="hover:text-orange-500 cursor-pointer" onClick={() => navigate("/admin/category")}>Category Management</span> &gt; <span className="text-gray-600 font-semibold">{isEditMode ? "Edit Category" : "Add Category"}</span>
                 </p>
-                <h1 className="text-2xl font-bold flex items-center gap-4">
+                <h1 className="text-header font-bold flex items-center gap-4">
                   {isEditMode ? "Edit Main Category" : "Add Main Category"}
                   {isEditMode && (
                      <button
@@ -626,27 +622,41 @@ export default function AddCategoryPage() {
                 </ul>
               </div>
 
-              {/* Image Preview */}
-              {imagePreview && (
-                <div className="mt-4 rounded-lg overflow-hidden h-48 border border-gray-200">
-                  <img src={imagePreview} alt="Preview" className="w-full h-full object-cover" />
+              {/* Mock Card Preview */}
+              <div className="mt-8 flex flex-col items-center">
+                <p className="text-[10px] font-bold text-gray-400 mb-4 uppercase tracking-widest">Preview in Dashboard</p>
+                <div className="w-full max-w-[200px] rounded-3xl border border-orange-200 bg-white shadow-[0_8px_20px_rgba(255,102,0,0.12)] px-6 py-6 text-center transform scale-90 sm:scale-100 transition-transform">
+                  <div className="mx-auto h-20 w-20 sm:h-24 sm:w-24 rounded-full bg-orange-50 grid place-items-center overflow-hidden mb-4 border-2 border-orange-100/50">
+                    {imagePreview ? (
+                      <img
+                        src={imagePreview}
+                        alt="Preview"
+                        className="h-full w-full object-cover"
+                      />
+                    ) : (
+                      <Package className="h-10 w-10 sm:h-12 w-12 text-orange-400" />
+                    )}
+                  </div>
+                  <div className="font-bold text-base sm:text-lg text-gray-800 truncate">
+                    {mainName || "Category Name"}
+                  </div>
                 </div>
-              )}
+              </div>
             </div>
           </div>
         </div>
 
         {/* Sub Category Component */}
         <div id="SUB" className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 pt-8 min-h-[400px]">
-          <h2 className="text-lg font-bold mb-1">{isEditMode ? "Edit Subcategory" : "Add Subcategory"}</h2>
-          <p className="text-sm text-gray-500 mb-6">Enter the subcategory name</p>
+          <h2 className="text-header font-bold mb-1">{isEditMode ? "Edit Subcategory" : "Add Subcategory"}</h2>
+          <p className="text-text text-gray-500 mb-6">Enter the subcategory name</p>
           
           <div>
             <div className="flex justify-between items-center mb-2">
-              <label className="text-sm font-medium">
-                Subcategories <span className="text-red-500">*</span>
+              <label className="text-text font-medium">
+                Subcategories
               </label>
-              <span className="text-xs text-gray-400">At least 1 subcategory is required</span>
+              <span className="text-description text-gray-400">Add subcategories for this category</span>
             </div>
             
             {/* Input for adding new subcategory */}
