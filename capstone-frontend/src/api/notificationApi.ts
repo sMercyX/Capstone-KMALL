@@ -6,12 +6,24 @@ export interface NotificationData {
   message_type?: string
   new_status?: string
   old_status?: string
+  // Fields for REPORT_ACTION_TAKEN
+  action_type?: string
+  ban_type?: string
+  note?: string
+  reason?: string
+  report_id?: number
 }
+
+export type NotificationType =
+  | "CHAT_NEW_MESSAGE"
+  | "ORDER_STATUS_CHANGED"
+  | "ANNOUNCEMENT"
+  | "REPORT_ACTION_TAKEN"
 
 export interface Notification {
   notification_id: number
   user_id: string
-  type: "CHAT_NEW_MESSAGE" | "ORDER_STATUS_CHANGED" | "ANNOUNCEMENT"
+  type: NotificationType
   order_id: number
   thread_id?: number
   message_id?: number
@@ -38,7 +50,7 @@ export function useNotificationApi() {
   const getNotifications = useCallback(
     async (
       limit: number = 5,
-      type?: "CHAT_NEW_MESSAGE" | "ORDER_STATUS_CHANGED" | "ANNOUNCEMENT"
+      type?: NotificationType
     ): Promise<NotificationsData> => {
       let url = `/notifications?limit=${limit}`
       if (type) url += `&type=${type}`
