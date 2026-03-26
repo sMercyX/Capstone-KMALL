@@ -98,15 +98,15 @@ export default function CartDropdown({ isOpen, onToggle, onClose }: Props) {
   }
 
   return (
-    <div className="relative">
+    <div className="relative" ref={dropdownRef}>
       <button
-        className="relative cursor-pointer"
+        className="relative cursor-pointer p-2 text-gray-500 hover:text-orange-500 transition-colors"
         onClick={onToggle}
       >
-        <ShoppingCart className={`h-6 w-6 ${isOpen ? "text-orange-500" : "text-gray-500"}`} />
+        <ShoppingCart className={`h-6 w-6 ${isOpen ? "text-orange-500" : ""}`} />
         {/* <ShoppingCart className="h-6 w-6 text-[--icon-color] hover:text-orange-600" />  */}
         {totalQuantity > 0 && (
-          <span className="absolute -top-2 -right-2 bg-orange-500 text-white text-xs rounded-full px-1.5">
+          <span className="absolute top-1 right-1 flex h-4 w-4 items-center justify-center rounded-full bg-orange-500 text-[8px] font-bold text-white">
             {totalQuantity}
           </span>
         )}
@@ -114,7 +114,6 @@ export default function CartDropdown({ isOpen, onToggle, onClose }: Props) {
 
       {isOpen && (
         <div 
-          ref={dropdownRef} 
           className="fixed inset-x-4 top-24 bg-white shadow-2xl p-5 z-50 rounded-2xl animate-in fade-in slide-in-from-top-2 duration-200
                      md:absolute md:inset-auto md:right-0 md:top-full md:mt-3 md:w-[360px] md:rounded-3xl md:border md:border-orange-200 md:shadow-xl md:bg-white md:animate-none"
         >

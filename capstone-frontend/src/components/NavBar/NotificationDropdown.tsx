@@ -200,14 +200,14 @@ export default function NotificationDropdown({
   ]
 
   return (
-    <div className="relative">
+    <div className="relative" ref={dropdownRef}>
       {/* Bell Icon */}
-      <button className="relative cursor-pointer" onClick={onToggle}>
+      <button className="relative cursor-pointer p-2 text-gray-500 hover:text-orange-500 transition-colors" onClick={onToggle}>
         <Bell
-          className={`h-6 w-6 ${isOpen ? "text-orange-500" : "text-gray-500"}`}
+          className={`h-6 w-6 ${isOpen ? "text-orange-500" : ""}`}
         />
         {unreadCount > 0 && (
-          <span className="absolute -top-2 -right-2 flex h-5 w-5 items-center justify-center rounded-full bg-red-500 text-[10px] font-bold text-white">
+          <span className="absolute top-1 right-1 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[8px] font-bold text-white">
             {unreadCount > 9 ? "9+" : unreadCount}
           </span>
         )}
@@ -216,7 +216,6 @@ export default function NotificationDropdown({
       {/* Dropdown */}
       {isOpen && (
         <div
-          ref={dropdownRef}
           className="fixed inset-x-4 top-24 bg-white shadow-2xl z-50 overflow-hidden rounded-2xl animate-in fade-in slide-in-from-top-2 duration-200
                      md:absolute md:inset-auto md:right-0 md:top-full md:mt-3 md:w-[380px] md:rounded-2xl md:border md:border-gray-200 md:shadow-xl md:bg-white md:animate-none"
         >

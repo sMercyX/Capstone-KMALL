@@ -13,7 +13,6 @@ import {
 } from 'lucide-react';
 import { useUserStore } from '../../stores/userStore';
 import { useAuth } from '../../auth/AuthContext';
-import ThemeSwitch2 from '../ThemeSwitch/ThemeSwitch2';
 
 interface MobileMenuProps {
   isOpen: boolean;
@@ -85,7 +84,7 @@ const MobileMenu: React.FC<MobileMenuProps> = ({
         </div>
 
         {/* User Profile */}
-        <div className="p-6 bg-orange-50/50">
+        <div className="p-6 pb-0 bg-orange-50/50">
           <div className="flex items-center gap-4 mb-4">
             <div className="h-14 w-14 rounded-full bg-orange-100 flex items-center justify-center text-orange-500 border-2 border-white shadow-sm">
               <User size={28} />
@@ -97,10 +96,6 @@ const MobileMenu: React.FC<MobileMenuProps> = ({
                 {getDisplayRole()}
               </span>
             </div>
-          </div>
-          <div className="flex items-center justify-between pt-2 border-t border-orange-100/50">
-            <span className="text-sm text-gray-600">Appearance</span>
-            <ThemeSwitch2 />
           </div>
         </div>
 
