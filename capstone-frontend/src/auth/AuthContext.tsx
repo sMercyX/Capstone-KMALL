@@ -62,14 +62,14 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
               updatedAt: new Date().toISOString(),
               lastLogin: new Date().toISOString(),
               bans: [
-                {
-                  ban_type: "TEMPORARY",
-                  banned_from: "2026-03-06T18:38:02.807019Z",
-                  banned_until: "2026-03-23T18:38:02.805523Z",
-                  is_active: true,
-                  reason: "พักบัญชีชั่วคราวเนื่องจากผิดซ้ำ",
-                  user_role: "BUYER",
-                }
+                // {
+                //   ban_type: "TEMPORARY",
+                //   banned_from: "2026-03-06T18:38:02.807019Z",
+                //   banned_until: "2026-03-23T18:38:02.805523Z",
+                //   is_active: true,
+                //   reason: "พักบัญชีชั่วคราวเนื่องจากผิดซ้ำ",
+                //   user_role: "BUYER",
+                // }
               ],
             },
             seller: {
@@ -82,14 +82,14 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
               updatedAt: new Date().toISOString(),
               lastLogin: new Date().toISOString(),
               bans: [
-                {
-                  ban_type: "WARNING",
-                  banned_from: "2026-03-06T18:39:14.120112Z",
-                  banned_until: "2026-03-13T18:39:14.117622Z",
-                  is_active: true,
-                  reason: "เตือนเรื่องการใช้คำพูดไม่เหมาะสม",
-                  user_role: "SELLER",
-                }
+                // {
+                //   ban_type: "WARNING",
+                //   banned_from: "2026-03-06T18:39:14.120112Z",
+                //   banned_until: "2026-03-13T18:39:14.117622Z",
+                //   is_active: true,
+                //   reason: "เตือนเรื่องการใช้คำพูดไม่เหมาะสม",
+                //   user_role: "SELLER",
+                // }
               ],
             },
             admin: {
@@ -102,14 +102,14 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
               updatedAt: new Date().toISOString(),
               lastLogin: new Date().toISOString(),
               bans: [
-                {
-                  ban_type: "PERMANENT",
-                  banned_from: "2026-03-06T17:31:25.302607Z",
-                  banned_until: null,
-                  is_active: true,
-                  reason: "ปิดบัญชีถาวรเนื่องจากผิดร้ายแรง",
-                  user_role: "SELLER",
-                }
+                // {
+                //   ban_type: "PERMANENT",
+                //   banned_from: "2026-03-06T17:31:25.302607Z",
+                //   banned_until: null,
+                //   is_active: true,
+                //   reason: "ปิดบัญชีถาวรเนื่องจากผิดร้ายแรง",
+                //   user_role: "SELLER",
+                // }
               ],
             },
           }
