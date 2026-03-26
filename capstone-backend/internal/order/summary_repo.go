@@ -60,7 +60,7 @@ func (r *summaryRepo) GetSummaryCards(ctx context.Context, storeID int64, from, 
 		SELECT
 			COUNT(*)                                                                    AS total_orders,
 			COALESCE(SUM(total_price)  FILTER (WHERE status = 'Completed'), 0)         AS total_revenue,
-			COUNT(*)                   FILTER (WHERE status IN ('Pending','Proposed'))  AS pending_orders,
+			COUNT(*)                   FILTER (WHERE status NOT IN ('Completed','Cancelled'))  AS pending_orders,
 			COUNT(*)                   FILTER (WHERE status = 'Cancelled')              AS cancelled_orders,
 			COUNT(*)                   FILTER (WHERE status = 'Completed')              AS completed_orders,
 			COALESCE(AVG(total_price)  FILTER (WHERE status = 'Completed'), 0)         AS avg_order_value,
