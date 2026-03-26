@@ -673,7 +673,7 @@ CREATE TABLE IF NOT EXISTS reports (
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 
   -- 1 reporter can report once per order (buyer and seller can each report once)
-  CONSTRAINT uq_report_per_reporter_per_order UNIQUE (order_id, reporter_id),
+  -- CONSTRAINT uq_report_per_reporter_per_order UNIQUE (order_id, reporter_id),
 
   CONSTRAINT chk_not_self_report CHECK (reporter_id <> reported_user_id)
 );
