@@ -16,7 +16,7 @@ export default function MainLayout() {
         <div className="max-w-4xl mx-auto flex flex-col items-center gap-4">
           <img src={kmallText} alt="KMALL" className="h-8 w-auto" />
 
-          <nav className="flex gap-6 text-n font-semibold text-gray-700">
+          <nav className="flex gap-6 text-text font-semibold text-gray-700">
             <button className="hover:text-orange-500">Service</button>
             <button className="hover:text-orange-500">Support</button>
             <button className="hover:text-orange-500">Company</button>
@@ -42,7 +42,7 @@ export default function MainLayout() {
             </div>
           </div>
 
-          <p className="mt-2 text-d text-orange-500 font-medium tracking-wide">
+          <p className="mt-2 text-description text-orange-500 font-medium tracking-wide">
             KMALL - KMUTT Marketplace
           </p>
         </div>

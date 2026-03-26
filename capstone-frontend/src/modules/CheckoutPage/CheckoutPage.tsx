@@ -274,7 +274,7 @@ export default function CheckoutPage() {
     <div className="min-h-screen">
       <div className="mx-auto w-full max-w-7xl px-0 sm:px-6 lg:px-8 pt-6 pb-16 sm:pt-16 sm:pb-24">
         <div className="mb-10 flex items-center justify-center gap-3 text-gray-900">
-          <h1 className="text-h font-semibold">Checkout</h1>
+          <h1 className="text-header font-semibold">Checkout</h1>
         </div>
 
         <div className="grid items-start gap-8 lg:gap-16 lg:grid-cols-[0.6fr_0.4fr]">
@@ -282,7 +282,7 @@ export default function CheckoutPage() {
           <section className="space-y-10 order-2 lg:order-1 px-4 sm:px-0">
             {/* Delivery Method Selection */}
             <div>
-              <h2 className="text-h font-bold mb-6 text-center sm:text-left">Delivery Method</h2>
+              <h2 className="text-header font-bold mb-6 text-center sm:text-left">Delivery Method</h2>
               <div className="grid grid-cols-2 gap-3 sm:gap-4">
                 {/* Card 1: Pickup (นัดรับ) */}
                 <div 
@@ -299,8 +299,8 @@ export default function CheckoutPage() {
                     <Package className="h-6 w-6 sm:h-8 w-8" strokeWidth={1.5} />
                   </div>
                   <div>
-                    <h3 className="text-n font-bold text-gray-900 mb-0.5 sm:mb-1">Pickup Location</h3>
-                    <p className="text-d text-gray-500 line-clamp-2 sm:line-clamp-none">Seller will confirm the date and time.</p>
+                    <h3 className="text-text font-bold text-gray-900 mb-0.5 sm:mb-1">Pickup Location</h3>
+                    <p className="text-description text-gray-500 line-clamp-2 sm:line-clamp-none">Seller will confirm the date and time.</p>
                   </div>
                 </div>
 
@@ -322,10 +322,10 @@ export default function CheckoutPage() {
                     <Truck className="h-6 w-6 sm:h-8 w-8" strokeWidth={1.5} />
                   </div>
                   <div>
-                    <h3 className={`text-n font-bold mb-0.5 sm:mb-1 ${!isDeliveryEnabled ? "text-gray-400" : "text-gray-900"}`}>
+                    <h3 className={`text-text font-bold mb-0.5 sm:mb-1 ${!isDeliveryEnabled ? "text-gray-400" : "text-gray-900"}`}>
                         Round University Delivery
                     </h3>
-                    <p className="text-d text-gray-500 line-clamp-2 sm:line-clamp-none">
+                    <p className="text-description text-gray-500 line-clamp-2 sm:line-clamp-none">
                         {isDeliveryEnabled ? "Seller will deliver to your saved addresses." : "This store currently does not support delivery."}
                     </p>
                   </div>
@@ -336,12 +336,12 @@ export default function CheckoutPage() {
                   <div className="col-span-2 mt-4 rounded-xl border border-yellow-400 bg-yellow-50 p-4 sm:p-6 relative">
                     <div className="flex gap-3 mb-3">
                       <AlertCircle className="h-6 w-6 text-yellow-700 shrink-0" />
-                      <h3 className="text-n font-bold text-yellow-800">
+                      <h3 className="text-text font-bold text-yellow-800">
                         Please Note: Pickup Instructions
                       </h3>
                     </div>
                     
-                    <ul className="space-y-2 text-yellow-900 ml-9 text-d">
+                    <ul className="space-y-2 text-yellow-900 ml-9 text-description">
                       <li className="list-disc">
                         For pickup orders, the seller will specify the location, date, and time for pickup.
                       </li>
@@ -364,7 +364,7 @@ export default function CheckoutPage() {
             {deliveryMethod === "ROUND_UNIVERSITY" && (
               <div className="space-y-6 pt-4 border-t border-gray-100 mt-6">
                 <div className="flex items-center justify-between gap-4">
-                  <h2 className="text-h font-bold text-gray-900">Delivery Address Details</h2>
+                  <h2 className="text-header font-bold text-gray-900">Delivery Address Details</h2>
                   <button
                     onClick={() => navigate("/addresses")}
                     className="flex items-center gap-1 text-sm font-semibold text-orange-500 hover:text-orange-600 transition-colors cursor-pointer whitespace-nowrap"
