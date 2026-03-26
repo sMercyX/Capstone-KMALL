@@ -94,161 +94,124 @@ export default function StoreInfoTab() {
 
 return (
   <>
-    <div className="rounded-[28px] border border-gray-200 bg-white p-6 md:p-8 shadow-sm text-black">
-      {/* Header */}
-      <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+    <div className="p-0 text-slate-800 pb-16 w-full font-sans">
+      
+      {/* Header Area */}
+      <div className="mb-8 flex flex-col md:flex-row md:items-start justify-between gap-4">
         <div>
-          <h2 className="text-xl md:text-2xl font-extrabold tracking-tight text-gray-900">
+          <p className="text-sm text-gray-400 mb-2">
+            Store &gt; <span className="font-semibold text-gray-600">Information</span>
+          </p>
+          <h1 className="text-3xl font-bold text-gray-900 mb-2">
             Store Information
-          </h2>
-          <p className="mt-1 text-sm text-gray-600">
+          </h1>
+          <p className="text-sm text-gray-500 max-w-2xl">
             Review your store details and update them to make your storefront more trustworthy.
           </p>
         </div>
-
-        {/* SINGLE CTA */}
         <button
-          className="inline-flex items-center justify-center rounded-2xl bg-gradient-to-r from-orange-500 to-amber-500 px-6 py-3 text-sm font-semibold text-white shadow-md hover:shadow-lg hover:brightness-[0.98] active:scale-[0.99] transition"
-          type="button"
           onClick={() => setIsModalOpen(true)}
+          className="inline-flex items-center justify-center px-6 py-2.5 font-bold text-white rounded-xl bg-orange-500 hover:bg-orange-600 shadow-[0_4px_12px_rgba(249,115,22,0.2)] hover:-translate-y-0.5 transition-all duration-300 shrink-0"
         >
-          Edit Store Information
+          <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2.5}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+          </svg>
+          Edit Information
         </button>
       </div>
 
-      <div className="mt-6 h-px w-full bg-gray-200/70" />
-
-      {/* Content */}
-      <div className="mt-6 grid grid-cols-1 lg:grid-cols-3 gap-8">
-        {/* LEFT: Store details */}
-        <div className="lg:col-span-2 space-y-6">
-          {/* Name */}
-          <div className="rounded-3xl border border-gray-200 bg-white p-5 md:p-6">
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <label className="block text-xs font-semibold text-gray-500">
-                  Store Name
-                </label>
-                <p className="mt-1 text-sm text-gray-600">
-                  This is the name customers will see on your storefront and product listings.
-                </p>
-              </div>
-              <span className="shrink-0 rounded-full border border-gray-200 bg-gray-50 px-3 py-1 text-[11px] font-semibold text-gray-700">
-                Read only
-              </span>
-            </div>
-
-            <input
-              type="text"
-              disabled
-              value={store.name}
-              className="mt-4 w-full rounded-2xl border border-gray-200 bg-gray-50 px-4 py-3 text-gray-900 font-semibold focus:outline-none"
-            />
+      <div className="flex flex-col gap-6 w-full">
+        
+        {/* Card 1: Public Identity */}
+        <div className="bg-white border border-gray-200/60 rounded-2xl shadow-[0_2px_10px_-3px_rgba(0,0,0,0.05)] overflow-hidden">
+          <div className="px-6 py-5 border-b border-gray-100 bg-[#f8fafc]/50">
+            <h3 className="text-base font-bold text-gray-900">Public Identity</h3>
+            <p className="text-sm text-gray-500 mt-1">The branding and description that customers will see.</p>
           </div>
 
-          {/* Description */}
-          <div className="rounded-3xl border border-gray-200 bg-white p-5 md:p-6">
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <label className="block text-xs font-semibold text-gray-500">
-                  Store Description
-                </label>
-                <p className="mt-1 text-sm text-gray-600">
-                  Keep it short, clear, and concise to build customer confidence.
-                </p>
+          <div className="px-6 py-8 flex flex-col sm:flex-row items-center sm:items-start gap-8">
+            <div className="flex flex-col items-center gap-3 shrink-0">
+              <div className="relative group w-32 h-32 rounded-full border border-gray-100 shadow-sm overflow-hidden bg-gray-50">
+                <img 
+                  src={store.profile_url ? resolveImageUrl(store.profile_url) : "/images/default-store.png"} 
+                  className="w-full h-full object-cover" 
+                  alt="Store Logo"
+                />
               </div>
-              <span className="shrink-0 rounded-full border border-gray-200 bg-gray-50 px-3 py-1 text-[11px] font-semibold text-gray-700">
-                Read only
-              </span>
-            </div>
-
-            <textarea
-              disabled
-              value={store.description}
-              className="mt-4 w-full rounded-2xl border border-gray-200 bg-gray-50 px-4 py-3 h-36 text-gray-800 resize-none focus:outline-none"
-            />
-          </div>
-
-          {/* Delivery Settings Display */}
-          <div className="rounded-3xl border border-gray-200 bg-white p-5 md:p-6">
-            <div className="flex items-start justify-between gap-3 mb-4">
-              <div>
-                <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                  Delivery Configuration
-                </label>
-                <p className="mt-1 text-sm text-gray-600">
-                  Settings for how you deliver products to university customers.
-                </p>
-              </div>
-            </div>
-            
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="p-4 rounded-2xl bg-gray-50 border border-gray-100">
-                <p className="text-xs text-gray-400 font-medium mb-1">Method: Round University</p>
-                <div className="flex items-center gap-2">
-                  <div className={`h-2.5 w-2.5 rounded-full ${store.delivery_round_university_enabled ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.4)]' : 'bg-gray-300'}`} />
-                  <span className="text-sm font-bold text-gray-900">
-                    {store.delivery_round_university_enabled ? 'Active' : 'Disabled'}
-                  </span>
+              {store.profile_url ? (
+                <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-50 border border-emerald-100 text-emerald-700 text-[11px] font-bold shadow-sm">
+                  <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></div>
+                  Logo Uploaded
                 </div>
+              ) : (
+                <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-50 border border-slate-200 text-slate-500 text-[11px] font-bold shadow-sm">
+                  No Logo
+                </div>
+              )}
+            </div>
+
+            <div className="flex-1 w-full flex flex-col pt-1">
+              <div className="pb-6">
+                <label className="text-[11px] font-bold text-slate-400 uppercase tracking-widest">Store Name</label>
+                <div className="mt-1.5 text-2xl font-black text-gray-900 tracking-tight">{store.name || <span className="text-gray-300">Unnamed Store</span>}</div>
               </div>
               
-              <div className="p-4 rounded-2xl bg-gray-50 border border-gray-100">
-                <p className="text-xs text-gray-400 font-medium mb-1">Base Delivery Fee</p>
-                <p className="text-sm font-bold text-gray-900">
-                  {store.delivery_round_university_enabled ? `฿${(store.round_uni_base_fee ?? 0).toLocaleString()}` : '-'}
-                </p>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* RIGHT: Logo */}
-        <div className="lg:col-span-1">
-          <div className="rounded-3xl border border-gray-200 bg-white p-5 md:p-6">
-            <div className="flex items-start justify-between gap-3">
+              <div className="h-px w-full bg-gray-100 mb-6"></div>
+              
               <div>
-                <p className="text-sm font-bold text-gray-900">Store Logo</p>
-                <p className="mt-1 text-xs text-gray-600">
-                  A clear logo helps your store look more professional.
-                </p>
+                <label className="text-[11px] font-bold text-slate-400 uppercase tracking-widest">Description</label>
+                <div className="mt-2 text-[15px] font-medium text-gray-600 leading-relaxed whitespace-pre-wrap">
+                  {store.description || <span className="italic text-gray-400">Tell your customers what makes your store special. Add your story and product highlights here.</span>}
+                </div>
               </div>
-
-              <span
-                className={`shrink-0 rounded-full px-3 py-1 text-[11px] font-semibold border ${
-                  store.profile_url
-                    ? "border-emerald-200 bg-emerald-50 text-emerald-700"
-                    : "border-gray-200 bg-gray-50 text-gray-700"
-                }`}
-              >
-                {store.profile_url ? "Set" : "Not set"}
-              </span>
-            </div>
-
-            <div className="mt-5 flex justify-center">
-              <div className="relative">
-                {/* subtle ring */}
-                <div className="absolute -inset-2 rounded-[28px] bg-orange-100/60 blur-xl" />
-                <img
-                  src={
-                    store.profile_url
-                      ? resolveImageUrl(store.profile_url)
-                      : "/images/default-store.png"
-                  }
-                  alt="store-logo"
-                  className="relative w-44 h-44 object-cover rounded-[28px] border border-white shadow-lg ring-1 ring-black/5"
-                />
-                <div className="absolute inset-0 rounded-[28px] ring-1 ring-white/70" />
-              </div>
-            </div>
-
-            <div className="mt-5 rounded-2xl bg-gray-50 px-4 py-3">
-              <p className="text-xs text-gray-700">
-                Tip: Use a square image, simple background, and clear text.
-              </p>
             </div>
           </div>
         </div>
+
+        {/* Card 2: Fulfillment & Logistics */}
+        <div className="bg-white border border-gray-200/60 rounded-2xl shadow-[0_2px_10px_-3px_rgba(0,0,0,0.05)] overflow-hidden">
+          <div className="px-6 py-5 border-b border-gray-100 bg-[#f8fafc]/50">
+            <h3 className="text-base font-bold text-gray-900">Fulfillment & Logistics</h3>
+            <p className="text-sm text-gray-500 mt-1">Configure how you deliver products to your buyers.</p>
+          </div>
+
+          <div className="px-6 py-6 flex flex-col gap-6">
+            {/* Row 1: Delivery Method */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div>
+                <div className="text-[15px] font-bold text-gray-900 flex items-center gap-2">
+                  <svg className="w-4 h-4 text-orange-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
+                  Round University Delivery
+                </div>
+                <div className="text-sm font-medium text-gray-500 mt-1">Enable or disable delivery services for your campus area.</div>
+              </div>
+              <div className={`px-4 py-1.5 rounded-full text-[11px] font-black tracking-wider uppercase shadow-sm flex items-center gap-1.5 border shrink-0 ${store.delivery_round_university_enabled ? 'bg-emerald-50 text-emerald-600 border-emerald-200' : 'bg-gray-50 text-gray-400 border-gray-200'}`}>
+                {store.delivery_round_university_enabled ? '● Active' : 'Disabled'}
+              </div>
+            </div>
+
+            <div className="h-px w-full bg-gray-100"></div>
+
+            {/* Row 2: Base Fee */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div>
+                <div className="text-[15px] font-bold text-gray-900 flex items-center gap-2">
+                  <svg className="w-4 h-4 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                  Base Delivery Fee
+                </div>
+                <div className="text-sm font-medium text-gray-500 mt-1">The standard delivery charge applied to orders.</div>
+              </div>
+              <div className="flex items-baseline gap-1.5 bg-[#f8fafc] px-5 py-2.5 rounded-xl border border-gray-200 shrink-0">
+                <span className="text-lg font-bold text-orange-500">฿</span>
+                <span className="text-3xl font-black text-gray-900 tracking-tight">
+                  {store.delivery_round_university_enabled ? (store.round_uni_base_fee ?? 0).toLocaleString() : '-'}
+                </span>
+                <span className="text-[11px] font-bold text-gray-400 uppercase tracking-widest ml-1">THB</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
       </div>
     </div>
 

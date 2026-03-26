@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react"
 import { useNavigate } from "react-router-dom"
-import { Bell, MessageCircle, Trash2, Megaphone } from "lucide-react"
+import { Bell, MessageCircle, Trash2, Megaphone, ShieldAlert, ShoppingCart } from "lucide-react"
 import {
   useNotificationApi,
   type Notification,
@@ -178,8 +178,20 @@ export default function NotificationDropdown({
     const isSeller = !!myStoreId && !!n.store_id && n.store_id === myStoreId
     const isChat = n.type === "CHAT_NEW_MESSAGE"
     const isAnnouncement = n.type === "ANNOUNCEMENT"
+    const isReport = n.type === "REPORT_ACTION_TAKEN"
 
     if (isAnnouncement) return
+
+    if (isReport) {
+      // Navigate to report status page
+      // Sellers go to their dashboard report tab, buyers go to general reports
+      if (isSeller || roles?.some(r => r.toLowerCase() === 'seller')) {
+        navigate("/store/report")
+      } else {
+        navigate("/reports")
+      }
+      return
+    }
 
     if (isSeller) {
       navigate(
@@ -274,13 +286,17 @@ export default function NotificationDropdown({
             {notifications.map((n) => {
               const isChat = n.type === "CHAT_NEW_MESSAGE"
               const isAnnouncement = n.type === "ANNOUNCEMENT"
+              const isReport = n.type === "REPORT_ACTION_TAKEN"
+
               return (
                 <div
                   key={n.notification_id}
-                  className={`border-b border-gray-50 px-5 py-4 ${
+                  className={`group cursor-pointer border-b border-gray-50 px-5 py-4 transition-colors hover:bg-orange-50 ${
                     !n.is_read
                       ? isAnnouncement
                         ? "bg-red-50/40"
+                        : isReport
+                        ? "bg-indigo-50/60"
                         : "bg-orange-50/60"
                       : ""
                   }`}
@@ -288,18 +304,22 @@ export default function NotificationDropdown({
                   <div className="flex gap-3">
                     {/* Icon */}
                     <div
-                      className={`mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full ${
+                      className={`mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full transition-all duration-300 group-hover:scale-110 group-hover:shadow-md group-hover:text-white ${
                         isAnnouncement
-                          ? "bg-gradient-to-br from-red-500 to-[#FF4C24] text-white shadow-sm"
+                          ? "bg-red-50 text-red-500 group-hover:bg-red-500"
                           : isChat
-                          ? "bg-orange-500 text-white"
-                          : "bg-gray-200 text-gray-500"
+                          ? "bg-gray-100 text-gray-500 group-hover:bg-orange-500"
+                          : isReport
+                          ? "bg-indigo-50 text-indigo-600 group-hover:bg-indigo-600"
+                          : "bg-gray-100 text-gray-500 group-hover:bg-orange-500"
                       }`}
                     >
                       {isAnnouncement ? (
                         <Megaphone className="h-4 w-4" />
                       ) : isChat ? (
                         <MessageCircle className="h-4 w-4" />
+                      ) : isReport ? (
+                        <ShieldAlert className="h-4 w-4" />
                       ) : (
                         <Bell className="h-4 w-4" />
                       )}
@@ -311,19 +331,31 @@ export default function NotificationDropdown({
                         className={`text-[13px] ${
                           isAnnouncement
                             ? "font-bold text-[#FF4C24]"
+                            : isReport
+                            ? "font-bold text-indigo-700"
                             : "font-semibold text-gray-900"
                         }`}
                       >
+                        {isAnnouncement ? (
+                          <Megaphone className="inline-block mr-1.5 h-3.5 w-3.5 mb-0.5" />
+                        ) : isReport ? (
+                          <ShieldAlert className="inline-block mr-1.5 h-3.5 w-3.5 mb-0.5" />
+                        ) : isChat ? (
+                          <MessageCircle className="inline-block mr-1.5 h-3.5 w-3.5 mb-0.5" />
+                        ) : (
+                          <ShoppingCart className="inline-block mr-1.5 h-3.5 w-3.5 mb-0.5" />
+                        )}
+
                         {isAnnouncement
-                          ? "📢 System Announcement"
-                          : isChat
-                          ? "💬 "
-                          : "🛒 "}
-                        {!isAnnouncement && n.title}
-                        {!isAnnouncement && ` – ORDER #${n.order_id}`}
+                          ? "System Announcement"
+                          : isReport
+                          ? "Report Case"
+                          : ""}
+                        {!isAnnouncement && !isReport && n.title}
+                        {!isAnnouncement && !isReport && ` – ORDER #${n.order_id}`}
                       </p>
 
-                      {isAnnouncement && (
+                      {(isAnnouncement || isReport) && (
                         <p className="mt-1 text-[13.5px] font-bold leading-tight text-gray-800">
                           {n.title}
                         </p>
@@ -331,19 +363,28 @@ export default function NotificationDropdown({
 
                       <div
                         className={`mt-1.5 ${
-                          isAnnouncement
-                            ? "rounded-[6px] border border-red-100 bg-white p-2.5 shadow-[0_1px_2px_rgba(255,76,36,0.05)]"
+                          isAnnouncement || isReport
+                            ? `border-l-2 pl-3 transition-colors group-hover:border-orange-300 ${
+                                isAnnouncement ? "border-red-200" : "border-indigo-200"
+                              }`
                             : ""
                         }`}
                       >
+                        {isReport && (
+                          <div className="mb-1.5 flex items-center gap-2">
+                            <span className="rounded bg-indigo-50 px-1.5 py-0.5 text-[10px] font-bold text-indigo-600">
+                              {n.data.ban_type ?? "ACTION TAKEN"}
+                            </span>
+                          </div>
+                        )}
                         <p
                           className={`text-xs ${
-                            isAnnouncement
-                              ? "leading-relaxed text-gray-700"
+                            isAnnouncement || isReport
+                              ? "leading-relaxed text-gray-600"
                               : "text-gray-500"
                           }`}
                         >
-                          {n.body}
+                          {isReport ? (n.data.note || n.body) : n.body}
                         </p>
                       </div>
 
@@ -365,6 +406,8 @@ export default function NotificationDropdown({
                         className={`mt-2.5 inline-block cursor-pointer rounded-full px-4 py-1.5 text-[11px] font-semibold transition-colors ${
                           isAnnouncement
                             ? "border border-[#FF4C24] bg-white text-[#FF4C24] hover:bg-red-50"
+                            : isReport
+                            ? "border border-indigo-600 bg-white text-indigo-600 hover:bg-indigo-50 font-bold"
                             : "bg-orange-500 text-white hover:bg-orange-600"
                         }`}
                       >
@@ -372,6 +415,8 @@ export default function NotificationDropdown({
                           ? "Acknowledge"
                           : isChat
                           ? "Chat"
+                          : isReport
+                          ? "View Report Case"
                           : "View details"}
                       </button>
 
@@ -383,7 +428,11 @@ export default function NotificationDropdown({
 
                     {/* Unread dot */}
                     {!n.is_read && (
-                      <span className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-[#FF4C24]" />
+                      <span
+                        className={`mt-1.5 h-2 w-2 shrink-0 rounded-full ${
+                          isReport ? "bg-indigo-600" : "bg-[#FF4C24]"
+                        }`}
+                      />
                     )}
                   </div>
                 </div>
