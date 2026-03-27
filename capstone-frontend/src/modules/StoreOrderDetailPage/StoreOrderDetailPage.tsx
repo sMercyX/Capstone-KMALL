@@ -4,6 +4,7 @@ import { Link, useNavigate, useParams } from "react-router-dom"
 import { Store, User, Check, AlertTriangle } from "lucide-react"
 import BackButton from "../../components/Buttons/BackButton"
 import StatusBanner from "./StatusBanner"
+import OrderDetailSkeleton from "./OrderDetailSkeleton"
 
 import {
   useOrderSellerApi,
@@ -420,6 +421,23 @@ export default function StoreOrderDetailPage() {
   const isBuyer = !isSellerPath  // Buyer view is /orders/:id, Seller view is /store/orders/:id
   const isFinished = order?.status === "Completed" || order?.status === "Cancelled"
 
+  if (loading) return <OrderDetailSkeleton />
+
+  if (error) {
+    return (
+      <div className="max-w-5xl mx-auto py-20 px-4 text-center">
+        <div className="bg-red-50 border border-red-100 rounded-3xl p-10 shadow-sm inline-block">
+          <AlertTriangle className="h-12 w-12 text-red-500 mx-auto mb-4" />
+          <h2 className="text-2xl font-bold text-gray-900 mb-2">Oops! Something went wrong</h2>
+          <p className="text-gray-600 mb-6">{error}</p>
+          <BackButton to={isSellerPath ? '/store/orders' : '/orders/ongoing'} />
+        </div>
+      </div>
+    )
+  }
+
+  if (!order) return null
+
   // Buyer: no buttons after PROPOSED status
   // Seller: has buttons throughout the order lifecycle
   const canReject = !!order && !isFinished && (isSellerPath || order.status === "Proposed" || order.status === "Pending")
@@ -768,12 +786,7 @@ export default function StoreOrderDetailPage() {
 
         <hr className="border-gray-200 mb-6" />
 
-        {loading && (
-          <p className="text-center text-sm text-gray-500 py-8">Loading...</p>
-        )}
-        {error && <p className="text-center text-sm text-red-500 py-8">{error}</p>}
-
-        {order && !loading && !error && (
+        {order && (
           <>
             {/* PendingProposedPage - Only for Pending/Proposed status */}
             {(order.status === "Pending" || order.status === "Proposed") && (
