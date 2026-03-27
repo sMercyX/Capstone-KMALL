@@ -17,7 +17,10 @@ type CreateInput struct {
 	Name        string  `json:"name"`
 	Description *string `json:"description,omitempty"`
 	ProfileURL  *string `json:"profile_url,omitempty"`
-	IsActive    string  `json:"is_active,omitempty"` // "YES" | "NO"
+	IsActive    string  `json:"is_active,omitempty"`
+
+	DeliveryRoundUniversityEnabled *bool    `json:"delivery_round_university_enabled,omitempty"`
+	RoundUniBaseFee                *float64 `json:"round_uni_base_fee,omitempty"`
 }
 
 type UpdateInput struct {
@@ -118,6 +121,16 @@ func validateCreate(in *CreateInput) error {
 	}
 
 	in.IsActive = normalizeYesNo(in.IsActive, "YES")
+
+	if in.DeliveryRoundUniversityEnabled != nil && *in.DeliveryRoundUniversityEnabled {
+		if in.RoundUniBaseFee == nil {
+			return apperr.New(apperr.BadRequest, "round_uni_base_fee is required when delivery_round_university_enabled is true")
+		}
+		if *in.RoundUniBaseFee < 0 {
+			return apperr.New(apperr.BadRequest, "round_uni_base_fee must be >= 0")
+		}
+	}
+
 	return nil
 }
 
