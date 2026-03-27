@@ -1,6 +1,7 @@
 import { createPortal } from "react-dom"
 import { useState } from "react"
-import { X, AlertTriangle, Lock, Ban, ShieldAlert } from "lucide-react"
+import { X, AlertTriangle, Lock, Ban, ShieldAlert, Check, Circle } from "lucide-react"
+import { PiCircleFill } from "react-icons/pi"
 
 export type ActionType = "WARN_USER" | "SUSPEND_USER" | "BAN_USER"
 
@@ -148,13 +149,11 @@ export default function ResolveReportModal({
                   )}
                 </div>
                 <div className="flex-shrink-0 mt-1">
-                  <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center ${
+                  <div className={`w-6 h-6 rounded-full border-2 flex items-center bg-white justify-center ${
                     isSelected ? "border-[#ff5a36] bg-[#ff5a36]" : "border-gray-300"
                   }`}>
                     {isSelected && (
-                      <svg className="w-3.5 h-3.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                      </svg>
+                      <PiCircleFill className="w-4 h-4 text-orange-500" />
                     )}
                   </div>
                 </div>
