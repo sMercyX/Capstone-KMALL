@@ -165,12 +165,19 @@ export default function SellerDashboardPage() {
     for (let i = 1; i <= 12; i++) {
       const currentMonth = dayjs(`${selectedYear}-${i}-01`)
       chartLabels.push(currentMonth.format("MMM YYYY"))
-      const match = rawData.find((r) =>
-        dayjs(r.date).month() + 1 === i &&
-        dayjs(r.date).year() === selectedYear
-      )
-      chartDataRevenues.push(match ? Number(match.revenue) : 0)
-      chartDataOrders.push(match ? Number(match.orders) : 0)
+      
+      const isFutureMonth = selectedYear === dayjs().year() && i > (dayjs().month() + 1)
+      if (isFutureMonth) {
+        chartDataRevenues.push(null as any)
+        chartDataOrders.push(null as any)
+      } else {
+        const match = rawData.find((r) =>
+          dayjs(r.date).month() + 1 === i &&
+          dayjs(r.date).year() === selectedYear
+        )
+        chartDataRevenues.push(match ? Number(match.revenue) : 0)
+        chartDataOrders.push(match ? Number(match.orders) : 0)
+      }
     }
   } else {
     // all_time (Ensuring last 12 months with Monthly labels)
@@ -275,6 +282,7 @@ export default function SellerDashboardPage() {
         type: "linear" as const,
         display: true,
         position: "left" as const,
+        min: 0,
         title: {
           display: true,
           text: "Revenue (THB)",
@@ -291,6 +299,7 @@ export default function SellerDashboardPage() {
         type: "linear" as const,
         display: true,
         position: "right" as const,
+        min: 0,
         title: {
           display: true,
           text: "Orders",
@@ -421,9 +430,6 @@ export default function SellerDashboardPage() {
                       <div className="flex flex-col">
                         {Array.from({ length: 12 }).map((_, i) => {
                           const monthNum = i + 1
-                          const isFuture = selectedYear === dayjs().year() && monthNum > (dayjs().month() + 1)
-                          if (isFuture) return null
-
                           return (
                             <button
                               key={i}
@@ -457,7 +463,7 @@ export default function SellerDashboardPage() {
                   {isYearOpen && granularity !== "all_time" && (
                     <div className="absolute top-10 right-0 z-10 w-32 rounded-md bg-white p-1 shadow-lg border border-gray-100 max-h-60 overflow-y-auto overflow-x-hidden">
                       <div className="flex flex-col">
-                        {Array.from({ length: dayjs().year() - 2020 + 1 }).map((_, i) => {
+                        {Array.from({ length: dayjs().year() - 2026 + 1 }).map((_, i) => {
                           const yr = dayjs().year() - i
                           return (
                             <button
@@ -539,9 +545,6 @@ export default function SellerDashboardPage() {
                     </td>
                     <td className="py-6 px-6">
                       <div className="flex items-center gap-4">
-                        <div className="h-10 w-10 rounded-lg bg-gray-50 border border-gray-100 flex-shrink-0 flex items-center justify-center group-hover:bg-white transition-colors">
-                          <Package className="h-5 w-5 text-gray-300" />
-                        </div>
                         <div className="flex flex-col gap-0.5">
                           <span className="font-bold text-gray-800 text-sm group-hover:text-orange-600 transition-colors uppercase tracking-tight">{p.product_name}</span>
                         </div>
