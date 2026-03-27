@@ -3,6 +3,7 @@ import { useEffect, useState, useCallback, useRef } from "react"
 import { Link, useNavigate, useParams } from "react-router-dom"
 import { Store, User, Check, AlertTriangle } from "lucide-react"
 import BackButton from "../../components/Buttons/BackButton"
+import StatusBanner from "./StatusBanner"
 
 import {
   useOrderSellerApi,
@@ -162,12 +163,11 @@ export default function StoreOrderDetailPage() {
             items: updatedData.items
         }
     })
-    
-    // Show toast only if status is Proposed (After clicking 'Propose'/'Save and Propose')
-    // This allows the user (both buyer/seller) to see the update specifically when proposal changes
-    if (updatedData.order.status === "Proposed") {
-      toast.info("Order details have been updated.")
-    }
+    //  if (updatedData.order.status === "Proposed") {
+    //   toast.info("Order details have been updated.")
+    // }
+    // Show toast for any update received via WebSocket for real-time awareness
+    toast.info(`Order updated: Current status is ${updatedData.order.status}`)
   }, [])
 
   useOrderWebSocket(orderId, handleWebSocketUpdate)
@@ -573,7 +573,7 @@ export default function StoreOrderDetailPage() {
         const res = await getOrderDetail(parseInt(orderId))
         setData(res.data)
         
-        toast.success("Proposal accepted successfully!")
+        toast.success("Proposal accepted! Order is now confirmed and ready for preparation.")
       } catch (e) {
         handleApiError(e)
       } finally {
@@ -590,15 +590,15 @@ export default function StoreOrderDetailPage() {
     switch (order.status) {
       case "Accepted":
         nextStatus = "Out For Delivery"
-        successMessage = "Status updated to Out for delivery."
+        successMessage = "Status updated: You are now out for delivery!"
         break
       case "Out For Delivery":
         nextStatus = "Arrived"
-        successMessage = "Status updated to Arrived."
+        successMessage = "Status updated: You have arrived at the destination!"
         break
       case "Arrived":
         nextStatus = "Completed"
-        successMessage = "Order completed successfully!"
+        successMessage = "Order completed! The transaction is now finalized successfully."
         break
       default:
         return
@@ -712,6 +712,9 @@ export default function StoreOrderDetailPage() {
 
       {/* Main Card */}
       <div className="rounded-3xl bg-white border border-gray-200 px-6 md:px-8 py-6 shadow-sm">
+        {/* Status Banner */}
+        {order && <StatusBanner order={order} isSeller={isSellerPath} />}
+
         {/* Header */}
         <div className="flex items-center justify-between mb-2">
           <div className="flex items-center gap-2">
