@@ -296,22 +296,7 @@ export default function StoreRegisterPage() {
             <div className="pt-4 border-t border-gray-100">
               {/* Section Header */}
               <div className="flex items-center gap-2 mb-4">
-                <div className="flex items-center justify-center w-7 h-7 rounded-lg bg-orange-100">
-                  <svg
-                    className="w-4 h-4 text-orange-500"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                    strokeWidth={2}
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      d="M13 16V6a1 1 0 00-1-1H4a1 1 0 00-1 1v10a1 1 0 001 1h1m8-1a1 1 0 01-1 1H9m4-1V8a1 1 0 011-1h2.586a1 1 0 01.707.293l3.414 3.414A1 1 0 0121 11.414V16a1 1 0 01-1 1h-1m-6-1a1 1 0 001 1h1M5 17a2 2 0 104 0m-4 0a2 2 0 114 0m6 0a2 2 0 104 0m-4 0a2 2 0 114 0"
-                    />
-                  </svg>
-                </div>
-                <h2 className="font-bold text-base text-gray-900">Delivery Settings</h2>
+                <h2 className="font-bold text-text text-gray-900">Delivery Settings</h2>
               </div>
  
               {/* Main Card */}
