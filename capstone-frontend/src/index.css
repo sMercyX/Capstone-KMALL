@@ -234,6 +234,6 @@ a:hover {
   
   /* Description: Desktop sm, Mobile xs */
   .text-description {
-    @apply text-xs sm:text-sm text-gray-500;
+    @apply text-xs sm:text-sm ;
   }
 }
