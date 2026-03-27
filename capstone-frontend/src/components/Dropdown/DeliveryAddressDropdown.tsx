@@ -92,7 +92,7 @@ export default function DeliveryAddressDropdown({
               </button>
             ))}
             {addresses.length === 0 && (
-                <div className="p-4 text-center text-red-500 text-sm">Shipping address not provided</div>
+                <div className="p-4 py-8 text-center text-gray-500 text-sm">Shipping address not provided</div>
             )}
             <div className="flex justify-end gap-2 p-3 border-t sticky bottom-0 bg-white">
               <button
