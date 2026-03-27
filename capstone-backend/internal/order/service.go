@@ -870,9 +870,9 @@ func (s *service) createOrderStatusNotiBestEffort(ctx context.Context, ord Order
 	if strings.EqualFold(recipient, actorUserID) {
 		return
 	}
-	if s.shouldSkipNotiForOrderRoom(int64(ord.ID), recipient) {
-		return
-	}
+	// if s.shouldSkipNotiForOrderRoom(int64(ord.ID), recipient) {
+	// 	return
+	// }
 
 	ordID := int64(ord.ID)
 	title, body := notification.BuildOrderStatusMessage(from, to)
@@ -934,11 +934,11 @@ func (s *service) updateOrderStatusNotiBestEffort(ctx context.Context, ord Order
 	if strings.EqualFold(recipient, actorUserID) {
 		return nil
 	}
-	if !isAutoCancelDueToBan(ord, to) {
-		if s.shouldSkipNotiForOrderRoom(int64(ord.ID), recipient) {
-			return nil
-		}
-	}
+	// if !isAutoCancelDueToBan(ord, to) {
+	// 	if s.shouldSkipNotiForOrderRoom(int64(ord.ID), recipient) {
+	// 		return nil
+	// 	}
+	// }
 
 	ordID := int64(ord.ID)
 	title, body := notification.BuildOrderStatusMessage(from, to)

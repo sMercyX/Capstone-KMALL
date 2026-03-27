@@ -117,12 +117,13 @@ func (r *repo) CreateReport(ctx context.Context, in CreateReportInput) (Report, 
 
 	var existsID int64
 	err := r.db.QueryRow(ctx, `
-    	SELECT report_id
-    	FROM reports
-    	WHERE order_id = $1
-      	AND reporter_id = $2
-    	LIMIT 1;
-	`, in.OrderID, in.ReporterID).Scan(&existsID)
+    SELECT report_id
+    FROM reports
+    WHERE order_id = $1
+      AND reporter_id = $2
+      AND status NOT IN ('RESOLVED', 'CLOSED')
+    LIMIT 1;
+`, in.OrderID, in.ReporterID).Scan(&existsID)
 
 	if err == nil {
 		return Report{}, apperr.New(apperr.Conflict, "report already exists for this order")

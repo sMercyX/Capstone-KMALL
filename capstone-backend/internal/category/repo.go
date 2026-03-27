@@ -35,6 +35,8 @@ type Repo interface {
 
 	UpsertMainAndLinkSubsFull(ctx context.Context, main UpsertMainParams, subs []UpsertNodeParams) (Category, []Category, error)
 	GetBySlug(ctx context.Context, slug string) (Category, error)
+
+	DeleteMainIfNoProductsInSubs(ctx context.Context, mainID int64) error
 }
 
 type repo struct{ db *pgxpool.Pool }
@@ -956,4 +958,75 @@ func (r *repo) GetBySlug(ctx context.Context, slug string) (Category, error) {
 		return Category{}, apperr.Wrap(apperr.Internal, err, "get category by slug failed")
 	}
 	return c, nil
+}
+
+func (r *repo) DeleteMainIfNoProductsInSubs(ctx context.Context, mainID int64) error {
+	tx, err := r.db.Begin(ctx)
+	if err != nil {
+		return apperr.Wrap(apperr.Internal, err, "begin tx failed")
+	}
+	defer tx.Rollback(ctx)
+
+	// 1) lock main และเช็คว่ามีจริง + ต้องเป็น main
+	var parentID *int
+	err = tx.QueryRow(ctx, `
+		SELECT parent_id
+		FROM categories
+		WHERE category_id = $1
+		FOR UPDATE
+	`, mainID).Scan(&parentID)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return apperr.New(apperr.NotFound, "category not found")
+		}
+		return apperr.Wrap(apperr.Internal, err, "get main category failed")
+	}
+	if parentID != nil {
+		return apperr.New(apperr.BadRequest, "category is not a main category")
+	}
+
+	// 2) เช็คว่ามี product ใช้อยู่ใน sub ของ main นี้ไหม
+	var usedCount int64
+	err = tx.QueryRow(ctx, `
+		SELECT COUNT(*)
+		FROM products p
+		JOIN categories s ON s.category_id = p.category_id
+		WHERE s.parent_id = $1
+	`, mainID).Scan(&usedCount)
+	if err != nil {
+		return apperr.Wrap(apperr.Internal, err, "check products in sub categories failed")
+	}
+	if usedCount > 0 {
+		return apperr.New(
+			apperr.BadRequest,
+			"cannot delete main category because some sub categories are still used by products",
+		)
+	}
+
+	// 3) ลบ sub categories ก่อน
+	_, err = tx.Exec(ctx, `
+		DELETE FROM categories
+		WHERE parent_id = $1
+	`, mainID)
+	if err != nil {
+		return apperr.Wrap(apperr.Internal, err, "delete sub categories failed")
+	}
+
+	// 4) ลบ main category
+	cmd, err := tx.Exec(ctx, `
+		DELETE FROM categories
+		WHERE category_id = $1
+	`, mainID)
+	if err != nil {
+		return apperr.Wrap(apperr.Internal, err, "delete main category failed")
+	}
+	if cmd.RowsAffected() == 0 {
+		return apperr.New(apperr.NotFound, "category not found")
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return apperr.Wrap(apperr.Internal, err, "commit tx failed")
+	}
+
+	return nil
 }
