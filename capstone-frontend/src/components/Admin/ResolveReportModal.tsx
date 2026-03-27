@@ -1,6 +1,6 @@
 import { createPortal } from "react-dom"
 import { useState } from "react"
-import { X, AlertTriangle, Lock, Ban, ShieldAlert, Check, Circle } from "lucide-react"
+import { X, AlertTriangle, Lock, Ban, ShieldAlert } from "lucide-react"
 import { PiCircleFill } from "react-icons/pi"
 
 export type ActionType = "WARN_USER" | "SUSPEND_USER" | "BAN_USER"
