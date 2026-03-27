@@ -46,13 +46,13 @@ export default function ArrivedPage({ order, items, subtotal, deliveryFee, total
   return (
     <div className="flex flex-col items-center">
       {/* Delivery Info Header */}
-      <div className="w-full bg-white rounded-xl p-4 mb-2 text-left">
+      <div className="w-full bg-white rounded-xl p-4 mb-2 text-center">
         {order.delivery_method === "ROUND_UNIVERSITY" ? (
-          <div className="flex flex-col items-start w-full">
+          <div className="flex flex-col items-center w-full">
             <h3 className="text-lg font-bold text-gray-900 mb-4 px-1">
                Delivery Address
             </h3>
-            <div className="w-full bg-white rounded-2xl p-5 border border-gray-200 shadow-sm flex items-start gap-4">
+            <div className="w-full max-w-lg bg-white rounded-2xl p-5 border border-gray-200 shadow-sm flex items-start gap-4 text-left">
                <div className="bg-gray-50 p-3 rounded-xl border border-gray-100 flex-shrink-0">
                   <MapPin className="h-6 w-6 text-gray-500" />
                </div>
@@ -86,14 +86,19 @@ export default function ArrivedPage({ order, items, subtotal, deliveryFee, total
       </div>
 
       {/* Location Pin Icon */}
-      <div className="w-40 h-40 bg-gray-100 rounded-full flex items-center justify-center mb-8">
-        <svg className="w-20 h-20 text-gray-800" fill="currentColor" viewBox="0 0 24 24">
-          <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/>
-        </svg>
+      <div className="w-40 h-40 bg-gray-100 rounded-full flex items-center justify-center mb-8 shadow-inner">
+        <MapPin className="w-20 h-20 text-gray-800" strokeWidth={1.5} />
       </div>
 
       {/* Status Message */}
-      <p className="text-xl font-semibold text-orange-500 mb-8">{statusText}</p>
+      <div className="text-center mb-8 px-4">
+        <p className="text-xl font-bold text-orange-500 mb-2">{statusText}</p>
+        <p className="text-sm text-gray-500 max-w-md mx-auto leading-relaxed">
+          {viewMode === "buyer" 
+            ? "The seller has arrived at the meeting point or your delivery address! Please meet them to receive your items and confirm the handover."
+            : "You've arrived! Please meet the buyer, hand over the items, and then mark the order as completed to finalize the transaction."}
+        </p>
+      </div>
 
       {/* Product Details Section */}
       <div className="w-full mb-6">

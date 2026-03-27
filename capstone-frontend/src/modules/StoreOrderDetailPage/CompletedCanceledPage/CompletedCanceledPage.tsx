@@ -4,7 +4,7 @@ import type { OrderItemDetail, orderSellerData, OrderDeliveryAddress } from "../
 import { useProductApi, type RecommendationProduct } from "../../../api/productApi"
 import { resolveImageUrl } from "../../../utils/resolve"
 import ProductList from "../../../components/ProductList/ProductList"
-import { MapPin, Calendar, CheckCircle2, XCircle } from "lucide-react"
+import { MapPin, Calendar, CheckCircle2, XCircle, Check, PackageCheck, Package } from "lucide-react"
 
 interface CompletedCanceledPageProps {
   order: orderSellerData
@@ -85,17 +85,9 @@ export default function CompletedCanceledPage({ order, items, total, isBuyer, de
       {!isCancelled && order.delivery_method !== "ROUND_UNIVERSITY" && (
         <div className="flex flex-col items-center mb-2">
           <div className="relative w-48 h-48 mb-4">
-            <div className="w-full h-full rounded-full flex flex-col items-center justify-center bg-gradient-to-b from-cyan-400 to-cyan-500">
-              <div className="space-y-2">
-                <div className="w-20 h-2 rounded bg-cyan-300"></div>
-                <div className="w-16 h-2 rounded bg-cyan-300"></div>
-                <div className="w-14 h-2 rounded bg-cyan-300"></div>
-              </div>
-            </div>
-            <div className="absolute -bottom-2 left-1/2 transform -translate-x-1/2 w-14 h-14 rounded-full flex items-center justify-center border-4 border-white bg-green-500">
-              <svg className="w-8 h-8 text-white" fill="currentColor" viewBox="0 0 24 24">
-                <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/>
-              </svg>
+            {/* Main completed badge - much more premium now */}
+            <div className="w-full h-full rounded-full flex flex-col items-center justify-center bg-gradient-to-br from-green-400 to-green-600 shadow-lg shadow-blue-200 border-4 border-white/20">
+              <PackageCheck className="w-24 h-24 text-white drop-shadow-md" strokeWidth={1} />
             </div>
           </div>
           <p className="text-2xl font-bold text-green-500 mb-2">Order Completed</p>

@@ -1,6 +1,6 @@
 import type { OrderItemDetail, orderSellerData, OrderDeliveryAddress } from "../../../api/orderSellerApi"
 import ProductList from "../../../components/ProductList/ProductList"
-import { MapPin, Calendar } from "lucide-react"
+import { MapPin, Calendar, Package } from "lucide-react"
 
 interface AcceptedPageProps {
   order: orderSellerData
@@ -47,13 +47,13 @@ export default function AcceptedPage({ order, items, subtotal, deliveryFee, tota
   return (
     <div className="flex flex-col items-center">
       {/* Delivery Info Header */}
-      <div className="w-full bg-white rounded-xl p-4 mb-2 text-left">
+      <div className="w-full bg-white rounded-xl p-4 mb-2 text-center">
         {order.delivery_method === "ROUND_UNIVERSITY" ? (
-          <div className="flex flex-col items-start w-full">
+          <div className="flex flex-col items-center w-full">
             <h3 className="text-lg font-bold text-gray-900 mb-4 px-1">
                Delivery Address
             </h3>
-            <div className="w-full bg-white rounded-2xl p-5 border border-gray-200 shadow-sm flex items-start gap-4">
+            <div className="w-full max-w-lg bg-white rounded-2xl p-5 border border-gray-200 shadow-sm flex items-start gap-4 text-left">
                <div className="bg-gray-50 p-3 rounded-xl border border-gray-100 flex-shrink-0">
                   <MapPin className="h-6 w-6 text-gray-500" />
                </div>
@@ -87,14 +87,19 @@ export default function AcceptedPage({ order, items, subtotal, deliveryFee, tota
       </div>
 
       {/* Package Icon */}
-      <div className="w-40 h-40 bg-gray-100 rounded-full flex items-center justify-center mb-8">
-        <svg className="w-20 h-20 text-gray-800" fill="currentColor" viewBox="0 0 24 24">
-          <path d="M12.65 10C11.83 7.67 9.61 6 7 6c-3.31 0-6 2.69-6 6s2.69 6 6 6c2.61 0 4.83-1.67 5.65-4H17v4h4v-4h2v-4H12.65zM7 14c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2z" />
-        </svg>
+      <div className="w-40 h-40 bg-gray-100 rounded-full flex items-center justify-center mb-8 shadow-inner">
+        <Package className="w-20 h-20 text-gray-800" strokeWidth={1.5} />
       </div>
 
       {/* Status Message */}
-      <p className="text-xl font-semibold text-orange-500 mb-8">{statusText}</p>
+      <div className="text-center mb-8 px-4">
+        <p className="text-xl font-bold text-orange-500 mb-2">{statusText}</p>
+        <p className="text-sm text-gray-500 max-w-md mx-auto leading-relaxed">
+          {viewMode === "buyer" 
+            ? "The seller has accepted your order and is currently preparing your items. You'll be notified when they are ready for delivery or pickup."
+            : "The order has been confirmed. Please prepare the items and update the status once you're ready to start the delivery or handover."}
+        </p>
+      </div>
 
       {/* Product Details Section */}
       <div className="w-full mb-6">

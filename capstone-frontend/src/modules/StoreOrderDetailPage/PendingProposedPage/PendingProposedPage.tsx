@@ -140,81 +140,88 @@ export default function PendingProposedPage({
                   </div>
                </div>
             )}
+
+            {/* Placeholder for buyer in Pending status - Removed as per user request */}
+            {isBuyer && order.status === "Pending" && null}
           </div>
         ) : (
           <div>
             {/* Meeting location and date/time (Existing Campus Meeting Flow) */}
-            <div className="flex justify-between items-center mb-6">
-              <h3 className="text-xl font-bold">Meeting location and date/time</h3>
-            </div>
+            {isBuyer && order.status === "Pending" ? null : (
+              <>
+                <div className="flex justify-between items-center mb-6">
+                  <h3 className="text-xl font-bold">Meeting location and date/time</h3>
+                </div>
 
-            {/* Grid: Desktop = Zone+DateTime / Building+MAP, Mobile = Zone → Building → DateTime → MAP */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className="order-1">
-                <ZoneDropdown
-                  value={selectedZone}
-                  onChange={onZoneChange}
-                  zones={zones}
-                  disabled={isBuyer}
-                  error={validationErrors.zone}
-                />
-              </div>
+                {/* Grid: Desktop = Zone+DateTime / Building+MAP, Mobile = Zone → Building → DateTime → MAP */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="order-1">
+                    <ZoneDropdown
+                      value={selectedZone}
+                      onChange={onZoneChange}
+                      zones={zones}
+                      disabled={isBuyer}
+                      error={validationErrors.zone}
+                    />
+                  </div>
 
-              <div className="order-3 md:order-2">
-                <DateTimePicker
-                  value={selectedDateTime}
-                  onChange={onDateTimeChange}
-                  disabled={isBuyer}
-                  time={selectedTime}
-                  minDate={new Date()}
-                  maxDate={new Date(new Date().setDate(new Date().getDate() + 14))}
-                  error={validationErrors.dateTime}
-                />
-              </div>
+                  <div className="order-3 md:order-2">
+                    <DateTimePicker
+                      value={selectedDateTime}
+                      onChange={onDateTimeChange}
+                      disabled={isBuyer}
+                      time={selectedTime}
+                      minDate={new Date()}
+                      maxDate={new Date(new Date().setDate(new Date().getDate() + 14))}
+                      error={validationErrors.dateTime}
+                    />
+                  </div>
 
-              <div className="order-2 md:order-3">
-                <BuildingDropdown
-                  value={selectedBuilding}
-                  onChange={onBuildingChange}
-                  buildings={buildings}
-                  disabled={isBuyer || !selectedZone}
-                  placeholder={!selectedZone ? "Select a zone first" : "Select a building"}
-                  label="Building number and name"
-                  error={validationErrors.building}
-                />
-              </div>
+                  <div className="order-2 md:order-3">
+                    <BuildingDropdown
+                      value={selectedBuilding}
+                      onChange={onBuildingChange}
+                      buildings={buildings}
+                      disabled={isBuyer || !selectedZone}
+                      placeholder={!selectedZone ? "Select a zone first" : "Select a building"}
+                      label="Building number and name"
+                      error={validationErrors.building}
+                    />
+                  </div>
 
-              <div className="order-4">
-                <label className="block text-base font-semibold mb-3 invisible">-</label>
-                <MapKmuttButton />
-              </div>
-            </div>
+                  <div className="order-4">
+                    <label className="block text-base font-semibold mb-3 invisible">-</label>
+                    <MapKmuttButton />
+                  </div>
+                </div>
 
-            {/* Save Button - only show for seller in Proposed status */}
-            {!isBuyer && order.status === "Proposed" && (() => {
-              const originalBuildingId = order.meeting_location_id || order.campus_location_id
-              const originalProposedAt = order.proposed_at ? new Date(order.proposed_at) : null
-              const hasZoneOrBuildingChanged = selectedBuilding !== originalBuildingId
-              const hasDateTimeChanged = selectedDateTime && originalProposedAt
-                ? selectedDateTime.getTime() !== originalProposedAt.getTime()
-                : selectedDateTime !== originalProposedAt
-              const hasChanges = hasZoneOrBuildingChanged || hasDateTimeChanged
-              const isDisabled = proposeLoading || !selectedDateTime || !hasChanges
+                {/* Save Button - only show for seller in Proposed status */}
+                {!isBuyer && order.status === "Proposed" && (() => {
+                  const originalBuildingId = order.meeting_location_id || order.campus_location_id
+                  const originalProposedAt = order.proposed_at ? new Date(order.proposed_at) : null
+                  const hasZoneOrBuildingChanged = selectedBuilding !== originalBuildingId
+                  const hasDateTimeChanged = selectedDateTime && originalProposedAt
+                    ? selectedDateTime.getTime() !== originalProposedAt.getTime()
+                    : selectedDateTime !== originalProposedAt
+                  const hasChanges = hasZoneOrBuildingChanged || hasDateTimeChanged
+                  const isDisabled = proposeLoading || !selectedDateTime || !hasChanges
 
-              return (
-              <div className="mt-6 flex justify-end gap-3">
-                <button
-                  type="button"
-                  onClick={onProposeOrder}
-                  disabled={isDisabled}
-                  className={`px-8 py-3 rounded-xl text-base font-semibold text-white transition-colors
-                    ${isDisabled ? 'bg-gray-300 cursor-not-allowed' : 'bg-orange-500 hover:bg-orange-600'}`}
-                >
-                  {proposeLoading ? 'Saving...' : 'Save and propose time'}
-                </button>
-              </div>
-              )
-            })()}
+                  return (
+                  <div className="mt-6 flex justify-end gap-3">
+                    <button
+                      type="button"
+                      onClick={onProposeOrder}
+                      disabled={isDisabled}
+                      className={`px-8 py-3 rounded-xl text-base font-semibold text-white transition-colors
+                        ${isDisabled ? 'bg-gray-300 cursor-not-allowed' : 'bg-orange-500 hover:bg-orange-600'}`}
+                    >
+                      {proposeLoading ? 'Saving...' : 'Save and propose time'}
+                    </button>
+                  </div>
+                  )
+                })()}
+              </>
+            )}
           </div>
         )}
       </div>

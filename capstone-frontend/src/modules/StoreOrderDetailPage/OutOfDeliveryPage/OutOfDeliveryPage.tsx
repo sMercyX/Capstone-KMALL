@@ -1,6 +1,6 @@
 import type { OrderItemDetail, orderSellerData, OrderDeliveryAddress } from "../../../api/orderSellerApi"
 import ProductList from "../../../components/ProductList/ProductList"
-import { MapPin, Calendar } from "lucide-react"
+import { MapPin, Calendar, Truck } from "lucide-react"
 
 interface OutOfDeliveryPageProps {
   order: orderSellerData
@@ -46,13 +46,13 @@ export default function OutOfDeliveryPage({ order, items, subtotal, deliveryFee,
   return (
     <div className="flex flex-col items-center">
       {/* Delivery Info Header */}
-      <div className="w-full bg-white rounded-xl p-4 mb-2 text-left">
+      <div className="w-full bg-white rounded-xl p-4 mb-2 text-center">
         {order.delivery_method === "ROUND_UNIVERSITY" ? (
-          <div className="flex flex-col items-start w-full">
+          <div className="flex flex-col items-center w-full">
             <h3 className="text-lg font-bold text-gray-900 mb-4 px-1">
                Delivery Address
             </h3>
-            <div className="w-full bg-white rounded-2xl p-5 border border-gray-200 shadow-sm flex items-start gap-4">
+            <div className="w-full max-w-lg bg-white rounded-2xl p-5 border border-gray-200 shadow-sm flex items-start gap-4 text-left">
                <div className="bg-gray-50 p-3 rounded-xl border border-gray-100 flex-shrink-0">
                   <MapPin className="h-6 w-6 text-gray-500" />
                </div>
@@ -86,14 +86,19 @@ export default function OutOfDeliveryPage({ order, items, subtotal, deliveryFee,
       </div>
 
       {/* Delivery Truck Icon */}
-      <div className="w-40 h-40 bg-gray-100 rounded-full flex items-center justify-center mb-8">
-        <svg className="w-20 h-20 text-gray-800" fill="currentColor" viewBox="0 0 24 24">
-          <path d="M20 8h-3V4H3c-1.1 0-2 .9-2 2v11h2c0 1.66 1.34 3 3 3s3-1.34 3-3h6c0 1.66 1.34 3 3 3s3-1.34 3-3h2v-5l-3-4zM6 18.5c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5zm13.5-9l1.96 2.5H17V9.5h2.5zm-1.5 9c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5z"/>
-        </svg>
+      <div className="w-40 h-40 bg-gray-100 rounded-full flex items-center justify-center mb-8 shadow-inner">
+        <Truck className="w-20 h-20 text-gray-800" strokeWidth={1.5} />
       </div>
 
       {/* Status Message */}
-      <p className="text-xl font-semibold text-orange-500 mb-8">{statusText}</p>
+      <div className="text-center mb-8 px-4">
+        <p className="text-xl font-bold text-orange-500 mb-2">{statusText}</p>
+        <p className="text-sm text-gray-500 max-w-md mx-auto leading-relaxed">
+          {viewMode === "buyer" 
+            ? "Your order is on the way! The seller is moving to the meeting point or your delivery address. Please be ready to receive your items."
+            : "You've started the delivery. Please head to the meeting point or delivery address and update the status once you've arrived."}
+        </p>
+      </div>
 
       {/* Product Details Section */}
       <div className="w-full mb-6">

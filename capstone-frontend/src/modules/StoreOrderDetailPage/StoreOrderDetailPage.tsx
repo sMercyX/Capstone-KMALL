@@ -683,20 +683,20 @@ export default function StoreOrderDetailPage() {
                       className={`flex h-8 w-8 items-center justify-center rounded-full border-2 text-sm font-semibold transition-colors duration-300
             ${
               showAsCompleted
-                ? "border-green-500 bg-green-500 text-white"
+                ? "border-green-500 bg-green-500 text-white shadow-[0_0_10px_rgba(34,197,94,0.3)]"
                 : isActive
-                ? "border-black bg-white text-black font-bold"
-                : "border-gray-300 bg-white text-gray-400"
+                ? "border-green-500 bg-white text-green-600 font-bold shadow-[0_0_10px_rgba(34,197,94,0.2)]"
+                : "border-gray-200 bg-white text-gray-300"
             }`}
                     >
-                      {showAsCompleted ? <Check className="w-5 h-5" /> : idx + 1}
+                      {showAsCompleted ? <Check className="w-5 h-5" strokeWidth={3} /> : idx + 1}
                     </div>
                     <span
                       className={`mt-2 uppercase text-[9px] md:text-[10px] tracking-tight whitespace-nowrap font-medium transition-colors duration-300 ${
                          showAsCompleted 
                             ? "text-green-600 font-bold" 
                             : isActive 
-                            ? "text-black font-bold" 
+                            ? "text-green-600 font-bold" 
                             : "text-gray-400"
                       }`}
                     >
@@ -865,21 +865,6 @@ export default function StoreOrderDetailPage() {
       {/* Action Buttons - Outside the card */}
       {order && !isFinished && (canAccept || canReject) && (
         <div className="flex justify-center gap-4 mt-8 mb-8">
-          {canAccept && (
-            <button
-              onClick={handleAcceptClick}
-              disabled={actionLoading === "accept"}
-              className={`px-16 py-3 rounded-lg text-base font-semibold text-white transition-colors
-                ${
-                  actionLoading === "accept"
-                    ? "bg-green-300 cursor-not-allowed"
-                    : "bg-green-500 hover:bg-green-600"
-                }`}
-            >
-              {actionLoading === "accept" ? "Confirming..." : "Accept"}
-            </button>
-          )}
-
           {canReject && (
             <button
               onClick={handleRejectClick}
@@ -888,10 +873,31 @@ export default function StoreOrderDetailPage() {
                 ${
                   actionLoading === "reject"
                     ? "bg-red-300 cursor-not-allowed"
-                    : "bg-red-500 hover:bg-red-600"
+                    : "bg-red-500 hover:bg-red-600 shadow-md active:scale-95"
                 }`}
             >
-              {actionLoading === "reject" ? "Canceling..." : "Reject"}
+              {actionLoading === "reject" ? "Canceling..." : "Cancel Order"}
+            </button>
+          )}
+
+          {canAccept && (
+            <button
+              onClick={handleAcceptClick}
+              disabled={actionLoading === "accept"}
+              className={`px-16 py-3 rounded-lg text-base font-semibold text-white transition-colors
+                ${
+                  actionLoading === "accept"
+                    ? "bg-green-300 cursor-not-allowed"
+                    : "bg-green-500 hover:bg-green-600 shadow-md active:scale-95"
+                }`}
+            >
+              {actionLoading === "accept" ? "Confirming..." : (
+                order.status === "Pending" ? "Confirm & Propose" :
+                order.status === "Proposed" ? "Accept Proposal" :
+                order.status === "Accepted" ? "Out for Delivery" :
+                order.status === "Out For Delivery" ? "I have Arrived" :
+                order.status === "Arrived" ? "Complete Order" : "Accept"
+              )}
             </button>
           )}
         </div>
