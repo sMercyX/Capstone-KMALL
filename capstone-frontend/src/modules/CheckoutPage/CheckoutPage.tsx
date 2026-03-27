@@ -320,7 +320,7 @@ export default function CheckoutPage() {
                   </div>
                   <div>
                     <h3 className={`text-text font-bold mb-0.5 sm:mb-1 ${!isDeliveryEnabled ? "text-gray-400" : "text-gray-900"}`}>
-                        Round University Delivery
+                        Delivery
                     </h3>
                     <p className="text-description text-gray-500 line-clamp-2 sm:line-clamp-none">
                         {isDeliveryEnabled ? "Seller will deliver to your saved addresses." : "This store currently does not support delivery."}
