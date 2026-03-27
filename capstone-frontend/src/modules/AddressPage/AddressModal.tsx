@@ -15,7 +15,7 @@ interface AddressModalProps {
 }
 
 const addressSchema = yup.object().shape({
-  label: yup.string().required("Please enter recipient name"),
+  label: yup.string().required("Please enter name"),
   phone: yup.string().required("Please enter phone number").matches(/^[0-9]{10}$/, "Phone number must be exactly 10 digits"),
   address_line1: yup.string().required("Please enter address"),
   district: yup.string().required("Please enter district"),
@@ -148,12 +148,12 @@ export default function AddressModal({
           <form onSubmit={handleSubmit} className="space-y-3">
             <div className="space-y-1">
               <Input
-                label="Recipient Name"
+                label="Name"
                 name="label"
                 required
                 value={formData.label}
                 onChange={handleChange}
-                placeholder="Fullname"
+                placeholder="Name"
                 error={!!errors.label}
                 className="text-xs py-2"
               />
