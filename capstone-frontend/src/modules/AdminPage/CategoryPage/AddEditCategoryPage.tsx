@@ -6,6 +6,7 @@ import { toast } from "react-toastify"
 import { resolveImageUrl } from "../../../utils/resolve"
 import ConfirmationModal from "../../../components/Modal/ConfirmationModal"
 import ToggleSwitch from "../../../components/Toggle/ToggleSwitch"
+import { processImageFile, SUPPORTED_IMAGE_TYPES } from "../../../utils/imageProcessing"
 
 // Interface for Subcategories to hold ID
 interface SubCategoryItem {
@@ -52,6 +53,11 @@ export default function AddCategoryPage() {
   const [pendingDeactivations, setPendingDeactivations] = useState<Record<number, { target: number | string; type: 'DELETE' | 'DEACTIVATE' }>>({})
   const [pendingDeletions, setPendingDeletions] = useState<number[]>([])
   const [isCancelModalOpen, setIsCancelModalOpen] = useState(false)
+  const [initialFormState, setInitialFormState] = useState<{
+    name: string;
+    isActive: string;
+    subs: SubCategoryItem[];
+  } | null>(null)
   const isScrolling = useRef(false)
   const contentRef = useRef<HTMLDivElement>(null)
 
@@ -171,14 +177,40 @@ export default function AddCategoryPage() {
           product_count: sub.product_count
         })))
       }
+      // Set initial state for dirty check
+      if (!initialFormState) {
+        setInitialFormState({
+          name: editData.main.name,
+          isActive: editData.main.is_active,
+          subs: editData.subs.map(sub => ({
+            id: sub.id,
+            name: sub.name,
+            is_active: sub.is_active,
+            product_count: sub.product_count
+          }))
+        })
+      }
+    } else if (!isEditMode && !initialFormState) {
+       // For Add Mode, initial state is empty
+       setInitialFormState({
+         name: "",
+         isActive: "NO",
+         subs: []
+       })
     }
-  }, [isEditMode, editData])
+  }, [isEditMode, editData, initialFormState])
   
   const fileInputRef = useRef<HTMLInputElement>(null)
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
-      const file = e.target.files[0]
+      let file = e.target.files[0]
+      try {
+        file = await processImageFile(file)
+      } catch (err) {
+        // processImageFile already shows toast
+        return
+      }
       // Basic validation
       if (file.size > 2 * 1024 * 1024) {
         toast.error("Image size must be less than 2MB")
@@ -485,14 +517,48 @@ export default function AddCategoryPage() {
     (mainIsActive === "NO" && activeSubCount === 0) || 
     (mainIsActive === "YES" && activeSubCount > 0)
 
+  const isDirty = () => {
+    if (!initialFormState) return false;
+    
+    // Check main category changes
+    if (mainName !== initialFormState.name) return true;
+    if (mainIsActive !== initialFormState.isActive) return true;
+    if (imageFile !== null) return true; // Image selected always counts as dirty
+    
+    // Check subcategory changes
+    if (subCategories.length !== initialFormState.subs.length) return true;
+    
+    for (let i = 0; i < subCategories.length; i++) {
+        const current = subCategories[i];
+        const initial = initialFormState.subs[i];
+        if (!initial || current.name !== initial.name || current.is_active !== initial.is_active || current.id !== initial.id) {
+            return true;
+        }
+    }
+
+    // Check pending deletions/deactivations
+    if (pendingDeletions.length > 0) return true;
+    if (Object.keys(pendingDeactivations).length > 0) return true;
+
+    return false;
+  }
+
+  const handleCancelClick = () => {
+    if (isDirty()) {
+      setIsCancelModalOpen(true)
+    } else {
+      navigate("/admin/category")
+    }
+  }
+
   return (
     <div className="text-[#2D2D2D] mx-auto min-h-full">
       {/* Header */}
       <div className="mb-6 flex-shrink-0">
         <div className="flex justify-between items-start">
             <div>
-                <p className="text-gray-400 text-sm mb-1 ">
-                Category &gt; <span className="hover:text-orange-500 cursor-pointer" onClick={() => navigate("/admin/category")}>Category Management</span> &gt; <span className="text-gray-600 font-semibold">{isEditMode ? "Edit Category" : "Add Category"}</span>
+                <p className="text-gray-400 text-text mb-1 ">
+                Category &gt; <span className="hover:text-orange-500 cursor-pointer" onClick={handleCancelClick}>Category Management</span> &gt; <span className="text-gray-600 font-semibold">{isEditMode ? "Edit Category" : "Add Category"}</span>
                 </p>
                 <h1 className="text-header font-bold flex items-center gap-4">
                   {isEditMode ? "Edit Main Category" : "Add Main Category"}
@@ -506,7 +572,7 @@ export default function AddCategoryPage() {
                      </button>
                   )}
                 </h1>
-                <p className="text-gray-500 text-xs mt-1">
+                <p className="text-gray-500 text-description mt-1">
                 {isEditMode ? "Update the main category information and subcategories." : "Enter the main category information and add at least one subcategory."}
                 </p>
             </div>
@@ -514,11 +580,11 @@ export default function AddCategoryPage() {
       </div>
 
       {/* Navigation Tabs */}
-      <div className="bg-white rounded-lg shadow-sm border border-gray-200 mb-4 px-2 flex-shrink-0">
+      <div className="bg-white rounded-lg text-description shadow-sm border border-gray-200 mb-4 px-2 flex-shrink-0">
         <div className="flex gap-8">
           <button
             onClick={() => scrollToSection("MAIN")}
-            className={`py-4 px-2 font-medium text-sm relative transition-colors ${
+            className={`py-4 px-2 font-medium  relative transition-colors ${
               activeTab === "MAIN"
                 ? "text-[#FF4C24]"
                 : "text-gray-400 hover:text-gray-600"
@@ -531,7 +597,7 @@ export default function AddCategoryPage() {
           </button>
           <button
             onClick={() => scrollToSection("SUB")}
-            className={`py-4 px-2 font-medium text-sm relative transition-colors ${
+            className={`py-4 px-2 font-medium  relative transition-colors ${
               activeTab === "SUB"
                 ? "text-[#FF4C24]"
                 : "text-gray-400 hover:text-gray-600"
@@ -550,12 +616,12 @@ export default function AddCategoryPage() {
         
         {/* Main Category Component */}
         <div id="MAIN" className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 pt-8">
-          <h2 className="text-lg font-bold mb-6">{isEditMode ? "Edit Main Category" : "Add Main Category"}</h2>
+          <h2 className="text-header font-bold mb-6">{isEditMode ? "Edit Main Category" : "Add Main Category"}</h2>
           
           <div className="space-y-6">
             {/* Category Name */}
-            <div>
-              <label className="block text-sm font-medium mb-2">
+            <div className="text-text">
+              <label className="block font-medium mb-2">
                 Category Name <span className="text-red-500">*</span>
               </label>
               <input 
@@ -569,8 +635,8 @@ export default function AddCategoryPage() {
 
             {/* Category Status (Edit Mode Only) */}
             {isEditMode && (
-              <div>
-                <label className="block text-sm font-medium mb-2">
+              <div className="text-text">
+                <label className="block font-medium mb-2">
                   Status <span className="text-red-500">*</span>
                 </label>
                 <div className="flex items-center gap-3 bg-[#F4F4F4] rounded-lg px-4 py-3">
@@ -579,7 +645,7 @@ export default function AddCategoryPage() {
                     onChange={(checked) => setMainIsActive(checked ? "YES" : "NO")}
                     disabled={isMainToggleDisabled}
                   />
-                  <span className={`font-medium text-sm ${mainIsActive === "YES" ? "text-green-600" : "text-gray-500"}`}>
+                  <span className={`font-medium ${mainIsActive === "YES" ? "text-green-600" : "text-gray-500"}`}>
                     {mainIsActive === "YES" ? "Active" : "Inactive"}
                   </span>
                 </div>
@@ -588,8 +654,8 @@ export default function AddCategoryPage() {
             )}
 
             {/* Category Image */}
-            <div>
-              <label className="block text-sm font-medium mb-2">
+            <div className="text-text">
+              <label className="block font-medium mb-2">
                 Category Image {!isEditMode && <span className="text-red-500">*</span>}
               </label>
               
@@ -607,7 +673,7 @@ export default function AddCategoryPage() {
                 type="file" 
                 ref={fileInputRef} 
                 className="hidden" 
-                accept="image/jpeg, image/png, image/webp"
+                accept={SUPPORTED_IMAGE_TYPES}
                 onChange={handleFileChange}
               />
 
@@ -620,7 +686,7 @@ export default function AddCategoryPage() {
                 <ul className="list-disc list-inside text-xs text-[#9A7D0A] space-y-1 ml-1 opacity-90">
                   <li>Recommended size: 800 × 450 px (16:9 ratio)</li>
                   <li>Maximum file size: 2 MB</li>
-                  <li>Accepted formats: JPG, PNG, or WebP</li>
+                  <li>Accepted formats: JPG, PNG, WebP, or HEIF/HEIC</li>
                 </ul>
               </div>
 
@@ -651,7 +717,7 @@ export default function AddCategoryPage() {
         {/* Sub Category Component */}
         <div id="SUB" className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 pt-8 min-h-[400px]">
           <h2 className="text-header font-bold mb-1">{isEditMode ? "Edit Subcategory" : "Add Subcategory"}</h2>
-          <p className="text-text text-gray-500 mb-6">Enter the subcategory name</p>
+          <p className="text-description text-gray-500 mb-6">Enter the subcategory name</p>
           
           <div>
             <div className="flex justify-between items-center mb-2">
@@ -662,11 +728,11 @@ export default function AddCategoryPage() {
             </div>
             
             {/* Input for adding new subcategory */}
-            <div className="flex gap-3 mb-4">
+            <div className="flex gap-3 mb-4 text-text">
                <input 
                   type="text" 
                   placeholder="e.g., Jeans, T-Shirts"
-                  className="flex-grow bg-[#F4F4F4] border border-gray-300 rounded-lg px-4 py-3 outline-none focus:ring-1 focus:ring-gray-400 transition-all text-sm font-medium text-[#2D2D2D]"
+                  className="flex-grow bg-[#F4F4F4] border border-gray-300 rounded-lg px-4 py-3 outline-none focus:ring-1 focus:ring-gray-400 transition-all font-medium text-[#2D2D2D]"
                   value={newSubCategoryName}
                   onChange={(e) => setNewSubCategoryName(e.target.value)}
                   onKeyDown={(e) => {
@@ -686,16 +752,16 @@ export default function AddCategoryPage() {
 
             <div className="space-y-3">
               {subCategories.map((sub, index) => (
-                <div key={sub.id || `new-${index}`} className="flex justify-between items-center bg-white border border-gray-300 rounded-lg px-4 py-2">
+                <div key={sub.id || `new-${index}`} className="flex text-text justify-between items-center bg-white border border-gray-300 rounded-lg px-4 py-2">
                   <input 
                     type="text" 
                     placeholder="Subcategory Name"
-                    className="flex-grow bg-transparent border-none outline-none font-medium text-[#2D2D2D] text-sm py-1 px-2 hover:bg-gray-50 focus:bg-gray-50 rounded transition-colors cursor-text"
+                    className="flex-grow bg-transparent border-none outline-none font-medium text-[#2D2D2D] py-1 px-2 hover:bg-gray-50 focus:bg-gray-50 rounded transition-colors cursor-text"
                     value={sub.name}
                     onChange={(e) => handleSubCategoryChange(index, e.target.value)}
                   />
                   {sub.product_count !== undefined && (
-                    <span className="text-[#FF4C24] text-xs font-semibold px-2 shrink-0">
+                    <span className="text-[#FF4C24] text-description font-semibold px-2 shrink-0">
                       {sub.product_count} items
                     </span>
                   )}
@@ -710,7 +776,7 @@ export default function AddCategoryPage() {
                   )}
                   <div className="flex gap-2 shrink-0 ml-4">
                       {pendingDeactivations[sub.id!] && (
-                        <div className="flex items-center text-xs font-semibold bg-orange-50 text-[#FF4C24] px-3 py-1.5 rounded-full border border-orange-100 mr-2 shadow-sm animate-pulse-slow">
+                        <div className="flex items-center text-description font-semibold bg-orange-50 text-[#FF4C24] px-3 py-1.5 rounded-full border border-orange-100 mr-2 shadow-sm animate-pulse-slow">
                           <span className="opacity-70 mr-1.5">{pendingDeactivations[sub.id!].type === 'DELETE' ? 'Move & Delete' : 'Move & Deactivate'} →</span>
                           <span>{
                             typeof pendingDeactivations[sub.id!].target === 'number'
@@ -721,8 +787,8 @@ export default function AddCategoryPage() {
                       )}
                       <div className="flex items-center">
                         {Object.values(pendingDeactivations).some(d => d.target === sub.id || d.target === sub.name) && (
-                          <div className="flex flex-col text-xs items-end mr-2">
-                             <span className="text-xs text-blue-400 font-semibold whitespace-nowrap">
+                          <div className="flex flex-col text-description items-end mr-2">
+                             <span className="text-description text-blue-400 font-semibold whitespace-nowrap">
                                 Receiving from: {getSourcesByTarget(sub.id || sub.name).join(", ")}
                              </span>
                           </div>
@@ -748,10 +814,10 @@ export default function AddCategoryPage() {
       </div>
 
       {/* Floating Footer Toolbar */}
-      <div className="fixed bottom-0 left-0 right-0 md:left-[280px] bg-[#F9F9F9] border-t border-gray-200 p-4 flex justify-end gap-4 z-50">
+      <div className="fixed text-text bottom-0 left-0 right-0 md:left-[280px] bg-[#F9F9F9] border-t border-gray-200 p-4 flex justify-end gap-4 z-50">
         <div className="w-full flex justify-end gap-4">
           <button 
-            onClick={() => setIsCancelModalOpen(true)}
+            onClick={handleCancelClick}
             disabled={isLoading}
             className="px-6 py-2.5 rounded-md font-medium text-gray-600 bg-gray-200 hover:bg-gray-300 transition-colors disabled:opacity-50"
           >
@@ -769,6 +835,7 @@ export default function AddCategoryPage() {
 
       {/* Delete Main Category Confirmation */}
       <ConfirmationModal
+        key={editData?.main.id}
         isOpen={isDeleteMainModalOpen}
         onClose={() => setIsDeleteMainModalOpen(false)}
         onConfirm={handleDeleteMainCategory}
@@ -780,6 +847,7 @@ export default function AddCategoryPage() {
 
        {/* Subcategory Reassign Modal */}
        <ConfirmationModal
+        key={reassignModalState.subcategoryId}
         isOpen={reassignModalState.isOpen}
         onClose={() => setReassignModalState(prev => ({ ...prev, isOpen: false }))}
         onConfirm={handleConfirmReassign}
