@@ -1,9 +1,8 @@
 // src/pages/cart/CheckoutPage.tsx
 import { useEffect, useState } from "react"
 import { useNavigate } from "react-router-dom"
-import { AlertCircle, ShoppingCart, Store as StoreIcon, Truck, Package, Minus, Plus, Trash2 } from "lucide-react"
+import { AlertCircle, Store as StoreIcon, Truck, Package, Minus, Plus, Trash2 } from "lucide-react"
 import { toast } from "react-toastify"
-import BackButton from "../../components/Buttons/BackButton"
 import { useCartApi } from "../../api/cartApi"
 import { useCartStore } from "../../stores/cartStore"
 import { useCheckkOutApi, type orderCreatedRequest } from "../../api/checkOutApi"
@@ -70,7 +69,6 @@ export default function CheckoutPage() {
   const [campusLocationId] = useState<number>(1) // Default campus location
   const [addresses, setAddresses] = useState<UserAddress[]>([])
   const [deliveryAddressId, setDeliveryAddressId] = useState<number | null>(null)
-  const [addressExtra, setAddressExtra] = useState("")
 
   const [submitting, setSubmitting] = useState(false)
   const [isConfirmModalOpen, setIsConfirmModalOpen] = useState(false)
@@ -234,7 +232,6 @@ export default function CheckoutPage() {
         payload.campus_location_id = campusLocationId
       } else if (deliveryMethod === "ROUND_UNIVERSITY") {
         payload.delivery_address_id = deliveryAddressId || undefined
-        payload.campus_detail_note = addressExtra
       }
 
       const res = await checkOutOrder(payload)
