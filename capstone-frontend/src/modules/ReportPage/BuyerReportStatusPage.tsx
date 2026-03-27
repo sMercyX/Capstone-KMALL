@@ -19,7 +19,7 @@ const tabs: SwitchTabItem[] = [
 
 export default function BuyerReportStatusPage() {
   const { getReportsMe, getMyReportDetail } = useReportApi()
-  const [activeTab, setActiveTab] = useState<TabKey>("PENDING")
+  const [activeTab, setActiveTab] = useState<TabKey>("ALL")
   const [reports, setReports] = useState<ReportResponse[]>([])
   const [loading, setLoading] = useState(true)
   const [searchQuery, setSearchQuery] = useState("")
