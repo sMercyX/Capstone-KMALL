@@ -303,8 +303,10 @@ export default function AddCategoryPage() {
 
   const handleDeleteMainCategory = async () => {
     if (!editData) return
-    if (subCategories.length > 0) {
-        toast.error("Cannot delete main category while it still has subcategories.")
+    // 1. Check if ANY subcategory has products
+    const totalProducts = subCategories.reduce((sum, s) => sum + (s.product_count || 0), 0)
+    if (totalProducts > 0) {
+        toast.error(`Cannot delete: This category still has ${totalProducts} products. Please move or delete the products first.`)
         setIsDeleteMainModalOpen(false)
         return
     }
@@ -497,7 +499,7 @@ export default function AddCategoryPage() {
                   {isEditMode && (
                      <button
                        onClick={() => setIsDeleteMainModalOpen(true)}
-                       disabled={mainIsActive === "YES"}
+                       disabled={false}
                        className="flex items-center gap-1.5 text-sm font-medium text-red-500 hover:text-red-600 bg-red-50 hover:bg-red-100 disabled:bg-gray-100 disabled:text-gray-400 disabled:cursor-not-allowed px-3 py-1.5 rounded-lg transition-colors"
                      >
                        <Trash2 className="w-4 h-4" />
