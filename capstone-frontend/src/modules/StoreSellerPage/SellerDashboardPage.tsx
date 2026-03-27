@@ -4,8 +4,6 @@ import {
   useOrderSellerApi,
   type StoreSummaryResponse,
 } from "../../api/orderSellerApi"
-// Unused imported Card
-// import Card from "../../components/Card/Card"
 import {
   Users,
   Package,
@@ -308,7 +306,9 @@ export default function SellerDashboardPage() {
         },
         ticks: {
           color: "#3b82f6",
-          font: { weight: "600" as any }
+          font: { weight: "600" as any },
+          stepSize: 1, // Force integer steps 
+          precision: 0 // No decimals
         },
         grid: { drawOnChartArea: false },
       },
