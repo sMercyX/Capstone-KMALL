@@ -147,13 +147,19 @@ export default function SellerDashboardPage() {
     for (let i = 1; i <= daysInMonth; i++) {
       const currentDay = dayjs(`${selectedYear}-${selectedMonth}-${i}`)
       chartLabels.push(currentDay.format("D"))
-      const match = rawData.find((r) =>
-        dayjs(r.date).date() === i &&
-        dayjs(r.date).month() + 1 === selectedMonth &&
-        dayjs(r.date).year() === selectedYear
-      )
-      chartDataRevenues.push(match ? Number(match.revenue) : 0)
-      chartDataOrders.push(match ? Number(match.orders) : 0)
+      const isFuture = currentDay.isAfter(dayjs(), "day")
+      if (isFuture) {
+        chartDataRevenues.push(null as any)
+        chartDataOrders.push(null as any)
+      } else {
+        const match = rawData.find((r) =>
+          dayjs(r.date).date() === i &&
+          dayjs(r.date).month() + 1 === selectedMonth &&
+          dayjs(r.date).year() === selectedYear
+        )
+        chartDataRevenues.push(match ? Number(match.revenue) : 0)
+        chartDataOrders.push(match ? Number(match.orders) : 0)
+      }
     }
   } else if (granularity === "monthly") {
     for (let i = 1; i <= 12; i++) {
@@ -167,7 +173,7 @@ export default function SellerDashboardPage() {
       chartDataOrders.push(match ? Number(match.orders) : 0)
     }
   } else {
-    // all_time (dynamic based on actual data)
+    // all_time (Ensuring last 12 months with Monthly labels)
     const monthMap = new Map<string, { rev: number; ord: number }>()
     rawData.forEach((r) => {
       const ym = dayjs(r.date).format("YYYY-MM")
@@ -177,31 +183,17 @@ export default function SellerDashboardPage() {
       data.ord += Number(r.orders || 0)
     })
 
-    const sortedKeys = Array.from(monthMap.keys()).sort()
-
-    if (sortedKeys.length === 0) {
-      for (let i = 11; i >= 0; i--) {
-        const currentMonth = dayjs().subtract(i, "month")
-        chartLabels.push(currentMonth.format("MMM YYYY"))
+    // Always show last 12 months relative to now
+    for (let i = 11; i >= 0; i--) {
+      const curr = dayjs().subtract(i, "month")
+      const key = curr.format("YYYY-MM")
+      chartLabels.push(curr.format("MMM YYYY"))
+      if (monthMap.has(key)) {
+        chartDataRevenues.push(monthMap.get(key)!.rev)
+        chartDataOrders.push(monthMap.get(key)!.ord)
+      } else {
         chartDataRevenues.push(0)
         chartDataOrders.push(0)
-      }
-    } else {
-      const minDate = dayjs(sortedKeys[0] + "-01")
-      const maxDate = dayjs(sortedKeys[sortedKeys.length - 1] + "-01")
-
-      let curr = minDate.clone()
-      while (curr.isBefore(maxDate) || curr.isSame(maxDate, "month")) {
-        const key = curr.format("YYYY-MM")
-        chartLabels.push(curr.format("MMM YYYY"))
-        if (monthMap.has(key)) {
-          chartDataRevenues.push(monthMap.get(key)!.rev)
-          chartDataOrders.push(monthMap.get(key)!.ord)
-        } else {
-          chartDataRevenues.push(0)
-          chartDataOrders.push(0)
-        }
-        curr = curr.add(1, "month")
       }
     }
   }
@@ -251,11 +243,25 @@ export default function SellerDashboardPage() {
       intersect: false,
     },
     plugins: {
-      legend: { position: "top" as const, align: "end" as const },
+      legend: {
+        position: "top" as const,
+        align: "end" as const,
+        labels: {
+          padding: 25,
+          font: { size: 12, weight: "600" as any }
+        }
+      },
       tooltip: {
-        backgroundColor: "rgba(255, 107, 107, 0.9)",
-        titleFont: { size: 14 },
+        backgroundColor: "rgba(17, 24, 39, 0.95)",
+        titleColor: "#fff",
+        bodyColor: "#fff",
+        titleFont: { size: 14, weight: "bold" as any },
         bodyFont: { size: 13 },
+        padding: 12,
+        cornerRadius: 8,
+        displayColors: true,
+        usePointStyle: true,
+        boxPadding: 6,
         callbacks: {
           label: (ctx: any) => {
             if (ctx.datasetIndex === 0) return ` Revenue: ฿${ctx.raw.toLocaleString()}`
@@ -269,8 +275,8 @@ export default function SellerDashboardPage() {
         type: "linear" as const,
         display: true,
         position: "left" as const,
-        title: { 
-          display: true, 
+        title: {
+          display: true,
           text: "Revenue (THB)",
           color: "#f97316",
           font: { weight: "bold" as const, size: 12 }
@@ -285,8 +291,8 @@ export default function SellerDashboardPage() {
         type: "linear" as const,
         display: true,
         position: "right" as const,
-        title: { 
-          display: true, 
+        title: {
+          display: true,
           text: "Orders",
           color: "#3b82f6",
           font: { weight: "bold" as const, size: 12 }
@@ -341,7 +347,7 @@ export default function SellerDashboardPage() {
             bgColor="bg-emerald-100"
           />
           <StatCard
-            title="Pending Orders"
+            title="Ongoing Orders"
             value={(cards?.pending_orders || 0).toLocaleString()}
             icon={<History className="h-5 w-5 text-orange-500" />}
             bgColor="bg-orange-100"
@@ -356,7 +362,7 @@ export default function SellerDashboardPage() {
       </div>
 
       {/* --- Chart Section --- */}
-      <div>
+      <div className="mt-8">
         <p className="mb-3 text-sm text-gray-500">Income information</p>
         <div className="w-full rounded-2xl bg-white shadow-sm border border-gray-100 p-6">
           <div className="mb-6 flex flex-col justify-between gap-4 xl:flex-row xl:items-start">
@@ -374,8 +380,8 @@ export default function SellerDashboardPage() {
                       }
                     }}
                     className={`flex items-center gap-1.5 rounded px-4 py-1.5 text-sm font-medium transition ${granularity === "daily"
-                        ? "border border-orange-200 bg-orange-50 text-orange-500"
-                        : "text-gray-400 hover:text-gray-600 border border-transparent"
+                      ? "border border-orange-200 bg-orange-50 text-orange-500"
+                      : "text-gray-400 hover:text-gray-600 border border-transparent"
                       }`}
                   >
                     <CalendarDays className="h-4 w-4" /> Daily
@@ -388,8 +394,8 @@ export default function SellerDashboardPage() {
                       }
                     }}
                     className={`flex items-center gap-1.5 rounded px-4 py-1.5 text-sm font-medium transition ${granularity === "monthly"
-                        ? "border border-orange-200 bg-orange-50 text-orange-500"
-                        : "text-gray-400 hover:text-gray-600 border border-transparent"
+                      ? "border border-orange-200 bg-orange-50 text-orange-500"
+                      : "text-gray-400 hover:text-gray-600 border border-transparent"
                       }`}
                   >
                     <CalendarDays className="h-4 w-4" /> Monthly
@@ -411,20 +417,26 @@ export default function SellerDashboardPage() {
                   </button>
 
                   {isMonthOpen && granularity === "daily" && (
-                    <div className="absolute top-10 left-0 z-10 w-48 rounded-md bg-white p-3 shadow-lg border border-gray-100">
-                      <div className="grid grid-cols-3 gap-2">
-                        {Array.from({ length: 12 }).map((_, i) => (
-                          <button
-                            key={i}
-                            onClick={() => { setSelectedMonth(i + 1); setIsMonthOpen(false) }}
-                            className={`rounded-md py-2 text-sm text-center transition ${selectedMonth === i + 1
+                    <div className="absolute top-10 left-0 z-10 w-40 rounded-md bg-white p-1 shadow-lg border border-gray-100 max-h-60 overflow-y-auto overflow-x-hidden">
+                      <div className="flex flex-col">
+                        {Array.from({ length: 12 }).map((_, i) => {
+                          const monthNum = i + 1
+                          const isFuture = selectedYear === dayjs().year() && monthNum > (dayjs().month() + 1)
+                          if (isFuture) return null
+
+                          return (
+                            <button
+                              key={i}
+                              onClick={() => { setSelectedMonth(monthNum); setIsMonthOpen(false) }}
+                              className={`w-full px-4 py-2 text-sm text-left transition ${selectedMonth === monthNum
                                 ? "bg-orange-500 text-white font-medium shadow-sm"
                                 : "text-gray-600 hover:bg-orange-50 hover:text-orange-500"
-                              }`}
-                          >
-                            {dayjs().month(i).format("MMM")}
-                          </button>
-                        ))}
+                                }`}
+                            >
+                              {dayjs().month(i).format("MMMM")}
+                            </button>
+                          )
+                        })}
                       </div>
                     </div>
                   )}
@@ -443,17 +455,17 @@ export default function SellerDashboardPage() {
                   </button>
 
                   {isYearOpen && granularity !== "all_time" && (
-                    <div className="absolute top-10 right-0 z-10 w-48 rounded-md bg-white p-3 shadow-lg border border-gray-100">
-                      <div className="grid grid-cols-3 gap-2">
-                        {Array.from({ length: dayjs().year() - 2020 + 2 }).map((_, i) => {
-                          const yr = dayjs().year() + 1 - i
+                    <div className="absolute top-10 right-0 z-10 w-32 rounded-md bg-white p-1 shadow-lg border border-gray-100 max-h-60 overflow-y-auto overflow-x-hidden">
+                      <div className="flex flex-col">
+                        {Array.from({ length: dayjs().year() - 2020 + 1 }).map((_, i) => {
+                          const yr = dayjs().year() - i
                           return (
                             <button
                               key={yr}
                               onClick={() => { setSelectedYear(yr); setIsYearOpen(false); }}
-                              className={`rounded-md py-2 text-sm text-center transition ${selectedYear === yr
-                                  ? "bg-orange-500 text-white font-medium shadow-sm"
-                                  : "text-gray-600 hover:bg-orange-50 hover:text-orange-500"
+                              className={`w-full px-4 py-2 text-sm text-left transition ${selectedYear === yr
+                                ? "bg-orange-500 text-white font-medium shadow-sm"
+                                : "text-gray-600 hover:bg-orange-50 hover:text-orange-500"
                                 }`}
                             >
                               {yr}
@@ -482,18 +494,11 @@ export default function SellerDashboardPage() {
       </div>
 
       {/* --- Top Products Table --- */}
-      <div className="w-full rounded-2xl bg-white shadow-sm border border-gray-100 p-6">
+      <div className="w-full rounded-2xl bg-white shadow-sm border border-gray-100 p-6 mt-6">
         <div className="mb-2 flex items-center justify-between">
           <div className="flex items-center gap-2">
             <Award className="h-6 w-6 text-yellow-500" fill="currentColor" />
             <h2 className="text-lg font-bold text-gray-900">Top 5 Best Selling Products</h2>
-          </div>
-          <div className="flex items-center">
-            {/* Mock dropdown to match the design */}
-            <button className="flex items-center justify-between gap-4 rounded-md border border-gray-200 px-3 py-1 text-xs text-gray-500 hover:border-gray-300">
-              <span>October</span>
-              <span className="text-[10px]">▼</span>
-            </button>
           </div>
         </div>
         <p className="mb-6 text-xs text-gray-400">Highest performing products this month</p>
@@ -524,9 +529,9 @@ export default function SellerDashboardPage() {
                     <td className="py-6 px-6">
                       <div className="flex justify-center">
                         <div className={`flex h-7 w-7 items-center justify-center rounded-lg text-xs font-bold shadow-sm ${idx === 0 ? "bg-amber-400 text-white" :
-                            idx === 1 ? "bg-slate-300 text-white" :
-                              idx === 2 ? "bg-orange-300 text-white" :
-                                "bg-gray-100 text-gray-500"
+                          idx === 1 ? "bg-slate-300 text-white" :
+                            idx === 2 ? "bg-orange-300 text-white" :
+                              "bg-gray-100 text-gray-500"
                           }`}>
                           {idx + 1}
                         </div>
@@ -539,7 +544,6 @@ export default function SellerDashboardPage() {
                         </div>
                         <div className="flex flex-col gap-0.5">
                           <span className="font-bold text-gray-800 text-sm group-hover:text-orange-600 transition-colors uppercase tracking-tight">{p.product_name}</span>
-                          <span className="text-[10px] text-gray-400 font-medium">Top Performer</span>
                         </div>
                       </div>
                     </td>
@@ -549,7 +553,6 @@ export default function SellerDashboardPage() {
                     <td className="py-6 px-6 text-right">
                       <div className="flex flex-col items-end">
                         <span className="text-base font-bold text-gray-900">฿{p.revenue.toLocaleString()}</span>
-                        <span className="text-[10px] text-emerald-500 font-bold uppercase tracking-wider">+{(Math.random() * 15).toFixed(1)}%</span>
                       </div>
                     </td>
                   </tr>
