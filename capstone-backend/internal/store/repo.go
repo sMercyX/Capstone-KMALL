@@ -30,6 +30,9 @@ type CreateParams struct {
 	Description *string `json:"description,omitempty"`
 	ProfileURL  *string `json:"profile_url,omitempty"`
 	IsActive    string  `json:"is_active"`
+
+	DeliveryRoundUniversityEnabled *bool    `json:"delivery_round_university_enabled,omitempty"`
+	RoundUniBaseFee                *float64 `json:"round_uni_base_fee,omitempty"`
 }
 
 // ===== Create Store =====
@@ -77,15 +80,25 @@ func (r *repo) Create(ctx context.Context, userID string, in CreateParams) (Stor
 	// insert (no delivery fields here; DB default will apply)
 	var s Store
 	err = r.db.QueryRow(ctx, `
-		INSERT INTO stores (
-			store_name, store_desc, profile_url, is_active, user_id
-		)
-		VALUES ($1, $2, $3, $4, $5)
-		RETURNING
-			store_id, store_name, store_desc, profile_url, is_active,
-			delivery_round_university_enabled, round_uni_base_fee,
-			created_at, updated_at, user_id;
-	`, in.Name, in.Description, in.ProfileURL, in.IsActive, userID).Scan(
+    INSERT INTO stores (
+        store_name, store_desc, profile_url, is_active,
+        delivery_round_university_enabled, round_uni_base_fee,
+        user_id
+    )
+    VALUES (
+        $1, $2, $3, $4,
+        COALESCE($5, FALSE), $6,
+        $7
+    )
+    RETURNING
+        store_id, store_name, store_desc, profile_url, is_active,
+        delivery_round_university_enabled, round_uni_base_fee,
+        created_at, updated_at, user_id;
+`,
+		in.Name, in.Description, in.ProfileURL, in.IsActive,
+		in.DeliveryRoundUniversityEnabled, in.RoundUniBaseFee,
+		userID,
+	).Scan(
 		&s.ID, &s.Name, &s.Description, &s.ProfileURL, &s.IsActive,
 		&s.DeliveryRoundUniversityEnabled, &s.RoundUniBaseFee,
 		&s.CreatedAt, &s.UpdatedAt, &s.UserID,

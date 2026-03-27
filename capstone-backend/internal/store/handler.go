@@ -60,6 +60,9 @@ type createReq struct {
 	Description *string `json:"description"`
 	ProfileURL  *string `json:"profile_url"`
 	IsActive    string  `json:"is_active"`
+
+	DeliveryRoundUniversityEnabled *bool    `json:"delivery_round_university_enabled"`
+	RoundUniBaseFee                *float64 `json:"round_uni_base_fee"`
 }
 
 type updateReq struct {
