@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { useStoreStore } from "../../stores/storeStore"
 import {
   useOrderSellerApi,
@@ -63,6 +63,23 @@ export default function SellerDashboardPage() {
   // Dropdown UI toggles
   const [isMonthOpen, setIsMonthOpen] = useState(false)
   const [isYearOpen, setIsYearOpen] = useState(false)
+
+  // Refs for click-outside detection
+  const monthDropdownRef = useRef<HTMLDivElement>(null)
+  const yearDropdownRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (monthDropdownRef.current && !monthDropdownRef.current.contains(e.target as Node)) {
+        setIsMonthOpen(false)
+      }
+      if (yearDropdownRef.current && !yearDropdownRef.current.contains(e.target as Node)) {
+        setIsYearOpen(false)
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside)
+    return () => document.removeEventListener("mousedown", handleClickOutside)
+  }, [])
 
   // Load store if missing
   useEffect(() => {
@@ -252,14 +269,32 @@ export default function SellerDashboardPage() {
         type: "linear" as const,
         display: true,
         position: "left" as const,
-        title: { display: true, text: "Revenue (THB)" },
-        grid: { drawOnChartArea: false },
+        title: { 
+          display: true, 
+          text: "Revenue (THB)",
+          color: "#f97316",
+          font: { weight: "bold" as const, size: 12 }
+        },
+        ticks: {
+          color: "#f97316",
+          font: { weight: "600" as any }
+        },
+        grid: { drawOnChartArea: true, color: "rgba(249, 115, 22, 0.1)" },
       },
       "y-orders": {
         type: "linear" as const,
         display: true,
         position: "right" as const,
-        title: { display: true, text: "Orders" },
+        title: { 
+          display: true, 
+          text: "Orders",
+          color: "#3b82f6",
+          font: { weight: "bold" as const, size: 12 }
+        },
+        ticks: {
+          color: "#3b82f6",
+          font: { weight: "600" as any }
+        },
         grid: { drawOnChartArea: false },
       },
     },
@@ -364,7 +399,7 @@ export default function SellerDashboardPage() {
                 <div className="w-px h-8 bg-gray-200 mx-1 hidden sm:block"></div>
 
                 {/* Month Dropdown */}
-                <div className="relative">
+                <div className="relative" ref={monthDropdownRef}>
                   <button
                     disabled={granularity !== "daily"}
                     onClick={() => setIsMonthOpen(!isMonthOpen)}
@@ -396,7 +431,7 @@ export default function SellerDashboardPage() {
                 </div>
 
                 {/* Year Dropdown */}
-                <div className="relative">
+                <div className="relative" ref={yearDropdownRef}>
                   <button
                     disabled={granularity === "all_time"}
                     onClick={() => setIsYearOpen(!isYearOpen)}
