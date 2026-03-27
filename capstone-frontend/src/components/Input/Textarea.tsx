@@ -10,7 +10,7 @@ export const Textarea = forwardRef<HTMLTextAreaElement, TextareaProps>(
     return (
       <div>
         {label && (
-          <label className="block mb-1 text-sm font-semibold text-gray-800">
+          <label className="block mb-1 text-text font-semibold text-gray-800">
             {label}
           </label>
         )}
@@ -23,6 +23,11 @@ export const Textarea = forwardRef<HTMLTextAreaElement, TextareaProps>(
           } ${className}`}
           {...props}
         />
+        {props.maxLength && (
+          <p className="text-description text-gray-500 text-right mt-1">
+            {String(props.value || "").length} / {props.maxLength} characters
+          </p>
+        )}
       </div>
     )
   }

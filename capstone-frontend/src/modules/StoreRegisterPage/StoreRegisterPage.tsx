@@ -12,6 +12,7 @@ import { useUserStore } from "../../stores/userStore"
 import StoreAgreementModal from "../../components/Policies/StoreAgreementModal"
 import { handleApiError } from "../../utils/handleApiError"
 import { processImageFile, SUPPORTED_IMAGE_TYPES } from "../../utils/imageProcessing"
+import ToggleSwitch from "../../components/Toggle/ToggleSwitch"
 
 // ✅ Yup schema: ชื่อร้านไม่เกิน 20 ตัวอักษร, คำอธิบายไม่เกิน 200 ตัวอักษร
 const storeRegisterSchema = yup.object({
@@ -50,6 +51,8 @@ export default function StoreRegisterPage() {
 
   const [agreeTerms, setAgreeTerms] = useState(false)
   const [agreeRules, setAgreeRules] = useState(false)
+  const [deliveryEnabled, setDeliveryEnabled] = useState(false)
+  const [deliveryFee, setDeliveryFee] = useState(10)
 
   const [isSubmitting, setIsSubmitting] = useState(false)
 
@@ -169,8 +172,8 @@ export default function StoreRegisterPage() {
         description,
         profile_url:  "", // หรือจะส่ง "" ตรง ๆ ไปเลยก็ได้
         is_active: "YES",
-        delivery_round_university_enabled: false,
-        round_uni_base_fee: 0,
+        delivery_round_university_enabled: deliveryEnabled,
+        round_uni_base_fee: deliveryFee,
       })
 
       console.log("STORE CREATED:", res)
@@ -223,14 +226,14 @@ export default function StoreRegisterPage() {
           setAgreeRules(true)
         }}
       />
-
+ 
       <div className="max-w-3xl mx-auto py-10 text-black">
         <Card className="space-y-8 p-8">
           <form onSubmit={handleSubmit} className="space-y-8">
-            <h1 className="text-center text-2xl font-bold">
+            <h1 className="text-center text-header font-bold">
               Store Information
             </h1>
-
+ 
             {/* ชื่อร้าน */}
             <div className="space-y-1">
               <Input
@@ -241,11 +244,8 @@ export default function StoreRegisterPage() {
                 maxLength={100}
                 error={errors.name}
               />
-              <p className="text-xs text-gray-500 text-right">
-                {name.length} / 100 characters
-              </p>
             </div>
-
+ 
             {/* คำอธิบายร้าน */}
             <div className="space-y-1">
               <Textarea
@@ -258,23 +258,20 @@ export default function StoreRegisterPage() {
                 error={errors.description}
                 className="resize-none"
               />
-              <p className="text-xs text-gray-500 text-right">
-                {description.length} / 255 characters
-              </p>
             </div>
-
+ 
             {/* โลโก้ร้าน */}
             <div className="space-y-1">
-              <label className="font-medium flex items-center gap-1">
+              <label className="font-medium flex items-center gap-1 text-text">
                 Store Logo
                 {/* <Info className="h-4 w-4 text-gray-400" /> */}
               </label>
-
+ 
               <label className="flex flex-col bg-white items-center justify-center cursor-pointer border border-dashed rounded-xl py-6 hover:bg-gray-50 transition relative overflow-hidden">
                 {previewUrl ? (
-                  <img 
-                    src={previewUrl} 
-                    alt="Preview" 
+                  <img
+                    src={previewUrl}
+                    alt="Preview"
                     className="h-32 w-32 object-cover rounded-full mb-2 border"
                   />
                 ) : (
@@ -291,10 +288,106 @@ export default function StoreRegisterPage() {
                   onChange={handleFileChange}
                 />
               </label>
-
+ 
               <p className="text-xs text-gray-500">{fileName}</p>
             </div>
-
+ 
+            {/* ─── Delivery Settings (Redesigned) ─── */}
+            <div className="pt-4 border-t border-gray-100">
+              {/* Section Header */}
+              <div className="flex items-center gap-2 mb-4">
+                <div className="flex items-center justify-center w-7 h-7 rounded-lg bg-orange-100">
+                  <svg
+                    className="w-4 h-4 text-orange-500"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                    strokeWidth={2}
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      d="M13 16V6a1 1 0 00-1-1H4a1 1 0 00-1 1v10a1 1 0 001 1h1m8-1a1 1 0 01-1 1H9m4-1V8a1 1 0 011-1h2.586a1 1 0 01.707.293l3.414 3.414A1 1 0 0121 11.414V16a1 1 0 01-1 1h-1m-6-1a1 1 0 001 1h1M5 17a2 2 0 104 0m-4 0a2 2 0 114 0m6 0a2 2 0 104 0m-4 0a2 2 0 114 0"
+                    />
+                  </svg>
+                </div>
+                <h2 className="font-bold text-base text-gray-900">Delivery Settings</h2>
+              </div>
+ 
+              {/* Main Card */}
+              <div
+                className={`rounded-2xl border transition-all duration-300 overflow-hidden ${
+                  deliveryEnabled
+                    ? "border-orange-200 bg-orange-50/40"
+                    : "border-gray-200 bg-gray-50/60"
+                }`}
+              >
+                {/* Toggle Row */}
+                <div className="flex items-center justify-between px-5 py-4">
+                  <div className="space-y-0.5">
+                    <p className="font-semibold text-sm text-gray-900">Enable Delivery</p>
+                    <p className="text-[11px] text-gray-400">
+                      Allow customers to request delivery to their location
+                    </p>
+                  </div>
+                  <ToggleSwitch
+                    checked={deliveryEnabled}
+                    onChange={(val) => setDeliveryEnabled(val)}
+                  />
+                </div>
+ 
+                {/* Expandable Fee Section */}
+                <div
+                  className={`transition-all duration-300 ease-in-out ${
+                    deliveryEnabled
+                      ? "max-h-40 opacity-100"
+                      : "max-h-0 opacity-0 pointer-events-none"
+                  }`}
+                >
+                  <div className="mx-5 border-t border-orange-100" />
+                  <div className="px-5 py-4 flex items-end gap-4">
+                    {/* Fee Input */}
+                    <div className="flex-1 space-y-1.5">
+                      <label className="text-[11px] font-semibold text-gray-500 uppercase tracking-wide">
+                        Base Delivery Fee
+                      </label>
+                      <div className="relative">
+                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm font-bold text-orange-500 select-none">
+                          ฿
+                        </span>
+                        <input
+                          type="number"
+                          placeholder="10"
+                          className="w-full bg-white border border-orange-200 rounded-xl pl-8 pr-3 py-2.5 text-sm font-semibold text-gray-800 outline-none focus:ring-2 focus:ring-orange-400/30 focus:border-orange-400 transition-all"
+                          value={deliveryFee}
+                          onChange={(e) => setDeliveryFee(Number(e.target.value))}
+                          min={0}
+                        />
+                      </div>
+                    </div>
+ 
+                    {/* Fee Preview Badge */}
+                    <div className="flex-shrink-0 bg-white border border-orange-100 rounded-xl px-4 py-2.5 text-center min-w-[88px] shadow-sm">
+                      <p className="text-[10px] text-gray-400 font-medium uppercase tracking-wide mb-0.5">
+                        Per order
+                      </p>
+                      <p className="text-lg font-bold text-orange-500">฿{deliveryFee || 0}</p>
+                    </div>
+                  </div>
+                </div>
+ 
+                {/* Disabled hint */}
+                {!deliveryEnabled && (
+                  <div className="px-5 pb-4 flex items-center gap-1.5">
+                    <div className="w-1.5 h-1.5 rounded-full bg-gray-300" />
+                    <p className="text-[11px] text-gray-400">
+                      Delivery option will be hidden from your store
+                    </p>
+                  </div>
+                )}
+              </div>
+            </div>
+ 
             {/* Checkboxes */}
             <div className="space-y-3 pt-4">
               <label className="flex items-center gap-3">
@@ -315,7 +408,7 @@ export default function StoreRegisterPage() {
                   </button>
                 </span>
               </label>
-
+ 
               <label className="flex items-center gap-3">
                 <input
                   type="checkbox"
@@ -328,10 +421,7 @@ export default function StoreRegisterPage() {
                 </span>
               </label>
             </div>
-
-            {/* ไม่ต้องมี error text ซ้ำ ถ้าใช้ toast อย่างเดียวก็โอเคแล้ว */}
-            {/* {error && <p className="text-sm text-red-500">{error}</p>} */}
-
+ 
             <div className="pt-2">
               <button
                 type="submit"
