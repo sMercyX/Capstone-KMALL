@@ -14,6 +14,7 @@ export type StoreEditForm = {
 }
 
 import { processImageFile, SUPPORTED_IMAGE_TYPES } from "../../../../utils/imageProcessing"
+import { resolveImageUrl } from "../../../../utils/resolve"
 
 interface StoreEditModalProps {
   isOpen: boolean
@@ -103,14 +104,14 @@ export default function StoreEditModal({
       return
     }
 
-    // ✅ รับเฉพาะไฟล์ภาพ (or HEIC)
-    // Note: processImageFile handles validation implicitly or we can skip strict type checking 
-    // if accept attribute is set correctly.
-    // Let's rely on processImageFile and basic checks.
-    
-    // ✅ เช็คขนาดไฟล์ไม่เกิน (Check original size roughly)
     if (file.size > 10 * 1024 * 1024) {
-       // Allow larger for HEIC conversion
+       toast.error("File size must not exceed 10MB.")
+       e.target.value = ""
+       setLogoFile(null)
+       setFileName("No file selected.")
+       if (previewUrl) URL.revokeObjectURL(previewUrl)
+       setPreviewUrl(null)
+       return
     }
 
     try {
@@ -263,12 +264,19 @@ export default function StoreEditModal({
                       <li>• Supported formats: JPG, JPEG, PNG</li>
                     </ul>
                   </div>
-                  
-                  {previewUrl && (
-                    <div className="mt-3">
-                      <img src={previewUrl} alt="Preview" className="h-20 w-20 object-cover rounded-md border border-gray-200" />
-                    </div>
-                  )}
+
+                  {/* Image Preview */}
+                  <div className="flex flex-col items-center mt-4 ">
+                    <div className="relative group w-32 h-32 justify-center rounded-full border border-gray-100 shadow-sm overflow-hidden bg-gray-50">
+                      <img 
+                        src={previewUrl ? previewUrl : profileUrl ? resolveImageUrl(profileUrl) : "/images/default-store.png" } 
+                        className="w-full h-full object-cover" 
+                        alt="Store Logo"
+                      />
+                  </div>
+                  <p className="text-[13px] text-gray-500 font-medium mt-2">{name}</p>
+                  </div>
+                 
                 </div>
 
                 {/* Store Description */}
