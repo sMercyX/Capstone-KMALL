@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react"
-import { FaBullhorn, FaPaperPlane } from "react-icons/fa"
+import { FaBullhorn } from "react-icons/fa"
 import { Calendar, Trash2 } from "lucide-react"
 import { toast } from "react-toastify"
 import { useAdminAnnouncementApi, type AnnouncementItem } from "../../../api/adminAnnouncementApi"
@@ -20,7 +20,6 @@ export default function AnnouncementPage() {
   const [announcements, setAnnouncements] = useState<AnnouncementItem[]>([])
   const [isListLoading, setIsListLoading] = useState(false)
   const [page, setPage] = useState(1)
-  const [total, setTotal] = useState(0)
   const [totalPages, setTotalPages] = useState(1)
   const [search, setSearch] = useState("")
   const [debouncedSearch, setDebouncedSearch] = useState("")
@@ -89,7 +88,6 @@ export default function AnnouncementPage() {
       setIsListLoading(true)
       const res = await getAnnouncements(page, limit, debouncedSearch)
       setAnnouncements(res.announcements || [])
-      setTotal(res.total || 0)
       setTotalPages(Math.ceil((res.total || 0) / limit))
     } catch (error) {
       console.error("Failed to fetch announcements:", error)

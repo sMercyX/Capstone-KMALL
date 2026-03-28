@@ -4,7 +4,7 @@ import type { OrderItemDetail, orderSellerData, OrderDeliveryAddress } from "../
 import { useProductApi, type RecommendationProduct } from "../../../api/productApi"
 import { resolveImageUrl } from "../../../utils/resolve"
 import ProductList from "../../../components/ProductList/ProductList"
-import { MapPin, Calendar, CheckCircle2, XCircle, Check, PackageCheck, Package } from "lucide-react"
+import { MapPin, Calendar, CheckCircle2, XCircle, PackageCheck } from "lucide-react"
 
 interface CompletedCanceledPageProps {
   order: orderSellerData

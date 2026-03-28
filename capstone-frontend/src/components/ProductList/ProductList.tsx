@@ -16,11 +16,9 @@ interface ProductListProps {
 export default function ProductList({ 
   items, 
   total, 
-  notes,
   subtotal,
   deliveryFee,
   showHeader = true,
-  showNotes = false,
   showBreakdown = false,
 }: ProductListProps) {
   return (
@@ -92,17 +90,6 @@ export default function ProductList({
         )}
       </div>
 
-      {/* Notes Section */}
-      {showNotes && (
-        <div className="mt-6">
-          <p className="text-sm font-semibold mb-2">Notes</p>
-          <div className="bg-gray-50 rounded-lg border border-gray-200 p-3 min-h-[60px]">
-            <p className="text-sm text-gray-600">
-              {notes || "No notes."}
-            </p>
-          </div>
-        </div>
-      )}
 
       {/* Price Breakdown */}
       {showBreakdown && subtotal !== undefined && deliveryFee !== undefined && (
