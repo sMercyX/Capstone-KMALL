@@ -49,6 +49,7 @@ export interface storeProductDataRequset {
   is_active: "YES" | "NO"
   store_id: number
   category_id: string
+  sold_count?: number
 }
 
 export interface storePictureResponse {

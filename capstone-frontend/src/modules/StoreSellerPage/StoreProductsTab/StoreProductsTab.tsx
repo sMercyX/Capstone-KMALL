@@ -223,10 +223,6 @@ export default function StoreProductsTab() {
         </button>
       </div>
 
-      <div className="mb-4">
-        <h2 className="text-xl font-bold text-gray-900">Products</h2>
-      </div>
-
       {/* Table Section */}
       <div className="overflow-x-auto min-h-[400px]">
         <div className="min-w-[1100px] mb-4">
@@ -234,7 +230,7 @@ export default function StoreProductsTab() {
           <div className="grid grid-cols-12 gap-4 bg-white border border-gray-100 rounded-t-xl px-6 py-4 text-[11px] uppercase tracking-wider font-bold text-gray-400 border-b-2">
             <div className="col-span-4">Product Name</div>
             <div className="col-span-3">Product Description</div>
-            <div className="col-span-1">Quantity</div>
+            <div className="col-span-1">Sold</div>
             <div className="col-span-1">Status</div>
             <div className="col-span-1 text-right">Price</div>
             <div className="col-span-2 text-right">Action</div>
@@ -284,7 +280,7 @@ export default function StoreProductsTab() {
 
                     {/* Quantity - Mocked */}
                     <div className="col-span-1 text-sm text-gray-700 font-semibold pl-4">
-                      1
+                      {product.sold_count || "0"}
                     </div>
 
                     {/* Status */}
