@@ -863,6 +863,7 @@ export function StoreAddEditTab() {
                         <InputNumber 
                           placeholder="+0 or -50"
                           value={bulkDeltaPrice}
+                          allowNegative={true}
                           onChange={(e) => {
                             const val = e.target.value
                             setBulkDeltaPrice(val)
@@ -914,10 +915,11 @@ export function StoreAddEditTab() {
                               <td className="px-6 py-4">
                                 <InputNumber 
                                   value={v.price_delta}
+                                  allowNegative={true}
                                   onChange={(e) => {
-                                    const val = Number(e.target.value)
+                                    const val = e.target.value === "" ? "" : Number(e.target.value)
                                     const newV = [...variants]
-                                    newV[i].price_delta = val
+                                    newV[i].price_delta = val as number
                                     setVariants(newV)
                                   }}
                                   className="w-24"
@@ -927,13 +929,14 @@ export function StoreAddEditTab() {
                                 <InputNumber 
                                   value={v.stock_qty}
                                   onChange={(e) => {
-                                    const val = Number(e.target.value)
+                                    const val = e.target.value === "" ? "" : Number(e.target.value)
                                     const newV = [...variants]
-                                    newV[i].stock_qty = val >= 0 ? val : 0
+                                    newV[i].stock_qty = (val as number) >= 0 || val === "" ? (val as number) : 0
                                     setVariants(newV)
                                   }}
                                   className="w-24"
                                 />
+                                
                               </td>
                               <td className="px-6 py-4 font-bold text-gray-900 text-center border-l border-gray-100 bg-gray-50/50">
                                 {(Number(price) || 0) + (v.price_delta || 0)} ฿
