@@ -128,11 +128,11 @@ export default function BlacklistedBuyersPage() {
   return (
     <div>
       {/* Breadcrumb */}
-      <p className="text-sm text-gray-400 mb-1">
-        Blacklist &gt; <span className="font-semibold text-gray-600">Blacklisted Buyers</span>
+      <p className="text-description text-gray-400 mb-1">
+        Admin &gt; <span className="font-semibold text-gray-600">Blacklisted Buyers</span>
       </p>
-      <h1 className="text-2xl font-bold text-gray-900 mb-1">Blacklisted Buyers</h1>
-      <p className="text-sm text-gray-400 mb-6">
+      <h1 className="text-header font-bold text-gray-900">Blacklisted Buyers</h1>
+      <p className="text-description text-gray-400 mb-2">
         Buyers that received enforcement actions after being reported by sellers.
       </p>
 
@@ -155,7 +155,7 @@ export default function BlacklistedBuyersPage() {
       </div>
 
       {/* White container */}
-      <div className="bg-white rounded-xl shadow-[0_2px_10px_rgba(0,0,0,0.04)] p-6">
+      <div className="bg-white rounded-lg shadow-[0_2px_10px_rgba(0,0,0,0.04)] p-6">
         {/* Tabs + Pagination */}
         <div className="flex items-center justify-between mb-4 border-b border-gray-100 pb-3">
           <div className="flex">
@@ -163,7 +163,7 @@ export default function BlacklistedBuyersPage() {
               <button
                 key={tab.key}
                 onClick={() => { setActiveTab(tab.key); setPage(1) }}
-                className={`px-5 py-2.5 text-sm font-medium transition-colors cursor-pointer ${
+                className={`px-5 py-2.5 text-description font-medium transition-colors cursor-pointer ${
                   activeTab === tab.key
                     ? "text-[#ff5a36] border-b-2 border-[#ff5a36]"
                     : "text-gray-500 hover:text-gray-700"

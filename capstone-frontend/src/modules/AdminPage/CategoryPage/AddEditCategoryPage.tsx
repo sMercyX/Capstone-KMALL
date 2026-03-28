@@ -553,281 +553,287 @@ export default function AddCategoryPage() {
   }
 
   return (
-    <div className="text-[#2D2D2D] mx-auto min-h-full">
-      {/* Header */}
-      <div className="mb-6 flex-shrink-0">
-        <div className="flex justify-between items-start">
-            <div>
-                <p className="text-gray-400 text-text mb-1 ">
-                Category &gt; <span className="hover:text-orange-500 cursor-pointer" onClick={handleCancelClick}>Category Management</span> &gt; <span className="text-gray-600 font-semibold">{isEditMode ? "Edit Category" : "Add Category"}</span>
-                </p>
-                <h1 className="text-header font-bold flex items-center gap-4">
-                  {isEditMode ? "Edit Main Category" : "Add Main Category"}
-                  {isEditMode && (
-                     <button
-                       onClick={() => setIsDeleteMainModalOpen(true)}
-                       disabled={false}
-                       className="flex items-center gap-1.5 text-sm font-medium text-red-500 hover:text-red-600 bg-red-50 hover:bg-red-100 disabled:bg-gray-100 disabled:text-gray-400 disabled:cursor-not-allowed px-3 py-1.5 rounded-lg transition-colors"
-                     >
-                       <Trash2 className="w-4 h-4" />
-                     </button>
-                  )}
-                </h1>
-                <p className="text-gray-500 text-description mt-1">
-                {isEditMode ? "Update the main category information and subcategories." : "Enter the main category information and add at least one subcategory."}
-                </p>
+    <div className="h-full flex flex-col text-[#2D2D2D] overflow-hidden">
+      {/* Fixed Header section */}
+      <div className="shrink-0 bg-gray-50 border-b border-gray-200/50">
+        <div className=" mx-auto">
+          {/* Breadcrumbs */}
+          <div className="mb-4">
+              <p className="text-gray-400 text-description mb-1 ">
+              Admin &gt; <span className="hover:text-orange-500 cursor-pointer" onClick={handleCancelClick}>Category Management</span> &gt; <span className="text-gray-600 font-semibold">{isEditMode ? "Edit Category" : "Add Category"}</span>
+              </p>
+              <h1 className="text-header font-bold flex items-center gap-4">
+                {isEditMode ? "Edit Main Category" : "Add Main Category"}
+                {isEditMode && (
+                   <button
+                     onClick={() => setIsDeleteMainModalOpen(true)}
+                     className="flex items-center gap-1.5 text-sm font-medium text-red-500 hover:text-red-600 bg-red-50 hover:bg-red-100 px-3 py-1.5 rounded-lg transition-colors"
+                   >
+                     <Trash2 className="w-4 h-4" />
+                   </button>
+                )}
+              </h1>
+              <p className="text-gray-500 text-description">
+              {isEditMode ? "Update the main category information and subcategories." : "Enter the main category information and add at least one subcategory."}
+              </p>
+          </div>
+
+          {/* Navigation Tabs (Inside Fixed Header) */}
+          <div className="bg-white rounded-lg text-description shadow-sm border border-gray-200 px-2 flex-shrink-0 mb-4">
+            <div className="flex gap-8">
+              <button
+                onClick={() => scrollToSection("MAIN")}
+                className={`py-4 px-2 font-medium relative transition-colors cursor-pointer ${
+                  activeTab === "MAIN"
+                    ? "text-[#FF4C24]"
+                    : "text-gray-400 hover:text-gray-600"
+                }`}
+              >
+                Main Category
+                {activeTab === "MAIN" && (
+                  <div className="absolute  bottom-0 left-0 right-0 h-[3px] bg-[#FF4C24] rounded-t-lg" />
+                )}
+              </button>
+              <button
+                onClick={() => scrollToSection("SUB")}
+                className={`py-4 px-2 font-medium relative transition-colors cursor-pointer ${
+                  activeTab === "SUB"
+                    ? "text-[#FF4C24]"
+                    : "text-gray-400 hover:text-gray-600"
+                }`}
+              >
+                Subcategory
+                {activeTab === "SUB" && (
+                  <div className="absolute bottom-0 left-0 right-0 h-[3px] bg-[#FF4C24] rounded-t-lg" />
+                )}
+              </button>
             </div>
+          </div>
         </div>
       </div>
 
-      {/* Navigation Tabs */}
-      <div className="bg-white rounded-lg text-description shadow-sm border border-gray-200 mb-4 px-2 flex-shrink-0">
-        <div className="flex gap-8">
-          <button
-            onClick={() => scrollToSection("MAIN")}
-            className={`py-4 px-2 font-medium  relative transition-colors ${
-              activeTab === "MAIN"
-                ? "text-[#FF4C24]"
-                : "text-gray-400 hover:text-gray-600"
-            }`}
-          >
-            Main Category
-            {activeTab === "MAIN" && (
-              <div className="absolute bottom-0 left-0 right-0 h-[3px] bg-[#FF4C24] rounded-t-lg" />
-            )}
-          </button>
-          <button
-            onClick={() => scrollToSection("SUB")}
-            className={`py-4 px-2 font-medium  relative transition-colors ${
-              activeTab === "SUB"
-                ? "text-[#FF4C24]"
-                : "text-gray-400 hover:text-gray-600"
-            }`}
-          >
-            Subcategory
-            {activeTab === "SUB" && (
-              <div className="absolute bottom-0 left-0 right-0 h-[3px] bg-[#FF4C24] rounded-t-lg" />
-            )}
-          </button>
-        </div>
-      </div>
-
-      {/* Continuous Content Sections */}
-      <div ref={contentRef} className="space-y-6 pb-40 pr-2">
-        
-        {/* Main Category Component */}
-        <div id="MAIN" className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 pt-8">
-          <h2 className="text-header font-bold mb-6">{isEditMode ? "Edit Main Category" : "Add Main Category"}</h2>
-          
-          <div className="space-y-6">
-            {/* Category Name */}
-            <div className="text-text">
-              <label className="block font-medium mb-2">
-                Category Name <span className="text-red-500">*</span>
-              </label>
-              <input 
-                type="text" 
-                placeholder="e.g., Clothing, Shoes, Bags"
-                className="w-full bg-[#F4F4F4] border-none rounded-lg px-4 py-3 outline-none focus:ring-2 focus:ring-[#FF4C24]/50"
-                value={mainName}
-                onChange={(e) => setMainName(e.target.value)}
-              />
-            </div>
-
-            {/* Category Status (Edit Mode Only) */}
-            {isEditMode && (
+      {/* Scrollable Content section */}
+      <div 
+        ref={contentRef} 
+        className="flex-1 overflow-y-auto [&::-webkit-scrollbar]:w-[6px] [&::-webkit-scrollbar-track]:bg-[#F1F1F1] [&::-webkit-scrollbar-track]:rounded-full [&::-webkit-scrollbar-thumb]:bg-[#D1D1D1] hover:[&::-webkit-scrollbar-thumb]:bg-[#B1B1B1] [&::-webkit-scrollbar-thumb]:rounded-full"
+      >
+        <div className="mx-auto space-y-6 pb-20">
+          {/* Main Category Component */}
+          <div id="MAIN" className="bg-white rounded-lg shadow-sm border border-gray-100 p-6 pt-8">
+            <h2 className="text-header font-bold mb-6">{isEditMode ? "Edit Main Category" : "Add Main Category"}</h2>
+            
+            <div className="space-y-6">
+              {/* Category Name */}
               <div className="text-text">
                 <label className="block font-medium mb-2">
-                  Status <span className="text-red-500">*</span>
+                  Category Name <span className="text-red-500">*</span>
                 </label>
-                <div className="flex items-center gap-3 bg-[#F4F4F4] rounded-lg px-4 py-3">
-                  <ToggleSwitch
-                    checked={mainIsActive === "YES"}
-                    onChange={(checked) => setMainIsActive(checked ? "YES" : "NO")}
-                    disabled={isMainToggleDisabled}
-                  />
-                  <span className={`font-medium ${mainIsActive === "YES" ? "text-green-600" : "text-gray-500"}`}>
-                    {mainIsActive === "YES" ? "Active" : "Inactive"}
-                  </span>
-                </div>
-                <p className="text-xs text-gray-500 mt-2">To set as Active, at least one subcategory must also be Active. To set as Inactive, all subcategories must be Inactive.</p>
-              </div>
-            )}
-
-            {/* Category Image */}
-            <div className="text-text">
-              <label className="block font-medium mb-2">
-                Category Image {!isEditMode && <span className="text-red-500">*</span>}
-              </label>
-              
-              <div 
-                className="w-full bg-[#F4F4F4] border border-gray-200 rounded-lg px-4 py-3 flex items-center justify-between cursor-pointer hover:bg-gray-200 transition-colors"
-                onClick={() => fileInputRef.current?.click()}
-              >
-                <div className="flex items-center gap-4">
-                  <span className="font-medium">Choose File</span>
-                  <span className="text-gray-500 text-sm">{imageFile ? imageFile.name : "No file Chosen"}</span>
-                </div>
-                <Plus className="w-5 h-5 text-gray-400" />
-              </div>
-              <input 
-                type="file" 
-                ref={fileInputRef} 
-                className="hidden" 
-                accept={SUPPORTED_IMAGE_TYPES}
-                onChange={handleFileChange}
-              />
-
-              {/* Image Guidelines */}
-              <div className="mt-4 bg-[#FFF9DA] border border-[#F2D750]/40 rounded-lg p-4">
-                <div className="flex items-center gap-2 text-[#9A7D0A] font-medium mb-2">
-                  <ImageIcon className="w-5 h-5" />
-                  Image Guidelines
-                </div>
-                <ul className="list-disc list-inside text-xs text-[#9A7D0A] space-y-1 ml-1 opacity-90">
-                  <li>Recommended size: 800 × 450 px (16:9 ratio)</li>
-                  <li>Maximum file size: 2 MB</li>
-                  <li>Accepted formats: JPG, PNG, WebP, or HEIF/HEIC</li>
-                </ul>
+                <input 
+                  type="text" 
+                  placeholder="e.g., Clothing, Shoes, Bags"
+                  className="w-full bg-[#F4F4F4] border-none rounded-lg px-4 py-3 outline-none focus:ring-2 focus:ring-[#FF4C24]/50"
+                  value={mainName}
+                  onChange={(e) => setMainName(e.target.value)}
+                />
               </div>
 
-              {/* Mock Card Preview */}
-              <div className="mt-8 flex flex-col items-center">
-                <p className="text-[10px] font-bold text-gray-400 mb-4 uppercase tracking-widest">Preview in Dashboard</p>
-                <div className="w-full max-w-[200px] rounded-3xl border border-orange-200 bg-white shadow-[0_8px_20px_rgba(255,102,0,0.12)] px-6 py-6 text-center transform scale-90 sm:scale-100 transition-transform">
-                  <div className="mx-auto h-20 w-20 sm:h-24 sm:w-24 rounded-full bg-orange-50 grid place-items-center overflow-hidden mb-4 border-2 border-orange-100/50">
-                    {imagePreview ? (
-                      <img
-                        src={imagePreview}
-                        alt="Preview"
-                        className="h-full w-full object-cover"
-                      />
-                    ) : (
-                      <Package className="h-10 w-10 sm:h-12 w-12 text-orange-400" />
-                    )}
+              {/* Category Status (Edit Mode Only) */}
+              {isEditMode && (
+                <div className="text-text">
+                  <label className="block font-medium mb-2">
+                    Status <span className="text-red-500">*</span>
+                  </label>
+                  <div className="flex items-center gap-3 bg-[#F4F4F4] rounded-lg px-4 py-3">
+                    <ToggleSwitch
+                      checked={mainIsActive === "YES"}
+                      onChange={(checked) => setMainIsActive(checked ? "YES" : "NO")}
+                      disabled={isMainToggleDisabled}
+                    />
+                    <span className={`font-medium ${mainIsActive === "YES" ? "text-green-600" : "text-gray-500"}`}>
+                      {mainIsActive === "YES" ? "Active" : "Inactive"}
+                    </span>
                   </div>
-                  <div className="font-bold text-base sm:text-lg text-gray-800 truncate">
-                    {mainName || "Category Name"}
+                  <p className="text-xs text-gray-500 mt-2">To set as Active, at least one subcategory must also be Active. To set as Inactive, all subcategories must be Inactive.</p>
+                </div>
+              )}
+
+              {/* Category Image */}
+              <div className="text-text">
+                <label className="block font-medium mb-2">
+                  Category Image {!isEditMode && <span className="text-red-500">*</span>}
+                </label>
+                
+                <div 
+                  className="w-full bg-[#F4F4F4] border border-gray-200 rounded-lg px-4 py-3 flex items-center justify-between cursor-pointer hover:bg-gray-200 transition-colors"
+                  onClick={() => fileInputRef.current?.click()}
+                >
+                  <div className="flex items-center gap-4">
+                    <span className="font-medium">Choose File</span>
+                    <span className="text-gray-500 text-sm">{imageFile ? imageFile.name : "No file Chosen"}</span>
+                  </div>
+                  <Plus className="w-5 h-5 text-gray-400" />
+                </div>
+                <input 
+                  type="file" 
+                  ref={fileInputRef} 
+                  className="hidden" 
+                  accept={SUPPORTED_IMAGE_TYPES}
+                  onChange={handleFileChange}
+                />
+
+                {/* Image Guidelines */}
+                <div className="mt-4 bg-[#FFF9DA] border border-[#F2D750]/40 rounded-lg p-4">
+                  <div className="flex items-center gap-2 text-[#9A7D0A] font-medium mb-2">
+                    <ImageIcon className="w-5 h-5" />
+                    Image Guidelines
+                  </div>
+                  <ul className="list-disc list-inside text-xs text-[#9A7D0A] space-y-1 ml-1 opacity-90">
+                    <li>Recommended size: 800 × 450 px (16:9 ratio)</li>
+                    <li>Maximum file size: 2 MB</li>
+                    <li>Accepted formats: JPG, PNG, WebP, or HEIF/HEIC</li>
+                  </ul>
+                </div>
+
+                {/* Mock Card Preview */}
+                <div className="mt-8 flex flex-col items-center">
+                  <p className="text-[10px] font-bold text-gray-400 mb-4 uppercase tracking-widest">Preview in Dashboard</p>
+                  <div className="w-full max-w-[200px] rounded-3xl border border-orange-200 bg-white shadow-[0_8px_20px_rgba(255,102,0,0.12)] px-6 py-6 text-center transform scale-90 sm:scale-100 transition-transform">
+                    <div className="mx-auto h-20 w-20 sm:h-24 sm:w-24 rounded-full bg-orange-50 grid place-items-center overflow-hidden mb-4 border-2 border-orange-100/50">
+                      {imagePreview ? (
+                        <img
+                          src={imagePreview}
+                          alt="Preview"
+                          className="h-full w-full object-cover"
+                        />
+                      ) : (
+                        <Package className="h-10 w-10 sm:h-12 w-12 text-orange-400" />
+                      )}
+                    </div>
+                    <div className="font-bold text-base sm:text-lg text-gray-800 truncate">
+                      {mainName || "Category Name"}
+                    </div>
                   </div>
                 </div>
               </div>
             </div>
           </div>
-        </div>
 
-        {/* Sub Category Component */}
-        <div id="SUB" className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 pt-8 min-h-[400px]">
-          <h2 className="text-header font-bold mb-1">{isEditMode ? "Edit Subcategory" : "Add Subcategory"}</h2>
-          <p className="text-description text-gray-500 mb-6">Enter the subcategory name</p>
-          
-          <div>
-            <div className="flex justify-between items-center mb-2">
-              <label className="text-text font-medium">
-                Subcategories
-              </label>
-              <span className="text-description text-gray-400">Add subcategories for this category</span>
-            </div>
+          {/* Sub Category Component */}
+          <div id="SUB" className="bg-white rounded-lg shadow-sm border border-gray-100 p-6 pt-8 min-h-[400px]">
+            <h2 className="text-header font-bold mb-1">{isEditMode ? "Edit Subcategory" : "Add Subcategory"}</h2>
+            <p className="text-description text-gray-500 mb-6">Enter the subcategory name</p>
             
-            {/* Input for adding new subcategory */}
-            <div className="flex gap-3 mb-4 text-text">
-               <input 
-                  type="text" 
-                  placeholder="e.g., Jeans, T-Shirts"
-                  className="flex-grow bg-[#F4F4F4] border border-gray-300 rounded-lg px-4 py-3 outline-none focus:ring-1 focus:ring-gray-400 transition-all font-medium text-[#2D2D2D]"
-                  value={newSubCategoryName}
-                  onChange={(e) => setNewSubCategoryName(e.target.value)}
-                  onKeyDown={(e) => {
-                      if (e.key === 'Enter') {
-                          e.preventDefault()
-                          handleAddSubCategory()
-                      }
-                  }}
-               />
-               <button 
-                  onClick={handleAddSubCategory}
-                  className="bg-[#2D2D2D] hover:bg-black text-white w-12 h-12 rounded-lg flex items-center justify-center transition-colors shrink-0"
-               >
-                  <Plus className="w-5 h-5" />
-               </button>
-            </div>
-
-            <div className="space-y-3">
-              {subCategories.map((sub, index) => (
-                <div key={sub.id || `new-${index}`} className="flex text-text justify-between items-center bg-white border border-gray-300 rounded-lg px-4 py-2">
-                  <input 
+            <div>
+              <div className="flex justify-between items-center mb-2">
+                <label className="text-text font-medium">
+                  Subcategories
+                </label>
+                <span className="text-description text-gray-400">Add subcategories for this category</span>
+              </div>
+              
+              {/* Input for adding new subcategory */}
+              <div className="flex gap-3 mb-4 text-text">
+                 <input 
                     type="text" 
-                    placeholder="Subcategory Name"
-                    className="flex-grow bg-transparent border-none outline-none font-medium text-[#2D2D2D] py-1 px-2 hover:bg-gray-50 focus:bg-gray-50 rounded transition-colors cursor-text"
-                    value={sub.name}
-                    onChange={(e) => handleSubCategoryChange(index, e.target.value)}
-                  />
-                  {sub.product_count !== undefined && (
-                    <span className="text-[#FF4C24] text-description font-semibold px-2 shrink-0">
-                      {sub.product_count} items
-                    </span>
-                  )}
-                  {isEditMode && (
-                    <div className="ml-2 flex items-center pr-4 border-r border-gray-200">
-                      <ToggleSwitch
-                        checked={sub.is_active === "YES"}
-                        onChange={(checked) => handleSubCategoryActiveChange(index, checked ? "YES" : "NO")}
-                        disabled={Object.values(pendingDeactivations).some(d => d.target === sub.id || d.target === sub.name)}
-                      />
-                    </div>
-                  )}
-                  <div className="flex gap-2 shrink-0 ml-4">
-                      {pendingDeactivations[sub.id!] && (
-                        <div className="flex items-center text-description font-semibold bg-orange-50 text-[#FF4C24] px-3 py-1.5 rounded-full border border-orange-100 mr-2 shadow-sm animate-pulse-slow">
-                          <span className="opacity-70 mr-1.5">{pendingDeactivations[sub.id!].type === 'DELETE' ? 'Move & Delete' : 'Move & Deactivate'} →</span>
-                          <span>{
-                            typeof pendingDeactivations[sub.id!].target === 'number'
-                              ? subCategories.find(s => s.id === pendingDeactivations[sub.id!].target)?.name
-                              : pendingDeactivations[sub.id!].target
-                          }</span>
-                        </div>
-                      )}
-                      <div className="flex items-center">
-                        {Object.values(pendingDeactivations).some(d => d.target === sub.id || d.target === sub.name) && (
-                          <div className="flex flex-col text-description items-end mr-2">
-                             <span className="text-description text-blue-400 font-semibold whitespace-nowrap">
-                                Receiving from: {getSourcesByTarget(sub.id || sub.name).join(", ")}
-                             </span>
+                    placeholder="e.g., Jeans, T-Shirts"
+                    className="flex-grow bg-[#F4F4F4] border border-gray-300 rounded-lg px-4 py-3 outline-none focus:ring-1 focus:ring-gray-400 transition-all font-medium text-[#2D2D2D]"
+                    value={newSubCategoryName}
+                    onChange={(e) => setNewSubCategoryName(e.target.value)}
+                    onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                            e.preventDefault()
+                            handleAddSubCategory()
+                        }
+                    }}
+                 />
+                 <button 
+                    onClick={handleAddSubCategory}
+                    className="bg-[#2D2D2D] hover:bg-black text-white w-12 h-12 rounded-lg flex items-center justify-center transition-colors shrink-0"
+                 >
+                    <Plus className="w-5 h-5" />
+                 </button>
+              </div>
+
+              <div className="space-y-3">
+                {subCategories.map((sub, index) => (
+                  <div key={sub.id || `new-${index}`} className="flex text-text justify-between items-center bg-white border border-gray-300 rounded-lg px-4 py-2">
+                    <input 
+                      type="text" 
+                      placeholder="Subcategory Name"
+                      className="flex-grow bg-transparent border-none outline-none font-medium text-[#2D2D2D] py-1 px-2 hover:bg-gray-50 focus:bg-gray-50 rounded transition-colors cursor-text"
+                      value={sub.name}
+                      onChange={(e) => handleSubCategoryChange(index, e.target.value)}
+                    />
+                    {sub.product_count !== undefined && (
+                      <span className="text-[#FF4C24] text-description font-semibold px-2 shrink-0">
+                        {sub.product_count} items
+                      </span>
+                    )}
+                    {isEditMode && (
+                      <div className="ml-2 flex items-center pr-4 border-r border-gray-200">
+                        <ToggleSwitch
+                          checked={sub.is_active === "YES"}
+                          onChange={(checked) => handleSubCategoryActiveChange(index, checked ? "YES" : "NO")}
+                          disabled={Object.values(pendingDeactivations).some(d => d.target === sub.id || d.target === sub.name)}
+                        />
+                      </div>
+                    )}
+                    <div className="flex gap-2 shrink-0 ml-4">
+                        {pendingDeactivations[sub.id!] && (
+                          <div className="flex items-center text-description font-semibold bg-orange-50 text-[#FF4C24] px-3 py-1.5 rounded-full border border-orange-100 mr-2 shadow-sm">
+                            <span className="opacity-70 mr-1.5">{pendingDeactivations[sub.id!].type === 'DELETE' ? 'Move & Delete' : 'Move & Deactivate'} →</span>
+                            <span>{
+                              typeof pendingDeactivations[sub.id!].target === 'number'
+                                ? subCategories.find(s => s.id === pendingDeactivations[sub.id!].target)?.name
+                                : pendingDeactivations[sub.id!].target
+                            }</span>
                           </div>
                         )}
-                        <button 
-                          onClick={() => removeSubCategoryRow(index)}
-                          disabled={
-                            sub.is_active === "YES" || 
-                            Object.values(pendingDeactivations).some(d => d.target === sub.id || d.target === sub.name) ||
-                            !!pendingDeactivations[sub.id!]
-                          }
-                          className="text-red-500 hover:text-red-600 disabled:text-gray-300 disabled:cursor-not-allowed transition-colors p-1"
-                        >
-                          <Trash2 className="w-5 h-5" />
-                        </button>
-                      </div>
+                        <div className="flex items-center">
+                          {Object.values(pendingDeactivations).some(d => d.target === sub.id || d.target === sub.name) && (
+                            <div className="flex flex-col text-description items-end mr-2">
+                               <span className="text-description text-blue-400 font-semibold whitespace-nowrap">
+                                  Receiving from: {getSourcesByTarget(sub.id || sub.name).join(", ")}
+                               </span>
+                            </div>
+                          )}
+                          <button 
+                            onClick={() => removeSubCategoryRow(index)}
+                            disabled={
+                              sub.is_active === "YES" || 
+                              Object.values(pendingDeactivations).some(d => d.target === sub.id || d.target === sub.name) ||
+                              !!pendingDeactivations[sub.id!]
+                            }
+                            className="text-red-500 hover:text-red-600 disabled:text-gray-300 disabled:cursor-not-allowed transition-colors p-1"
+                          >
+                            <Trash2 className="w-5 h-5" />
+                          </button>
+                        </div>
+                    </div>
                   </div>
-                </div>
-              ))}
+                ))}
+              </div>
             </div>
           </div>
+
+          
         </div>
       </div>
 
-      {/* Floating Footer Toolbar */}
-      <div className="fixed text-text bottom-0 left-0 right-0 md:left-[280px] bg-[#F9F9F9] border-t border-gray-200 p-4 flex justify-end gap-4 z-50">
-        <div className="w-full flex justify-end gap-4">
+         {/* Footer Toolbar section */}
+      <div className="shrink-0 bg-white border border-gray-200 rounded-lg mt-4">
+        <div className=" mx-auto flex justify-end gap-4 text-text my-4 mr-4">
           <button 
             onClick={handleCancelClick}
             disabled={isLoading}
-            className="px-6 py-2.5 rounded-md font-medium text-gray-600 bg-gray-200 hover:bg-gray-300 transition-colors disabled:opacity-50"
+            className="px-2 py-2 cursor-pointer rounded-lg bg-[#8E8E93] text-white hover:bg-[#7A7A7F] transition-all hover:scale-[1.02] active:scale-[0.98] disabled:opacity-50"
           >
             Cancel
           </button>
           <button 
             onClick={handleSubmit}
             disabled={isLoading}
-            className="px-6 py-2.5 rounded-md font-medium text-white bg-[#FF4C24] hover:bg-[#E63E1A] transition-colors disabled:opacity-50"
+            className="px-4 py-2 cursor-pointer rounded-lg  bg-[#FF4C24] text-white hover:bg-[#E63E1A] transition-all hover:scale-[1.02] active:scale-[0.98] disabled:opacity-50 shadow-md shadow-orange-200"
           >
             {isLoading ? "Saving..." : isEditMode ? "Update Category" : "Create Category"}
           </button>
@@ -864,7 +870,7 @@ export default function AddCategoryPage() {
       >
         <div className="flex flex-col gap-4 mt-6">
             <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Target Subcategory</label>
+                <label className="block text-description font-medium text-gray-700 mb-2">Target Subcategory</label>
                 <Dropdown
                     label="Target Subcategory"
                     options={availableSubcategoriesForReassign.map(sub => ({

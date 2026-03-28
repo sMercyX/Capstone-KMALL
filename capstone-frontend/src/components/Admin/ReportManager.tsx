@@ -213,13 +213,13 @@ export default function ReportManager({ reportedPartyType }: ReportManagerProps)
     <div className="mx-auto w-full">
       {/* Breadcrumb & Title Area */}
       <div className="mb-8">
-        <div className="text-gray-400 text-sm mb-1 font-medium">
-          Reports &gt; <span className="text-gray-600 font-semibold">{title}</span>
+        <div className="text-gray-400 text-description mb-1 font-medium">
+          Admin &gt; <span className="text-gray-600 font-semibold">{title}</span>
         </div>
-        <h1 className="text-2xl font-bold text-gray-900">
+        <h1 className="text-header font-bold text-gray-900">
           {title}
         </h1>
-        <p className="text-gray-500 text-sm mt-1">Manage reports submitted by {reportedPartyType === "SELLER" ? "buyers" : "sellers"}. Review pending cases and take appropriate action.</p>
+        <p className="text-gray-500 text-description">Manage reports submitted by {reportedPartyType === "SELLER" ? "buyers" : "sellers"}. Review pending cases and take appropriate action.</p>
       </div>
 
       {/* Summary Cards */}

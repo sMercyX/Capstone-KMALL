@@ -57,8 +57,8 @@ export default function CategoryPage() {
       <div className="shrink-0 space-y-6 pb-6 border-b border-gray-200/50">
         {/* Header */}
         <div>
-          <p className="text-gray-400 text-text">
-            Category &gt; <span className="text-gray-600 font-semibold">Category Management</span>
+          <p className="text-gray-400 text-description mb-1">
+            Admin &gt; <span className="text-gray-600 font-semibold">Category Management</span>
           </p>
           <h1 className="text-header font-bold">Category Management</h1>
           <p className="text-gray-500 text-description">
@@ -100,14 +100,14 @@ export default function CategoryPage() {
       </div>
 
       {/* Category Grid (Scrollable) */}
-      <div className="flex-1 overflow-y-auto mt-6 pr-2 -mr-2 [&::-webkit-scrollbar]:w-[6px] [&::-webkit-scrollbar-track]:bg-[#F1F1F1] [&::-webkit-scrollbar-track]:rounded-full [&::-webkit-scrollbar-thumb]:bg-[#D1D1D1] hover:[&::-webkit-scrollbar-thumb]:bg-[#B1B1B1] [&::-webkit-scrollbar-thumb]:rounded-full">
+      <div className="flex-1 overflow-y-auto mt-6 pr-2 -mr-2 [&::-webkit-scrollbar]:w-[6px] [&::-webkit-scrollbar-track]:bg-[#F1F1F1] [&::-webkit-scrollbar-track]:rounded-lg [&::-webkit-scrollbar-thumb]:bg-[#D1D1D1] hover:[&::-webkit-scrollbar-thumb]:bg-[#B1B1B1] [&::-webkit-scrollbar-thumb]:rounded-lg">
         <div className={`grid gap-6 grid-cols-[repeat(auto-fill,minmax(min(100%,300px),1fr))] pb-8`}>
           {isSearching
             ? Array.from({ length: 8 }).map((_, i) => (
                 <CategorySkeleton key={i} />
               ))
             : categories.map((group) => (
-                <div key={group.main.id} className="bg-[#FAF9F8] rounded-[24px] overflow-hidden flex flex-col h-full border border-transparent p-2.5 ">
+                <div key={group.main.id} className="bg-[#FAF9F8] rounded-lg overflow-hidden flex flex-col h-full border border-transparent p-2.5 ">
                   {/* Inner White Container */}
                   <div onClick={() => navigate(`/admin/category/edit/${group.main.slug}`)} className="bg-white cursor-pointer duration-200 hover:scale-[1.03] hover:shadow-xl rounded-[20px] shadow-[0_2px_15px_rgba(0,0,0,0.04)] flex flex-col h-full p-6 border border-gray-100">
                     {/* Header Image Placeholder */}

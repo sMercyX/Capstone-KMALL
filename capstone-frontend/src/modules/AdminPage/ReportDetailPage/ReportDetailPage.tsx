@@ -192,19 +192,19 @@ export default function ReportDetailPage() {
   const { report, order_snapshot, chat_snapshots, evidences } = reportData
 
   return (
-    <div className="p-8 mx-auto w-full h-screen flex flex-col overflow-hidden">
+    <div className="mx-auto w-full h-full flex flex-col overflow-hidden">
       {/* Breadcrumb & Title Area */}
       <div className="mb-6 flex-shrink-0 flex justify-between items-end">
         <div>
-          <div className="text-gray-400! text-sm mb-2 font-medium">
-            Reports &gt; <Link to={`/admin/report/${type}`} className="text-gray-400! hover:text-orange-600!">{titlePrefix}</Link> &gt; <span className="text-gray-600">Report Detail</span>
+          <div className="text-gray-400! text-description mb-1 font-medium">
+            Admin &gt; <Link to={`/admin/report/${type}`} className="text-gray-400! hover:text-orange-600!">{titlePrefix}</Link> &gt; <span className="text-gray-600">Report Detail</span>
           </div>
           
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">Report Detail</h1>
+          <h1 className="text-header font-bold text-gray-900">Report Detail</h1>
           
           <div className="flex items-center gap-4">
-            <span className="text-2xl font-semibold text-gray-800">#RPT-{report.report_id.toString().padStart(4, '0')}</span>
-            <div className={`px-4 py-1.5 rounded-full text-sm font-semibold inline-flex items-center ${
+            <span className="text-text font-semibold text-gray-800">#RPT-{report.report_id.toString().padStart(4, '0')}</span>
+            <div className={`px-3 py-1 rounded-full text-description font-semibold inline-flex items-center ${
               report.status === "PENDING" ? "bg-[#fad450] text-[#8e7314]" :
               report.status === "RESOLVED" ? "bg-green-100 text-green-700" :
               "bg-red-100 text-red-700"

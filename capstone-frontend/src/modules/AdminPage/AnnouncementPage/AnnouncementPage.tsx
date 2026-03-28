@@ -146,13 +146,13 @@ export default function AnnouncementPage() {
       <div className="mb-6 flex-shrink-0">
         <div className="flex justify-between items-start">
           <div>
-            <p className="text-gray-400 text-sm mb-1">
-              Announcements &gt;
+            <p className="text-gray-400 text-description mb-1">
+              Admin &gt; <span className="font-semibold text-gray-600">Announcements</span>
             </p>
-            <h1 className="text-2xl font-bold flex items-center gap-4">
+            <h1 className="text-header font-bold flex items-center gap-4">
               Announcements
             </h1>
-            <p className="text-gray-500 text-sm mt-1">
+            <p className="text-gray-500 text-description">
               Create and manage platform announcements
             </p>
           </div>
