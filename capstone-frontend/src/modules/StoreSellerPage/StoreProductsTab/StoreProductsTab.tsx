@@ -152,11 +152,11 @@ export default function StoreProductsTab() {
     <div className="p-0">
       {/* Breadcrumb & Title */}
       <div className="mb-8">
-        <p className="text-sm text-gray-400 mb-2">
-          Products &gt; <span className="font-semibold text-gray-600">Product Management</span>
+        <p className="text-description text-gray-400 mb-1">
+          Store &gt; <span className="font-semibold text-gray-600">Product Management</span>
         </p>
-        <h1 className="text-3xl font-bold text-gray-900 mb-2">Product Management</h1>
-        <p className="text-sm text-gray-500 max-w-2xl">
+        <h1 className="text-header font-bold text-gray-900">Product Management</h1>
+        <p className="text-description text-gray-500">
           Manage your products including adding, editing, updating stock, and organizing product information.
         </p>
       </div>
