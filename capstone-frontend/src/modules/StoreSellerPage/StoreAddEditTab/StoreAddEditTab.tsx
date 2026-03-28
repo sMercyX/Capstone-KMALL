@@ -1,10 +1,7 @@
 import { useEffect, useRef, useState } from "react"
 import { useNavigate, useParams } from "react-router-dom"
 import {
-  ImagePlus,
   Trash2,
-  Upload,
-  ImageIcon,
 } from "lucide-react"
 import { toast } from "react-toastify"
 import { resolveImageUrl } from "../../../utils/resolve"
@@ -16,15 +13,14 @@ import { useCatagoriesApi, type CatagoriesResponse } from "../../../api/catagori
 import { processImageFile, SUPPORTED_IMAGE_TYPES } from "../../../utils/imageProcessing"
 import { Dropdown } from "../../../components/Dropdown"
 import ToggleSwitch from "../../../components/Toggle/ToggleSwitch"
+import { Input } from "../../../components/Input/Input"
+import { InputNumber } from "../../../components/Input/InputNumber"
+import { Textarea } from "../../../components/Input/Textarea"
+import { ImageUpload } from "../../../components/Upload/ImageUpload"
+import ConfirmationModal from "../../../components/Modal/ConfirmationModal"
+import { OptionCard, type LocalOption } from "./OptionCard"
 
-export interface LocalOption {
-  id: string;
-  name: string;
-  values: string[];
-  is_image_key: boolean;
-  value_images: Record<string, { file?: File; url?: string; valueId?: number }>;
-}
-
+// (LocalVariant and ImageItem remain here as they are local to this tab's state logic)
 export interface LocalVariant {
   id: string;
   option_value_labels: string[];
@@ -39,159 +35,6 @@ type ImageItem = {
   file?: File; // for new images
 }
 
-
-function OptionCard({ 
-  option, 
-  index, 
-  updateOption, 
-  removeOption,
-  onDeleteValueImage
-}: { 
-  option: LocalOption; 
-  index: number; 
-  updateOption: (idx: number, opt: LocalOption) => void; 
-  removeOption: (idx: number) => void;
-  productId?: number;
-  onDeleteValueImage?: (keyId: number, valueId: number) => void;
-}) {
-  const [inputValue, setInputValue] = useState("")
-
-  const handleAddValue = () => {
-    const val = inputValue.trim()
-    if (val && !option.values.includes(val)) {
-      updateOption(index, { ...option, values: [...option.values, val] })
-      setInputValue("")
-    }
-  }
-
-  return (
-    <div className="border border-gray-200 rounded-xl p-6 bg-white mb-6 relative shadow-sm">
-      <div className="mb-4">
-        <div className="flex items-center justify-between mb-2">
-          <label className="block text-sm font-bold text-gray-700">Product Option {index + 1}</label>
-          <div className="flex items-center gap-2">
-            <span className="text-xs text-gray-500 font-medium">Use Image</span>
-            <ToggleSwitch 
-              checked={option.is_image_key} 
-              onChange={() => updateOption(index, { ...option, is_image_key: !option.is_image_key })} 
-            />
-          </div>
-        </div>
-        <input 
-          type="text" 
-          value={option.name} 
-          onChange={(e) => updateOption(index, { ...option, name: e.target.value })}
-          placeholder="e.g. Color, Size" 
-          className="w-full px-4 py-3 rounded-lg border border-gray-200 focus:border-[#ff5a36] focus:ring-1 focus:ring-[#ff5a36] outline-none transition-all text-gray-800"
-        />
-      </div>
-      <div>
-        <label className="block text-sm font-bold text-gray-700 mb-2">Option Values</label>
-        {option.values.length > 0 && (
-          <div className="flex flex-wrap gap-2 mb-3">
-            {option.values.map((val, vIdx) => (
-              <div key={vIdx} className="flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-orange-200 text-[#ff5a36] bg-orange-50 text-sm font-medium">
-                <span>{val}</span>
-                <button 
-                  onClick={() => {
-                    const newValues = option.values.filter((_, i) => i !== vIdx)
-                    const newValueImages = { ...option.value_images }
-                    delete newValueImages[val]
-                    updateOption(index, { ...option, values: newValues, value_images: newValueImages })
-                  }} 
-                  className="hover:text-red-500 flex items-center justify-center"
-                >
-                  <span className="text-lg leading-none">&times;</span>
-                </button>
-              </div>
-            ))}
-          </div>
-        )}
-        <div className="flex gap-4">
-          <input 
-            type="text" 
-            value={inputValue} 
-            onChange={(e) => setInputValue(e.target.value)}
-            onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleAddValue(); } }}
-            placeholder="e.g. the value red." 
-            className="flex-1 px-4 py-3 rounded-lg border border-gray-200 focus:border-[#ff5a36] focus:ring-1 focus:ring-[#ff5a36] outline-none transition-all text-gray-800"
-          />
-          <button onClick={handleAddValue} className="px-6 py-3 bg-[#ff5a36] text-white rounded-lg font-bold hover:bg-[#e04e2d] transition-all whitespace-nowrap">
-            + Add
-          </button>
-        </div>
-
-        {option.is_image_key && option.values.length > 0 && (
-          <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-4">
-            {option.values.map((val, vIdx) => (
-              <div key={vIdx} className="flex items-center gap-3 p-3 border border-gray-100 rounded-lg bg-gray-50">
-                <div className="w-12 h-12 rounded bg-white border border-gray-200 flex-shrink-0 flex items-center justify-center overflow-hidden">
-                  {option.value_images[val]?.url ? (
-                    <img src={resolveImageUrl(option.value_images[val].url)} alt={val} className="w-full h-full object-cover" />
-                  ) : (
-                    <ImageIcon className="w-6 h-6 text-gray-300" />
-                  )}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-bold text-gray-700 truncate">{val}</p>
-                  <p className="text-xs text-gray-400">
-                    {option.value_images[val]?.file ? "File ready" : option.value_images[val]?.url ? "Uploaded" : "No image"}
-                  </p>
-                </div>
-                <button 
-                  onClick={() => {
-                    const input = document.createElement('input');
-                    input.type = 'file';
-                    input.accept = 'image/*';
-                    input.onchange = async (e: any) => {
-                      const file = e.target.files?.[0];
-                      if (file) {
-                        try {
-                          const processedFile = await processImageFile(file);
-                          const previewUrl = URL.createObjectURL(processedFile);
-                          const newImages = { ...option.value_images };
-                          newImages[val] = { file: processedFile, url: previewUrl };
-                          updateOption(index, { ...option, value_images: newImages });
-                        } catch (err) {
-                          toast.error("Failed to process image")
-                        }
-                      }
-                    };
-                    input.click();
-                  }}
-                  className="p-2 text-[#ff5a36] hover:bg-orange-100 rounded-lg transition-all"
-                >
-                  <Upload className="w-5 h-5" />
-                </button>
-                {(option.value_images[val]?.file || option.value_images[val]?.url) && (
-                  <button 
-                    onClick={() => {
-                      const imgData = option.value_images[val];
-                      if (imgData?.valueId && onDeleteValueImage) {
-                        onDeleteValueImage(Number(option.id ), imgData.valueId);
-                      }
-                      const newImages = { ...option.value_images };
-                      newImages[val] = { ...newImages[val], file: undefined, url: undefined };
-                      updateOption(index, { ...option, value_images: newImages });
-                    }}
-                    className="p-2 text-red-500 hover:bg-red-50 rounded-lg transition-all"
-                    title="Remove Image"
-                  >
-                    <Trash2 className="w-5 h-5" />
-                  </button>
-                )}
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-      <div className="flex justify-end gap-3 mt-6">
-        <button onClick={() => removeOption(index)} className="px-6 py-2.5 border border-red-200 bg-white rounded-lg font-bold text-red-500 hover:bg-red-50 transition-all">Delete</button>
-      </div>
-    </div>
-  )
-}
-
 export function StoreAddEditTab() {
   const navigate = useNavigate()
   const { id } = useParams<{ id: string }>()
@@ -199,9 +42,21 @@ export function StoreAddEditTab() {
 
   const [images, setImages] = useState<ImageItem[]>([])
   const [deletedImageIds, setDeletedImageIds] = useState<number[]>([])
+  const [confirmModal, setConfirmModal] = useState<{
+    isOpen: boolean;
+    title: string;
+    message: string;
+    onConfirm: () => void;
+    variant: "danger" | "warning";
+  }>({
+    isOpen: false,
+    title: "",
+    message: "",
+    onConfirm: () => {},
+    variant: "warning",
+  })
   const [deletedOptionValueImageIds, setDeletedOptionValueImageIds] = useState<{ keyId: number; valueId: number }[]>([])
   const [mainIndex, setMainIndex] = useState(0)
-  const fileInputRef = useRef<HTMLInputElement | null>(null)
   const contentRef = useRef<HTMLDivElement>(null)
 
   const [name, setName] = useState("")
@@ -416,12 +271,8 @@ export function StoreAddEditTab() {
   }, [mainCategoryId])
 
   // ---------- image handlers ----------
-  const handleClickAddImages = () => {
-    fileInputRef.current?.click()
-  }
 
-  async function handleFilesChange(e: React.ChangeEvent<HTMLInputElement>) {
-    const selectedFiles = e.target.files
+  async function handleFilesChange(selectedFiles: File[]) {
     if (!selectedFiles || selectedFiles.length === 0) return
 
     const newItems: ImageItem[] = []
@@ -442,34 +293,52 @@ export function StoreAddEditTab() {
        }
     }
 
-    if (newItems.length === 0) {
-      e.target.value = ""
-      return
-    }
-
     setImages((prev) => {
       const next = [...prev, ...newItems]
-      if (prev.length === 0 && next.length > 0) {
-        setMainIndex(0)
-      }
       return next
     })
+  }
 
-    e.target.value = ""
+  const handleSelectMain = (index: number) => {
+    if (index === mainIndex) return
+    
+    setConfirmModal({
+      isOpen: true,
+      title: "Change Main Image",
+      message: "Set this image as the main image?",
+      variant: "warning",
+      onConfirm: () => {
+        setImages((prev) => {
+          const item = prev[index]
+          const remaining = prev.filter((_, i) => i !== index)
+          const next = [item, ...remaining]
+          return next
+        })
+        setMainIndex(0)
+      },
+    })
   }
 
   const handleDeleteImage = (index: number) => {
-    const target = images[index]
-    if (target?.id) {
-       setDeletedImageIds(prev => [...prev, target.id!])
-    }
+    setConfirmModal({
+      isOpen: true,
+      title: "Delete Image",
+      message: "Are you sure you want to delete this image?",
+      variant: "danger",
+      onConfirm: () => {
+        const target = images[index]
+        if (target?.id) {
+           setDeletedImageIds(prev => [...prev, target.id!])
+        }
 
-    setImages((prev) => {
-      const next = prev.filter((_, i) => i !== index)
-      if (next.length === 0) { setMainIndex(0); return next; }
-      if (index === mainIndex) { setMainIndex(0); return next; } 
-      else if (index < mainIndex) { setMainIndex((prevMain) => prevMain - 1); }
-      return next
+        setImages((prev) => {
+          const next = prev.filter((_, i) => i !== index)
+          if (next.length === 0) { setMainIndex(0); return next; }
+          if (index === mainIndex) { setMainIndex(0); return next; } 
+          else if (index < mainIndex) { setMainIndex((prevMain) => prevMain - 1); }
+          return next
+        })
+      },
     })
   }
 
@@ -643,23 +512,32 @@ export function StoreAddEditTab() {
 
         if (productFiles.length > 0 || optionValueFiles.length > 0) {
           try {
-            await bulkUploadProductImages(productId, productFiles, optionValueFiles)
+            const resImages = await bulkUploadProductImages(productId, productFiles, optionValueFiles)
+            const uploadedImages = resImages.data.product_images || []
+            
+            // If the main image was a NEW upload, set it as primary now
+            const intendedMain = images[mainIndex]
+            if (intendedMain?.file) {
+              const fileIndex = productFiles.findIndex(f => f === intendedMain.file)
+              if (fileIndex !== -1 && uploadedImages[fileIndex]) {
+                await editImageProduct(uploadedImages[fileIndex].id, { is_primary: true })
+              }
+            }
           } catch (uploadErr) {
             console.error("Bulk image upload failed:", uploadErr)
-            // Use handleApiError to show the specific error from backend, but don't re-throw
             handleApiError(uploadErr)
           }
         }
 
         // Update Primary Image if changed
         try {
-          const freshImgsRes = await getProductImage(productId)
-          const freshImgs = freshImgsRes.data || []
-          if (freshImgs[mainIndex]) {
-            await editImageProduct(freshImgs[mainIndex].id, { is_primary: true })
+          const intendedMain = images[mainIndex]
+          if (intendedMain?.id) {
+            // Case 1: Main image already existed
+            await editImageProduct(intendedMain.id, { is_primary: true })
           }
         } catch (imgErr) {
-          console.error("Failed to update primary image:", imgErr)
+          console.error("Failed to update existing primary image:", imgErr)
         }
 
         toast.success("Product updated successfully!")
@@ -721,13 +599,18 @@ export function StoreAddEditTab() {
           try {
             const resImages = await bulkUploadProductImages(newProductId, productFiles, optionValueFiles)
             const uploadedImages = resImages.data.product_images || []
+            const newMain = uploadedImages.find(img => img.is_primary) // unlikely to be pre-set by backend
 
-            if (uploadedImages[mainIndex]) {
-              await editImageProduct(uploadedImages[mainIndex].id, { is_primary: true })
+            // Reordered logic: the first one in productFiles is the main one if images[0].file exists
+            const intendedMain = images[mainIndex]
+            if (intendedMain?.file) {
+              const fileIndex = productFiles.findIndex(f => f === intendedMain.file)
+              if (fileIndex !== -1 && uploadedImages[fileIndex]) {
+                await editImageProduct(uploadedImages[fileIndex].id, { is_primary: true })
+              }
             }
           } catch (uploadErr) {
             console.error("Bulk image upload failed:", uploadErr)
-            // Use handleApiError to show the specific error from backend, but don't re-throw
             handleApiError(uploadErr)
           }
         }
@@ -747,11 +630,12 @@ export function StoreAddEditTab() {
   ]
 
   return (
-    <div className="mx-auto flex flex-col h-[calc(100vh-120px)] overflow-hidden">
+    <>
+      <div className="mx-auto flex flex-col h-[calc(100vh-65px)] overflow-hidden">
       {/* Breadcrumbs & Title */}
       <div className="mb-6 flex-shrink-0 text-left">
-        <p className="text-sm text-gray-400 mb-1.5">
-          Products &gt;{" "}
+        <p className="text-description text-gray-400 mb-1">
+          Store &gt;{" "}
           <span 
             className="hover:text-[#ff5a36] cursor-pointer transition-colors"
             onClick={() => navigate("/store/products")}
@@ -760,8 +644,8 @@ export function StoreAddEditTab() {
           </span>{" "}
           &gt; <span className="font-semibold text-gray-600">{isEditMode ? "Edit Product" : "Add Product"}</span>
         </p>
-        <h1 className="text-3xl font-bold text-gray-900 mb-1">{isEditMode ? "Edit Product" : "Add Product"}</h1>
-        <p className="text-sm text-gray-500">
+        <h1 className="text-header font-bold text-gray-900">{isEditMode ? "Edit Product" : "Add Product"}</h1>
+        <p className="text-description text-gray-500">
           {isEditMode 
             ? "Update your product details, pricing, and stock information." 
             : "Create a new product by adding details, pricing, and stock information."}
@@ -769,7 +653,7 @@ export function StoreAddEditTab() {
       </div>
 
       {/* Stepper (Navigation Tabs) */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-200 mb-4 px-4 flex-shrink-0">
+      <div className="bg-white rounded-lg shadow-sm border border-gray-200 mb-4 px-4 flex-shrink-0">
         <div className="flex gap-4 sm:gap-10 overflow-x-auto scrollbar-hide">
           {filteredSteps.map((step) => (
             <button
@@ -791,51 +675,45 @@ export function StoreAddEditTab() {
       </div>
 
       <div ref={contentRef} className="flex-1 overflow-y-auto bg-transparent border-0 space-y-6 pb-20 pr-2 scroll-smooth">
-          <div id="product-info" className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden p-6 md:p-10">
-            <div className="flex justify-between items-center mb-8 pb-4 border-b border-gray-50">
-              <h2 className="text-2xl font-bold text-gray-900">Product Information</h2>
+          <div id="product-info" className="bg-white rounded-lg border border-gray-200 shadow-sm overflow-visible p-6 md:p-10">
+            <div className="flex justify-between items-center pb-4 border-b border-gray-50">
+              <h2 className="text-header font-bold text-gray-900">Product Information</h2>
               {isEditMode && (
                 <div className="flex items-center gap-3">
-                  <span className="text-sm font-bold text-gray-700">Display Product</span>
+                  <span className="text-sm font-semibold text-gray-700">Display Product</span>
                   <ToggleSwitch checked={isActive} onChange={setIsActive} />
                 </div>
               )}
             </div>
             
             <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-6">
-              {/* Product Name */}
               <div className="md:col-span-2">
-                <label className="block text-sm font-bold text-gray-700 mb-2">Product Name <span className="text-red-500">*</span></label>
-                <input
-                  type="text"
+                <Input
+                  label="Product Name"
                   placeholder="e.g. Oversize T-Shirt"
-                  className={`w-full px-5 py-4 rounded-xl border focus:outline-none focus:ring-4 transition-all text-gray-800 placeholder:text-gray-300 ${
-                    errors.name ? "border-red-500 bg-red-50/10 focus:ring-red-50" : "border-gray-100 bg-gray-50/30 focus:bg-white focus:border-[#ff5a36] focus:ring-orange-50/50"
-                  }`}
                   value={name}
                   onChange={(e) => setName(e.target.value)}
+                  error={errors.name}
+                  required
                 />
               </div>
 
-              {/* Base Price */}
               <div>
-                <label className="block text-sm font-bold text-gray-700 mb-2">Base Price (฿) <span className="text-red-500">*</span></label>
-                <input
-                  type="number"
+                <InputNumber
+                  label="Base Price (฿)"
                   placeholder="0"
-                  className={`w-full px-5 py-4 rounded-xl border focus:outline-none focus:ring-4 transition-all text-gray-800 placeholder:text-gray-300 ${
-                    errors.price ? "border-red-500 bg-red-50/10 focus:ring-red-50" : "border-gray-100 bg-gray-50/30 focus:bg-white focus:border-[#ff5a36] focus:ring-orange-50/50"
-                  }`}
                   value={price}
                   onChange={(e) => setPrice(e.target.value)}
+                  error={errors.price}
+                  required
                 />
               </div>
 
               {/* Product Type */}
               <div>
-                <label className="block text-sm font-bold text-gray-700 mb-2">Product Type <span className="text-red-500">*</span></label>
+                <label className="block text-text font-semibold mb-1 text-gray-800">Product Type <span className="text-red-500">*</span></label>
                 {isEditMode ? (
-                  <div className="w-full px-5 py-4 rounded-xl border border-gray-100 bg-gray-50/50 text-gray-500 font-medium h-[60px] flex items-center">
+                  <div className="w-full px-3 py-2.5 rounded-lg border border-gray-300 bg-gray-50/50 text-gray-500 flex items-center">
                     {productType === "PREORDER" ? "Pre-order" : "Stock"}
                   </div>
                 ) : (
@@ -850,22 +728,21 @@ export function StoreAddEditTab() {
                 )}
               </div>
 
-              {/* Description */}
               <div className="md:col-span-2">
-                <label className="block text-sm font-bold text-gray-700 mb-2">Description <span className="text-red-500">*</span></label>
-                <textarea
+                <Textarea
+                  label="Description"
                   placeholder="Describe your product..."
-                  className={`w-full px-5 py-4 rounded-xl border focus:outline-none focus:ring-4 transition-all text-gray-800 min-h-[160px] resize-none placeholder:text-gray-300 ${
-                    errors.description ? "border-red-500 bg-red-50/10 focus:ring-red-50" : "border-gray-100 bg-gray-50/30 focus:bg-white focus:border-[#ff5a36] focus:ring-orange-50/50"
-                  }`}
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
+                  error={errors.description}
+                  required
+                  className="min-h-[160px]"
                 />
               </div>
 
               {/* Category Selectors */}
               <div className="md:col-span-1">
-                <label className="block text-sm font-bold text-gray-700 mb-2">
+                <label className="block text-text font-semibold mb-1 text-gray-800">
                   Main Category {loadingCategories && <span className="text-xs font-normal text-gray-400 ml-1">(Loading...)</span>} <span className="text-red-500">*</span>
                 </label>
                 <Dropdown
@@ -879,7 +756,7 @@ export function StoreAddEditTab() {
               </div>
 
               <div className="md:col-span-1">
-                <label className="block text-sm font-bold text-gray-700 mb-2">Sub Category <span className="text-red-500">*</span></label>
+                <label className="block text-text font-semibold mb-1 text-gray-800">Sub Category <span className="text-red-500">*</span></label>
                 <Dropdown
                   label="Sub Category"
                   placeholder="Select Sub Category"
@@ -891,166 +768,151 @@ export function StoreAddEditTab() {
                 />
               </div>
 
-              {/* Image Upload */}
-              <div className="md:col-span-2 mt-4">
-                <label className="block text-sm font-bold text-gray-700 mb-4">Product Images <span className="text-red-500">*</span></label>
-                <div 
-                  onClick={handleClickAddImages}
-                  className={`w-full aspect-video md:aspect-[21/9] rounded-3xl border-2 border-dashed transition-all flex flex-col items-center justify-center cursor-pointer group ${
-                    errors.images ? "border-red-500 bg-red-50/10" : "border-gray-200 bg-gray-50 hover:bg-orange-50/30 hover:border-[#ff5a36]/40"
-                  }`}
-                >
-                  <div className="w-16 h-16 rounded-full bg-white shadow-sm flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
-                    <ImagePlus className="w-8 h-8 text-[#ff5a36]" />
-                  </div>
-                  <p className="text-gray-900 font-bold">Upload Image</p>
-                  <p className="text-xs text-gray-400 mt-1">Click to select files (JPG, PNG, WebP up to 2MB)</p>
-                </div>
+              <ImageUpload
+                label="Product Images"
+                onFilesChange={handleFilesChange}
+                multiple
+                accept={SUPPORTED_IMAGE_TYPES}
+                error={!!errors.images}
+                className="md:col-span-2 mt-4"
+                hint="Click to select files (JPG, PNG, WebP, HEIC or HEIF up to 2MB)"
+              />
 
                 {images.length > 0 && (
-                   <div className="mt-6 flex flex-wrap gap-4">
+                    <div className="mt-4 flex flex-wrap gap-5">
                       {images.map((img, idx) => (
-                        <div key={idx} className={`relative w-24 h-24 rounded-2xl border-2 overflow-hidden group shadow-sm ${mainIndex === idx ? "border-[#ff5a36]" : "border-gray-100"}`}>
+                        <div 
+                          key={idx} 
+                          onClick={() => handleSelectMain(idx)}
+                          className={`relative w-40 h-50 md:w-48 md:h-56 rounded-2xl border-2 overflow-hidden group shadow-md transition-all cursor-pointer ${mainIndex === idx ? "border-[#ff5a36] ring-2 ring-orange-100" : "border-gray-100 hover:border-orange-200"}`}
+                        >
                            <img src={resolveImageUrl(img.url)} className="w-full h-full object-cover" />
                            <button 
                              onClick={(e) => { e.stopPropagation(); handleDeleteImage(idx); }}
-                             className="absolute top-1 right-1 w-6 h-6 rounded-full bg-white/90 shadow-md flex items-center justify-center text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"
+                             className="absolute top-2 right-2 w-7 h-7 rounded-full bg-white shadow-md flex items-center justify-center text-red-500 hover:bg-red-50/90 transition-all z-10"
+                             title="Delete Image"
                            >
-                              <Trash2 className="w-3.5 h-3.5" />
+                              <Trash2 className="w-4 h-4" />
                            </button>
                            {mainIndex === idx && (
-                             <div className="absolute bottom-0 left-0 right-0 bg-[#ff5a36] text-white text-[8px] font-bold py-0.5 text-center uppercase tracking-wider">Main</div>
+                             <div className="absolute bottom-0 left-0 right-0 bg-[#ff5a36] text-white text-[10px] font-bold py-1 text-center uppercase tracking-wider">Main</div>
                            )}
                            {mainIndex !== idx && (
-                             <button 
-                               onClick={() => setMainIndex(idx)}
-                               className="absolute inset-0 bg-black/40 text-white text-[10px] font-bold opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity"
-                             >
+                             <div className="absolute inset-0 bg-black/40 text-white text-[11px] font-bold opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
                                Set Main
-                             </button>
+                             </div>
                            )}
                         </div>
                       ))}
-                   </div>
+                    </div>
                 )}
+                {formError && <p className="mt-6 text-sm text-red-500 text-center">{formError}</p>}
+                {categoryError && <p className="mt-2 text-xs text-red-500 text-center">{categoryError}</p>}
               </div>
-            </div>
-
-            {formError && <p className="mt-6 text-sm text-red-500 text-center">{formError}</p>}
-            {categoryError && <p className="mt-2 text-xs text-red-500 text-center">{categoryError}</p>}
           </div>
-
           {productType !== "PREORDER" && (
             <>
-              <div id="product-options" className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden p-6 md:p-10">
-                <h2 className="text-2xl font-bold text-gray-900 mb-2">Product Options</h2>
-                <p className="text-sm text-gray-500 mb-8 pb-4 border-b border-gray-50">Add product options like Color, Size (max 3 options).</p>
+              <div id="product-options" className="bg-white rounded-lg border border-gray-200 shadow-sm overflow-visible p-6 md:p-10 mb-6">
+                <div className="flex justify-between items-center pb-4 border-b border-gray-50 mb-6">
+                  <h2 className="text-header font-bold text-gray-900">Product Options</h2>
+                </div>
                 
                 <div className="space-y-6">
-                  {options.map((opt, idx) => (
+                  {options.map((opt, i) => (
                     <OptionCard 
-                      key={opt.id} 
-                      option={opt}
-                      index={idx}
+                      key={opt.id}
+                      option={opt} 
+                      index={i} 
                       updateOption={handleUpdateOption}
                       removeOption={handleRemoveOption}
-                      productId={id ? Number(id) : undefined}
+                      productId={isEditMode ? Number(id) : undefined}
                       onDeleteValueImage={(keyId, valueId) => {
                         setDeletedOptionValueImageIds(prev => [...prev, { keyId, valueId }])
                       }}
                     />
                   ))}
+                  {options.length === 0 && (
+                    <div className="text-center py-10 bg-gray-50 rounded-xl border border-dashed border-gray-200 text-gray-400">
+                      No options added.
+                    </div>
+                  )}
                 </div>
-
                 <button 
                   onClick={handleAddOption}
                   disabled={options.length >= 3}
-                  className="w-full py-4 mt-6 border-2 border-dashed border-[#ff5a36] text-[#ff5a36] rounded-xl font-bold hover:bg-orange-50 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="w-full py-4 mt-6 border-2 cursor-pointer border-dashed border-[#ff5a36] text-[#ff5a36] rounded-xl font-bold hover:bg-orange-50 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   + Add Option (max 3 options)
                 </button>
               </div>
 
-              <div id="product-variants" className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden p-6 md:p-10">
-                <h2 className="text-2xl font-bold text-gray-900 mb-2">Product Variants</h2>
-                <p className="text-sm text-gray-500 mb-8 pb-4 border-b border-gray-50">Set price and stock for each variant.</p>
-                
+              <div id="product-variants" className="bg-white rounded-lg border border-gray-200 shadow-sm overflow-visible p-6 md:p-10">
+                <div className="flex justify-between items-center pb-4 border-b border-gray-50 mb-6">
+                  <h2 className="text-header font-bold text-gray-900">Product Variants</h2>
+                </div>
+
                 {variants.length === 0 ? (
-                  <div className="text-center py-10 bg-gray-50 rounded-xl border border-gray-100">
-                    <p className="text-gray-500">No variants generated. Please add options in the previous step.</p>
+                  <div className="text-center py-10 bg-gray-50 rounded-xl border border-dashed border-gray-200 text-gray-400">
+                    Add options to generate variants.
                   </div>
                 ) : (
                   <div className="space-y-6">
-                    <div className="grid grid-cols-2 gap-6 p-4 bg-gray-50 rounded-xl border border-gray-100 mb-6">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 bg-orange-50/50 p-4 rounded-xl border border-orange-100/50">
                       <div>
-                        <label className="block text-sm font-bold text-gray-700 mb-2">Delta Price for All (฿)</label>
-                        <div className="flex gap-2">
-                          <input 
-                            type="number" 
-                            value={bulkDeltaPrice}
-                            onChange={(e) => setBulkDeltaPrice(e.target.value)}
-                            className="flex-1 px-4 py-2.5 rounded-lg border border-gray-200 outline-none focus:border-[#ff5a36]"
-                            placeholder="0"
-                          />
-                          <button 
-                            onClick={() => {
-                              const delta = Number(bulkDeltaPrice)
-                              if (!isNaN(delta)) {
-                                setVariants(variants.map(v => ({ ...v, price_delta: delta })))
-                              }
-                            }}
-                            className="px-4 py-2.5 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 font-bold text-gray-700"
-                          >
-                            Apply All
-                          </button>
-                        </div>
+                        <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Bulk Delta Price (฿)</label>
+                        <InputNumber 
+                          placeholder="+0 or -50"
+                          value={bulkDeltaPrice}
+                          onChange={(e) => {
+                            const val = e.target.value
+                            setBulkDeltaPrice(val)
+                            const num = Number(val)
+                            setVariants(prev => prev.map(v => ({ ...v, price_delta: isNaN(num) ? 0 : num })))
+                          }}
+                        />
                       </div>
                       <div>
-                        <label className="block text-sm font-bold text-gray-700 mb-2">Stock for All</label>
-                        <div className="flex gap-2">
-                          <input 
-                            type="number" 
-                            value={bulkStock}
-                            onChange={(e) => setBulkStock(e.target.value)}
-                            className="flex-1 px-4 py-2.5 rounded-lg border border-gray-200 outline-none focus:border-[#ff5a36]"
-                            placeholder="0"
-                          />
-                          <button 
-                            onClick={() => {
-                              const stock = Number(bulkStock)
-                              if (!isNaN(stock) && stock >= 0) {
-                                setVariants(variants.map(v => ({ ...v, stock_qty: stock })))
-                              }
-                            }}
-                            className="px-4 py-2.5 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 font-bold text-gray-700"
-                          >
-                            Apply All
-                          </button>
-                        </div>
+                        <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Bulk Stock Qty</label>
+                        <InputNumber 
+                          placeholder="e.g. 100"
+                          value={bulkStock}
+                          onChange={(e) => {
+                            const val = e.target.value
+                            setBulkStock(val)
+                            const num = Number(val)
+                            setVariants(prev => prev.map(v => ({ ...v, stock_qty: isNaN(num) ? 0 : num })))
+                          }}
+                        />
                       </div>
                     </div>
 
-                    <div className="border border-gray-200 rounded-xl overflow-hidden">
-                      <table className="w-full text-left">
-                        <thead className="bg-gray-50 border-b border-gray-200 text-sm text-gray-600 font-bold">
+                    <div className="overflow-x-auto border border-gray-100 rounded-xl shadow-sm">
+                      <table className="w-full text-left border-collapse">
+                        <thead className="bg-gray-50 border-b border-gray-100">
                           <tr>
-                            <th className="px-6 py-4">Variant</th>
-                            <th className="px-6 py-4">Delta Price (฿)</th>
-                            <th className="px-6 py-4">Stock</th>
-                            <th className="px-6 py-4">Total Price</th>
+                            <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Configuration</th>
+                            <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider text-center">Delta Price</th>
+                            <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider text-center">Stock</th>
+                            <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider bg-gray-50/50 border-l border-gray-100 text-center">Total Price</th>
+                            <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider text-center">Active</th>
+
                           </tr>
                         </thead>
-                        <tbody className="divide-y divide-gray-100">
+                        <tbody className="divide-y divide-gray-50">
                           {variants.map((v, i) => (
-                            <tr key={v.id} className="hover:bg-orange-50/20 transition-colors">
+                            <tr key={v.id} className="hover:bg-gray-50/50 transition-colors">
                               <td className="px-6 py-4">
-                                <span className="px-3 py-1 rounded-full bg-orange-100 text-[#ff5a36] text-sm font-bold border border-orange-200">
-                                  {v.option_value_labels.join(" / ")}
-                                </span>
+                                <div className="flex flex-wrap gap-1.5">
+                                  {v.option_value_labels.map((lbl, lIdx) => (
+                                    <span key={lIdx} className="px-2 py-0.5 rounded-md bg-white border border-gray-200 text-gray-700 text-xs font-semibold">
+                                      {lbl}
+                                    </span>
+                                  ))}
+                                </div>
                               </td>
+                             
                               <td className="px-6 py-4">
-                                <input 
-                                  type="number" 
+                                <InputNumber 
                                   value={v.price_delta}
                                   onChange={(e) => {
                                     const val = Number(e.target.value)
@@ -1058,12 +920,11 @@ export function StoreAddEditTab() {
                                     newV[i].price_delta = val
                                     setVariants(newV)
                                   }}
-                                  className="w-full max-w-[120px] px-3 py-2 border border-gray-200 rounded-lg outline-none focus:border-[#ff5a36]"
+                                  className="w-24"
                                 />
                               </td>
                               <td className="px-6 py-4">
-                                <input 
-                                  type="number" 
+                                <InputNumber 
                                   value={v.stock_qty}
                                   onChange={(e) => {
                                     const val = Number(e.target.value)
@@ -1071,11 +932,23 @@ export function StoreAddEditTab() {
                                     newV[i].stock_qty = val >= 0 ? val : 0
                                     setVariants(newV)
                                   }}
-                                  className="w-full max-w-[120px] px-3 py-2 border border-gray-200 rounded-lg outline-none focus:border-[#ff5a36]"
+                                  className="w-24"
                                 />
                               </td>
-                              <td className="px-6 py-4 font-bold text-gray-900 border-l border-gray-50 bg-gray-50/30">
+                              <td className="px-6 py-4 font-bold text-gray-900 text-center border-l border-gray-100 bg-gray-50/50">
                                 {(Number(price) || 0) + (v.price_delta || 0)} ฿
+                              </td>
+                               <td className="px-6 py-4 text-center">
+                                <div className="flex justify-center scale-90">
+                                  <ToggleSwitch 
+                                    checked={v.is_active} 
+                                    onChange={(checked) => {
+                                      const newV = [...variants]
+                                      newV[i].is_active = checked
+                                      setVariants(newV)
+                                    }} 
+                                  />
+                                </div>
                               </td>
                             </tr>
                           ))}
@@ -1087,31 +960,40 @@ export function StoreAddEditTab() {
               </div>
             </>
           )}
-            <div className="mt-12 pt-8 flex items-center justify-end gap-4">
-              <button
-                type="button"
-                className="px-10 py-3.5 rounded-xl border border-gray-200 text-gray-600 font-bold hover:bg-gray-50 transition-all"
-                onClick={() => navigate("/store/products")}
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleSave}
-                disabled={isSubmitting}
-                className="px-10 py-3.5 rounded-xl bg-[#ff5a36] text-white font-bold hover:bg-[#e04e2d] transition-all shadow-lg shadow-orange-200 disabled:opacity-50"
-              >
-                {isSubmitting ? "Publishing..." : "Confirm & Publish Product"}
-              </button>
-            </div>
+        </div>
+
+        {/* Footer Toolbar Section */}
+        <div className="shrink-0 bg-white border border-gray-200 rounded-lg mt-4 px-6 py-4 shadow-sm">
+          <div className="flex justify-end gap-4">
+            <button 
+              onClick={() => navigate("/store/products")}
+              disabled={isSubmitting}
+              className="px-8 py-2.5 cursor-pointer rounded-lg bg-[#8E8E93] text-white font-bold hover:bg-[#7A7A7F] transition-all hover:scale-[1.02] active:scale-[0.98] disabled:opacity-50"
+            >
+              Cancel
+            </button>
+            <button 
+              onClick={handleSave}
+              disabled={isSubmitting}
+              className="px-10 py-2.5 cursor-pointer rounded-lg bg-[#ff5a36] text-white font-bold hover:bg-[#e04e2d] transition-all hover:scale-[1.02] active:scale-[0.98] disabled:opacity-50 shadow-md shadow-orange-100"
+            >
+              {isSubmitting ? "Saving..." : isEditMode ? "Update Product" : "Confirm & Publish Product"}
+            </button>
           </div>
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept={SUPPORTED_IMAGE_TYPES}
-          multiple
-          className="hidden"
-          onChange={handleFilesChange}
-        />
+        </div>
       </div>
+
+      <ConfirmationModal
+        isOpen={confirmModal.isOpen}
+        title={confirmModal.title}
+        message={confirmModal.message}
+        variant={confirmModal.variant}
+        onConfirm={() => {
+          confirmModal.onConfirm();
+          setConfirmModal((prev) => ({ ...prev, isOpen: false }));
+        }}
+        onClose={() => setConfirmModal((prev) => ({ ...prev, isOpen: false }))}
+      />
+    </>
   )
 }

@@ -28,7 +28,7 @@ export function Dropdown<T extends string | number>({
   icon, 
   className = "w-full",
   placeholder,
-  allLabel 
+  allLabel,
 }: DropdownProps<T>) {
   const [isOpen, setIsOpen] = useState(false)
   const dropdownRef = useRef<HTMLDivElement>(null)
@@ -51,15 +51,15 @@ export function Dropdown<T extends string | number>({
         type="button"
         disabled={disabled}
         onClick={() => setIsOpen(!isOpen)}
-        className={`flex items-center justify-between w-full px-5 py-4 rounded-xl border bg-white shadow-sm transition-all duration-300 text-sm font-medium cursor-pointer ${
+        className={`flex items-center justify-between w-full shadow-sm transition-all duration-300 text-text cursor-pointer px-3 py-2.5 rounded-lg border ${
           disabled 
             ? "opacity-50 cursor-not-allowed bg-gray-50 border-gray-100 text-gray-400" 
-            : "border-gray-100 text-gray-700 hover:border-[#ff5a36]/40 hover:shadow-md hover:shadow-orange-100/20"
-        } ${isOpen ? "border-[#ff5a36] ring-4 ring-orange-50/50 shadow-md shadow-orange-100/30" : ""}`}
+            : "bg-white border-gray-300 text-gray-700 hover:border-[#ff5a36]/40 hover:shadow-md hover:shadow-orange-100/20"
+        } ${isOpen ? "border-[#ff5a36] ring-4 ring-orange-50/50 shadow-md shadow-orange-100/30" : ""} ${className}`}
       >
         <div className="flex items-center gap-3 truncate">
           {icon && <span className={`${isOpen ? "text-[#ff5a36]" : "text-gray-400"} transition-colors duration-300`}>{icon}</span>}
-          <span className={`truncate ${value !== undefined && value !== null && value !== "" && value !== "ALL" ? "text-gray-900 font-bold" : "text-gray-400"}`}>
+          <span className={`truncate ${value !== undefined && value !== null && value !== "" && value !== "ALL" ? "text-gray-900" : "text-gray-400"}`}>
             {displayLabel}
           </span>
         </div>
@@ -93,7 +93,7 @@ export function Dropdown<T extends string | number>({
                     onChange(opt.id)
                     setIsOpen(false)
                   }}
-                  className={`flex items-center justify-between w-full text-left px-3 py-2.5 text-sm transition-all rounded-lg hover:bg-orange-50/40 group ${
+                  className={`flex items-center justify-between w-full text-left px-3 py-2.5 text-sm transition-all rounded-lg hover:bg-orange-50/40 group cursor-pointer ${
                     value === opt.id ? "text-[#ff5a36] font-bold bg-orange-50/30 shadow-sm shadow-orange-100/10" : "text-gray-600"
                   }`}
                 >
