@@ -130,24 +130,16 @@ return (
           </div>
 
           <div className="px-6 py-8 flex flex-col sm:flex-row items-center sm:items-start gap-8">
-            <div className="flex flex-col items-center gap-3 shrink-0">
+            <div className="flex flex-col items-center justify-center gap-3 shrink-0">
               <div className="relative group w-32 h-32 rounded-full border border-gray-100 shadow-sm overflow-hidden bg-gray-50">
                 <img 
                   src={store.profile_url ? resolveImageUrl(store.profile_url) : "/images/default-store.png"} 
-                  className="w-full h-full object-cover" 
+                  className="w-full h-full object-cover " 
                   alt="Store Logo"
                 />
               </div>
-              {store.profile_url ? (
-                <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-50 border border-emerald-100 text-emerald-700 text-[11px] font-bold shadow-sm">
-                  <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></div>
-                  Logo Uploaded
-                </div>
-              ) : (
-                <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-50 border border-slate-200 text-slate-500 text-[11px] font-bold shadow-sm">
-                  No Logo
-                </div>
-              )}
+              <label className="text-[11px] font-bold text-slate-400 uppercase tracking-widest">Store Logo</label>
+
             </div>
 
             <div className="flex-1 w-full flex flex-col pt-1">
