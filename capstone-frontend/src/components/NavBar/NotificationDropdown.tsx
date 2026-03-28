@@ -178,7 +178,7 @@ export default function NotificationDropdown({
     const isSeller = !!myStoreId && !!n.store_id && n.store_id === myStoreId
     const isChat = n.type === "CHAT_NEW_MESSAGE"
     const isAnnouncement = n.type === "ANNOUNCEMENT"
-    const isReport = n.type === "REPORT_ACTION_TAKEN"
+    const isReport = ["ADMIN_ACTION" , "REPORT_ACTION_TAKEN"].includes(n.type)
 
     if (isAnnouncement) return
 
@@ -286,7 +286,8 @@ export default function NotificationDropdown({
             {notifications.map((n) => {
               const isChat = n.type === "CHAT_NEW_MESSAGE"
               const isAnnouncement = n.type === "ANNOUNCEMENT"
-              const isReport = n.type === "REPORT_ACTION_TAKEN"
+              const isReport = ["ADMIN_ACTION" , "REPORT_ACTION_TAKEN"].includes(n.type)
+
 
               return (
                 <div
