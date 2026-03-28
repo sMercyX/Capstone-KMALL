@@ -329,6 +329,9 @@ export default function AnnouncementPage() {
                       <div className="flex items-center gap-1.5 text-[12px] text-[#9CA3AF]">
                         Target : {renderTargetRoles(ann.target_roles)}
                       </div>
+                      <div className="flex items-center gap-1.5 text-[12px] text-[#9CA3AF]">
+                        Announcer : {ann.admin_display_name}
+                      </div>
                       <div className="flex items-center gap-1.5 text-[11px] text-[#9CA3AF]">
                         <Calendar className="w-3.5 h-3.5" />
                         {formatDateTime(ann.created_at)}
