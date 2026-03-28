@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react"
-import { FaPaperPlane } from "react-icons/fa"
+import { FaBullhorn, FaPaperPlane } from "react-icons/fa"
 import { Calendar, Trash2 } from "lucide-react"
 import { toast } from "react-toastify"
 import { useAdminAnnouncementApi, type AnnouncementItem } from "../../../api/adminAnnouncementApi"
@@ -182,7 +182,7 @@ export default function AnnouncementPage() {
       {/* Main Content Area */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 pt-8">
         <div className="flex items-center gap-2 mb-1">
-          <FaPaperPlane className="text-[#FF4C24] w-5 h-5" />
+          <FaBullhorn className="text-[#FF4C24] w-5 h-5" />
           <h2 className="text-lg font-bold">Create New Announcement</h2>
         </div>
         <p className="text-sm text-gray-500 mb-6">
