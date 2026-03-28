@@ -1,9 +1,9 @@
 export default function CategorySkeleton() {
   return (
-    <div className="bg-[#FAF9F8] rounded-[20px] overflow-hidden flex flex-col h-full border border-transparent p-2 animate-pulse">
-      <div className="bg-white rounded-[16px] shadow-[0_2px_12px_rgba(0,0,0,0.04)] flex flex-col h-full p-4 border border-gray-100">
+    <div className="bg-[#FAF9F8] rounded-[24px] overflow-hidden flex flex-col h-full border border-transparent p-2.5 animate-pulse">
+      <div className="bg-white rounded-[20px] shadow-[0_2px_15px_rgba(0,0,0,0.04)] flex flex-col h-full p-6 border border-gray-100">
         {/* Header Image Placeholder */}
-        <div className="mx-auto h-20 w-20 rounded-full bg-gray-100 mb-3 shrink-0" />
+        <div className="mx-auto h-32 w-32 rounded-full bg-gray-100 mb-5 shrink-0" />
         
         {/* Main Category Info Placeholder */}
         <div className="flex-grow flex flex-col">

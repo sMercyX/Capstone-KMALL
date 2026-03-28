@@ -101,17 +101,17 @@ export default function CategoryPage() {
 
       {/* Category Grid (Scrollable) */}
       <div className="flex-1 overflow-y-auto mt-6 pr-2 -mr-2 [&::-webkit-scrollbar]:w-[6px] [&::-webkit-scrollbar-track]:bg-[#F1F1F1] [&::-webkit-scrollbar-track]:rounded-full [&::-webkit-scrollbar-thumb]:bg-[#D1D1D1] hover:[&::-webkit-scrollbar-thumb]:bg-[#B1B1B1] [&::-webkit-scrollbar-thumb]:rounded-full">
-        <div className={`grid gap-4 grid-cols-[repeat(auto-fill,minmax(min(100%,220px),1fr))] pb-8`}>
+        <div className={`grid gap-6 grid-cols-[repeat(auto-fill,minmax(min(100%,300px),1fr))] pb-8`}>
           {isSearching
             ? Array.from({ length: 8 }).map((_, i) => (
                 <CategorySkeleton key={i} />
               ))
             : categories.map((group) => (
-                <div key={group.main.id} className="bg-[#FAF9F8] rounded-[20px] overflow-hidden flex flex-col h-full border border-transparent p-2">
+                <div key={group.main.id} className="bg-[#FAF9F8] rounded-[24px] overflow-hidden flex flex-col h-full border border-transparent p-2.5 ">
                   {/* Inner White Container */}
-                  <div onClick={() => navigate(`/admin/category/edit/${group.main.slug}`)} className="bg-white cursor-pointer duration-200 hover:scale-105 hover:shadow-lg rounded-[16px] shadow-[0_2px_12px_rgba(0,0,0,0.04)] flex flex-col h-full p-4 border border-gray-100">
+                  <div onClick={() => navigate(`/admin/category/edit/${group.main.slug}`)} className="bg-white cursor-pointer duration-200 hover:scale-[1.03] hover:shadow-xl rounded-[20px] shadow-[0_2px_15px_rgba(0,0,0,0.04)] flex flex-col h-full p-6 border border-gray-100">
                     {/* Header Image Placeholder */}
-                    <div className="mx-auto h-20 w-20 rounded-full bg-orange-50 grid place-items-center overflow-hidden mb-3 border-2 border-orange-100/50 shrink-0">
+                    <div className="mx-auto h-32 w-32 rounded-full bg-orange-50 grid place-items-center overflow-hidden mb-5 border-2 border-orange-100/50 shrink-0">
                       {group.main.icon_url ? (
                         <img 
                           src={resolveImageUrl(group.main.icon_url)}
@@ -120,8 +120,8 @@ export default function CategoryPage() {
                         />
                       ) : (
                         <div className="w-full h-full bg-gradient-to-br from-[#FF4C24]/20 to-[#FF4C24]/5 flex items-center justify-center">
-                          <span className="text-[#FF4C24] text-3xl font-bold opacity-30 tracking-tight">
-                            {group.main.name.charAt(0).toUpperCase()}
+                          <span className="text-[#FF4C24] text-5xl font-bold opacity-30 tracking-tight">
+                            {group.main.name.charAt(0).toUpperCase()} 
                           </span>
                         </div>
                       )}
@@ -151,7 +151,7 @@ export default function CategoryPage() {
                               >
                                 <span className="text-description tracking-wide truncate pr-2">{sub.name}</span>
                                 {sub.product_count !== undefined && (
-                                  <span className="text-[11px] font-medium text-[#FF4C24] shrink-0">{sub.product_count}</span>
+                                  <span className="text-[11px] font-medium text-[#FF4C24] shrink-0">{sub.product_count} Products</span>
                                 )}
                               </div>
                             ))

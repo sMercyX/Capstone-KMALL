@@ -7,6 +7,7 @@ import { resolveImageUrl } from "../../../utils/resolve"
 import ConfirmationModal from "../../../components/Modal/ConfirmationModal"
 import ToggleSwitch from "../../../components/Toggle/ToggleSwitch"
 import { processImageFile, SUPPORTED_IMAGE_TYPES } from "../../../utils/imageProcessing"
+import { Dropdown } from "../../../components/Dropdown/Dropdown"
 
 // Interface for Subcategories to hold ID
 interface SubCategoryItem {
@@ -859,28 +860,22 @@ export default function AddCategoryPage() {
         confirmText={reassignModalState.type === 'DELETE' ? "Move & Delete" : "Move & Deactivate"}
         confirmDisabled={selectedSubForReassign === ""}
         variant="warning"
+        isOverflowVisible={true}
       >
         <div className="flex flex-col gap-4 mt-6">
             <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Target Subcategory</label>
-                <select 
-                    className="w-full bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-orange-500 focus:border-orange-500 block p-2.5"
+                <label className="block text-sm font-medium text-gray-700 mb-2">Target Subcategory</label>
+                <Dropdown
+                    label="Target Subcategory"
+                    options={availableSubcategoriesForReassign.map(sub => ({
+                        id: sub.id || sub.name,
+                        name: sub.name
+                    }))}
                     value={selectedSubForReassign}
-                    onChange={(e) => {
-                        const val = e.target.value
-                        const num = Number(val)
-                        // If it's a numeric ID, store as number, otherwise it's the name (string)
-                        setSelectedSubForReassign(!isNaN(num) && val.trim() !== "" ? num : val)
-                    }}
-                >
-                    <option value="" disabled>Select Subcategory...</option>
-                    {availableSubcategoriesForReassign.map((sub, idx) => (
-                        <option key={sub.id || `new-target-${idx}`} value={sub.id || sub.name}>{sub.name}</option>
-                    ))}
-                    {availableSubcategoriesForReassign.length === 0 && (
-                        <option value="" disabled>No valid subcategories found to transfer products.</option>
-                    )}
-                </select>
+                    onChange={(val) => setSelectedSubForReassign(val)}
+                    placeholder="Select Subcategory..."
+                    allLabel={null}
+                />
             </div>
         </div>
       </ConfirmationModal>

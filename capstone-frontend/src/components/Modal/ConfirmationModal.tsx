@@ -12,6 +12,7 @@ interface ConfirmationModalProps {
   confirmDisabled?: boolean
   variant?: "danger" | "warning" | "info"
   children?: React.ReactNode
+  isOverflowVisible?: boolean
 }
 
 export default function ConfirmationModal({
@@ -25,6 +26,7 @@ export default function ConfirmationModal({
   confirmDisabled = false,
   variant = "danger",
   children,
+  isOverflowVisible = false,
 }: ConfirmationModalProps) {
   if (!isOpen) return null
 
@@ -62,7 +64,7 @@ export default function ConfirmationModal({
 
   return createPortal(
     <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 backdrop-blur-sm px-4 animate-in fade-in duration-200">
-      <div className="w-full max-w-md transform overflow-hidden rounded-2xl bg-white p-6 text-left align-middle shadow-xl transition-all animate-in zoom-in-95 duration-200 scale-100">
+      <div className={`w-full max-w-md transform rounded-2xl bg-white p-6 text-left align-middle shadow-xl transition-all animate-in zoom-in-95 duration-200 scale-100 ${isOverflowVisible ? "overflow-visible" : "overflow-hidden"}`}>
         
         <div className="flex items-center justify-between mb-5">
             <div className={`w-10 h-10 rounded-full flex items-center justify-center ${styles.iconBg}`}>
