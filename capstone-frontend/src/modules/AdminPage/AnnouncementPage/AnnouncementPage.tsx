@@ -4,6 +4,10 @@ import { Calendar, Trash2 } from "lucide-react"
 import { toast } from "react-toastify"
 import { useAdminAnnouncementApi, type AnnouncementItem } from "../../../api/adminAnnouncementApi"
 import ConfirmationModal from "../../../components/Modal/ConfirmationModal"
+import { Input } from "../../../components/Input/Input"
+import { Textarea } from "../../../components/Input/Textarea"
+import PaginationBackend from "../../../components/Pagination/PaginationBackend"
+import SearchInput from "../../../components/Admin/SearchInput"
 
 type TargetRole = "buyer" | "seller" | "admin"
 
@@ -15,8 +19,14 @@ export default function AnnouncementPage() {
   const [isLoading, setIsLoading] = useState(false)
   const [announcements, setAnnouncements] = useState<AnnouncementItem[]>([])
   const [isListLoading, setIsListLoading] = useState(false)
-  const [page] = useState(1)
+  const [page, setPage] = useState(1)
+  const [total, setTotal] = useState(0)
+  const [totalPages, setTotalPages] = useState(1)
+  const [search, setSearch] = useState("")
+  const [debouncedSearch, setDebouncedSearch] = useState("")
   const [deleteModalState, setDeleteModalState] = useState<{isOpen: boolean, id: number | null}>({isOpen: false, id: null})
+
+  const limit = 5
 
   const isAllUsersSelected = selectedRoles.length === 3
 
@@ -77,8 +87,10 @@ export default function AnnouncementPage() {
   const fetchAnnouncements = async () => {
     try {
       setIsListLoading(true)
-      const res = await getAnnouncements(page, 10, "")
+      const res = await getAnnouncements(page, limit, debouncedSearch)
       setAnnouncements(res.announcements || [])
+      setTotal(res.total || 0)
+      setTotalPages(Math.ceil((res.total || 0) / limit))
     } catch (error) {
       console.error("Failed to fetch announcements:", error)
     } finally {
@@ -87,9 +99,17 @@ export default function AnnouncementPage() {
   }
 
   useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedSearch(search)
+      setPage(1)
+    }, 500)
+    return () => clearTimeout(handler)
+  }, [search])
+
+  useEffect(() => {
     fetchAnnouncements()
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [page])
+  }, [page, debouncedSearch])
 
   const promptDelete = (id: number) => {
     setDeleteModalState({isOpen: true, id})
@@ -170,15 +190,11 @@ export default function AnnouncementPage() {
         </p>
 
         <div className="space-y-6">
-          {/* Title input */}
           <div>
-            <label className="block text-sm font-medium mb-2">
-              Title <span className="text-red-500">*</span>
-            </label>
-            <input
-              type="text"
+            <Input
+              label="Title"
+              required
               placeholder="Enter announcement title..."
-              className="w-full bg-white border border-gray-300 rounded-lg px-4 py-3 outline-none focus:ring-2 focus:ring-[#FF4C24]/50"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
             />
@@ -186,12 +202,11 @@ export default function AnnouncementPage() {
 
           {/* Content input */}
           <div>
-            <label className="block text-sm font-medium mb-2">
-              Content <span className="text-red-500">*</span>
-            </label>
-            <textarea
+            <Textarea
+              label="Content"
+              required
               placeholder="Enter announcement content..."
-              className="w-full bg-white border border-gray-300 rounded-lg px-4 py-3 outline-none focus:ring-2 focus:ring-[#FF4C24]/50 min-h-[120px] resize-y"
+              className="min-h-[120px]"
               value={content}
               onChange={(e) => setContent(e.target.value)}
             />
@@ -269,10 +284,28 @@ export default function AnnouncementPage() {
         </div>
 
         <div className="p-8 pt-6">
-          <h2 className="text-[20px] font-bold mb-1 text-[#2D2D2D]">All Announcements</h2>
-          <p className="text-[13px] text-gray-400 mb-8">
-            View and manage all announcements you have published.
-          </p>
+          <div className="flex items-center justify-between mb-8">
+            <div>
+              <h2 className="text-[20px] font-bold mb-1 text-[#2D2D2D]">All Announcements</h2>
+              <p className="text-[13px] text-gray-400">
+                View and manage all announcements you have published.
+              </p>
+            </div>
+            <div className="flex items-center gap-4">
+              <SearchInput
+                placeholder="Search announcements..."
+                containerClassName="w-[300px]"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                isSearching={isListLoading}
+              />
+              <PaginationBackend
+                currentPage={page}
+                totalPages={totalPages}
+                onPageChange={setPage}
+              />
+            </div>
+          </div>
 
           {isListLoading && announcements.length === 0 ? (
             <p className="text-center text-gray-400 py-8 text-sm">Loading announcements...</p>
@@ -315,7 +348,7 @@ export default function AnnouncementPage() {
                 </div>
               ))}
             </div>
-          )}
+          )}        
         </div>
       </div>
 

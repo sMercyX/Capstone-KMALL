@@ -7,6 +7,7 @@ import { MdBlockFlipped } from "react-icons/md"
 import { useNavigate } from "react-router-dom"
 import { toast } from "react-toastify"
 import ConfirmationModal from "../../../components/Modal/ConfirmationModal"
+import PaginationBackend from "../../../components/Pagination/PaginationBackend"
 
 type TabKey = "ALL" | "WARNING" | "TEMPORARY" | "PERMANENT"
 
@@ -173,25 +174,11 @@ export default function BlacklistedBuyersPage() {
               </button>
             ))}
           </div>
-          {totalPages > 1 && (
-            <div className="flex items-center gap-2 text-sm text-gray-500">
-              <span>{page}/{totalPages}</span>
-              <button
-                onClick={() => setPage((p) => Math.max(1, p - 1))}
-                disabled={page === 1}
-                className="p-1 rounded hover:bg-gray-100 disabled:opacity-30 cursor-pointer"
-              >
-                ‹
-              </button>
-              <button
-                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-                disabled={page === totalPages}
-                className="p-1 rounded hover:bg-gray-100 disabled:opacity-30 cursor-pointer"
-              >
-                ›
-              </button>
-            </div>
-          )}
+            <PaginationBackend
+              currentPage={page}
+              totalPages={totalPages}
+              onPageChange={setPage}
+            />
         </div>
 
         {/* Table */}
