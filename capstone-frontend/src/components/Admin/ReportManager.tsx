@@ -4,6 +4,7 @@ import { format } from "date-fns"
 import { FaChevronLeft, FaChevronRight, FaCheck, FaTimes } from "react-icons/fa"
 import SearchInput from './SearchInput'
 import { useNavigate } from "react-router-dom"
+import { Loader2 } from "lucide-react"
 
 interface ReportManagerProps {
   reportedPartyType: "SELLER" | "BUYER"
@@ -185,7 +186,7 @@ export default function ReportManager({ reportedPartyType }: ReportManagerProps)
                   <div className="col-span-2 flex justify-end">
                     {isPending ? (
                       <div className="inline-flex items-center gap-1.5 text-sm font-medium text-[#d97706] whitespace-nowrap">
-                        <span className="text-yellow-500">●</span>
+                        <Loader2 className="w-6 h-6 animate-spin text-yellow-500" />
                         Pending Review
                       </div>
                     ) : activeTab === "RESOLVED" ? (
@@ -225,7 +226,10 @@ export default function ReportManager({ reportedPartyType }: ReportManagerProps)
       {/* Summary Cards */}
       <div className="grid grid-cols-3 gap-4 mb-8">
         <div className="bg-white rounded-xl border border-gray-200 p-5 flex items-center gap-4">
-          <div className="w-10 h-10 rounded-lg bg-[#FFF3E0] flex items-center justify-center text-lg">📋</div>
+          <div className="w-10 h-10 rounded-lg bg-[#FFF3E0] flex items-center justify-center text-lg">
+          <Loader2 className="w-6 h-6 animate-spin text-gray-400 " />
+
+          </div>
           <div>
             <div className="text-xl font-bold text-gray-800">{counts.pending} Pending Reports</div>
             <div className="text-xs text-gray-400">(Action Required)</div>
@@ -261,7 +265,7 @@ export default function ReportManager({ reportedPartyType }: ReportManagerProps)
         <div className="flex justify-between items-start">
           <div>
             <div className="flex items-center gap-2 mb-1">
-              <span className="text-yellow-500 text-lg">🟡</span>
+              <Loader2 className="w-6 h-6 animate-spin text-yellow-500" />
               <h2 className="text-xl font-bold text-gray-900">Pending Reports</h2>
             </div>
             <p className="text-gray-400 text-sm">Reports waiting for admin review and action.</p>
