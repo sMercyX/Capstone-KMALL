@@ -132,6 +132,22 @@ export default function SellerDashboardPage() {
     setSelectedYear(dayjs().year())
   }
 
+  // ---- Dynamic Year Range ----
+  const availableYears = (() => {
+    const historicalData = allTimeSummary?.revenue_by_period || []
+    if (historicalData.length === 0) return [dayjs().year()]
+    
+    const years = historicalData.map(r => dayjs(r.date).year())
+    const minYear = Math.min(...years)
+    const maxYear = Math.max(...years, dayjs().year())
+    
+    const yearList = []
+    for (let y = maxYear; y >= minYear; y--) {
+      yearList.push(y)
+    }
+    return yearList
+  })()
+
   // ---- Chart Data Generation ----
   const rawData = summary?.revenue_by_period || []
 
@@ -463,21 +479,18 @@ export default function SellerDashboardPage() {
                   {isYearOpen && granularity !== "all_time" && (
                     <div className="absolute top-10 right-0 z-10 w-32 rounded-md bg-white p-1 shadow-lg border border-gray-100 max-h-60 overflow-y-auto overflow-x-hidden">
                       <div className="flex flex-col">
-                        {Array.from({ length: dayjs().year() - 2026 + 1 }).map((_, i) => {
-                          const yr = dayjs().year() - i
-                          return (
-                            <button
-                              key={yr}
-                              onClick={() => { setSelectedYear(yr); setIsYearOpen(false); }}
-                              className={`w-full px-4 py-2 text-sm text-left transition ${selectedYear === yr
-                                ? "bg-orange-500 text-white font-medium shadow-sm"
-                                : "text-gray-600 hover:bg-orange-50 hover:text-orange-500"
-                                }`}
-                            >
-                              {yr}
-                            </button>
-                          )
-                        })}
+                        {availableYears.map((yr) => (
+                          <button
+                            key={yr}
+                            onClick={() => { setSelectedYear(yr); setIsYearOpen(false); }}
+                            className={`w-full px-4 py-2 text-sm text-left transition ${selectedYear === yr
+                              ? "bg-orange-500 text-white font-medium shadow-sm"
+                              : "text-gray-600 hover:bg-orange-50 hover:text-orange-500"
+                              }`}
+                          >
+                            {yr}
+                          </button>
+                        ))}
                       </div>
                     </div>
                   )}
@@ -513,10 +526,10 @@ export default function SellerDashboardPage() {
           <table className="w-full text-left text-sm border-collapse">
             <thead className="bg-gray-50/50 text-gray-400 border-b border-gray-100">
               <tr>
-                <th className="py-5 px-6 font-bold text-center w-20">Rank</th>
-                <th className="py-5 px-6 font-bold text-left">Product Details</th>
-                <th className="py-5 px-6 font-bold text-right">Sold</th>
-                <th className="py-5 px-6 font-bold text-right">Revenue</th>
+                <th className="py-4 px-4 sm:py-5 sm:px-6 font-bold text-center w-16 sm:w-20">Rank</th>
+                <th className="py-4 px-4 sm:py-5 sm:px-6 font-bold text-left min-w-[150px]">Product Details</th>
+                <th className="py-4 px-4 sm:py-5 sm:px-6 font-bold text-center">Sold</th>
+                <th className="py-4 px-4 sm:py-5 sm:px-6 font-bold text-right">Revenue</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50">
@@ -532,7 +545,7 @@ export default function SellerDashboardPage() {
               ) : (
                 topProducts.slice(0, 5).map((p, idx) => (
                   <tr key={p.product_id} className="group hover:bg-gray-50/80 transition-all duration-200">
-                    <td className="py-6 px-6">
+                    <td className="py-4 px-4 sm:py-6 sm:px-6">
                       <div className="flex justify-center">
                         <div className={`flex h-7 w-7 items-center justify-center rounded-lg text-xs font-bold shadow-sm ${idx === 0 ? "bg-amber-400 text-white" :
                           idx === 1 ? "bg-slate-300 text-white" :
@@ -543,20 +556,18 @@ export default function SellerDashboardPage() {
                         </div>
                       </div>
                     </td>
-                    <td className="py-6 px-6">
+                    <td className="py-4 px-4 sm:py-6 sm:px-6">
                       <div className="flex items-center gap-4">
                         <div className="flex flex-col gap-0.5">
-                          <span className="font-bold text-gray-800 text-sm group-hover:text-orange-600 transition-colors uppercase tracking-tight">{p.product_name}</span>
+                          <span className="font-bold text-gray-800 text-xs sm:text-sm group-hover:text-orange-600 transition-colors uppercase tracking-tight line-clamp-2 sm:line-clamp-none">{p.product_name}</span>
                         </div>
                       </div>
                     </td>
-                    <td className="py-6 px-6 text-right">
-                      <span className="text-sm font-semibold text-gray-700 bg-gray-50 px-3 py-1 rounded-full">{p.total_sold.toLocaleString()} units</span>
+                    <td className="py-4 px-4 sm:py-6 sm:px-6 text-center">
+                      <span className="inline-block text-xs sm:text-sm font-semibold text-gray-700 bg-gray-50 px-2 sm:px-3 py-1 rounded-full whitespace-nowrap">{p.total_sold.toLocaleString()} units</span>
                     </td>
-                    <td className="py-6 px-6 text-right">
-                      <div className="flex flex-col items-end">
-                        <span className="text-base font-bold text-gray-900">฿{p.revenue.toLocaleString()}</span>
-                      </div>
+                    <td className="py-4 px-4 sm:py-6 sm:px-6 text-right">
+                      <span className="text-sm sm:text-base font-bold text-gray-900 whitespace-nowrap">฿{p.revenue.toLocaleString()}</span>
                     </td>
                   </tr>
                 ))
