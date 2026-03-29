@@ -169,7 +169,7 @@ export default function AddressModal({
                 required
                 value={formData.phone}
                 onChange={handleChange}
-                placeholder="0910402800"
+                placeholder="0123456789"
                 maxLength={10}
                 error={!!errors.phone}
                 className="text-xs py-2"
