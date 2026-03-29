@@ -337,7 +337,14 @@ func (r *repo) Get(ctx context.Context, id int64) (Product, error) {
 
 // ===== ListByStoreID =====
 
-func (r *repo) ListByStoreID(ctx context.Context, storeID int64, q string, categoryID *int64, parentCategoryID *int64, limit, page int) ([]Product, int64, error) {
+func (r *repo) ListByStoreID(
+	ctx context.Context,
+	storeID int64,
+	q string,
+	categoryID *int64,
+	parentCategoryID *int64,
+	limit, page int,
+) ([]Product, int64, error) {
 	if limit <= 0 {
 		limit = 20
 	}
@@ -370,24 +377,44 @@ WHERE p.store_id = $1
 
 	if parentCategoryID != nil {
 		base += ` AND p.category_id IN (
-            SELECT category_id FROM categories WHERE parent_id = $` + strconv.Itoa(idx) + `
-        )`
+			SELECT category_id
+			FROM categories
+			WHERE parent_id = $` + strconv.Itoa(idx) + `
+		)`
 		args = append(args, *parentCategoryID)
 		idx++
 	}
 
 	var total int64
-	if err := r.db.QueryRow(ctx, `SELECT COUNT(*) `+base, args...).Scan(&total); err != nil {
+	countQuery := `SELECT COUNT(*) ` + base
+	if err := r.db.QueryRow(ctx, countQuery, args...).Scan(&total); err != nil {
 		return nil, 0, apperr.Wrap(apperr.Internal, err, "count products by store failed")
 	}
 
 	query := `
 SELECT
-  p.product_id, p.name, p.product_desc, p.price, p.image_url,
-  p.product_type, p.created_at, p.updated_at, p.is_active, p.store_id, p.category_id,
-  s.store_name AS store_name,
-  c.name       AS category_name,
-  0            AS sold_count
+	p.product_id,
+	p.name,
+	p.product_desc,
+	p.price,
+	p.image_url,
+	p.product_type,
+	p.created_at,
+	p.updated_at,
+	p.is_active,
+	p.store_id,
+	p.category_id,
+	s.store_name AS store_name,
+	c.name AS category_name,
+	COALESCE((
+		SELECT SUM(oi.quantity)
+		FROM order_items oi
+		JOIN orders o ON o.order_id = oi.order_id
+		WHERE oi.product_id = p.product_id
+		  AND o.status = 'Completed'
+	), 0) AS sold_count,
+	s.delivery_round_university_enabled,
+	s.round_uni_base_fee
 ` + base + `
 ORDER BY p.created_at DESC
 LIMIT $` + strconv.Itoa(idx) + ` OFFSET $` + strconv.Itoa(idx+1)
@@ -400,22 +427,37 @@ LIMIT $` + strconv.Itoa(idx) + ` OFFSET $` + strconv.Itoa(idx+1)
 	}
 	defer rows.Close()
 
-	out := make([]Product, 0)
+	items := make([]Product, 0, limit)
 	for rows.Next() {
 		var p Product
 		if err := rows.Scan(
-			&p.ID, &p.Name, &p.Description, &p.Price, &p.ImageURL,
-			&p.ProductType, &p.CreatedAt, &p.UpdatedAt, &p.IsActive, &p.StoreID, &p.CategoryID,
-			&p.StoreName, &p.CategoryName, &p.SoldCount,
+			&p.ID,
+			&p.Name,
+			&p.Description,
+			&p.Price,
+			&p.ImageURL,
+			&p.ProductType,
+			&p.CreatedAt,
+			&p.UpdatedAt,
+			&p.IsActive,
+			&p.StoreID,
+			&p.CategoryID,
+			&p.StoreName,
+			&p.CategoryName,
+			&p.SoldCount,
+			&p.DeliveryRoundUniversityEnabled,
+			&p.RoundUniBaseFee,
 		); err != nil {
 			return nil, 0, apperr.Wrap(apperr.Internal, err, "scan product failed")
 		}
-		out = append(out, p)
+		items = append(items, p)
 	}
+
 	if err := rows.Err(); err != nil {
-		return nil, 0, apperr.Wrap(apperr.Internal, err, "rows error")
+		return nil, 0, apperr.Wrap(apperr.Internal, err, "iterate products failed")
 	}
-	return out, total, nil
+
+	return items, total, nil
 }
 
 // ===== Update =====
