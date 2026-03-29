@@ -34,7 +34,7 @@ function SingleCategoryCard({ item }: { item: CatagoriesResponse; isActive?: boo
             <img
             src={resolveImageUrl(item.icon_url)}
             alt={displayName}
-            className="h-full w-full object-cover transition duration-300 group-hover:scale-105"
+            className="h-full w-full object-cover "
             />
         ) : (
             <Icon className="h-7 w-7 sm:h-8 sm:w-8 text-[#FF4616]" />
