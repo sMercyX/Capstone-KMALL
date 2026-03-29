@@ -182,11 +182,11 @@ export default function NotificationDropdown({
 
     if (isAnnouncement) return
 
+    const baseUrl = import.meta.env.BASE_URL.replace(/\/$/, "")
+
     if (isReport) {
-      // Navigate to report status page
-      // Sellers go to their dashboard report tab, buyers go to general reports
       if (isSeller || roles?.some(r => r.toLowerCase() === 'seller')) {
-        window.open(window.location.origin + "/store/report", "_blank")
+        window.open(baseUrl + "/store/report", "_blank")
       } else {
         navigate("/reports")
       }
@@ -197,9 +197,9 @@ export default function NotificationDropdown({
       const path = isChat
         ? `/store/orders/${n.order_id}/chat`
         : `/store/orders/${n.order_id}`
-      window.open(window.location.origin + path, "_blank")
+      window.open(baseUrl + path, "_blank")
     } else {
-      navigate(isChat ? `/orders/${n.order_id}/chat` : `/orders/${n.order_id}`)
+      navigate(isChat ? `/orders/${n.order_id}/chat` : `/orders/${n.order_id}/`)
     }
   }
 
