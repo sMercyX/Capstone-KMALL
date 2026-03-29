@@ -204,12 +204,12 @@ export default function ChatPage() {
         const isBuyerInThread = threadData.buyer_id === userId
         
         if (isSeller && !isSellerInThread) {
-          toast.error("คุณไม่มีสิทธิ์เข้าถึงแชทนี้ (เฉพาะผู้ขาย)")
+          toast.error("You are not allowed to access this chat")
           navigate("/dashboard")
           return
         }
         if (!isSeller && !isBuyerInThread) {
-          toast.error("คุณไม่มีสิทธิ์เข้าถึงแชทนี้ (เฉพาะผู้ซื้อ)")
+          toast.error("You are not allowed to access this chat")
           navigate("/dashboard")
           return
         }

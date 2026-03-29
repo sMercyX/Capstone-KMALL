@@ -2,16 +2,22 @@ import { useEffect, useState } from "react"
 import CategoriesCard from "../../components/Card/CatagoriesCard"
 import { useUserStore } from "../../stores/userStore"
 import { useProductApi, type Product } from "../../api/productApi"
+import { useCatagoriesApi, type CatagoriesResponse } from "../../api/catagoriesApi"
 import ProductCardTop5 from "../../components/Card/ProductCardTop5"
+import ProductCardTop5Skeleton from "../../components/Card/ProductCardTop5Skeleton"
 
 export default function Dashboard() {
   const { name } = useUserStore()
   const { searchProducts } = useProductApi()
+  const { getCatagoriesName } = useCatagoriesApi()
+  
   const [topProducts, setTopProducts] = useState<Product[]>([])
   const [loading, setLoading] = useState(true)
+  
+  const [categories, setCategories] = useState<CatagoriesResponse[]>([])
+  const [categoriesLoading, setCategoriesLoading] = useState(true)
 
-  useEffect(() => {
-    async function fetchTopProducts() {
+      async function fetchTopProducts() {
       try {
         setLoading(true)
         const res = await searchProducts({
@@ -20,7 +26,6 @@ export default function Dashboard() {
           page: 1,
           sortBy: "sold"
         })
-        // The API returns PaginatedResponse<Product>, so we need res.data.items
         setTopProducts(res.data.items ?? [])
       } catch (err) {
         console.error("Failed to fetch top products", err)
@@ -28,7 +33,21 @@ export default function Dashboard() {
         setLoading(false)
       }
     }
-    fetchTopProducts()
+
+    async function fetchCategories() {
+      try {
+        setCategoriesLoading(true)
+        const res = await getCatagoriesName(0)
+        setCategories(res.data ?? [])
+      } catch (err) {
+        console.error("Failed to fetch categories", err)
+      } finally {
+        setCategoriesLoading(false)
+      }
+    }
+
+  useEffect(() => {
+    Promise.all([fetchTopProducts(), fetchCategories()])
   }, [])
 
   return (
@@ -45,7 +64,7 @@ export default function Dashboard() {
 
       {/* Categories Row */}
       <div className="w-full">
-        <CategoriesCard />
+        <CategoriesCard items={categories} loading={categoriesLoading} />
       </div>
 
       {/* Top 5 Popular Products Section */}
@@ -59,10 +78,11 @@ export default function Dashboard() {
 
         {/* Product Cards Container */}
         <div className="w-full bg-gray-50/50 border border-gray-100 rounded-xl p-6 sm:p-8">
+
           {loading ? (
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-4">
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-4 lg:gap-6 justify-items-center">
               {Array.from({ length: 5 }).map((_, i) => (
-                <div key={i} className="aspect-[3/4] bg-white rounded-lg animate-pulse border border-gray-100" />
+                <ProductCardTop5Skeleton key={i} />
               ))}
             </div>
           ) : (

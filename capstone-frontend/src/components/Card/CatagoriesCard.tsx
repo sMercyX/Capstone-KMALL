@@ -2,8 +2,9 @@
 import { useEffect, useState, useRef } from "react"
 import { Link } from "react-router-dom"
 import { ChevronRight, Utensils, Shirt, Package, Monitor, ShoppingBag } from "lucide-react"
-import { useCatagoriesApi, type CatagoriesResponse } from "../../api/catagoriesApi"
+import { type CatagoriesResponse } from "../../api/catagoriesApi"
 import { resolveImageUrl } from "../../utils/resolve"
+import CategorySkeleton from "./CategorySkeleton"
 
 // map slug -> Icon Component matching screenshot vibes
 const CATEGORY_ICON_MAP: Record<string, React.ElementType> = {
@@ -47,11 +48,17 @@ function SingleCategoryCard({ item }: { item: CatagoriesResponse; isActive?: boo
   )
 }
 
-export default function CategoriesCard({ activeSlug }: { activeSlug?: string }) {
-  const { getCatagoriesName } = useCatagoriesApi()
-  const [items, setItems] = useState<CatagoriesResponse[]>([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
+export default function CategoriesCard({
+  activeSlug,
+  items = [],
+  loading = false,
+  error = null,
+}: {
+  activeSlug?: string
+  items?: CatagoriesResponse[]
+  loading?: boolean
+  error?: string | null
+}) {
   
   const scrollRef = useRef<HTMLDivElement>(null)
   const [showLeftArrow, setShowLeftArrow] = useState(false)
@@ -66,25 +73,8 @@ export default function CategoriesCard({ activeSlug }: { activeSlug?: string }) 
   }
 
   useEffect(() => {
-    let isMounted = true
-    async function fetchCategories() {
-      try {
-        setLoading(true)
-        const res = await getCatagoriesName(0)
-        if (!isMounted) return
-        setItems(res.data ?? [])
-        // Initial check after render
-        setTimeout(checkScroll, 100)
-      } catch {
-        if (!isMounted) return
-        setError("Unable to load categories.")
-      } finally {
-        if (isMounted) setLoading(false)
-      }
-    }
-    fetchCategories()
-    return () => { isMounted = false }
-  }, [])
+    checkScroll()
+  }, [items])
 
   const scroll = (direction: 'left' | 'right') => {
     if (scrollRef.current) {
@@ -99,9 +89,9 @@ export default function CategoriesCard({ activeSlug }: { activeSlug?: string }) 
 
   if (loading) {
     return (
-      <div className="mt-8 flex gap-4 overflow-hidden w-full px-4 items-center justify-center">
-        {Array.from({ length: 5 }).map((_, i) => (
-          <div key={i} className="min-w-[160px] h-[160px] rounded-lg border border-gray-100 bg-white animate-pulse" />
+      <div className="flex gap-4 px-4 overflow-hidden w-full items-center justify-center">
+        {Array.from({ length: 6 }).map((_, i) => (
+          <CategorySkeleton key={i} />
         ))}
       </div>
     )
