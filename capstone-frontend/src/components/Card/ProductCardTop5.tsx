@@ -21,11 +21,11 @@ export default function ProductCardTop5({ product }: ProductCardTop5Props) {
       </div>
 
       {/* Product Image Area */}
-      <div className="relative h-44 w-full bg-gray-50 grid place-items-center overflow-hidden  p-2">
+      <div className="relative h-44 w-full bg-gray-50 overflow-hidden">
         <img
           src={resolveImageUrl(product.image_url)}
           alt={product.name}
-          className="max-h-full max-w-full object-cover mix-blend-multiply group-hover:scale-105 transition-transform duration-500"
+          className="h-full w-full object-cover group-hover:scale-105 transition-transform duration-500"
         />
         
         {/* Units Sold Overlay */}
