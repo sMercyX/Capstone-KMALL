@@ -1,4 +1,4 @@
-import React from "react"
+import OrderStatusLabel from "./OrderStatusLabel"
 import { Check, FileText, Loader2, X } from "lucide-react"
 import { useNavigate } from "react-router-dom"
 import { format, parseISO } from "date-fns"
@@ -44,40 +44,6 @@ function StatusBadge({ context }: { context: OrderStatusContext }) {
   )
 }
 
-function mapStatusLabel(status: string): React.ReactNode {
-  const map: Record<string, { label: string; color: string }> = {
-    PENDING: { label: "Pending", color: "bg-yellow-400 text-white" },
-    Pending: { label: "Pending", color: "bg-yellow-400 text-white" },
-    "Pending Seller Confirmation": { label: "Pending", color: "bg-yellow-400 text-white" },
-
-    PROPOSED: { label: "Proposed", color: "bg-blue-400 text-white" },
-    Proposed: { label: "Proposed", color: "bg-blue-400 text-white" },
-    "Awaiting Buyer Confirmation": { label: "Proposed", color: "bg-blue-400 text-white" },
-
-    ACCEPTED: { label: "Accepted", color: "bg-green-500 text-white" },
-    Accepted: { label: "Accepted", color: "bg-green-500 text-white" },
-    "Ready for Pickup": { label: "Accepted", color: "bg-green-500 text-white" },
-    "Ready for Delivery": { label: "Accepted", color: "bg-green-500 text-white" },
-
-    "Out For Delivery": { label: "Out For Delivery", color: "bg-indigo-500 text-white" },
-    
-    "Arrived": { label: "Arrived", color: "bg-orange-500 text-white" },
-
-    COMPLETED: { label: "Completed", color: "bg-green-500 text-white" },
-    Completed: { label: "Completed", color: "bg-green-500 text-white" },
-
-    CANCELLED: { label: "Cancelled", color: "bg-red-500 text-white" },
-    Cancelled: { label: "Cancelled", color: "bg-red-500 text-white" },
-  }
-
-  const config = map[status] || { label: status, color: "bg-gray-200 text-gray-700" }
-
-  return (
-    <span className={`px-3 py-1 rounded-full text-xs font-medium ${config.color}`}>
-      {config.label}
-    </span>
-  )
-}
 
 export default function OrderListItem({
   orderId,
@@ -146,7 +112,7 @@ export default function OrderListItem({
 
       {/* 6. Status Badge */}
       <div className="w-[10%] flex justify-center">
-        {mapStatusLabel(status)}
+        <OrderStatusLabel status={status} showIcon={false} />
       </div>
 
       {/* 7. Chat Button */}

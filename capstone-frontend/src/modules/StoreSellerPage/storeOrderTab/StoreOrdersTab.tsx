@@ -5,8 +5,8 @@ import { Loader2, Search } from "lucide-react"
 import { getAllLocations, type CampusLocation } from "../../../api/campusLocationApi"
 import { useStoreStore } from "../../../stores/storeStore"
 import { format, parseISO } from "date-fns"
-import { FaCheck, FaTimes } from "react-icons/fa"
 import SearchInput from "../../../components/Admin/SearchInput"
+import OrderStatusLabel from "../../../components/Order/OrderStatusLabel"
 
 type TabKey = "active" | "completed" | "cancelled"
 
@@ -73,39 +73,7 @@ export default function StoreOrdersTab() {
     }
   }
 
-  const renderStatus = (status: string) => {
-    const s = status.toLowerCase()
-    if (s.includes("pending") || s.includes("proposed")) {
-      return (
-        <div className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-full text-[#8e7314] text-xs font-semibold bg-[#fad450] w-full max-w-[130px] whitespace-nowrap">
-          <Loader2 className="animate-spin flex-shrink-0" size={14} />
-          Pending
-        </div>
-      )
-    }
-    if (s.includes("accepted") || s.includes("ready") || s.includes("delivery") || s.includes("completed") || s.includes("arrived")) {
-       const isCompleted = s.includes("completed")
-       return (
-        <div className={`inline-flex items-center justify-center gap-2 px-5 py-2 rounded-full text-white text-xs font-semibold w-full max-w-[130px] whitespace-nowrap ${isCompleted ? "bg-[#63c063]" : "bg-blue-500"}`}>
-          <FaCheck size={12} />
-          {isCompleted ? "Completed" : "On Going"}
-        </div>
-      )
-    }
-    if (s.includes("cancelled")) {
-      return (
-        <div className="inline-flex items-center justify-center gap-2 px-5 py-2 rounded-full text-white text-xs font-semibold bg-[#f05252] w-full max-w-[130px] whitespace-nowrap">
-          <FaTimes size={12} />
-          Cancelled
-        </div>
-      )
-    }
-    return (
-      <div className="inline-flex items-center justify-center px-4 py-2 rounded-full text-gray-700 bg-gray-200 text-xs font-medium w-full max-w-[130px] whitespace-nowrap">
-        {status}
-      </div>
-    )
-  }
+
 
   return (
     <div className="w-full">
@@ -242,7 +210,7 @@ export default function StoreOrdersTab() {
                           {item.order.total_price.toLocaleString()} ฿
                         </div>
                         <div className="col-span-2 flex items-center justify-center gap-6">
-                          {renderStatus(item.order.status)}
+                          <OrderStatusLabel status={item.order.status} className="w-full max-w-[130px]" />
                          
                         </div>
                         <button 
