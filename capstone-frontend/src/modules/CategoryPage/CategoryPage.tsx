@@ -7,6 +7,7 @@ import PageHeader from "./PageHeader"
 import FilterSidebar from "./FilterSidebar"
 import SortBar, { type SortKey } from "./SortBar"
 import ProductGrid from "../../components/Product/ProductGrid"
+import ProductGridSkeleton from "../../components/Product/ProductGridSkeleton"
 import Pagination from "../../components/Pagination/Pagination"
 
 // ====================== MAIN PAGE ======================
@@ -239,12 +240,7 @@ export default function CategoryPage() {
 
           <div className="mt-6">
             {isLoading ? (
-              <div className="py-20 text-center">
-                 <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-current border-r-transparent align-[-0.125em] motion-reduce:animate-[spin_1.5s_linear_infinite]" role="status">
-                    <span className="!absolute !-m-px !h-px !w-px !overflow-hidden !whitespace-nowrap !border-0 !p-0 ![clip:rect(0,0,0,0)]">Loading...</span>
-                 </div>
-                 <p className="mt-2 text-gray-500">Loading products...</p>
-              </div>
+              <ProductGridSkeleton count={pageSize} />
             ) : error ? (
               <div className="py-20 text-center text-red-500 bg-red-50 rounded-xl border border-red-100">
                 {error}
