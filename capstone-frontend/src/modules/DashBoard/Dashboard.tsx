@@ -35,11 +35,11 @@ export default function Dashboard() {
     <div className="flex flex-col items-center w-full max-w-7xl mx-auto py-3 px-4 sm:px-6 gap-2">
       {/* Header Section */}
       <div className="flex flex-col items-center text-center">
-        <p className="text-description text-gray-400 mb-1">
-          Hi <span className="text-[#FF4616] font-bold">{name || "NITCHAN KONKIT"}</span> ! Welcome to
+        <p className="text-description text-black mb-1">
+          Hi <span className="text-orange-500 font-bold">{name}!</span> Welcome to
         </p>
         <h1 className="text-header font-black text-gray-900 tracking-tight">
-          KMALL - KMUTT Marketplace
+          KMALL - <span className="text-orange-500">KMUTT Marketplace</span>
         </h1>
       </div>
 
