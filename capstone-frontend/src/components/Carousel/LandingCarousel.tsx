@@ -24,7 +24,7 @@ export default function LandingCarousel() {
   const trackRef = useRef<HTMLDivElement>(null)
 
   // Auto-scrolling logic
-  useAnimationFrame((t, delta) => {
+  useAnimationFrame((_, delta) => {
     if (isPaused || isDragging) return
 
     // Move left continuously
