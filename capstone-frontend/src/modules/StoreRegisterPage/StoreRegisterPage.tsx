@@ -243,6 +243,7 @@ export default function StoreRegisterPage() {
                 onChange={(e) => setName(e.target.value)}
                 maxLength={100}
                 error={errors.name}
+                required
               />
             </div>
  
@@ -257,6 +258,7 @@ export default function StoreRegisterPage() {
                 maxLength={255}
                 error={errors.description}
                 className="resize-none"
+                required
               />
             </div>
  
