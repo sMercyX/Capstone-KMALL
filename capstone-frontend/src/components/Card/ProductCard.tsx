@@ -12,7 +12,7 @@ export default function ProductCard({ product }: ProductCardProps) {
   return (
     <Link
       to={`/product/${product.id}`}
-      className="group block overflow-hidden rounded-lg bg-white shadow-md transition-shadow duration-300 cursor-pointer hover:shadow-lg hover:scale-105 transition duration-300"
+      className="group block overflow-hidden rounded-lg bg-white shadow-md transition duration-300 cursor-pointer hover:shadow-lg hover:scale-105 hover:border hover:border-orange-500 "
     >
       {/* Image - fixed 200px height */}
       <div className="relative h-[200px] overflow-hidden rounded-lg rounded-b-none">
