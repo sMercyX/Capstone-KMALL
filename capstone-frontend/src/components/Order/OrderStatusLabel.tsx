@@ -1,5 +1,5 @@
 import React from "react"
-import { Check, Loader2, X, Clock, Package } from "lucide-react"
+import { Check, Loader2, X, Package } from "lucide-react"
 import { FaBiking } from "react-icons/fa"
 
 interface OrderStatusLabelProps {

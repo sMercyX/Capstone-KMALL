@@ -599,7 +599,6 @@ export function StoreAddEditTab() {
           try {
             const resImages = await bulkUploadProductImages(newProductId, productFiles, optionValueFiles)
             const uploadedImages = resImages.data.product_images || []
-            const newMain = uploadedImages.find(img => img.is_primary) // unlikely to be pre-set by backend
 
             // Reordered logic: the first one in productFiles is the main one if images[0].file exists
             const intendedMain = images[mainIndex]

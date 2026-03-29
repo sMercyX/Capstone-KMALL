@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react"
 import { useNavigate } from "react-router-dom"
 import { useOrderSellerApi, type OrderStatusGroup, type orderSellerResponse } from "../../../api/orderSellerApi"
-import { Loader2, Search } from "lucide-react"
+import { Loader2 } from "lucide-react"
 import { getAllLocations, type CampusLocation } from "../../../api/campusLocationApi"
 import { useStoreStore } from "../../../stores/storeStore"
 import { format, parseISO } from "date-fns"
