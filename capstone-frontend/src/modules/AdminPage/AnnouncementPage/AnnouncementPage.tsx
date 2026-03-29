@@ -7,7 +7,7 @@ import ConfirmationModal from "../../../components/Modal/ConfirmationModal"
 import { Input } from "../../../components/Input/Input"
 import { Textarea } from "../../../components/Input/Textarea"
 import PaginationBackend from "../../../components/Pagination/PaginationBackend"
-import SearchInput from "../../../components/Admin/SearchInput"
+import SearchInput from "../../../components/Input/SearchInput"
 
 type TargetRole = "buyer" | "seller" | "admin"
 

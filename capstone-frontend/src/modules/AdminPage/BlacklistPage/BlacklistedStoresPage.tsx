@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react"
 import { Loader2 } from "lucide-react"
-import SearchInput from "../../../components/Admin/SearchInput"
+import SearchInput from "../../../components/Input/SearchInput"
 import { useBlacklistApi, type BlacklistItem } from "../../../api/blacklistApi"
 import { format } from "date-fns"
 import { MdBlockFlipped } from "react-icons/md"

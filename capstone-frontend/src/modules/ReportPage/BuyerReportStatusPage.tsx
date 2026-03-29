@@ -1,10 +1,9 @@
 import { useState, useEffect } from "react"
-import { FiSearch } from "react-icons/fi"
 import { FaCheck, FaTimes } from "react-icons/fa"
 import { Loader2 } from "lucide-react"
+import SearchInput from "../../components/Input/SearchInput"
 import SwitchTabs, { type SwitchTabItem } from "../../components/SwitchTabs/SwitchTabs"
 import { format } from "date-fns"
-import BackButton from "../../components/Buttons/BackButton"
 import { useReportApi, type ReportResponse, type MyReportAdminAction } from "../../api/reportApi"
 import ReportResultModal from "../../components/Modal/ReportResultModal"
 
@@ -22,7 +21,22 @@ export default function BuyerReportStatusPage() {
   const [activeTab, setActiveTab] = useState<TabKey>("ALL")
   const [reports, setReports] = useState<ReportResponse[]>([])
   const [loading, setLoading] = useState(true)
+  
+  // Search state
   const [searchQuery, setSearchQuery] = useState("")
+  const [debouncedQuery, setDebouncedQuery] = useState("")
+  const [isSearching, setIsSearching] = useState(false)
+
+  // Debounce search query
+  useEffect(() => {
+    setIsSearching(true)
+    const timer = setTimeout(() => {
+      setDebouncedQuery(searchQuery)
+      setPage(1) // Reset to first page on search
+      setIsSearching(false)
+    }, 500)
+    return () => clearTimeout(timer)
+  }, [searchQuery])
 
   const [page, setPage] = useState(1)
   const [totalPages, setTotalPages] = useState(1)
@@ -41,7 +55,7 @@ export default function BuyerReportStatusPage() {
         status: activeTab === "ALL" ? undefined : activeTab,
         limit,
         page,
-        q: searchQuery || undefined
+        q: debouncedQuery || undefined
       })
       if (res.code === 200 && res.data) {
         setReports(res.data.items || [])
@@ -56,14 +70,8 @@ export default function BuyerReportStatusPage() {
 
   useEffect(() => {
     fetchReports()
-  }, [activeTab, page])
+  }, [activeTab, page, debouncedQuery])
 
-  const handleSearch = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === "Enter") {
-      setPage(1)
-      fetchReports()
-    }
-  }
 
   const handleRowClick = async (report: ReportResponse) => {
     if (report.status !== "RESOLVED" && report.status !== "CLOSED") return
@@ -127,10 +135,8 @@ export default function BuyerReportStatusPage() {
 
   return (
     <div className="max-w-6xl mx-auto py-10 px-4 relative">
-      <BackButton className="absolute left-4 top-10" />
-
       {/* Title */}
-      <h1 className="text-center text-3xl md:text-4xl font-extrabold tracking-wide text-gray-800 mb-8">
+      <h1 className="text-center text-3xl md:text-4xl font-extrabold tracking-wide text-gray-800 mb-6">
         MY REPORT STATUS
       </h1>
 
@@ -143,34 +149,24 @@ export default function BuyerReportStatusPage() {
           setActiveTab(k as TabKey)
           setPage(1)
         }}
-        className="mb-8 pb-4 overflow-x-auto"
+        className="mb-6"
       />
 
       {/* Main Container */}
-      <div className="text-left mb-6">
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
         <h2 className="text-lg md:text-xl font-bold text-gray-800">
           Click to view report details
         </h2>
+        <SearchInput
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          placeholder="Search by report ID or reason..."
+          isSearching={isSearching}
+          containerClassName="w-full md:w-72"
+        />
       </div>
 
       <div className="bg-white rounded-3xl p-6 shadow-sm border border-gray-100 min-h-[500px] flex flex-col overflow-hidden">
-        {/* Search */}
-        <div className="flex justify-end mb-6">
-          <div className="relative w-full md:w-72">
-            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">
-              <FiSearch size={18} />
-            </span>
-            <input
-              type="text"
-              placeholder="Enter Report ID to Search"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              onKeyDown={handleSearch}
-              className="pl-10 pr-4 py-2 border border-gray-100 rounded-lg w-full focus:outline-none focus:ring-1 focus:ring-primary shadow-sm text-sm"
-              style={{ background: "#fbfbfb" }}
-            />
-          </div>
-        </div>
 
         {/* Table Content */}
         <div className="overflow-x-auto">
@@ -195,7 +191,7 @@ export default function BuyerReportStatusPage() {
                   No reports found.
                 </div>
               ) : (
-                reports.map((r) => {
+                reports.map((r: ReportResponse) => {
                   const isClickable = r.status === "RESOLVED" || r.status === "CLOSED"
                   return (
                     <div

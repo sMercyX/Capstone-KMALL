@@ -5,7 +5,7 @@ import { Loader2 } from "lucide-react"
 import { getAllLocations, type CampusLocation } from "../../../api/campusLocationApi"
 import { useStoreStore } from "../../../stores/storeStore"
 import { format, parseISO } from "date-fns"
-import SearchInput from "../../../components/Admin/SearchInput"
+import SearchInput from "../../../components/Input/SearchInput"
 import OrderStatusLabel from "../../../components/Order/OrderStatusLabel"
 
 type TabKey = "active" | "completed" | "cancelled"

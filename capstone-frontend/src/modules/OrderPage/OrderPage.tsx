@@ -2,11 +2,11 @@
 import { useEffect, useState } from "react"
 import { useLocation, useNavigate } from "react-router-dom"
 import { Loader2 } from "lucide-react"
-import BackButton from "../../components/Buttons/BackButton"
 import SwitchTabs, {
   type SwitchTabItem,
 } from "../../components/SwitchTabs/SwitchTabs"
 import Pagination from "../../components/Pagination/Pagination"
+import SearchInput from "../../components/Input/SearchInput"
 
 
 import { useOrderStore, type OrderTabKey } from "../../stores/orderStore"
@@ -73,6 +73,22 @@ export default function OrderPage() {
 
   const { getOrdersByStatus } = useOrderApi()
   const [locations, setLocations] = useState<CampusLocation[]>([])
+  
+  // Search state
+  const [searchQuery, setSearchQuery] = useState("")
+  const [debouncedQuery, setDebouncedQuery] = useState("")
+  const [isSearching, setIsSearching] = useState(false)
+
+  // Debounce search query
+  useEffect(() => {
+    setIsSearching(true)
+    const timer = setTimeout(() => {
+      setDebouncedQuery(searchQuery)
+      setPage(1) // Reset to first page on search
+      setIsSearching(false)
+    }, 500)
+    return () => clearTimeout(timer)
+  }, [searchQuery, setPage])
 
   // Load locations once
   useEffect(() => {
@@ -105,7 +121,7 @@ export default function OrderPage() {
     setError(null)
     ;(async () => {
       try {
-        const res = await getOrdersByStatus(group, 5, page)
+        const res = await getOrdersByStatus(group, 5, page, debouncedQuery)
         if (!isCancelled) {
           if (res.code === 200 && res.data) {
             setOrders(res.data)
@@ -124,12 +140,10 @@ export default function OrderPage() {
       isCancelled = true
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeKey, page]) // เพื่ม page เข้าไปเพื่อให้โหลดใหม่เมื่อหน้าเปลี่ยน
+  }, [activeKey, page, debouncedQuery]) // เพื่ม page และ debouncedQuery เข้าไปเพื่อให้โหลดใหม่
 
   return (
     <div className="max-w-6xl mx-auto py-10 px-4 relative">
-      <BackButton className="absolute left-4 top-10" />
-
       {/* Title */}
       <div className="text-center mb-6">
         <h1 className="text-3xl md:text-4xl font-extrabold tracking-wide text-gray-800">
@@ -158,10 +172,17 @@ export default function OrderPage() {
         className="mb-6"
       />
 
-      <div className="text-left mb-6">
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
         <h2 className="text-lg md:text-xl font-bold text-gray-800">
           Click to view order details
         </h2>
+        <SearchInput
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          placeholder="Search store name or order ID..."
+          isSearching={isSearching}
+          containerClassName="w-full md:w-72"
+        />
       </div>
 
       <div className="bg-white rounded-3xl p-6 shadow-sm border border-gray-100 min-h-[500px] flex flex-col">

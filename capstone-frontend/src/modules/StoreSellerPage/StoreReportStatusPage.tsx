@@ -4,7 +4,7 @@ import { useReportApi, type ReportResponse, type MyReportAdminAction } from "../
 import { format } from "date-fns"
 import { Loader2 } from "lucide-react"
 import ReportResultModal from "../../components/Modal/ReportResultModal"
-import SearchInput from "../../components/Admin/SearchInput"
+import SearchInput from "../../components/Input/SearchInput"
 
 type TabKey = "ALL" | "PENDING" | "RESOLVED" | "CLOSED"
 

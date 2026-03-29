@@ -2,7 +2,7 @@ import { useEffect, useState, useCallback, useRef } from "react"
 import { useReportApi, type ReportResponse } from "../../api/reportApi"
 import { format } from "date-fns"
 import { FaChevronLeft, FaChevronRight, FaCheck, FaTimes } from "react-icons/fa"
-import SearchInput from './SearchInput'
+import SearchInput from '../Input/SearchInput'
 import { useNavigate } from "react-router-dom"
 import { Loader2 } from "lucide-react"
 

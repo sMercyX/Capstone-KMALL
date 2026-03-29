@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom"
 import { Plus } from "lucide-react"
 import { useCatagoriesApi, type CatagoriesResponse } from "../../../api/catagoriesApi"
 import { resolveImageUrl } from "../../../utils/resolve"
-import SearchInput from "../../../components/Admin/SearchInput"
+import SearchInput from "../../../components/Input/SearchInput"
 import CategorySkeleton from "./CategorySkeleton"
 
 interface CategoryData {

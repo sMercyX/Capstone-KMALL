@@ -38,9 +38,11 @@ export function useOrderApi() {
   async function getOrdersByStatus(
     path: OrderStatusGroup,
     limit: number = 10,
-    page: number = 1
+    page: number = 1,
+    q: string = ""
   ): Promise<ApiResponse<PaginatedOrderResponse>> {
-    return http.getItems(`/orders?status_group=${path}&limit=${limit}&page=${page}`)
+    const searchParam = q ? `&q=${encodeURIComponent(q)}` : ""
+    return http.getItems(`/orders?status_group=${path}&limit=${limit}&page=${page}${searchParam}`)
   }
 
   return { getOrdersByStatus }
