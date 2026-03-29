@@ -365,7 +365,7 @@ export default function ChatPage() {
         
         {/* Back Button */}
         {/* Back Button */}
-        <BackButton className="mb-4" />
+        <BackButton className="mb-4" to={ isSeller ? `/store/orders/${orderId}` : `/orders/${orderId}`} />
 
         {/* Top Header Section (Outside Box) */}
         <div className="mb-6 text-center">
