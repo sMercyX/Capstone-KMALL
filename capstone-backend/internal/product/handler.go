@@ -53,10 +53,13 @@ func (h *Handler) Register(r *gin.RouterGroup) {
 		// Option keys
 		auth.POST("/:id/options", h.createOptionKey)
 		auth.DELETE("/:id/options/:keyId", h.deleteOptionKey)
+		auth.PATCH("/:id/options/:keyId/image-key", h.setOptionKeyImageKey)
 
 		// Option values
 		auth.POST("/:id/options/:keyId/values", h.createOptionValue)
 		auth.DELETE("/:id/options/:keyId/values/:valueId", h.deleteOptionValue)
+		auth.PUT("/:id/options/:keyId/values/:valueId/image", h.setOptionValueImage)
+		auth.DELETE("/:id/options/:keyId/values/:valueId/image", h.deleteOptionValueImage)
 
 		// Variants
 		auth.POST("/:id/variants", h.createVariants)
@@ -64,10 +67,6 @@ func (h *Handler) Register(r *gin.RouterGroup) {
 		auth.PATCH("/:id/variants/bulk", h.updateVariantsBulk)
 		auth.PATCH("/:id/variants/:variantId/stock", h.updateVariantStock)
 		auth.DELETE("/:id/variants/:variantId", h.deleteVariant)
-
-		auth.PATCH("/:id/options/:keyId/image-key", h.setOptionKeyImageKey)
-		auth.PUT("/:id/options/:keyId/values/:valueId/image", h.setOptionValueImage)
-		auth.DELETE("/:id/options/:keyId/values/:valueId/image", h.deleteOptionValueImage)
 	}
 
 	// /api/stores/:id/products

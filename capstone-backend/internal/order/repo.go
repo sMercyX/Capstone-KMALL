@@ -451,7 +451,7 @@ func (r *repo) ListByUserID(ctx context.Context, userID string, statuses []strin
 			o.delivery_method, o.delivery_address_id, o.campus_location_id, o.campus_detail_note,
 			o.proposed_at, o.meeting_location_id, o.meeting_note
 	` + base + `
-		ORDER BY o.order_date DESC
+		ORDER BY o.order_date DESC, o.order_id DESC
 		LIMIT $` + strconv.Itoa(argIdx) + ` OFFSET $` + strconv.Itoa(argIdx+1)
 
 	args = append(args, limit, offset)
@@ -517,7 +517,7 @@ func (r *repo) ListByStoreID(ctx context.Context, storeID int64, statuses []stri
 			o.delivery_method, o.delivery_address_id, o.campus_location_id, o.campus_detail_note,
 			o.proposed_at, o.meeting_location_id, o.meeting_note
 	` + base + `
-		ORDER BY o.order_date DESC
+		ORDER BY o.order_date DESC, o.order_id DESC
 		LIMIT $` + strconv.Itoa(argIdx) + ` OFFSET $` + strconv.Itoa(argIdx+1)
 
 	args = append(args, limit, offset)
