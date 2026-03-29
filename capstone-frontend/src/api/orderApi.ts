@@ -1,4 +1,4 @@
-// src/api/storeApi.ts
+// src/api/orderApi.ts
 import { useCrudApi } from "../utils/fetch"
 import type { ApiResponse } from "./responseType"
 
@@ -18,6 +18,9 @@ export interface orderData {
   cancelled_at: string
   user_id: string
   store_id: number
+  delivery_method: string
+  delivery_fee: number
+  delivery_address_id?: number
   campus_location_id?: number
 }
 export interface orderResponse {
