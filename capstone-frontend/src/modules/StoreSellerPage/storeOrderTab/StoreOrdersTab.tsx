@@ -1,33 +1,20 @@
-// src/modules/StoreSellerPage/storeOrderTab/StoreOrdersTab.tsx
-import { useEffect, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { useNavigate } from "react-router-dom"
-import SwitchTabs, { type SwitchTabItem } from "../../../components/SwitchTabs/SwitchTabs"
 import { useOrderSellerApi, type OrderStatusGroup, type orderSellerResponse } from "../../../api/orderSellerApi"
-import { Loader2 } from "lucide-react"
-import OrderListItem, { type OrderStatusContext } from "../../../components/Order/OrderListItem"
+import { Loader2, Search } from "lucide-react"
 import { getAllLocations, type CampusLocation } from "../../../api/campusLocationApi"
 import { useStoreStore } from "../../../stores/storeStore"
-import Pagination from "../../../components/Pagination/Pagination"
+import { format, parseISO } from "date-fns"
+import { FaCheck, FaTimes } from "react-icons/fa"
+import SearchInput from "../../../components/Admin/SearchInput"
 
-const TABS: SwitchTabItem[] = [
-  { key: "active", label: "ON GOING" },
-  { key: "completed", label: "COMPLETED" },
-  { key: "cancelled", label: "CANCELED/FAILED" },
+type TabKey = "active" | "completed" | "cancelled"
+
+const tabs: { label: string; key: TabKey }[] = [
+  { label: "On Going", key: "active" },
+  { label: "Completed", key: "completed" },
+  { label: "Canceled/Failed", key: "cancelled" }
 ]
-
-function OrderListHeader() {
-  return (
-    <div className="flex items-center justify-between px-6 pb-2 text-xs text-gray-400 font-light">
-      <div className="w-[10%] min-w-[60px]">No.</div>
-      <div className="w-[20%]">Buyer</div>
-      <div className="w-[20%]">Order Date</div>
-      <div className="w-[15%]">Pickup Location</div>
-      <div className="w-[15%]">Total</div>
-      <div className="w-[10%] text-center">Status</div>
-      <div className="w-[10%]"></div>
-    </div>
-  )
-}
 
 export default function StoreOrdersTab() {
   const store = useStoreStore((s) => s.store)
@@ -36,142 +23,246 @@ export default function StoreOrdersTab() {
   
   const { getOrdersSellerByStatus } = useOrderSellerApi()
   
-  const [activeTab, setActiveTab] = useState<string>("active")
+  const [activeTab, setActiveTab] = useState<TabKey>("active")
   const [orders, setOrders] = useState<orderSellerResponse[]>([])
   const [loading, setLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
   const [locations, setLocations] = useState<CampusLocation[]>([])
+
+  const [searchQuery, setSearchQuery] = useState("")
+  const [searchQueryDebounced, setSearchQueryDebounced] = useState("")
+  const debounceRef = useRef<ReturnType<typeof setTimeout>>(undefined)
 
   const [page, setPage] = useState(1)
   const [totalPages, setTotalPages] = useState(1)
+  const limit = 5
 
   // Load locations
   useEffect(() => {
     getAllLocations().then(setLocations).catch(console.error)
   }, [])
 
-  // Reset page when tab changes via state instead of URL sync
-  const handleTabChange = (key: string) => {
-    if (key !== activeTab) {
-      setActiveTab(key)
-      setPage(1)
-    }
-  }
-
   // Fetch orders
   useEffect(() => {
     if (!storeId) return
     
-    let isMounted = true
     setLoading(true)
-    setError(null)
-
-    getOrdersSellerByStatus(storeId, activeTab as OrderStatusGroup, 5, page)
+    getOrdersSellerByStatus(storeId, activeTab as OrderStatusGroup, limit, page, searchQueryDebounced)
       .then(res => {
-        if (isMounted) {
-            if (res.code === 200 && res.data) {
-              setOrders(res.data.items || [])
-              setTotalPages(Math.max(1, Math.ceil((res.data.total || 0) / (res.data.pageSize || 5))))
-            } else {
-              setOrders([])
-              setTotalPages(1)
-            }
+        if (res.code === 200 && res.data) {
+          setOrders(res.data.items || [])
+          setTotalPages(Math.max(1, Math.ceil((res.data.total || 0) / limit)))
+        } else {
+          setOrders([])
+          setTotalPages(1)
         }
       })
       .catch(err => {
-        if (isMounted) {
-          console.error(err)
-          setError("Failed to load orders")
-        }
+        console.error(err)
+        setOrders([])
       })
       .finally(() => {
-        if (isMounted) setLoading(false)
+        setLoading(false)
       })
+  }, [storeId, activeTab, page, searchQueryDebounced])
 
-    return () => { isMounted = false }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [storeId, activeTab, page])
+  const handleSearch = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "Enter") {
+      if (debounceRef.current) clearTimeout(debounceRef.current)
+      setSearchQueryDebounced(searchQuery)
+      setPage(1)
+    }
+  }
 
-  const getContext = (): OrderStatusContext => {
-    if (activeTab === "completed") return "completed"
-    if (activeTab === "cancelled") return "canceled"
-    return "ongoing"
+  const renderStatus = (status: string) => {
+    const s = status.toLowerCase()
+    if (s.includes("pending") || s.includes("proposed")) {
+      return (
+        <div className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-full text-[#8e7314] text-xs font-semibold bg-[#fad450] w-full max-w-[130px] whitespace-nowrap">
+          <Loader2 className="animate-spin flex-shrink-0" size={14} />
+          Pending
+        </div>
+      )
+    }
+    if (s.includes("accepted") || s.includes("ready") || s.includes("delivery") || s.includes("completed") || s.includes("arrived")) {
+       const isCompleted = s.includes("completed")
+       return (
+        <div className={`inline-flex items-center justify-center gap-2 px-5 py-2 rounded-full text-white text-xs font-semibold w-full max-w-[130px] whitespace-nowrap ${isCompleted ? "bg-[#63c063]" : "bg-blue-500"}`}>
+          <FaCheck size={12} />
+          {isCompleted ? "Completed" : "On Going"}
+        </div>
+      )
+    }
+    if (s.includes("cancelled")) {
+      return (
+        <div className="inline-flex items-center justify-center gap-2 px-5 py-2 rounded-full text-white text-xs font-semibold bg-[#f05252] w-full max-w-[130px] whitespace-nowrap">
+          <FaTimes size={12} />
+          Cancelled
+        </div>
+      )
+    }
+    return (
+      <div className="inline-flex items-center justify-center px-4 py-2 rounded-full text-gray-700 bg-gray-200 text-xs font-medium w-full max-w-[130px] whitespace-nowrap">
+        {status}
+      </div>
+    )
   }
 
   return (
-    <div>
-      {/* Title */}
-      <div className="text-center mb-6">
-        <h1 className="text-3xl md:text-4xl font-extrabold tracking-wide text-gray-800">
-          MY ORDER{" "}
-          <span
-            className={
-              activeTab === "active"
-                ? "text-orange-400"
-                : activeTab === "completed"
-                ? "text-green-500"
-                : "text-red-500"
-            }
-          >
-            {activeTab === "active"
-              ? "ON GOING"
-              : activeTab === "completed"
-              ? "COMPLETED"
-              : "CANCELED"}
-          </span>
-        </h1>
-      </div>
-
-      <div className="mb-6">
-        <SwitchTabs 
-          tabs={TABS} 
-          useNavLink={false}
-          activeKey={activeTab}
-          onChange={handleTabChange}
+    <div className="w-full">
+      {/* Header */}
+      <div className="mb-6 flex flex-col md:flex-row md:items-start justify-between gap-4">
+        <div>
+          <div className="text-gray-400 text-sm mb-2 font-medium">
+            Orders &gt; <span className="text-gray-600">Order Management</span>
+          </div>
+          <h1 className="text-3xl font-bold text-gray-900">
+            Order Management
+          </h1>
+          <p className="text-gray-500 text-sm mt-1">
+            Manage and track all customer orders and their current status.
+          </p>
+        </div>
+        <SearchInput
+          placeholder="Enter Order ID or Buyer Name"
+          value={searchQuery}
+          onChange={(e) => {
+            const val = e.target.value
+            setSearchQuery(val)
+            if (debounceRef.current) clearTimeout(debounceRef.current)
+            debounceRef.current = setTimeout(() => {
+              setSearchQueryDebounced(val)
+              setPage(1)
+            }, 400)
+          }}
+          onKeyDown={handleSearch}
+          containerClassName="mt-2 md:mt-6 w-full md:w-80"
         />
       </div>
 
-      <div className="bg-white rounded-3xl p-6 shadow-sm border border-gray-100 min-h-[500px]">
-        <OrderListHeader />
+      {/* Main Card */}
+      <div className="bg-white rounded-xl shadow-sm border border-gray-100 mt-4 overflow-hidden">
+        {/* Tabs inside Card */}
+        <div className="flex items-center justify-between px-6 border-b border-gray-100">
+          <div className="flex gap-6 pt-4">
+            {tabs.map((tab) => (
+              <button
+                key={tab.key}
+                onClick={() => {
+                  setActiveTab(tab.key)
+                  setPage(1)
+                }}
+                className={`pb-4 px-1 whitespace-nowrap font-medium text-sm transition-colors border-b-2 relative top-[1px] ${
+                  activeTab === tab.key
+                    ? "text-[#ff5a36] border-[#ff5a36]"
+                    : "text-gray-400 border-transparent hover:text-gray-600 cursor-pointer"
+                }`}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </div>
 
-        <div className="space-y-1 mt-2">
-          {loading && (
-            <div className="flex justify-center py-10">
-              <Loader2 className="w-8 h-8 animate-spin text-orange-500" />
+          {/* Top Pagination */}
+          {totalPages > 0 && (
+            <div className="flex items-center gap-4 pt-1">
+              <span className="text-sm font-bold text-gray-800">
+                <span className="text-[#ff5a36]">{page}</span>
+                <span className="text-gray-300 mx-1">/</span>
+                <span className="text-gray-400">{totalPages}</span>
+              </span>
+              <div className="flex gap-1">
+                <button 
+                  onClick={() => setPage(p => Math.max(1, p - 1))}
+                  disabled={page === 1}
+                  className="w-8 h-8 flex items-center justify-center rounded-lg border border-gray-200 text-gray-400 hover:bg-gray-50 hover:text-gray-600 disabled:opacity-30 disabled:hover:bg-transparent transition-all cursor-pointer"
+                >
+                  <span className="text-lg">&lt;</span>
+                </button>
+                <button 
+                  onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+                  disabled={page === totalPages}
+                  className="w-8 h-8 flex items-center justify-center rounded-lg border border-gray-200 text-gray-400 hover:bg-gray-50 hover:text-gray-600 disabled:opacity-30 disabled:hover:bg-transparent transition-all cursor-pointer"
+                >
+                  <span className="text-lg">&gt;</span>
+                </button>
+              </div>
             </div>
           )}
-
-          {error && <div className="text-center text-red-500 py-10">{error}</div>}
-
-          {!loading && !error && orders.length === 0 && (
-             <div className="text-center text-gray-500 py-10">No orders found</div>
-          )}
-
-          {!loading && !error && orders.map((item, idx) => (
-            <OrderListItem
-              key={item.order.id}
-              orderId={item.order.id}
-              index={(page - 1) * 5 + idx}
-              date={item.order.order_date}
-              totalPrice={item.order.total_price}
-              status={item.order.status}
-              title={item.buyer_display_name}
-              locationId={item.order.campus_location_id}
-              locations={locations}
-              context={getContext()}
-              isSeller={true}
-              onClick={() => navigate(`/store/orders/${item.order.id}`)}
-            />
-          ))}
         </div>
-        
-        {!error && totalPages > 1 && (
-          <Pagination
-            currentPage={page}
-            totalPages={totalPages}
-            onPageChange={setPage}
-          />
-        )}
+
+        {/* Content */}
+        <div className="p-6">
+          <div className="overflow-x-auto">
+            <div className="min-w-[900px]">
+              {/* Table Header */}
+              <div className="grid grid-cols-12 gap-4 bg-[#fbfaf8] border border-gray-200 rounded-lg px-6 py-4 text-sm font-medium text-gray-600 mb-3">
+                <div className="col-span-1">Order ID</div>
+                <div className="col-span-2">Buyer Name</div>
+                <div className="col-span-2">Order Date / Time</div>
+                <div className="col-span-3">Pickup Location</div>
+                <div className="col-span-1">Total Amount</div>
+                <div className="col-span-2 text-center">Order Status</div>
+                <div className="col-span-1 text-center"></div>
+              </div>
+
+              {/* Table Body */}
+              <div className="space-y-3">
+                {loading ? (
+                  <div className="py-12 flex justify-center text-[#ff5a36]">
+                    <Loader2 className="animate-spin" size={32} />
+                  </div>
+                ) : orders.length === 0 ? (
+                  <div className="py-12 text-center text-gray-400 border border-gray-200 rounded-lg bg-white">
+                    No orders found.
+                  </div>
+                ) : (
+                  orders.map((item) => {
+                    const loc = locations.find(l => l.id === item.order.campus_location_id)
+                    return (
+                      <div
+                        key={item.order.id}
+                        onClick={() => navigate(`/store/orders/${item.order.id}`)}
+                        className="grid grid-cols-12 gap-4 items-center bg-white border border-gray-200 rounded-lg px-6 py-4 shadow-[0_1px_2px_rgba(0,0,0,0.02)] transition-all hover:border-[#ff5a36] group cursor-pointer"
+                      >
+                        <div className="col-span-1 flex items-center">
+                           <span className="text-gray-400 text-sm font-bold">#{item.order.id}</span>
+                        </div>
+                        <div 
+                           className="col-span-2 text-gray-800 text-sm font-bold truncate group-hover:text-[#ff5a36]"
+                        >
+                          {item.buyer_display_name}
+                        </div>
+                        <div className="col-span-2 text-gray-500 text-sm italic">
+                          {item.order.proposed_at ? format(parseISO(item.order.proposed_at), "dd MMM yyyy, p") : "-"}
+                        </div>
+                        <div className="col-span-3 text-gray-600 text-sm truncate pr-4" title={loc?.name || "-"}>
+                          {loc?.name || "-"}
+                        </div>
+                        <div className="col-span-1 text-gray-800 text-sm text-center font-bold">
+                          {item.order.total_price.toLocaleString()} ฿
+                        </div>
+                        <div className="col-span-2 flex items-center justify-center gap-6">
+                          {renderStatus(item.order.status)}
+                         
+                        </div>
+                        <button 
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              navigate(`/store/orders/${item.order.id}/chat`);
+                            }}
+                            className="text-gray-900 text-sm font-bold hover:text-[#ff5a36] underline underline-offset-4 cursor-pointer"
+                          >
+                            Chat
+                          </button>
+                      </div>
+                    )
+                  })
+                )}
+              </div>
+            </div>
+          </div>
+
+        </div>
       </div>
     </div>
   )

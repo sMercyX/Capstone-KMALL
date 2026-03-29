@@ -150,11 +150,12 @@ export function useOrderSellerApi() {
     store_id: number,
     status: OrderStatusGroup,
     limit: number = 10,
-    page: number = 1
+    page: number = 1,
+    q?: string
   ): Promise<PaginatedResponse<orderSellerResponse>> {
-    return http.getItems(
-      `/stores/${store_id}/orders?status_group=${status}&limit=${limit}&page=${page}`
-    )
+    let url = `/stores/${store_id}/orders?status_group=${status}&limit=${limit}&page=${page}`
+    if (q) url += `&q=${encodeURIComponent(q)}`
+    return http.getItems(url)
   }
 
   async function getOrderDetail(
