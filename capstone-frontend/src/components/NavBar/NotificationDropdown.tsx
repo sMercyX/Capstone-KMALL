@@ -186,7 +186,7 @@ export default function NotificationDropdown({
       // Navigate to report status page
       // Sellers go to their dashboard report tab, buyers go to general reports
       if (isSeller || roles?.some(r => r.toLowerCase() === 'seller')) {
-        navigate("/store/report")
+        window.open(window.location.origin + "/store/report", "_blank")
       } else {
         navigate("/reports")
       }
@@ -194,11 +194,10 @@ export default function NotificationDropdown({
     }
 
     if (isSeller) {
-      navigate(
-        isChat
-          ? `/store/orders/${n.order_id}/chat`
-          : `/store/orders/${n.order_id}`
-      )
+      const path = isChat
+        ? `/store/orders/${n.order_id}/chat`
+        : `/store/orders/${n.order_id}`
+      window.open(window.location.origin + path, "_blank")
     } else {
       navigate(isChat ? `/orders/${n.order_id}/chat` : `/orders/${n.order_id}`)
     }
