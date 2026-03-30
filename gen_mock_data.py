@@ -383,7 +383,7 @@ def get_existing_sellers(cur) -> List[Dict[str, Any]]:
     """ดึง seller ที่มีอยู่ใน DB ทั้งหมด"""
     cur.execute(
         """
-        SELECT DISTINCT u.user_id, u.kms_id
+        SELECT DISTINCT u.user_id, u.kms_id, u.display_name
         FROM users u
         JOIN user_roles ur ON ur.user_id = u.user_id
         JOIN roles r ON r.role_id = ur.role_id
@@ -398,7 +398,7 @@ def get_sellers_by_kms_ids(cur, kms_ids: List[str]) -> List[Dict[str, Any]]:
     """ดึง seller ตาม kms_id ที่ระบุ"""
     cur.execute(
         """
-        SELECT DISTINCT u.user_id, u.kms_id
+        SELECT DISTINCT u.user_id, u.kms_id, u.display_name
         FROM users u
         JOIN user_roles ur ON ur.user_id = u.user_id
         JOIN roles r ON r.role_id = ur.role_id
@@ -652,10 +652,10 @@ def gen_desc_by_kind(kind: str) -> str:
     return mapping.get(kind, f"{pick(ADJ)} handmade item, made from {m}, {bit}.")
 
 
-def gen_price(domain: str) -> float:
-    if domain == "food":     return round(random.uniform(25,  120), 2)
-    if domain == "clothing": return round(random.uniform(99,  799), 2)
-    return                          round(random.uniform(29,  399), 2)
+def gen_price(domain: str) -> int:
+    if domain == "food":     return random.randint(25,  120)
+    if domain == "clothing": return random.randint(99,  799)
+    return                          random.randint(29,  399)
 
 
 # =============================
@@ -753,10 +753,11 @@ def main():
             # ── stores (1 store ต่อ 1 seller) ────────────────
             stores: List[Dict[str, Any]] = []
             for idx, s in enumerate(seller_rows, start=1):
-                seller_uid  = str(s["user_id"])
-                seller_kms  = str(s["kms_id"])
-                store_name  = f"Store of {seller_kms}"
-                store_desc  = f"Mock store for {seller_kms} — generated for testing"
+                seller_uid          = str(s["user_id"])
+                seller_kms          = str(s["kms_id"])
+                seller_display_name = str(s["display_name"])
+                store_name  = f"Store of {seller_display_name}"
+                store_desc  = f"Mock store for {seller_display_name} — generated for testing"
 
                 round_uni = rand_bool(0.6)
                 campus    = rand_bool(0.6)
