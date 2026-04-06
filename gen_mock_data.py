@@ -240,8 +240,7 @@ class Args:
     buyers: int
     admins: int
     sellers_mode: str               # "new" | "existing"
-    seller_kms_ids: List[str]
-    skip_users: bool                # ไม่สร้าง buyer/admin ใหม่
+    seller_kms_ids: List[str]       # ← ใหม่
 
     # products
     products: int
@@ -274,8 +273,6 @@ def parse_args() -> Args:
                     help="new=สร้าง seller ใหม่, existing=ใช้ seller ที่มีใน DB (ไม่ระบุ --sellers)")
     ap.add_argument("--seller-kms-ids", type=str, default="",
                     help="kms_id ของ seller ที่ต้องการ คั่นด้วย comma เช่น mock-seller-1,mock-seller-3")
-    ap.add_argument("--skip-users", action="store_true",
-                    help="ไม่สร้าง buyer/admin ใหม่ (ใช้เมื่อต้องการแค่ products)")
 
     # ── products ─────────────────────────────────────────────
     ap.add_argument("--products",           type=int, default=200)
@@ -315,7 +312,6 @@ def parse_args() -> Args:
         admins=ns.admins,
         sellers_mode=ns.sellers_mode,
         seller_kms_ids=parse_list(ns.seller_kms_ids),
-        skip_users=ns.skip_users,
         products=ns.products,
         images_per_product=ns.images_per_product,
         categories=unique_cats,
@@ -707,21 +703,19 @@ def main():
 
             # ── admins ───────────────────────────────────────
             admin_ids: List[str] = []
-            if not args.skip_users:
-                for i in range(args.admins):
-                    kms = f"mock-admin-{i+1}"
-                    uid = create_user(cur, kms, f"{kms}@example.com", f"Mock Admin {i+1}")
-                    add_user_role(cur, uid, role_admin)
-                    admin_ids.append(uid)
+            for i in range(args.admins):
+                kms = f"mock-admin-{i+1}"
+                uid = create_user(cur, kms, f"{kms}@example.com", f"Mock Admin {i+1}")
+                add_user_role(cur, uid, role_admin)
+                admin_ids.append(uid)
 
             # ── buyers ───────────────────────────────────────
             buyer_ids: List[str] = []
-            if not args.skip_users:
-                for i in range(args.buyers):
-                    kms = f"mock-buyer-{i+1}"
-                    uid = create_user(cur, kms, f"{kms}@example.com", f"Mock Buyer {i+1}")
-                    add_user_role(cur, uid, role_buyer)
-                    buyer_ids.append(uid)
+            for i in range(args.buyers):
+                kms = f"mock-buyer-{i+1}"
+                uid = create_user(cur, kms, f"{kms}@example.com", f"Mock Buyer {i+1}")
+                add_user_role(cur, uid, role_buyer)
+                buyer_ids.append(uid)
 
             # ── sellers (3 modes) ────────────────────────────
             seller_rows: List[Dict[str, Any]] = []
