@@ -33,7 +33,6 @@ const MobileMenu: React.FC<MobileMenuProps> = ({
   isCartActive,
   isReportActive,
   isAddressActive,
-  unreadNotifications
 }) => {
   const menuRef = useRef<HTMLDivElement>(null);
   const { name, email, roles } = useUserStore();
@@ -136,7 +135,6 @@ const MobileMenu: React.FC<MobileMenuProps> = ({
             label="My Reports" 
             active={isReportActive}
             onClick={onClose}
-            badge={unreadNotifications > 0 ? unreadNotifications : undefined}
           />
 
           <MenuLink 
@@ -173,10 +171,9 @@ interface MenuLinkProps {
   active?: boolean;
   onClick: () => void;
   external?: boolean;
-  badge?: number;
 }
 
-const MenuLink: React.FC<MenuLinkProps> = ({ to, icon, label, active, onClick, external, badge }) => {
+const MenuLink: React.FC<MenuLinkProps> = ({ to, icon, label, active, onClick, external }) => {
   const content = (
     <div className={`flex items-center justify-between w-full px-4 py-3 rounded-xl transition-all duration-200 ${
       active 
@@ -188,11 +185,6 @@ const MenuLink: React.FC<MenuLinkProps> = ({ to, icon, label, active, onClick, e
         <span className="font-medium">{label}</span>
       </div>
       <div className="flex items-center gap-2">
-        {badge !== undefined && (
-          <span className="bg-red-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full">
-            {badge > 9 ? "9+" : badge}
-          </span>
-        )}
         {!active && <ChevronRight size={16} className="text-gray-300" />}
       </div>
     </div>

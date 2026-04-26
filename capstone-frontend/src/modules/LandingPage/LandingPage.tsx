@@ -13,9 +13,9 @@ const LandingPage = () => {
 
   useEffect(() => {
     if (!ready) return
-    if (user) {
-      navigate("/dashboard", { replace: true })
-    }
+    // if (user) {
+    //   navigate("/dashboard", { replace: true })
+    // }
   }, [ready, user, navigate])
 
   const goLogin = () => {

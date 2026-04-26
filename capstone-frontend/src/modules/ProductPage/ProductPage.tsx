@@ -83,6 +83,7 @@ export default function ProductPage() {
       return
     }
     const variant = product.variants.find(v => 
+      v.is_active &&
       v.selections.every(sel => selectedOptions[sel.key] === sel.value) &&
       v.selections.length === Object.keys(selectedOptions).length
     )
@@ -184,7 +185,7 @@ export default function ProductPage() {
         return selectedOptions[sel.key] === sel.value;
       });
       const hasThisValue = v.selections.some(sel => sel.key === keyName && sel.value === valueLabel);
-      return matchesOtherSelections && hasThisValue && v.stock_qty > 0;
+      return matchesOtherSelections && hasThisValue && v.is_active && v.stock_qty > 0;
     });
   };
 

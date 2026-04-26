@@ -3,16 +3,15 @@ import { motion, useMotionValue, useAnimationFrame } from "framer-motion"
 
 const images = [
   "https://images.unsplash.com/photo-1546069901-ba9599a7e63c?auto=format&fit=crop&w=500&q=80",
-  "https://images.unsplash.com/photo-1517705008128-361805f42e8a?auto=format&fit=crop&w=500&q=80",
-  "https://images.unsplash.com/photo-1467453278243-781dc4f676a1?auto=format&fit=crop&w=500&q=80",
+  "https://img1.pic.in.th/images/Product_-Wireless-Headphones.jpg",
+  "https://img2.pic.in.th/Product-_-Chocolate-Brownie.jpg",
   "https://images.unsplash.com/photo-1523381210434-271e8be1f52b?auto=format&fit=crop&w=500&q=80",
   "https://images.unsplash.com/photo-1513519245088-0e12902e5a38?auto=format&fit=crop&w=500&q=80",
-  "https://images.unsplash.com/photo-1526170315870-ef0397181393?auto=format&fit=crop&w=500&q=80",
+  "https://img1.pic.in.th/images/Product_-Crochet-Bag.jpg",
   "https://images.unsplash.com/photo-1516762689617-e1cffcef479d?auto=format&fit=crop&w=500&q=80",
   "https://images.unsplash.com/photo-1497633762265-9d179a990aa6?auto=format&fit=crop&w=500&q=80",
 ]
 
-// To ensure seamless loop, we triple the items
 const items = [...images, ...images, ...images]
 
 export default function LandingCarousel() {

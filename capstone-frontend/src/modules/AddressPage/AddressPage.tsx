@@ -2,7 +2,6 @@
 import { useEffect, useState } from "react"
 import { Plus, Trash2, Star, Box } from "lucide-react"
 import { toast } from "react-toastify"
-import BackButton from "../../components/Buttons/BackButton"
 import ConfirmationModal from "../../components/Modal/ConfirmationModal"
 import AddressModal from "./AddressModal"
 import { useAddressApi, type UserAddress } from "../../api/addressApi"
@@ -102,14 +101,11 @@ export default function AddressPage() {
   }
 
   return (
-    <div className="min-h-screen bg-white">
+    <div className="min-h-screen">
       <div className="mx-auto w-full max-w-3xl pt-10 pb-20 px-4 md:px-0">
         {/* Header - Slimmer */}
         <div className="flex items-center justify-between gap-4 mb-8">
           <div>
-            <div className="flex items-center gap-1 text-gray-400 mb-2 hover:text-gray-600 transition-colors cursor-pointer w-fit scale-90 -ml-2">
-               <BackButton />
-            </div>
             <h1 className="text-2xl font-bold text-gray-900 leading-tight">Manage Addresses</h1>
             <p className="text-gray-400 text-sm italic">Campus Delivery Services</p>
           </div>
@@ -123,7 +119,7 @@ export default function AddressPage() {
         </div>
 
         {/* List Content - Compact */}
-        <div className="bg-white border border-gray-100 rounded-2xl overflow-hidden shadow-sm mb-8">
+        <div className="border border-gray-100 rounded-2xl overflow-hidden shadow-sm mb-8">
           {isLoading ? (
             <div className="p-10 text-center text-xs text-gray-400">Loading...</div>
           ) : addresses.length === 0 ? (
