@@ -773,17 +773,18 @@ export function StoreAddEditTab() {
                 multiple
                 accept={SUPPORTED_IMAGE_TYPES}
                 error={!!errors.images}
+                required
                 className="md:col-span-2 mt-4"
                 hint="Click to select files (JPG, PNG, WebP, HEIC or HEIF up to 2MB)"
               />
 
                 {images.length > 0 && (
-                    <div className="mt-4 flex flex-wrap gap-5">
+                    <div className="md:col-span-2 mt-4 flex flex-wrap gap-5 md:gap-6">
                       {images.map((img, idx) => (
                         <div 
                           key={idx} 
                           onClick={() => handleSelectMain(idx)}
-                          className={`relative w-40 h-50 md:w-48 md:h-56 rounded-2xl border-2 overflow-hidden group shadow-md transition-all cursor-pointer ${mainIndex === idx ? "border-[#ff5a36] ring-2 ring-orange-100" : "border-gray-100 hover:border-orange-200"}`}
+                          className={`relative w-40 h-40 md:w-48 md:h-48 rounded-2xl border-2 overflow-hidden group shadow-md transition-all cursor-pointer ${mainIndex === idx ? "border-[#ff5a36] ring-2 ring-orange-100" : "border-gray-100 hover:border-orange-200"}`}
                         >
                            <img src={resolveImageUrl(img.url)} className="w-full h-full object-cover" />
                            <button 

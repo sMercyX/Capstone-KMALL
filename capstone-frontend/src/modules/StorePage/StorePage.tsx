@@ -1,52 +1,10 @@
 import { useEffect, useState } from "react"
 import { useParams } from "react-router-dom"
-import Card from "../../components/Card/Card"
 import StoreInfoCard from "../../components/Card/StoreInfoCard"
-import ProductCard from "../../components/Card/ProductCard"
+import ProductGrid from "../../components/Product/ProductGrid"
+import ProductGridSkeleton from "../../components/Product/ProductGridSkeleton"
+import BackButton from "../../components/Buttons/BackButton"
 import { useProductApi, type Product } from "../../api/productApi"
-
-// ===== Sub-components =====
-// function StoreTabs() {
-//   return (
-//     <div className="mt-6 flex items-center justify-between gap-4">
-//       <div className="flex gap-2 text-xs md:text-sm">
-//         <button className="rounded-full bg-orange-500 px-3 md:px-4 py-1.5 font-semibold text-white shadow-sm">
-//           สินค้าทั้งหมด
-//         </button>
-//         <button className="rounded-full px-3 md:px-4 py-1.5 text-gray-600 hover:bg-gray-100">
-//           โปรโมชั่น
-//         </button>
-//         <button className="rounded-full px-3 md:px-4 py-1.5 text-gray-600 hover:bg-gray-100">
-//           สินค้าแนะนำ
-//         </button>
-//       </div>
-
-//       <div className="hidden md:flex items-center gap-2 text-xs text-gray-500">
-//         <span className="text-gray-600">จัดเรียง:</span>
-//         <select className="rounded-full border bg-white px-3 py-1.5 text-xs text-gray-700">
-//           <option>ขายดี</option>
-//           <option>ราคาต่ำ → สูง</option>
-//           <option>ราคาสูง → ต่ำ</option>
-//           <option>คะแนนสูงสุด</option>
-//         </select>
-//       </div>
-//     </div>
-//   )
-// }
-
-function StoreProductGrid({ products }: { products: Product[] }) {
-  if (!products.length) {
-    return <div className="mt-10 text-center text-gray-500">No products in this store yet.</div>
-  }
-
-  return (
-    <div className="mt-4 grid gap-4 grid-cols-2 md:grid-cols-3 xl:grid-cols-4">
-      {products.map((p) => (
-        <ProductCard key={p.id} product={p} />
-      ))}
-    </div>
-  )
-}
 
 // ===== Main Page =====
 export default function StorePage() {
@@ -63,10 +21,9 @@ export default function StorePage() {
     async function fetchProducts() {
       try {
         setIsLoading(true)
-        // Fetch products (page 1, limit 100 for now)
+        // Fetch products (page 1, limit 100 for now to show all)
         const res = await getProductsStoreByStoreId(storeId, 100, 1)
-        
-        setProducts(res.data.items)
+        setProducts(res.data.items || [])
       } catch (err) {
         console.error("Failed to fetch store products:", err)
       } finally {
@@ -78,22 +35,43 @@ export default function StorePage() {
   }, [storeId])
 
   if (!storeId) {
-    return <div className="text-center py-10">Store not found.</div>
+    return (
+      <main className="mx-auto max-w-7xl py-12 px-4 text-center">
+        <BackButton className="mb-4" />
+        <h1 className="text-2xl font-bold text-gray-900">Store Not Found</h1>
+        <p className="mt-2 text-gray-500 text-sm">The store you are looking for does not exist or has been removed.</p>
+      </main>
+    )
   }
 
   return (
-    <Card className="max-w-6xl mx-auto ">
-      <StoreInfoCard storeId={storeId} disableViewButton={true}/>
-      
-      <div className="px-6">
-        
-        {isLoading ? (
-           <div className="mt-10 text-center text-gray-500">Loading products...</div>
-        ) : (
-           <StoreProductGrid products={products} />
-        )}
+    <main className="mx-auto max-w-7xl py-6 md:py-10 px-4 space-y-6">
+      <div className="flex justify-start">
+        <BackButton />
       </div>
-    </Card>
+
+      {/* Store Information Header */}
+      <section className="animate-fadeIn">
+        <StoreInfoCard storeId={storeId} disableViewButton={true}/>
+      </section>
+      
+      {/* Product List Section */}
+      <section className="space-y-6">
+        <div className="flex items-center justify-between border-b border-gray-100 pb-4">
+          <h2 className="text-xl md:text-2xl font-bold text-gray-900">
+            {isLoading ? "Browsing Store..." : `All Products (${products.length})`}
+          </h2>
+        </div>
+
+        <div className="min-h-[400px]">
+          {isLoading ? (
+            <ProductGridSkeleton count={8} />
+          ) : (
+            <ProductGrid items={products} />
+          )}
+        </div>
+      </section>
+    </main>
   )
 }
 

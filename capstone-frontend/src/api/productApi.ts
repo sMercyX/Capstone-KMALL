@@ -337,7 +337,7 @@ export function useProductApi() {
 
   async function getCancellationRecommendations(
     orderId: number,
-    limit: number = 12
+    limit: number = 8
   ): Promise<ApiResponse<CancellationRecommendationResponse>> {
     return http.getItems(`/recommendation/orders/${orderId}?context=cancellation&limit=${limit}`)
   }

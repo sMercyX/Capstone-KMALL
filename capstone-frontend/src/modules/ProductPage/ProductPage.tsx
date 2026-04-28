@@ -90,6 +90,13 @@ export default function ProductPage() {
     setMatchedVariant(variant || null)
   }, [selectedOptions, product?.variants])
 
+  // 2.5 Ensure qty doesn't exceed stock when variant changes
+  useEffect(() => {
+    if (matchedVariant && qty > matchedVariant.stock_qty) {
+      setQty(Math.max(1, matchedVariant.stock_qty))
+    }
+  }, [matchedVariant, qty])
+
   // 3. Load cart initially
   useEffect(() => {
     async function loadCart() {
@@ -154,20 +161,48 @@ export default function ProductPage() {
     }
   }
 
+  const scrollToThumbnail = (index: number) => {
+    // Small timeout to ensure DOM update
+    setTimeout(() => {
+      if (scrollContainerRef.current) {
+        const thumbEl = scrollContainerRef.current.children[index] as HTMLElement;
+        if (thumbEl) {
+          thumbEl.scrollIntoView({
+            behavior: "smooth",
+            block: "nearest",
+            inline: "center"
+          });
+        }
+      }
+    }, 50);
+  }
+
   const handlePrevThumb = () => {
-    if (scrollContainerRef.current) {
-      scrollContainerRef.current.scrollBy({ left: -100, behavior: "smooth" })
-    }
+    const newIndex = activeImageIndex > 0 ? activeImageIndex - 1 : finalDisplayImages.length - 1;
+    setActiveImageIndex(newIndex);
+    scrollToThumbnail(newIndex);
   }
   const handleNextThumb = () => {
-    if (scrollContainerRef.current) {
-      scrollContainerRef.current.scrollBy({ left: 100, behavior: "smooth" })
-    }
+    const newIndex = (activeImageIndex + 1) % finalDisplayImages.length;
+    setActiveImageIndex(newIndex);
+    scrollToThumbnail(newIndex);
   }
+
   const handleDecreaseQty = () => {
     setQty((prev) => (prev > 1 ? prev - 1 : 1))
   }
   const handleIncreaseQty = () => {
+    const maxStock = matchedVariant ? matchedVariant.stock_qty : 99;
+    
+    if (qty >= maxStock) {
+        if (matchedVariant) {
+            toast.warn(`Only ${maxStock} units available in stock.`)
+        } else {
+            toast.warn("You can buy up to 99 units per item.")
+        }
+      return
+    }
+    
     if (qty >= 99) {
       toast.warn("You can buy up to 99 units per item.")
       return
@@ -244,20 +279,20 @@ export default function ProductPage() {
               />
             </div>
             {finalDisplayImages.length > 1 && (
-              <div className="mt-5 flex items-center gap-4">
-                <button type="button" className="flex h-9 w-9 items-center justify-center rounded-full border bg-white shadow-sm hover:bg-gray-50" onClick={handlePrevThumb}>
+              <div className="mt-5 flex items-center justify-center gap-2 md:gap-4 w-full max-w-[420px]">
+                <button type="button" className="flex-shrink-0 flex h-8 w-8 md:h-9 md:w-9 items-center justify-center rounded-full border bg-white shadow-sm hover:bg-gray-50 cursor-pointer" onClick={handlePrevThumb}>
                   <ChevronLeft className="h-4 w-4" />
                 </button>
-                <div ref={scrollContainerRef} className="flex gap-3 overflow-x-auto py-2 px-1 max-w-[280px] scrollbar-hide scroll-smooth">
+                <div ref={scrollContainerRef} className="flex gap-3 overflow-x-auto py-2 px-1 w-full max-w-[200px] sm:max-w-[280px] no-scrollbar scroll-smooth">
                   {finalDisplayImages.map((thumb, index) => (
                     <button key={index} type="button" onClick={() => setActiveImageIndex(index)} 
-                      className={`relative h-20 w-20 flex-shrink-0 overflow-hidden rounded-2xl border transition ${index === activeImageIndex ? "border-orange-500 shadow-sm" : "border-transparent hover:border-gray-300"}`}>
+                      className={`relative h-16 w-16 md:h-20 md:w-20 flex-shrink-0 overflow-hidden rounded-2xl border transition cursor-pointer ${index === activeImageIndex ? "border-orange-500 shadow-sm" : "border-transparent hover:border-gray-300"}`}>
                       <img src={thumb} alt={`thumb-${index}`} className="h-full w-full object-cover" />
                       {index === activeImageIndex && <span className="absolute inset-x-3 bottom-1 h-1 rounded-full bg-orange-500" />}
                     </button>
                   ))}
                 </div>
-                <button type="button" className="flex h-9 w-9 items-center justify-center rounded-full border bg-white shadow-sm hover:bg-gray-50" onClick={handleNextThumb}>
+                <button type="button" className="flex h-9 w-9 items-center justify-center rounded-full border bg-white shadow-sm hover:bg-gray-50 cursor-pointer" onClick={handleNextThumb}>
                   <ChevronRight className="h-4 w-4" />
                 </button>
               </div>
@@ -303,21 +338,15 @@ export default function ProductPage() {
                                   const imgIdx = finalDisplayImages.indexOf(resolvedUrl);
                                   if (imgIdx !== -1) {
                                       setActiveImageIndex(imgIdx);
-                                      if (scrollContainerRef.current) {
-                                          const thumbEl = scrollContainerRef.current.children[imgIdx] as HTMLElement;
-                                          if (thumbEl) scrollContainerRef.current.scrollTo({
-                                              left: thumbEl.offsetLeft - scrollContainerRef.current.offsetWidth / 2 + thumbEl.offsetWidth / 2,
-                                              behavior: "smooth"
-                                          });
-                                      }
+                                      scrollToThumbnail(imgIdx);
                                   }
                               }
                             }}
                             className={`flex items-center gap-2 px-3 py-2 rounded-lg border transition-all ${
                               isSelected 
-                                ? "border-orange-500 bg-orange-50 text-orange-600 ring-1 ring-orange-500 font-bold" 
+                                ? "border-orange-500 bg-orange-50 text-orange-600 ring-1 ring-orange-500 font-bold cursor-pointer" 
                                 : isAvailable
-                                  ? "border-gray-200 bg-white text-gray-700 hover:border-gray-300"
+                                  ? "border-gray-200 bg-white text-gray-700 hover:border-gray-300 cursor-pointer"
                                   : "border-gray-100 bg-gray-50 text-gray-400 cursor-not-allowed opacity-50"
                             }`}
                           >
@@ -367,9 +396,20 @@ export default function ProductPage() {
 
             <div className="flex flex-wrap items-center gap-4 pt-4">
               <div className="inline-flex items-center rounded-full border border-gray-300 bg-white px-3 py-2">
-                <button type="button" onClick={handleDecreaseQty} className="px-2 text-lg leading-none text-gray-600 hover:text-gray-900">–</button>
+                <button type="button" onClick={handleDecreaseQty} className="px-2 text-lg leading-none text-gray-600 hover:text-gray-900 cursor-pointer">–</button>
                 <span className="mx-3 w-6 text-center text-sm font-medium">{qty}</span>
-                <button type="button" onClick={handleIncreaseQty} className="px-2 text-lg leading-none text-gray-600 hover:text-gray-900">+</button>
+                <button 
+                    type="button" 
+                    onClick={handleIncreaseQty} 
+                    disabled={matchedVariant ? qty >= matchedVariant.stock_qty : qty >= 99}
+                    className={`px-2 text-lg leading-none transition-colors ${
+                        (matchedVariant ? qty >= matchedVariant.stock_qty : qty >= 99) 
+                        ? "text-gray-200 cursor-not-allowed" 
+                        : "text-gray-600 hover:text-gray-900 cursor-pointer"
+                    }`}
+                >
+                    +
+                </button>
               </div>
               <button 
                 type="button" 
@@ -377,7 +417,7 @@ export default function ProductPage() {
                 disabled={!isAllOptionsSelected || (matchedVariant !== null && matchedVariant.stock_qty <= 0)}
                 className={`flex-1 min-w-[200px] rounded-full px-6 py-3 text-sm font-semibold shadow-sm transition inline-flex items-center justify-center gap-2 
                 ${isAllOptionsSelected && (!matchedVariant || matchedVariant.stock_qty > 0)
-                    ? "bg-orange-500 text-white hover:bg-orange-600" 
+                    ? "bg-orange-500 text-white hover:bg-orange-600 cursor-pointer" 
                     : "bg-gray-200 text-gray-400 cursor-not-allowed"
                 }`}
               >
